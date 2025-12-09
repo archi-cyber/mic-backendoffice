@@ -1,0 +1,323 @@
+import 'supabase_service.dart';
+
+/// Class service for classes and sessions management
+class ClassService {
+  static final _client = SupabaseService.client;
+
+  /// Create class
+  /// POST /classes
+  static Future<Map<String, dynamic>> createClass({
+    required Map<String, dynamic> classData,
+  }) async {
+    try {
+      final response = await _client
+          .from('classes')
+          .insert({
+            ...classData,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .select()
+          .single();
+
+      return response;
+    } catch (e) {
+      throw Exception('Failed to create class: $e');
+    }
+  }
+
+  /// Get all classes
+  /// GET /classes
+  static Future<List<Map<String, dynamic>>> getClasses({
+    Map<String, dynamic>? filters,
+    int? limit,
+    int? offset,
+    String? orderBy,
+    bool ascending = true,
+  }) async {
+    try {
+      // Build base query with filters
+      var filterQuery = _client.from('classes').select();
+
+      // Apply filters
+      if (filters != null) {
+        filters.forEach((key, value) {
+          if (value != null) {
+            filterQuery = filterQuery.eq(key, value);
+          }
+        });
+      }
+
+      // Apply ordering (returns PostgrestTransformBuilder)
+      var transformQuery = orderBy != null
+          ? filterQuery.order(orderBy, ascending: ascending)
+          : filterQuery.order('created_at', ascending: false);
+
+      // Apply pagination (on PostgrestTransformBuilder)
+      if (limit != null) {
+        transformQuery = transformQuery.limit(limit);
+      }
+      if (offset != null) {
+        transformQuery = transformQuery.range(
+          offset,
+          offset + (limit ?? 10) - 1,
+        );
+      }
+
+      final response = await transformQuery;
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get classes: $e');
+    }
+  }
+
+  /// Get class by ID
+  /// GET /classes/:id
+  static Future<Map<String, dynamic>> getClassById(String classId) async {
+    try {
+      final response = await _client
+          .from('classes')
+          .select()
+          .eq('id', classId)
+          .single();
+
+      return response;
+    } catch (e) {
+      throw Exception('Failed to get class: $e');
+    }
+  }
+
+  /// Update class
+  /// PATCH /classes/:id
+  static Future<Map<String, dynamic>> updateClass({
+    required String classId,
+    required Map<String, dynamic> updates,
+  }) async {
+    try {
+      final response = await _client
+          .from('classes')
+          .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', classId)
+          .select()
+          .single();
+
+      return response;
+    } catch (e) {
+      throw Exception('Failed to update class: $e');
+    }
+  }
+
+  /// Delete class (soft delete by setting is_active=false)
+  /// DELETE /classes/:id
+  static Future<void> deleteClass(String classId) async {
+    try {
+      await _client
+          .from('classes')
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', classId);
+    } catch (e) {
+      throw Exception('Failed to delete class: $e');
+    }
+  }
+
+  /// Get sessions for a class
+  static Future<List<Map<String, dynamic>>> getClassSessions(
+    String classId,
+  ) async {
+    try {
+      final response = await _client
+          .from('sessions')
+          .select()
+          .eq('class_id', classId)
+          .order('session_date', ascending: false);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get class sessions: $e');
+    }
+  }
+
+  /// Get members enrolled in a class
+  static Future<List<Map<String, dynamic>>> getClassMembers(
+    String classId,
+  ) async {
+    try {
+      final response = await _client
+          .from('class_members')
+          .select('*, members(*)')
+          .eq('class_id', classId);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get class members: $e');
+    }
+  }
+
+  /// Generate next N sessions for a class (on-demand generation)
+  /// POST /classes/:id/sessions/generate
+  /// Operational note: Prefer on-demand generation instead of infinite sessions
+  static Future<List<Map<String, dynamic>>> generateSessions({
+    required String classId,
+    required int numberOfSessions,
+    DateTime? startDate,
+    int? weeksBetweenSessions, // Default: 1 (weekly)
+  }) async {
+    try {
+      // Get the last session date to continue from there
+      final lastSession = await _client
+          .from('sessions')
+          .select('session_date')
+          .eq('class_id', classId)
+          .order('session_date', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      DateTime start;
+      if (lastSession != null && lastSession['session_date'] != null) {
+        // Continue from last session
+        final lastDate = DateTime.parse(lastSession['session_date']);
+        final weeksBetween = weeksBetweenSessions ?? 1;
+        start = lastDate.add(Duration(days: weeksBetween * 7));
+      } else {
+        // Start from provided date or now
+        start = startDate ?? DateTime.now();
+      }
+
+      final sessions = <Map<String, dynamic>>[];
+      final weeksBetween = weeksBetweenSessions ?? 1;
+
+      for (int i = 0; i < numberOfSessions; i++) {
+        final sessionDate = start.add(Duration(days: i * weeksBetween * 7));
+
+        final session = await _client
+            .from('sessions')
+            .insert({
+              'class_id': classId,
+              'session_date': sessionDate.toIso8601String(),
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .select()
+            .single();
+
+        sessions.add(session);
+      }
+
+      return sessions;
+    } catch (e) {
+      throw Exception('Failed to generate sessions: $e');
+    }
+  }
+
+  /// Get session by ID
+  /// GET /sessions/:id
+  static Future<Map<String, dynamic>> getSessionById(String sessionId) async {
+    try {
+      final response = await _client
+          .from('sessions')
+          .select()
+          .eq('id', sessionId)
+          .single();
+
+      return response;
+    } catch (e) {
+      throw Exception('Failed to get session: $e');
+    }
+  }
+
+  /// Get attendance for a session
+  /// GET /sessions/:id/attendance
+  static Future<List<Map<String, dynamic>>> getSessionAttendance(
+    String sessionId,
+  ) async {
+    try {
+      final response = await _client
+          .from('attendance')
+          .select()
+          .eq('session_id', sessionId);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get session attendance: $e');
+    }
+  }
+
+  /// Record bulk attendance for a session
+  /// POST /sessions/:id/attendance
+  static Future<void> recordAttendance({
+    required String sessionId,
+    required List<Map<String, dynamic>> attendanceRecords,
+  }) async {
+    try {
+      // Prepare attendance records
+      final records = attendanceRecords
+          .map(
+            (record) => {
+              'session_id': sessionId,
+              'member_id': record['member_id'],
+              'status': record['status'], // 'present', 'absent', 'late', etc.
+              'notes': record['notes'],
+              'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+          )
+          .toList();
+
+      await _client.from('attendance').insert(records);
+    } catch (e) {
+      throw Exception('Failed to record attendance: $e');
+    }
+  }
+
+  /// Add member to class
+  /// POST /classes/:id/members
+  static Future<void> addMemberToClass({
+    required String classId,
+    required String memberId,
+  }) async {
+    try {
+      // Check if member is already in class
+      final existing = await _client
+          .from('class_members')
+          .select()
+          .eq('class_id', classId)
+          .eq('member_id', memberId)
+          .maybeSingle();
+
+      if (existing != null) {
+        throw Exception('Member is already enrolled in this class');
+      }
+
+      // Add member to class
+      await _client.from('class_members').insert({
+        'class_id': classId,
+        'member_id': memberId,
+        'enrolled_at': DateTime.now().toIso8601String(),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      throw Exception('Failed to add member to class: $e');
+    }
+  }
+
+  /// Remove member from class
+  /// DELETE /classes/:id/members/:memberId
+  static Future<void> removeMemberFromClass({
+    required String classId,
+    required String memberId,
+  }) async {
+    try {
+      await _client
+          .from('class_members')
+          .delete()
+          .eq('class_id', classId)
+          .eq('member_id', memberId);
+    } catch (e) {
+      throw Exception('Failed to remove member from class: $e');
+    }
+  }
+}
