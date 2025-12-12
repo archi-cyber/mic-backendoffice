@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/settings_service.dart';
 import '../../services/data_export_service.dart';
 import '../../services/data_import_service.dart';
+import '../../services/user_member_sync_service.dart';
 import '../../services/supabase_service.dart';
+import '../../providers/auth_provider.dart';
 
 /// Settings page
 class SettingsPage extends StatefulWidget {
@@ -130,7 +134,7 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (context) => AlertDialog(
         title: const Text('Export All Data'),
         content: const Text(
-          'This will export all members, departments, classes, events, and tasks to a JSON file. Continue?',
+          'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
         ),
         actions: [
           TextButton(
@@ -157,14 +161,24 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     try {
-      await DataExportService.exportAndShareAllData();
+      final filePath = await DataExportService.exportAllDataAsJson();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data exported successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        if (filePath != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Data exported successfully to:\n$filePath'),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Export cancelled'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -202,6 +216,79 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _syncUsersAndMembers() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sync Users & Members'),
+        content: const Text(
+          'This will:\n'
+          '1. Create a member for every user\n'
+          '2. Create a user (with default password "Password123") for every leader member\n\n'
+          'Leaders will be required to change their password on first login.\n\n'
+          'Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sync'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Syncing users and members...'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    try {
+      final result = await UserMemberSyncService.syncAll();
+
+      final usersToMembers = result['users_to_members'] as Map<String, dynamic>;
+      final leadersToUsers = result['leaders_to_users'] as Map<String, dynamic>;
+
+      if (mounted) {
+        final message =
+            'Sync completed!\n'
+            'Users → Members: ${usersToMembers['created']} created, '
+            '${usersToMembers['skipped']} skipped, '
+            '${usersToMembers['errors']} errors\n'
+            'Leaders → Users: ${leadersToUsers['created']} created, '
+            '${leadersToUsers['skipped']} skipped, '
+            '${leadersToUsers['errors']} errors';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sync failed: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _generateAllUsersReport() async {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -213,14 +300,24 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     try {
-      await DataExportService.exportAndShareAllUsersReport();
+      final filePath = await DataExportService.exportAllUsersReportAsPdf();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report generated successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        if (filePath != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Report saved successfully to:\n$filePath'),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report generation cancelled'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -314,11 +411,7 @@ class _SettingsPageState extends State<SettingsPage> {
               leading: const Icon(Icons.language),
               title: const Text('Language'),
               subtitle: Text(
-                _currentLocale?.languageCode == 'es'
-                    ? 'Spanish'
-                    : _currentLocale?.languageCode == 'fr'
-                    ? 'French'
-                    : 'English',
+                _currentLocale?.languageCode == 'fr' ? 'Français' : 'English',
               ),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showLanguageDialog(),
@@ -396,6 +489,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _exportMembers,
                 ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.sync, color: AppColors.primary),
+                  title: const Text('Sync Users & Members'),
+                  subtitle: const Text(
+                    'Create members for all users and users for all leaders',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _syncUsersAndMembers,
+                ),
               ],
             ),
           ),
@@ -433,17 +536,11 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: AppDimensions.spacingMD),
 
-          // App Info
-          _buildSectionHeader('About'),
+          // Account
+          _buildSectionHeader('Account'),
           Card(
             child: Column(
               children: [
-                ListTile(
-                  leading: const Icon(Icons.info),
-                  title: const Text('App Version'),
-                  subtitle: const Text('1.0.0'),
-                ),
-                const Divider(),
                 ListTile(
                   leading: const Icon(Icons.person),
                   title: const Text('Current User'),
@@ -451,12 +548,77 @@ class _SettingsPageState extends State<SettingsPage> {
                     SupabaseService.currentUser?.email ?? 'Not logged in',
                   ),
                 ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: AppColors.error),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  subtitle: const Text('Sign out of your account'),
+                  onTap: _handleLogout,
+                ),
               ],
+            ),
+          ),
+          const SizedBox(height: AppDimensions.spacingMD),
+
+          // App Info
+          _buildSectionHeader('About'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.info),
+              title: const Text('App Version'),
+              subtitle: const Text('1.0.0'),
             ),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.logout();
+
+      if (mounted) {
+        // Navigate to login page
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(RouteNames.login, (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Logout failed: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -476,10 +638,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showLanguageDialog() async {
+    final localizations = AppLocalizations.of(context);
     final selected = await showDialog<Locale>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Select Language'),
+        title: Text(localizations?.settings ?? 'Settings'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -490,13 +653,7 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<Locale>(
-              title: const Text('Spanish'),
-              value: const Locale('es'),
-              groupValue: _currentLocale ?? const Locale('en'),
-              onChanged: (value) => Navigator.pop(context, value),
-            ),
-            RadioListTile<Locale>(
-              title: const Text('French'),
+              title: const Text('Français'),
               value: const Locale('fr'),
               groupValue: _currentLocale ?? const Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
@@ -506,7 +663,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
         ],
       ),
@@ -514,6 +671,14 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (selected != null) {
       await _changeLanguage(selected);
+      // Reload the app to apply locale change
+      // Note: In a production app, you might want to use a locale provider
+      // to update the locale dynamically without restart
+      if (mounted) {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(RouteNames.dashboard, (route) => false);
+      }
     }
   }
 

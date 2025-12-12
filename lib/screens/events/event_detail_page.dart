@@ -353,16 +353,16 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       final currentUserId = SupabaseService.currentUser?.id;
       if (currentUserId == null) return false;
 
-      // Get current user's member ID
-      final member = await SupabaseService.client
-          .from('members')
-          .select('id')
-          .eq('user_id', currentUserId)
+      // Get current user's member ID from users table
+      final user = await SupabaseService.client
+          .from('users')
+          .select('member_id')
+          .eq('id', currentUserId)
           .maybeSingle();
 
-      if (member == null) return false;
+      if (user == null || user['member_id'] == null) return false;
 
-      final memberId = member['id'].toString();
+      final memberId = user['member_id'].toString();
 
       final registration = await SupabaseService.client
           .from('event_registrations')
@@ -385,18 +385,18 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         throw Exception('User not authenticated');
       }
 
-      // Get current user's member ID
-      final member = await SupabaseService.client
-          .from('members')
-          .select('id')
-          .eq('user_id', currentUserId)
+      // Get current user's member ID from users table
+      final user = await SupabaseService.client
+          .from('users')
+          .select('member_id')
+          .eq('id', currentUserId)
           .maybeSingle();
 
-      if (member == null) {
+      if (user == null || user['member_id'] == null) {
         throw Exception('Member profile not found');
       }
 
-      final memberId = member['id'].toString();
+      final memberId = user['member_id'].toString();
 
       await EventService.registerForEvent(
         eventId: widget.eventId,

@@ -132,10 +132,7 @@ class ReportsPage extends StatelessWidget {
       );
 
       if (selectedClass != null && context.mounted) {
-        Navigator.pushNamed(
-          context,
-          '${RouteNames.classReport}/${selectedClass['id']}',
-        );
+        Navigator.pushNamed(context, '/reports/class/${selectedClass['id']}');
       }
     } catch (e) {
       if (context.mounted) {

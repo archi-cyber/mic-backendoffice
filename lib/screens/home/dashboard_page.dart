@@ -3,10 +3,111 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../../services/supabase_service.dart';
+import '../../services/finance_service.dart';
 
 /// Dashboard with summary cards
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  int _upcomingSessions = 0;
+  int _upcomingEvents = 0;
+  int _tasks = 0;
+  int _birthdays = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+    try {
+      final now = DateTime.now();
+
+      // Load upcoming sessions from classes (next 5 weeks = 35 days)
+      final sessionsEndDate = now.add(const Duration(days: 35));
+      final sessions = await SupabaseService.client
+          .from('sessions')
+          .select()
+          .not('class_id', 'is', null) // Only sessions from classes
+          .gte('session_date', now.toIso8601String())
+          .lte('session_date', sessionsEndDate.toIso8601String());
+      final upcomingSessionsCount = (sessions as List).length;
+
+      // Load upcoming events (all events after current date)
+      // Filter for active events where event_date is after today
+      // Use tomorrow's start to exclude today's events
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final tomorrowStart = todayStart.add(const Duration(days: 1));
+      final events = await SupabaseService.client
+          .from('events')
+          .select()
+          .eq('is_active', true)
+          .gte('event_date', tomorrowStart.toIso8601String());
+      final upcomingEventsCount = (events as List).length;
+
+      // Load all tasks (pending/in-progress)
+      final allTasks = await SupabaseService.client
+          .from('tasks')
+          .select()
+          .inFilter('status', ['pending', 'in_progress']);
+      final tasksCount = (allTasks as List).length;
+
+      // Load upcoming birthdays (current month, day >= today)
+      // Get all active members with birthdays and filter by month and day
+      final allMembers = await SupabaseService.client
+          .from('members')
+          .select('id, birthday')
+          .eq('is_active', true)
+          .not('birthday', 'is', null);
+
+      // Filter to only include birthdays where:
+      // - birthday month matches current month
+      // - birthday day is >= current day
+      final upcomingBirthdays = (allMembers as List).where((member) {
+        if (member['birthday'] == null) return false;
+        try {
+          final birthdayStr = member['birthday'].toString();
+          // Parse the birthday date (format: YYYY-MM-DD)
+          final birthday = DateTime.parse(birthdayStr);
+          // Check if birthday month matches current month
+          // and birthday day is >= current day
+          return birthday.month == now.month && birthday.day >= now.day;
+        } catch (e) {
+          return false;
+        }
+      }).toList();
+      final birthdaysCount = upcomingBirthdays.length;
+
+      setState(() {
+        _upcomingSessions = upcomingSessionsCount;
+        _upcomingEvents = upcomingEventsCount;
+        _tasks = tasksCount;
+        _birthdays = birthdaysCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.errorLoadingDashboard ??
+                  'Error loading dashboard: $e',
+            ),
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +127,7 @@ class DashboardPage extends StatelessWidget {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          // Refresh dashboard data
-          await Future.delayed(const Duration(seconds: 1));
-        },
+        onRefresh: _loadDashboardData,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
@@ -41,8 +139,10 @@ class DashboardPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SummaryCard(
-                      title: 'Upcoming Sessions',
-                      value: '5',
+                      title:
+                          localizations?.upcomingSessions ??
+                          'Upcoming Sessions',
+                      value: _isLoading ? '...' : '$_upcomingSessions',
                       icon: Icons.event_outlined,
                       color: AppColors.primary,
                       onTap: () {
@@ -53,8 +153,8 @@ class DashboardPage extends StatelessWidget {
                   const SizedBox(width: AppDimensions.spacingMD),
                   Expanded(
                     child: _SummaryCard(
-                      title: 'Upcoming Events',
-                      value: '3',
+                      title: localizations?.upcomingEvents ?? 'Upcoming Events',
+                      value: _isLoading ? '...' : '$_upcomingEvents',
                       icon: Icons.calendar_today_outlined,
                       color: AppColors.secondary,
                       onTap: () {
@@ -69,8 +169,8 @@ class DashboardPage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _SummaryCard(
-                      title: 'Tasks',
-                      value: '8',
+                      title: localizations?.tasks ?? 'Tasks',
+                      value: _isLoading ? '...' : '$_tasks',
                       icon: Icons.task_outlined,
                       color: AppColors.warning,
                       onTap: () {
@@ -81,8 +181,8 @@ class DashboardPage extends StatelessWidget {
                   const SizedBox(width: AppDimensions.spacingMD),
                   Expanded(
                     child: _SummaryCard(
-                      title: 'Birthdays',
-                      value: '2',
+                      title: localizations?.birthdays ?? 'Birthdays',
+                      value: _isLoading ? '...' : '$_birthdays',
                       icon: Icons.cake_outlined,
                       color: AppColors.accent,
                       onTap: () {
@@ -95,7 +195,10 @@ class DashboardPage extends StatelessWidget {
               ),
               const SizedBox(height: AppDimensions.spacingXL),
               // Quick Actions
-              Text('Quick Actions', style: theme.textTheme.titleLarge),
+              Text(
+                localizations?.quickActions ?? 'Quick Actions',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: AppDimensions.spacingMD),
               GridView.count(
                 crossAxisCount: 2,
@@ -106,28 +209,28 @@ class DashboardPage extends StatelessWidget {
                 childAspectRatio: 1.5,
                 children: [
                   _QuickActionCard(
-                    title: 'Members',
+                    title: localizations?.members ?? 'Members',
                     icon: Icons.people_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.members);
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Departments',
+                    title: localizations?.departments ?? 'Departments',
                     icon: Icons.business_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.departments);
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Classes',
+                    title: localizations?.classes ?? 'Classes',
                     icon: Icons.class_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.classes);
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Reports',
+                    title: localizations?.reports ?? 'Reports',
                     icon: Icons.assessment_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.reports);
@@ -238,49 +341,114 @@ class _QuickActionCard extends StatelessWidget {
 }
 
 /// Bottom navigation bar
-class _BottomNavigationBar extends StatelessWidget {
+class _BottomNavigationBar extends StatefulWidget {
+  const _BottomNavigationBar();
+
+  @override
+  State<_BottomNavigationBar> createState() => _BottomNavigationBarState();
+}
+
+class _BottomNavigationBarState extends State<_BottomNavigationBar> {
+  bool _isFinanceLeader = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFinanceAccess();
+  }
+
+  Future<void> _checkFinanceAccess() async {
+    final isFinanceLeader = await FinanceService.isFinanceLeader();
+    if (mounted) {
+      setState(() {
+        _isFinanceLeader = isFinanceLeader;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _handleNavigation(int index) {
+    if (_isFinanceLeader) {
+      // With finance: Home, Members, Finance, Chat, Settings
+      switch (index) {
+        case 0:
+          Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+          break;
+        case 1:
+          Navigator.of(context).pushNamed(RouteNames.members);
+          break;
+        case 2:
+          Navigator.of(context).pushNamed(RouteNames.giving);
+          break;
+        case 3:
+          Navigator.of(context).pushNamed(RouteNames.chat);
+          break;
+        case 4:
+          Navigator.of(context).pushNamed(RouteNames.settings);
+          break;
+      }
+    } else {
+      // Without finance: Home, Members, Chat, Settings
+      switch (index) {
+        case 0:
+          Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+          break;
+        case 1:
+          Navigator.of(context).pushNamed(RouteNames.members);
+          break;
+        case 2:
+          Navigator.of(context).pushNamed(RouteNames.chat);
+          break;
+        case 3:
+          Navigator.of(context).pushNamed(RouteNames.settings);
+          break;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const SizedBox.shrink();
+    }
+
+    final localizations = AppLocalizations.of(context);
+
+    // Build navigation items based on finance access
+    final items = <BottomNavigationBarItem>[
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.home_outlined),
+        activeIcon: const Icon(Icons.home),
+        label: localizations?.home ?? 'Home',
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.people_outlined),
+        activeIcon: const Icon(Icons.people),
+        label: localizations?.members ?? 'Members',
+      ),
+      if (_isFinanceLeader)
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.account_balance_wallet_outlined),
+          activeIcon: const Icon(Icons.account_balance_wallet),
+          label: localizations?.finance ?? 'Finance',
+        ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.chat_bubble_outline),
+        activeIcon: const Icon(Icons.chat_bubble),
+        label: localizations?.chat ?? 'Chat',
+      ),
+      BottomNavigationBarItem(
+        icon: const Icon(Icons.settings_outlined),
+        activeIcon: const Icon(Icons.settings),
+        label: localizations?.settings ?? 'Settings',
+      ),
+    ];
+
     return BottomNavigationBar(
       type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(
-          icon: Icon(Icons.home_outlined),
-          activeIcon: Icon(Icons.home),
-          label: 'Home',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.people_outlined),
-          activeIcon: Icon(Icons.people),
-          label: 'Members',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.chat_bubble_outline),
-          activeIcon: Icon(Icons.chat_bubble),
-          label: 'Chat',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.settings_outlined),
-          activeIcon: Icon(Icons.settings),
-          label: 'Settings',
-        ),
-      ],
-      onTap: (index) {
-        switch (index) {
-          case 0:
-            Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
-            break;
-          case 1:
-            Navigator.of(context).pushNamed(RouteNames.members);
-            break;
-          case 2:
-            Navigator.of(context).pushNamed(RouteNames.chat);
-            break;
-          case 3:
-            Navigator.of(context).pushNamed(RouteNames.settings);
-            break;
-        }
-      },
+      items: items,
+      onTap: _handleNavigation,
     );
   }
 }

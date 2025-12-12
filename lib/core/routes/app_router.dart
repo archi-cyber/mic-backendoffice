@@ -6,6 +6,8 @@ import '../../screens/auth/change_password_page.dart';
 import '../../screens/home/dashboard_page.dart';
 import '../../screens/members/members_list_page.dart';
 import '../../screens/members/member_profile_page.dart';
+import '../../screens/members/add_member_page.dart';
+import '../../screens/members/edit_member_page.dart';
 import '../../screens/departments/departments_list_page.dart';
 import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
@@ -23,12 +25,16 @@ import '../../screens/classes/class_detail_page.dart';
 import '../../screens/classes/add_class_page.dart';
 import '../../screens/classes/edit_class_page.dart';
 import '../../screens/reports/reports_page.dart';
+import '../../screens/reports/member_report_page.dart';
+import '../../screens/reports/class_report_page.dart';
 import '../../screens/chat/chat_page.dart';
 import '../../screens/admin/admin_panel_page.dart';
 import '../../screens/notifications/notifications_list_page.dart';
-import '../../screens/members/add_member_page.dart';
 import '../../screens/settings/birthday_notifications_settings_page.dart';
 import '../../screens/settings/settings_page.dart';
+import '../../screens/finance/finance_page.dart';
+import '../../screens/finance/add_giving_page.dart';
+import '../../screens/finance/edit_giving_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
 
@@ -94,6 +100,12 @@ class AppRouter {
           settings: settings,
         );
 
+      case RouteNames.giving:
+        return MaterialPageRoute(
+          builder: (_) => const FinancePage(),
+          settings: settings,
+        );
+
       case RouteNames.classes:
         return MaterialPageRoute(
           builder: (_) => const ClassesListPage(),
@@ -151,6 +163,12 @@ class AppRouter {
           settings: settings,
         );
 
+      case RouteNames.addGiving:
+        return MaterialPageRoute(
+          builder: (_) => const AddGivingPage(),
+          settings: settings,
+        );
+
       case RouteNames.settings:
         return MaterialPageRoute(
           builder: (_) => const SettingsPage(),
@@ -174,7 +192,28 @@ class AppRouter {
       default:
         // Handle dynamic routes with parameters
         if (settings.name?.startsWith('/members/') == true) {
-          final memberId = settings.name!.split('/').last;
+          final parts = settings.name!.split('/');
+
+          // Check if it's an edit route (last part is 'edit')
+          if (parts.length >= 4 && parts.last == 'edit') {
+            final memberId =
+                parts[parts.length - 2]; // Get ID from second-to-last part
+            return MaterialPageRoute(
+              builder: (_) => EditMemberPage(memberId: memberId),
+              settings: settings,
+            );
+          }
+
+          // Check if it's an add route
+          if (parts.length >= 3 && parts.last == 'add') {
+            return MaterialPageRoute(
+              builder: (_) => const AddMemberPage(),
+              settings: settings,
+            );
+          }
+
+          // Otherwise it's a detail/profile page
+          final memberId = parts.last;
           return MaterialPageRoute(
             builder: (_) => MemberProfilePage(memberId: memberId),
             settings: settings,
@@ -257,6 +296,42 @@ class AppRouter {
           final classId = parts.last;
           return MaterialPageRoute(
             builder: (_) => ClassDetailPage(classId: classId),
+            settings: settings,
+          );
+        }
+        if (settings.name?.startsWith('/giving/') == true) {
+          final parts = settings.name!.split('/');
+
+          // Check if it's an edit route (last part is 'edit')
+          if (parts.length >= 4 && parts.last == 'edit') {
+            final givingId =
+                parts[parts.length - 2]; // Get ID from second-to-last part
+            return MaterialPageRoute(
+              builder: (_) => EditGivingPage(givingId: givingId),
+              settings: settings,
+            );
+          }
+
+          // Otherwise it's a detail page (also use edit page for viewing)
+          final givingId = parts.last;
+          return MaterialPageRoute(
+            builder: (_) => EditGivingPage(givingId: givingId),
+            settings: settings,
+          );
+        }
+        if (settings.name?.startsWith('/reports/class/') == true) {
+          final parts = settings.name!.split('/');
+          final classId = parts.last;
+          return MaterialPageRoute(
+            builder: (_) => ClassReportPage(classId: classId),
+            settings: settings,
+          );
+        }
+        if (settings.name?.startsWith('/reports/member/') == true) {
+          final parts = settings.name!.split('/');
+          final memberId = parts.last;
+          return MaterialPageRoute(
+            builder: (_) => MemberReportPage(memberId: memberId),
             settings: settings,
           );
         }

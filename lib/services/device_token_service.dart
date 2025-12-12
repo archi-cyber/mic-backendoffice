@@ -1,17 +1,45 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'supabase_service.dart';
 
 /// Service for managing FCM device tokens
 class DeviceTokenService {
   static final _client = SupabaseService.client;
-  static final _firebaseMessaging = FirebaseMessaging.instance;
+  static FirebaseMessaging? _firebaseMessaging;
   static String? _currentToken;
+
+  /// Get FirebaseMessaging instance (lazy initialization)
+  static FirebaseMessaging? get _messaging {
+    if (_firebaseMessaging == null) {
+      try {
+        // Check if Firebase is initialized before accessing FirebaseMessaging
+        if (Firebase.apps.isNotEmpty) {
+          _firebaseMessaging = FirebaseMessaging.instance;
+        } else {
+          return null;
+        }
+      } catch (e) {
+        // Firebase not initialized or error accessing FirebaseMessaging
+        return null;
+      }
+    }
+    return _firebaseMessaging;
+  }
 
   /// Initialize FCM and get device token
   static Future<String?> initialize() async {
     try {
+      // Check if Firebase is available
+      final messaging = _messaging;
+      if (messaging == null) {
+        throw Exception(
+          'Firebase is not initialized. Please configure Firebase first.',
+        );
+      }
+
       // Request permission
-      final settings = await _firebaseMessaging.requestPermission(
+      final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
@@ -19,7 +47,7 @@ class DeviceTokenService {
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         // Get token
-        final token = await _firebaseMessaging.getToken();
+        final token = await messaging.getToken();
         _currentToken = token;
 
         // Save token to database if user is authenticated
@@ -28,7 +56,7 @@ class DeviceTokenService {
         }
 
         // Listen for token refresh
-        _firebaseMessaging.onTokenRefresh.listen((newToken) {
+        messaging.onTokenRefresh.listen((newToken) {
           _currentToken = newToken;
           if (SupabaseService.isAuthenticated) {
             saveDeviceToken(newToken);
@@ -49,8 +77,32 @@ class DeviceTokenService {
     if (token == null) return;
 
     try {
-      final userId = SupabaseService.currentUser?.id;
-      if (userId == null) return;
+      final authUserId = SupabaseService.currentUser?.id;
+      if (authUserId == null) return;
+
+      // Get the user_id from users table (not auth.users)
+      // The user_devices table references users.id, not auth.users.id
+      final user = await _client
+          .from('users')
+          .select('id')
+          .eq('id', authUserId)
+          .maybeSingle();
+
+      // If user doesn't exist in users table, we can't save the device token
+      // This can happen if the user was created in auth but not synced to users table
+      if (user == null) {
+        // Log warning but don't throw error - device token will be saved on next login
+        // when user record is created
+        if (kDebugMode) {
+          print(
+            'Warning: User $authUserId not found in users table. '
+            'Device token will not be saved. User record may need to be created.',
+          );
+        }
+        return;
+      }
+
+      final userId = user['id'].toString();
 
       // Get device info
       // Note: You may want to add device info like platform, model, etc.
@@ -63,6 +115,14 @@ class DeviceTokenService {
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'user_id,device_token');
     } catch (e) {
+      // If it's a foreign key constraint error, provide helpful message
+      if (e.toString().contains('foreign key constraint') ||
+          e.toString().contains('user_devices_user_id_fkey')) {
+        throw Exception(
+          'Failed to save device token: User record not found in users table. '
+          'Please ensure the user is properly synced. Original error: $e',
+        );
+      }
       throw Exception('Failed to save device token: $e');
     }
   }
@@ -76,8 +136,8 @@ class DeviceTokenService {
           .eq('user_id', userId);
 
       return (devices as List)
-          .map((device) => device['device_token'] as String)
-          .where((token) => token != null)
+          .map((device) => device['device_token'] as String?)
+          .whereType<String>()
           .toList();
     } catch (e) {
       throw Exception('Failed to get device tokens: $e');

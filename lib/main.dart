@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'config/app_config.dart';
 import 'services/supabase_service.dart';
 import 'services/offline_storage_service.dart';
@@ -13,15 +14,21 @@ import 'core/theme/app_theme.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/routes/app_router.dart';
 import 'core/routes/route_names.dart';
+import 'services/settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize Firebase (for FCM)
+  bool firebaseInitialized = false;
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    firebaseInitialized = true;
+    debugPrint('✓ Firebase initialized successfully');
   } catch (e) {
-    debugPrint('Error initializing Firebase: $e');
+    debugPrint('⚠ Error initializing Firebase: $e');
   }
 
   // Initialize Supabase
@@ -47,42 +54,138 @@ void main() async {
     debugPrint('Error initializing background tasks: $e');
   }
 
-  // Initialize FCM and get device token
-  try {
-    await DeviceTokenService.initialize();
-    await PushNotificationHandler.initialize();
-  } catch (e) {
-    debugPrint('Error initializing FCM: $e');
+  // Initialize FCM and get device token (only if Firebase is initialized)
+  if (firebaseInitialized) {
+    try {
+      await DeviceTokenService.initialize();
+      await PushNotificationHandler.initialize();
+    } catch (e) {
+      debugPrint('Error initializing FCM: $e');
+    }
+  } else {
+    debugPrint('Skipping FCM initialization - Firebase not available');
   }
 
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Locale? _locale;
+  ThemeMode _themeMode = ThemeMode.system;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final results = await Future.wait([
+        SettingsService.getLocale(),
+        SettingsService.getThemeMode(),
+      ]);
+
+      setState(() {
+        _locale = results[0] as Locale?;
+        _themeMode = results[1] as ThemeMode;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
+
     return ChangeNotifierProvider(
       create: (_) => AuthProvider()..initialize(),
-      child: MaterialApp(
-        title: AppConfig.appName,
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: AppLocalizations.supportedLocales,
-        onGenerateRoute: AppRouter.generateRoute,
-        onUnknownRoute: AppRouter.onUnknownRoute,
-        initialRoute: RouteNames.splash,
+      child: _AppLifecycleWrapper(
+        child: MaterialApp(
+          title: AppConfig.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.lightTheme,
+          darkTheme: AppTheme.darkTheme,
+          themeMode: _themeMode,
+          locale: _locale,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          onGenerateRoute: AppRouter.generateRoute,
+          onUnknownRoute: AppRouter.onUnknownRoute,
+          initialRoute: RouteNames.splash,
+        ),
       ),
     );
+  }
+}
+
+/// Wrapper widget to monitor app lifecycle and handle token refresh
+class _AppLifecycleWrapper extends StatefulWidget {
+  final Widget child;
+
+  const _AppLifecycleWrapper({required this.child});
+
+  @override
+  State<_AppLifecycleWrapper> createState() => _AppLifecycleWrapperState();
+}
+
+class _AppLifecycleWrapperState extends State<_AppLifecycleWrapper>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is active - check and refresh token if needed
+        authProvider.setAppActive(true);
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        // App is in background - mark as inactive
+        authProvider.setAppActive(false);
+        break;
+      case AppLifecycleState.hidden:
+        authProvider.setAppActive(false);
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
 

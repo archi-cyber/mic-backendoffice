@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
@@ -69,6 +70,21 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
       child: Scaffold(
         appBar: AppBar(
           title: Text('${_member!['first_name']} ${_member!['last_name']}'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () async {
+                final result = await Navigator.of(context).pushNamed(
+                  RouteNames.editMember.replaceAll(':id', widget.memberId),
+                );
+                if (result == true) {
+                  // Reload member data if edit was successful
+                  _loadMemberData();
+                }
+              },
+              tooltip: 'Edit Member',
+            ),
+          ],
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Profile'),
@@ -154,7 +170,9 @@ class _ProfileTab extends StatelessWidget {
                 _InfoRow(
                   label: 'Birthday',
                   value: member['birthday'] != null
-                      ? DateTime.parse(member['birthday']).toString()
+                      ? DateFormat(
+                          'MMMM d, yyyy',
+                        ).format(DateTime.parse(member['birthday']))
                       : 'N/A',
                   icon: Icons.cake,
                 ),
@@ -272,7 +290,7 @@ class _AttendanceTab extends StatelessWidget {
         ...((attendance['records'] as List?) ?? []).map((record) {
           return ListTile(
             leading: const Icon(Icons.event),
-            title: Text('Session ${record['session_id']}'),
+            title: Text('Session ${record['session_number']}'),
             subtitle: Text(record['status'] ?? 'unknown'),
             trailing: Text(
               record['created_at'] != null

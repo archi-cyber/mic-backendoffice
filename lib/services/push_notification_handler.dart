@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Handler for push notifications (FCM)
@@ -8,6 +9,12 @@ class PushNotificationHandler {
 
   /// Initialize push notification handlers
   static Future<void> initialize() async {
+    // Check if Firebase is initialized
+    if (Firebase.apps.isEmpty) {
+      throw Exception(
+        'Firebase is not initialized. Please configure Firebase first.',
+      );
+    }
     // Initialize local notifications
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -92,6 +99,9 @@ class PushNotificationHandler {
 
   /// Get initial message (if app was opened from notification)
   static Future<RemoteMessage?> getInitialMessage() async {
+    if (Firebase.apps.isEmpty) {
+      return null;
+    }
     return await FirebaseMessaging.instance.getInitialMessage();
   }
 }

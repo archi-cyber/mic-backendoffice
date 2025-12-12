@@ -30,6 +30,7 @@ class RouteNames {
   static const String giving = '/giving';
   static const String givingDetail = '/giving/:id';
   static const String addGiving = '/giving/add';
+  static const String editGiving = '/giving/:id/edit';
 
   // Events Routes
   static const String events = '/events';

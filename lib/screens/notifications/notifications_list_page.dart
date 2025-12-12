@@ -27,19 +27,107 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
 
   Future<void> _loadMemberId() async {
     try {
+      debugPrint('[Notifications] Starting to load member ID...');
       final currentUserId = SupabaseService.currentUser?.id;
-      if (currentUserId != null) {
-        final member = await SupabaseService.client
-            .from('members')
-            .select('id')
-            .eq('user_id', currentUserId)
-            .maybeSingle();
-        if (member != null) {
-          setState(() => _memberId = member['id'].toString());
-          _loadNotifications();
+      debugPrint('[Notifications] Current user ID: $currentUserId');
+
+      if (currentUserId == null) {
+        debugPrint('[Notifications] ERROR: No current user ID found');
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: Not authenticated. Please login again.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Query users table to get member_id and role
+      debugPrint(
+        '[Notifications] Querying users table for member_id and role...',
+      );
+      final user = await SupabaseService.client
+          .from('users')
+          .select('member_id, role, email')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+      debugPrint('[Notifications] User query result: $user');
+
+      if (user == null) {
+        debugPrint('[Notifications] ERROR: User not found in users table');
+        setState(() => _isLoading = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Error: User profile not found. Please contact support.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      final memberId = user['member_id']?.toString();
+      final userRole = user['role']?.toString();
+      final userEmail = user['email']?.toString();
+
+      debugPrint('[Notifications] User role: $userRole');
+      debugPrint('[Notifications] User email: $userEmail');
+      debugPrint('[Notifications] Member ID: $memberId');
+
+      if (memberId != null) {
+        debugPrint('[Notifications] Found member_id: $memberId');
+        setState(() {
+          _memberId = memberId;
+        });
+        await _loadNotifications();
+      } else {
+        // User doesn't have a member_id - might be an admin or system user
+        debugPrint(
+          '[Notifications] WARNING: No member_id found for user. Role: $userRole',
+        );
+
+        // Try to load notifications without member_id (for admins/system users)
+        // Some notifications might be system-wide or user-based
+        debugPrint(
+          '[Notifications] Attempting to load notifications without member_id...',
+        );
+
+        // Set memberId to null but still try to load
+        // The NotificationService should handle this case
+        setState(() {
+          _memberId = null; // Explicitly set to null
+        });
+
+        // Try loading notifications - the service might handle user-based queries
+        try {
+          await _loadNotificationsForUserWithoutMember();
+        } catch (e) {
+          debugPrint(
+            '[Notifications] Failed to load notifications without member_id: $e',
+          );
+          setState(() => _isLoading = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'No notifications available. '
+                  'This account is not linked to a member profile. '
+                  'Role: ${userRole ?? 'Unknown'}',
+                ),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[Notifications] ERROR in _loadMemberId: $e');
+      debugPrint('[Notifications] Stack trace: $stackTrace');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -49,22 +137,93 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
     }
   }
 
+  /// Load notifications for users without member_id (admins/system users)
+  Future<void> _loadNotificationsForUserWithoutMember() async {
+    debugPrint(
+      '[Notifications] Loading notifications for user without member_id...',
+    );
+    setState(() => _isLoading = true);
+
+    try {
+      // Try to query notifications table directly by user_id if the table supports it
+      // Or show empty list if no member_id means no notifications
+      final currentUserId = SupabaseService.currentUser?.id;
+      debugPrint('[Notifications] Current user ID: $currentUserId');
+
+      // Check if notifications table has a user_id column or if we can query all
+      // For now, we'll show an empty list with a helpful message
+      debugPrint(
+        '[Notifications] No member_id available, showing empty notifications list',
+      );
+
+      setState(() {
+        _notifications = [];
+        _unreadCount = 0;
+        _isLoading = false;
+      });
+
+      debugPrint(
+        '[Notifications] Set empty notifications list for user without member_id',
+      );
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[Notifications] ERROR in _loadNotificationsForUserWithoutMember: $e',
+      );
+      debugPrint('[Notifications] Stack trace: $stackTrace');
+      setState(() {
+        _notifications = [];
+        _unreadCount = 0;
+        _isLoading = false;
+      });
+    }
+  }
+
   Future<void> _loadNotifications() async {
-    if (_memberId == null) return;
+    debugPrint(
+      '[Notifications] _loadNotifications called with memberId: $_memberId',
+    );
+
+    if (_memberId == null) {
+      debugPrint(
+        '[Notifications] ERROR: memberId is null, cannot load notifications',
+      );
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: Member ID not found. Please try again.'),
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
+      debugPrint('[Notifications] Fetching notifications and unread count...');
       final results = await Future.wait([
         NotificationService.getNotifications(memberId: _memberId),
         NotificationService.getUnreadCount(memberId: _memberId),
       ]);
 
+      final notifications = results[0] as List<Map<String, dynamic>>;
+      final unreadCount = results[1] as int;
+
+      debugPrint(
+        '[Notifications] Successfully loaded ${notifications.length} notifications',
+      );
+      debugPrint('[Notifications] Unread count: $unreadCount');
+
       setState(() {
-        _notifications = results[0] as List<Map<String, dynamic>>;
-        _unreadCount = results[1] as int;
+        _notifications = notifications;
+        _unreadCount = unreadCount;
         _isLoading = false;
       });
-    } catch (e) {
+
+      debugPrint('[Notifications] State updated successfully');
+    } catch (e, stackTrace) {
+      debugPrint('[Notifications] ERROR in _loadNotifications: $e');
+      debugPrint('[Notifications] Stack trace: $stackTrace');
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

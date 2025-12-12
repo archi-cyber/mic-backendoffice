@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/member_service.dart';
-import '../../core/routes/route_names.dart';
 
 /// Add member page with email/phone validation
 class AddMemberPage extends StatefulWidget {
@@ -18,8 +17,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _birthdayController = TextEditingController();
   String _selectedRole = 'member';
+  DateTime? _selectedBirthday;
   bool _isLoading = false;
 
   @override
@@ -28,8 +27,24 @@ class _AddMemberPageState extends State<AddMemberPage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _birthdayController.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectBirthday() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate:
+          _selectedBirthday ??
+          DateTime.now().subtract(const Duration(days: 365 * 25)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      helpText: 'Select Birthday',
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedBirthday = picked;
+      });
+    }
   }
 
   Future<void> _handleSave() async {
@@ -63,8 +78,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
           'phone': _phoneController.text.trim().isNotEmpty
               ? _phoneController.text.trim()
               : null,
-          'birthday': _birthdayController.text.trim().isNotEmpty
-              ? _birthdayController.text.trim()
+          'birthday': _selectedBirthday != null
+              ? _selectedBirthday!.toIso8601String().split('T')[0]
               : null,
           'role': _selectedRole,
           'is_active': false, // Inactive until activated
@@ -160,12 +175,25 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 ),
               ),
               const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _birthdayController,
-                decoration: const InputDecoration(
-                  labelText: 'Birthday',
-                  prefixIcon: Icon(Icons.cake),
-                  helperText: 'Format: YYYY-MM-DD',
+              InkWell(
+                onTap: _selectBirthday,
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Birthday',
+                    prefixIcon: const Icon(Icons.cake),
+                    suffixIcon: const Icon(Icons.calendar_today),
+                    helperText: 'Tap to select date',
+                  ),
+                  child: Text(
+                    _selectedBirthday != null
+                        ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
+                        : 'Select birthday',
+                    style: TextStyle(
+                      color: _selectedBirthday != null
+                          ? Theme.of(context).textTheme.bodyLarge?.color
+                          : Theme.of(context).hintColor,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: AppDimensions.spacingMD),
