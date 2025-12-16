@@ -1,6 +1,7 @@
 /// Central export file for all services
 /// Import this file to access all services: import 'package:mic_backoffice/services/services_index.dart';
 library;
+
 export 'supabase_service.dart';
 export 'auth_service.dart';
 export 'admin_service.dart';
@@ -17,6 +18,7 @@ export 'birthday_scheduler_service.dart';
 export 'device_token_service.dart';
 export 'fcm_service.dart';
 export 'push_notification_handler.dart';
+export 'push_notification_service.dart';
 export 'background_task_service.dart';
 export 'offline_queue_service.dart';
 export 'user_management_service.dart';

@@ -8,4 +8,8 @@ class AppConfig {
   // App Configuration
   static const String appName = 'SysteMIC';
   static const String appVersion = '1.0.0';
+
+  // Push Notifications
+  // Push notifications are sent via Supabase Edge Functions
+  // See: supabase/functions/send-push-notification/README.md for setup instructions
 }

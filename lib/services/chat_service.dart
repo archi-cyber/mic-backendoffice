@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
+import 'push_notification_service.dart';
 
 /// Chat service for global announcements
 class ChatService {
@@ -120,47 +122,136 @@ class ChatService {
           .select()
           .single();
 
-      // Create notifications for target members using NotificationService
-      if (isGlobal) {
-        // For global announcements, get all member IDs and create notifications
-        try {
-          final allMembers = await _client
-              .from('members')
-              .select('id')
-              .limit(10000); // Large limit to get all members
+      // Create notifications for all users when announcement is created
+      debugPrint(
+        '[ChatService] Creating notifications for announcement: ${response['id']}',
+      );
 
-          final allMemberIds = (allMembers as List)
-              .map((m) => m['id']?.toString())
-              .whereType<String>()
-              .where((id) => id.isNotEmpty)
-              .toList();
+      try {
+        // Get current user's member_id to exclude them from notifications
+        String? currentUserMemberId;
+        if (currentAuthUser != null) {
+          try {
+            final currentUser = await _client
+                .from('users')
+                .select('member_id')
+                .eq('id', currentAuthUser.id)
+                .maybeSingle();
+            currentUserMemberId = currentUser?['member_id']?.toString();
+            debugPrint(
+              '[ChatService] Current user member_id: $currentUserMemberId',
+            );
+          } catch (e) {
+            debugPrint(
+              '[ChatService] Could not get current user member_id: $e',
+            );
+          }
+        }
 
-          if (allMemberIds.isNotEmpty) {
+        // Get all users and their member_ids
+        // We need member_ids to create notifications
+        final allUsers = await _client
+            .from('users')
+            .select('id, member_id, email, is_active')
+            .eq('is_active', true)
+            .limit(10000);
+
+        debugPrint(
+          '[ChatService] Found ${(allUsers as List).length} active users',
+        );
+
+        // Filter to get member_ids (only users who have a member profile)
+        // Exclude the current user (announcement creator)
+        final memberIds = <String>[];
+        for (final user in allUsers) {
+          final memberId = user['member_id']?.toString();
+          if (memberId != null &&
+              memberId.isNotEmpty &&
+              memberId != currentUserMemberId) {
+            memberIds.add(memberId);
+          }
+        }
+
+        debugPrint(
+          '[ChatService] Found ${memberIds.length} users with member_id (excluding creator)',
+        );
+
+        if (isGlobal) {
+          // For global announcements, notify all users
+          if (memberIds.isNotEmpty) {
+            debugPrint(
+              '[ChatService] Creating notifications for all ${memberIds.length} users',
+            );
             await NotificationService.createBulkNotifications(
-              memberIds: allMemberIds,
+              memberIds: memberIds,
               type: 'announcement',
               title: title,
               message: message,
-              relatedId: response['id'],
+              relatedId: response['id']?.toString(),
               relatedType: 'announcement',
             );
+            debugPrint(
+              '[ChatService] Successfully created notifications for all users',
+            );
+          } else {
+            debugPrint(
+              '[ChatService] WARNING: No users with member_id found to notify',
+            );
           }
-        } catch (e) {
-          // Log error but don't fail announcement creation
-          print(
-            'Warning: Failed to create notifications for global announcement: $e',
-          );
+        } else if (targetMemberIds != null && targetMemberIds.isNotEmpty) {
+          // For targeted announcements, notify only selected members
+          // Filter to only include member_ids that exist in our user list
+          final validMemberIds = targetMemberIds
+              .where((id) => memberIds.contains(id))
+              .toList();
+
+          if (validMemberIds.isNotEmpty) {
+            debugPrint(
+              '[ChatService] Creating notifications for ${validMemberIds.length} selected members',
+            );
+            await NotificationService.createBulkNotifications(
+              memberIds: validMemberIds,
+              type: 'announcement',
+              title: title,
+              message: message,
+              relatedId: response['id']?.toString(),
+              relatedType: 'announcement',
+            );
+            debugPrint(
+              '[ChatService] Successfully created notifications for selected members',
+            );
+          } else {
+            debugPrint(
+              '[ChatService] WARNING: No valid member_ids found in target list',
+            );
+          }
         }
-      } else if (targetMemberIds != null && targetMemberIds.isNotEmpty) {
-        // Create notifications for specific members
-        await NotificationService.createBulkNotifications(
-          memberIds: targetMemberIds,
-          type: 'announcement',
-          title: title,
-          message: message,
-          relatedId: response['id'],
-          relatedType: 'announcement',
+
+        // Send push notifications to all users (excluding creator)
+        try {
+          debugPrint(
+            '[ChatService] Sending push notifications for announcement',
+          );
+          await PushNotificationService.sendAnnouncementPushNotification(
+            title: title,
+            message: message,
+            announcementId: response['id']?.toString() ?? '',
+            excludeUserId: createdByUserId,
+          );
+          debugPrint('[ChatService] Successfully sent push notifications');
+        } catch (e) {
+          debugPrint(
+            '[ChatService] WARNING: Failed to send push notifications: $e',
+          );
+          // Don't throw - push notifications are secondary
+        }
+      } catch (e, stackTrace) {
+        // Log error but don't fail announcement creation
+        debugPrint(
+          '[ChatService] ERROR: Failed to create notifications for announcement: $e',
         );
+        debugPrint('[ChatService] Stack trace: $stackTrace');
+        // Don't throw - announcement was created successfully, notifications are secondary
       }
 
       return response;
