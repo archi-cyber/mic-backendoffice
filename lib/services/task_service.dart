@@ -289,11 +289,47 @@ class TaskService {
     required String status,
   }) async {
     try {
+      // Update the assignment status
       await _client
           .from('task_assignments')
           .update({'status': status})
           .eq('task_id', taskId)
           .eq('member_id', memberId);
+
+      // If the assignment is marked as completed, check if all assignments are completed
+      if (status.toLowerCase() == 'completed' ||
+          status.toLowerCase() == 'done' ||
+          status.toLowerCase() == 'finished') {
+        // Get all assignments for this task
+        final assignments = await _client
+            .from('task_assignments')
+            .select('status')
+            .eq('task_id', taskId);
+
+        final assignmentsList = List<Map<String, dynamic>>.from(assignments);
+
+        // Check if all assignments are completed
+        if (assignmentsList.isNotEmpty) {
+          final allCompleted = assignmentsList.every((assignment) {
+            final assignmentStatus = (assignment['status'] as String? ?? '')
+                .toLowerCase();
+            return assignmentStatus == 'completed' ||
+                assignmentStatus == 'done' ||
+                assignmentStatus == 'finished';
+          });
+
+          // If all assignments are completed, update the task status
+          if (allCompleted) {
+            await _client
+                .from('tasks')
+                .update({
+                  'status': 'completed',
+                  'updated_at': DateTime.now().toIso8601String(),
+                })
+                .eq('id', taskId);
+          }
+        }
+      }
     } catch (e) {
       throw Exception('Failed to update assignment status: $e');
     }

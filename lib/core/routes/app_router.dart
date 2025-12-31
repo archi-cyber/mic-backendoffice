@@ -12,6 +12,9 @@ import '../../screens/departments/departments_list_page.dart';
 import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
 import '../../screens/departments/edit_department_page.dart';
+import '../../screens/departments/department_reports_list_page.dart';
+import '../../screens/departments/add_department_report_page.dart';
+import '../../screens/departments/edit_department_report_page.dart';
 import '../../screens/events/events_list_page.dart';
 import '../../screens/events/event_detail_page.dart';
 import '../../screens/events/add_event_page.dart';
@@ -35,6 +38,10 @@ import '../../screens/settings/settings_page.dart';
 import '../../screens/finance/finance_page.dart';
 import '../../screens/finance/add_giving_page.dart';
 import '../../screens/finance/edit_giving_page.dart';
+import '../../screens/attendance/church_attendance_page.dart';
+import '../../screens/attendance/church_attendance_list_page.dart';
+import '../../screens/attendance/sunday_school_attendance_page.dart';
+import '../../screens/attendance/sunday_school_attendance_list_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
 
@@ -115,6 +122,45 @@ class AppRouter {
       case RouteNames.reports:
         return MaterialPageRoute(
           builder: (_) => const ReportsPage(),
+          settings: settings,
+        );
+
+      case RouteNames.churchAttendanceList:
+        return MaterialPageRoute(
+          builder: (_) => const ChurchAttendanceListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.churchAttendanceList:
+        return MaterialPageRoute(
+          builder: (_) => const ChurchAttendanceListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.churchAttendance:
+        // Check if arguments are provided (for viewing specific service)
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => ChurchAttendancePage(
+            serviceDate: args?['serviceDate'] as String?,
+            serviceType: args?['serviceType'] as String?,
+          ),
+          settings: settings,
+        );
+
+      case RouteNames.sundaySchoolAttendanceList:
+        return MaterialPageRoute(
+          builder: (_) => const SundaySchoolAttendanceListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.sundaySchoolAttendance:
+        // Check if arguments are provided (for viewing specific session)
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => SundaySchoolAttendancePage(
+            sessionDate: args?['sessionDate'] as String?,
+          ),
           settings: settings,
         );
 
@@ -221,6 +267,47 @@ class AppRouter {
         }
         if (settings.name?.startsWith('/departments/') == true) {
           final parts = settings.name!.split('/');
+
+          // Check for department report routes first (more specific)
+          // /departments/reports/:id or /departments/reports/:id/edit
+          if (parts.length >= 4 && parts[2] == 'reports') {
+            final reportId = parts.last == 'edit'
+                ? parts[parts.length - 2]
+                : parts.last;
+            if (parts.last == 'edit') {
+              return MaterialPageRoute(
+                builder: (_) => EditDepartmentReportPage(reportId: reportId),
+                settings: settings,
+              );
+            } else {
+              // Detail view - redirect to edit for now
+              return MaterialPageRoute(
+                builder: (_) => EditDepartmentReportPage(reportId: reportId),
+                settings: settings,
+              );
+            }
+          }
+
+          // Check for department reports list/add routes
+          // /departments/:id/reports or /departments/:id/reports/add
+          if (parts.length >= 4 && parts[parts.length - 2] == 'reports') {
+            // /departments/:id/reports
+            if (parts.last == 'reports') {
+              final deptId = parts[parts.length - 2];
+              return MaterialPageRoute(
+                builder: (_) => DepartmentReportsListPage(departmentId: deptId),
+                settings: settings,
+              );
+            }
+            // /departments/:id/reports/add
+            if (parts.last == 'add') {
+              final deptId = parts[parts.length - 3];
+              return MaterialPageRoute(
+                builder: (_) => AddDepartmentReportPage(departmentId: deptId),
+                settings: settings,
+              );
+            }
+          }
 
           // Check if it's an edit route (last part is 'edit')
           if (parts.length >= 4 && parts.last == 'edit') {

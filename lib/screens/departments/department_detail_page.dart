@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
 import '../../services/task_service.dart';
 import '../../services/member_service.dart';
+import '../../services/department_report_service.dart';
+import '../../services/department_report_pdf_service.dart';
+import '../../services/task_report_pdf_service.dart';
+import '../../services/task_report_service.dart';
 
 /// Department detail with members, docs, tasks, and reports
 class DepartmentDetailPage extends StatefulWidget {
@@ -21,6 +27,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
   Map<String, dynamic>? _department;
   List<Map<String, dynamic>> _members = [];
   List<Map<String, dynamic>> _tasks = [];
+  List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
 
   @override
@@ -43,11 +50,23 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         limit: 100,
       );
 
+      // Load reports (might fail if table doesn't exist, so catch separately)
+      List<Map<String, dynamic>> departmentReports = [];
+      try {
+        departmentReports = await DepartmentReportService.getDepartmentReports(
+          departmentId: widget.departmentId,
+        );
+      } catch (e) {
+        // Reports table might not exist yet, that's okay
+        debugPrint('Could not load reports: $e');
+      }
+
       setState(() {
         _department = department;
         // Store full department_members data (includes role)
         _members = departmentMembers;
         _tasks = departmentTasks;
+        _reports = departmentReports;
         _isLoading = false;
       });
     } catch (e) {
@@ -131,7 +150,11 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
               onMembersUpdated: _loadDepartmentData,
             ),
             _TasksTab(departmentId: widget.departmentId, tasks: _tasks),
-            _ReportsTab(departmentId: widget.departmentId),
+            _ReportsTab(
+              departmentId: widget.departmentId,
+              reports: _reports,
+              onReportsUpdated: _loadDepartmentData,
+            ),
           ],
         ),
       ),
@@ -788,48 +811,575 @@ class _MembersTabState extends State<_MembersTab> {
 }
 
 /// Tasks tab
-class _TasksTab extends StatelessWidget {
+class _TasksTab extends StatefulWidget {
   final String departmentId;
   final List<Map<String, dynamic>> tasks;
 
   const _TasksTab({required this.departmentId, required this.tasks});
 
   @override
-  Widget build(BuildContext context) {
-    return tasks.isEmpty
-        ? const Center(child: Text('No tasks in this department'))
-        : ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return ListTile(
-                leading: const Icon(Icons.task),
-                title: Text(task['title'] ?? 'Task'),
-                subtitle: Text(task['description'] ?? ''),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).pushNamed(
-                    RouteNames.taskDetail.replaceAll(
-                      ':id',
-                      task['id'].toString(),
-                    ),
-                  );
-                },
-              );
-            },
+  State<_TasksTab> createState() => _TasksTabState();
+}
+
+class _TasksTabState extends State<_TasksTab> {
+  Map<String, dynamic>? _completionStats;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCompletionStats();
+  }
+
+  Future<void> _loadCompletionStats() async {
+    try {
+      final stats = await TaskReportService.getDepartmentTaskCompletion(
+        departmentId: widget.departmentId,
+      );
+      setState(() {
+        _completionStats = stats;
+      });
+    } catch (e) {
+      debugPrint('Error loading completion stats: $e');
+    }
+  }
+
+  Future<void> _generateReport() async {
+    // Show dialog to select report type and period
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => const _TaskReportOptionsDialog(),
+    );
+
+    if (result != null) {
+      try {
+        // Show loading indicator
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) =>
+                const Center(child: CircularProgressIndicator()),
           );
+        }
+
+        final reportType = result['reportType'] as String;
+        final year = result['year'] as int;
+        final month = result['month'] as int?;
+
+        String? filePath;
+        if (reportType == 'monthly' && month != null) {
+          filePath = await TaskReportPdfService.generateMonthlyReport(
+            departmentId: widget.departmentId,
+            year: year,
+            month: month,
+          );
+        } else if (reportType == 'yearly') {
+          filePath = await TaskReportPdfService.generateYearlyReport(
+            departmentId: widget.departmentId,
+            year: year,
+          );
+        }
+
+        if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Report generated successfully: $filePath'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error generating report: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Completion Stats Card
+        if (_completionStats != null)
+          Container(
+            margin: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Task Completion',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      '${(_completionStats!['completion_percentage'] as double? ?? 0.0).toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color:
+                            (_completionStats!['completion_percentage']
+                                        as double? ??
+                                    0.0) >=
+                                80
+                            ? AppColors.success
+                            : (_completionStats!['completion_percentage']
+                                          as double? ??
+                                      0.0) >=
+                                  50
+                            ? AppColors.warning
+                            : AppColors.error,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.spacingSM),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatItem(
+                      'Total',
+                      '${_completionStats!['total_tasks'] ?? 0}',
+                    ),
+                    _buildStatItem(
+                      'Completed',
+                      '${_completionStats!['completed_tasks'] ?? 0}',
+                    ),
+                    _buildStatItem(
+                      'Pending',
+                      '${_completionStats!['pending_tasks'] ?? 0}',
+                    ),
+                    _buildStatItem(
+                      'In Progress',
+                      '${_completionStats!['in_progress_tasks'] ?? 0}',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        // Buttons row
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pushNamed(
+                      RouteNames.tasks,
+                      arguments: widget.departmentId,
+                    );
+                  },
+                  icon: const Icon(Icons.manage_search),
+                  label: const Text('Manage Tasks'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.spacingMD),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _generateReport,
+                  icon: const Icon(Icons.description),
+                  label: const Text('Generate Report'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Tasks list
+        Expanded(
+          child: widget.tasks.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.task_outlined,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text('No tasks in this department'),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: widget.tasks.length,
+                  itemBuilder: (context, index) {
+                    final task = widget.tasks[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.paddingMD,
+                        vertical: AppDimensions.spacingXS,
+                      ),
+                      child: ListTile(
+                        leading: const Icon(Icons.task),
+                        title: Text(task['title'] ?? 'Task'),
+                        subtitle: Text(task['description'] ?? ''),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).pushNamed(
+                            RouteNames.taskDetail.replaceAll(
+                              ':id',
+                              task['id'].toString(),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    );
   }
 }
 
 /// Reports tab
-class _ReportsTab extends StatelessWidget {
+class _ReportsTab extends StatefulWidget {
   final String departmentId;
+  final List<Map<String, dynamic>> reports;
+  final VoidCallback onReportsUpdated;
 
-  const _ReportsTab({required this.departmentId});
+  const _ReportsTab({
+    required this.departmentId,
+    required this.reports,
+    required this.onReportsUpdated,
+  });
+
+  @override
+  State<_ReportsTab> createState() => _ReportsTabState();
+}
+
+class _ReportsTabState extends State<_ReportsTab> {
+  List<Map<String, dynamic>> _reports = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _reports = widget.reports;
+  }
+
+  @override
+  void didUpdateWidget(_ReportsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reports != widget.reports) {
+      _reports = widget.reports;
+    }
+  }
+
+  Future<void> _loadReports() async {
+    try {
+      final reports = await DepartmentReportService.getDepartmentReports(
+        departmentId: widget.departmentId,
+      );
+      setState(() {
+        _reports = reports;
+      });
+      widget.onReportsUpdated();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading reports: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _createReport() async {
+    final result = await Navigator.of(context).pushNamed(
+      RouteNames.addDepartmentReport.replaceAll(':id', widget.departmentId),
+    );
+    if (result == true) {
+      _loadReports();
+    }
+  }
+
+  Future<void> _generateSummaryReport() async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Generating summary report...')),
+      );
+      await DepartmentReportPdfService.generateSummaryPdf(widget.departmentId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Summary report generated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating report: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _generateReportPdf(String reportId) async {
+    try {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Generating PDF...')));
+      await DepartmentReportPdfService.generateReportPdf(reportId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF generated successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _editReport(String reportId) async {
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.editDepartmentReport.replaceAll(':id', reportId));
+    if (result == true) {
+      _loadReports();
+    }
+  }
+
+  Future<void> _deleteReport(Map<String, dynamic> report) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Report'),
+        content: Text('Are you sure you want to delete "${report['title']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await DepartmentReportService.deleteReport(report['id']);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          _loadReports();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting report: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('Department reports coming soon'));
+    return Column(
+      children: [
+        // Create Report button
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _createReport,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create Report'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(
+                      double.infinity,
+                      AppDimensions.buttonHeightMD,
+                    ),
+                  ),
+                ),
+              ),
+              if (_reports.isNotEmpty) ...[
+                const SizedBox(width: AppDimensions.spacingMD),
+                IconButton(
+                  icon: const Icon(Icons.summarize),
+                  onPressed: _generateSummaryReport,
+                  tooltip: 'Generate Summary Report',
+                ),
+              ],
+            ],
+          ),
+        ),
+        // Reports list
+        Expanded(
+          child: _reports.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text('No reports yet'),
+                      SizedBox(height: AppDimensions.spacingXS),
+                      Text(
+                        'Create your first report to get started',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadReports,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    itemCount: _reports.length,
+                    itemBuilder: (context, index) {
+                      final report = _reports[index];
+                      return Card(
+                        margin: const EdgeInsets.only(
+                          bottom: AppDimensions.spacingMD,
+                        ),
+                        child: ListTile(
+                          leading: const Icon(
+                            Icons.description,
+                            color: AppColors.primary,
+                          ),
+                          title: Text(
+                            report['title'] ?? 'Untitled Report',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                'Created: ${DateFormat('MMM d, yyyy').format(DateTime.parse(report['created_at']))}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton(
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'pdf',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.picture_as_pdf, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Generate PDF'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Edit'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete,
+                                      size: 20,
+                                      color: AppColors.error,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Delete'),
+                                  ],
+                                ),
+                              ),
+                            ],
+                            onSelected: (value) async {
+                              if (value == 'pdf') {
+                                await _generateReportPdf(report['id']);
+                              } else if (value == 'edit') {
+                                await _editReport(report['id']);
+                              } else if (value == 'delete') {
+                                _deleteReport(report);
+                              }
+                            },
+                          ),
+                          onTap: () => _editReport(report['id']),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
   }
 }
 
@@ -864,6 +1414,153 @@ class _StatCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TaskReportOptionsDialog extends StatefulWidget {
+  const _TaskReportOptionsDialog();
+
+  @override
+  State<_TaskReportOptionsDialog> createState() =>
+      _TaskReportOptionsDialogState();
+}
+
+class _TaskReportOptionsDialogState extends State<_TaskReportOptionsDialog> {
+  String _reportType = 'monthly';
+  int _selectedYear = DateTime.now().year;
+  int? _selectedMonth = DateTime.now().month;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Generate Task Report'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Report Type
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Text(
+                'Report Type',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+            RadioListTile<String>(
+              title: const Text('Monthly Report'),
+              value: 'monthly',
+              groupValue: _reportType,
+              onChanged: (value) {
+                setState(() {
+                  _reportType = value ?? 'monthly';
+                });
+              },
+            ),
+            RadioListTile<String>(
+              title: const Text('Yearly Report'),
+              value: 'yearly',
+              groupValue: _reportType,
+              onChanged: (value) {
+                setState(() {
+                  _reportType = value ?? 'yearly';
+                  if (_reportType == 'yearly') {
+                    _selectedMonth = null;
+                  } else {
+                    _selectedMonth = DateTime.now().month;
+                  }
+                });
+              },
+            ),
+            const Divider(),
+            // Year Selection
+            ListTile(
+              leading: const Icon(Icons.calendar_today),
+              title: const Text('Year'),
+              subtitle: Text(_selectedYear.toString()),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove),
+                    onPressed: () {
+                      setState(() {
+                        _selectedYear--;
+                      });
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      setState(() {
+                        _selectedYear++;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Month Selection (only for monthly reports)
+            if (_reportType == 'monthly')
+              ListTile(
+                leading: const Icon(Icons.calendar_month),
+                title: const Text('Month'),
+                subtitle: Text(
+                  _selectedMonth != null
+                      ? DateFormat(
+                          'MMMM',
+                        ).format(DateTime(_selectedYear, _selectedMonth!))
+                      : 'Select month',
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.arrow_forward),
+                  onPressed: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime(_selectedYear, _selectedMonth ?? 1),
+                      firstDate: DateTime(_selectedYear, 1),
+                      lastDate: DateTime(_selectedYear, 12),
+                      helpText: 'Select Month',
+                      initialDatePickerMode: DatePickerMode.year,
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _selectedMonth = picked.month;
+                        _selectedYear = picked.year;
+                      });
+                    }
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_reportType == 'monthly' && _selectedMonth == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please select a month'),
+                  backgroundColor: AppColors.warning,
+                ),
+              );
+              return;
+            }
+            Navigator.of(context).pop({
+              'reportType': _reportType,
+              'year': _selectedYear,
+              'month': _selectedMonth,
+            });
+          },
+          child: const Text('Generate'),
+        ),
+      ],
     );
   }
 }

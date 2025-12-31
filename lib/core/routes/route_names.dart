@@ -25,6 +25,11 @@ class RouteNames {
   static const String attendance = '/attendance';
   static const String attendanceDetail = '/attendance/:id';
   static const String markAttendance = '/attendance/mark';
+  static const String churchAttendance = '/attendance/church';
+  static const String churchAttendanceList = '/attendance/church/list';
+  static const String sundaySchoolAttendance = '/attendance/sunday-school';
+  static const String sundaySchoolAttendanceList =
+      '/attendance/sunday-school/list';
 
   // Giving Routes
   static const String giving = '/giving';
@@ -49,6 +54,10 @@ class RouteNames {
   static const String departmentDetail = '/departments/:id';
   static const String addDepartment = '/departments/add';
   static const String editDepartment = '/departments/:id/edit';
+  static const String departmentReports = '/departments/:id/reports';
+  static const String addDepartmentReport = '/departments/:id/reports/add';
+  static const String editDepartmentReport = '/departments/reports/:id/edit';
+  static const String departmentReportDetail = '/departments/reports/:id';
 
   // Class Routes
   static const String classes = '/classes';

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/constants/member_constants.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
 import '../../services/report_service.dart';
 import '../../services/supabase_service.dart';
+import '../../utils/member_utils.dart';
 
 /// Member profile with attendance summary, classes, and departments
 class MemberProfilePage extends StatefulWidget {
@@ -186,6 +188,107 @@ class _ProfileTab extends StatelessWidget {
                   value: _getRoleLabel(member['role'] ?? 'member'),
                   icon: Icons.person_outline,
                 ),
+                _InfoRow(
+                  label: 'Age Category',
+                  value: member['birthday'] != null
+                      ? MemberUtils.getAgeCategoryLabel(
+                          DateTime.parse(member['birthday']),
+                        )
+                      : 'N/A',
+                  icon: Icons.person,
+                ),
+                if (member['quarter'] != null &&
+                    member['quarter'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Quarter',
+                    value: member['quarter'],
+                    icon: Icons.calendar_view_month,
+                  ),
+                if (member['profession'] != null &&
+                    member['profession'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Profession',
+                    value: MemberConstants.getProfessionLabel(
+                      member['profession'],
+                    ),
+                    icon: Icons.work,
+                  ),
+                if (member['level_of_study'] != null &&
+                    member['level_of_study'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Level of Study',
+                    value: member['level_of_study'],
+                    icon: Icons.school,
+                  ),
+                if (member['sector_of_studies'] != null &&
+                    member['sector_of_studies'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Sector of Studies',
+                    value: member['sector_of_studies'],
+                    icon: Icons.category,
+                  ),
+                if (member['domain_of_activity'] != null &&
+                    member['domain_of_activity'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Domain of Activity',
+                    value: member['domain_of_activity'],
+                    icon: Icons.business,
+                  ),
+                if (member['key_skills'] != null &&
+                    _getKeySkillsList(member['key_skills']).isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppDimensions.spacingSM,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.star,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: AppDimensions.spacingMD),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Key Skills: ',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: AppDimensions.spacingXS),
+                              Wrap(
+                                spacing: AppDimensions.spacingSM,
+                                runSpacing: AppDimensions.spacingSM,
+                                children:
+                                    _getKeySkillsList(member['key_skills'])
+                                        .map(
+                                          (skill) => Chip(
+                                            label: Text(skill),
+                                            padding: EdgeInsets.zero,
+                                            labelPadding:
+                                                const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                ),
+                                          ),
+                                        )
+                                        .toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (member['last_diplomas'] != null &&
+                    member['last_diplomas'].toString().isNotEmpty)
+                  _InfoRow(
+                    label: 'Last Diplomas',
+                    value: member['last_diplomas'],
+                    icon: Icons.workspace_premium,
+                  ),
               ],
             ),
           ),
@@ -238,6 +341,24 @@ class _ProfileTab extends StatelessWidget {
       default:
         return 'Member';
     }
+  }
+
+  List<String> _getKeySkillsList(dynamic keySkills) {
+    if (keySkills == null) return [];
+    if (keySkills is List) {
+      return keySkills
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    if (keySkills is String) {
+      return keySkills
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return [];
   }
 }
 

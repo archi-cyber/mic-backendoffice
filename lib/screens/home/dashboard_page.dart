@@ -236,6 +236,24 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.of(context).pushNamed(RouteNames.reports);
                     },
                   ),
+                  _QuickActionCard(
+                    title: 'Church Attendance',
+                    icon: Icons.church,
+                    onTap: () {
+                      Navigator.of(
+                        context,
+                      ).pushNamed(RouteNames.churchAttendanceList);
+                    },
+                  ),
+                  _QuickActionCard(
+                    title: 'Sunday School',
+                    icon: Icons.school,
+                    onTap: () {
+                      Navigator.of(
+                        context,
+                      ).pushNamed(RouteNames.sundaySchoolAttendanceList);
+                    },
+                  ),
                 ],
               ),
             ],
@@ -324,13 +342,18 @@ class _QuickActionCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 40, color: AppColors.primary),
               const SizedBox(height: AppDimensions.spacingSM),
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
+              Flexible(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
