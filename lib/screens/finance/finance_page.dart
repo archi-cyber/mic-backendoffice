@@ -4,6 +4,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/supabase_service.dart';
+import '../../services/finance_pdf_service.dart';
 
 /// Finance page for managing giving/tithes/offerings
 /// Only accessible to finance department leaders and admins
@@ -72,6 +73,72 @@ class _FinancePageState extends State<FinancePage> {
     }
   }
 
+  Future<void> _generatePdfReport() async {
+    if (!mounted) return;
+
+    // Show date range picker dialog first
+    final dateRange = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(
+        start: DateTime.now().subtract(const Duration(days: 30)),
+        end: DateTime.now(),
+      ),
+      helpText: 'Select Date Range for Report',
+    );
+
+    // If user cancelled, return
+    if (dateRange == null || !mounted) return;
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Generating PDF report...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await FinancePdfService.generateAndSaveReport(
+        fromDate: dateRange.start,
+        toDate: dateRange.end,
+      );
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PDF report saved successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving report: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -81,6 +148,11 @@ class _FinancePageState extends State<FinancePage> {
       appBar: AppBar(
         title: Text(localizations?.finance ?? 'Finance'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf),
+            onPressed: _generatePdfReport,
+            tooltip: 'Generate PDF Report',
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: () async {

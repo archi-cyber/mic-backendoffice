@@ -242,4 +242,29 @@ class FinanceService {
       throw Exception('Failed to update giving record: $e');
     }
   }
+
+  /// Get all giving records for reporting
+  /// Parameters:
+  /// - fromDate: Optional start date filter
+  /// - toDate: Optional end date filter
+  static Future<List<Map<String, dynamic>>> getAllGivingRecords({
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      var query = _client.from('giving').select();
+
+      if (fromDate != null) {
+        query = query.gte('date', fromDate.toIso8601String().split('T')[0]);
+      }
+      if (toDate != null) {
+        query = query.lte('date', toDate.toIso8601String().split('T')[0]);
+      }
+
+      final response = await query.order('date', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to fetch giving records: $e');
+    }
+  }
 }
