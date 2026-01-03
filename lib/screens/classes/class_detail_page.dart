@@ -701,38 +701,45 @@ class _MembersTabState extends State<_MembersTab> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadMembers,
-      child: ListView.builder(
-        itemCount: _members.length,
-        itemBuilder: (context, index) {
-          final enrollment = _members[index];
-          final member = enrollment['members'] as Map<String, dynamic>?;
-          if (member == null) return const SizedBox.shrink();
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: _loadMembers,
+        child: ListView.builder(
+          itemCount: _members.length,
+          itemBuilder: (context, index) {
+            final enrollment = _members[index];
+            final member = enrollment['members'] as Map<String, dynamic>?;
+            if (member == null) return const SizedBox.shrink();
 
-          return ListTile(
-            leading: CircleAvatar(
-              child: Text(
-                member['first_name']?[0]?.toString().toUpperCase() ?? 'M',
-              ),
-            ),
-            title: Text('${member['first_name']} ${member['last_name']}'),
-            subtitle: Text(member['email']?.toString() ?? ''),
-            trailing: IconButton(
-              icon: const Icon(Icons.close, color: AppColors.error),
-              onPressed: () => _removeMember(member['id'].toString()),
-              tooltip: 'Remove from class',
-            ),
-            onTap: () {
-              Navigator.of(context).pushNamed(
-                RouteNames.memberDetail.replaceAll(
-                  ':id',
-                  member['id'].toString(),
+            return ListTile(
+              leading: CircleAvatar(
+                child: Text(
+                  member['first_name']?[0]?.toString().toUpperCase() ?? 'M',
                 ),
-              );
-            },
-          );
-        },
+              ),
+              title: Text('${member['first_name']} ${member['last_name']}'),
+              subtitle: Text(member['email']?.toString() ?? ''),
+              trailing: IconButton(
+                icon: const Icon(Icons.close, color: AppColors.error),
+                onPressed: () => _removeMember(member['id'].toString()),
+                tooltip: 'Remove from class',
+              ),
+              onTap: () {
+                Navigator.of(context).pushNamed(
+                  RouteNames.memberDetail.replaceAll(
+                    ':id',
+                    member['id'].toString(),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addMember,
+        icon: const Icon(Icons.person_add),
+        label: const Text('Add Members'),
       ),
     );
   }
@@ -741,6 +748,7 @@ class _MembersTabState extends State<_MembersTab> {
     try {
       // Get all members
       final allMembers = await MemberService.getMembers(
+        filters: {'is_active': true},
         orderBy: 'first_name',
         ascending: true,
       );
@@ -770,38 +778,80 @@ class _MembersTabState extends State<_MembersTab> {
         return;
       }
 
-      String? selectedMemberId;
+      final selectedMemberIds = <String>{};
 
+      if (!mounted) return;
       final result = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Add Member to Class'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Select Member',
-                      prefixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(),
+            title: const Text('Add Members to Class'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Select members to add:'),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    // Select all / Deselect all buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setDialogState(() {
+                              if (selectedMemberIds.length ==
+                                  availableMembers.length) {
+                                selectedMemberIds.clear();
+                              } else {
+                                selectedMemberIds.clear();
+                                selectedMemberIds.addAll(
+                                  availableMembers
+                                      .map((m) => m['id'].toString()),
+                                );
+                              }
+                            });
+                          },
+                          child: Text(
+                            selectedMemberIds.length == availableMembers.length
+                                ? 'Deselect All'
+                                : 'Select All',
+                          ),
+                        ),
+                        Text(
+                          '${selectedMemberIds.length} selected',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                    items: availableMembers.map((member) {
-                      return DropdownMenuItem<String>(
-                        value: member['id'].toString(),
-                        child: Text(
+                    const SizedBox(height: AppDimensions.spacingSM),
+                    // Member list with checkboxes
+                    ...availableMembers.map((member) {
+                      final memberId = member['id'].toString();
+                      final isSelected = selectedMemberIds.contains(memberId);
+                      return CheckboxListTile(
+                        title: Text(
                           '${member['first_name']} ${member['last_name']}',
                         ),
+                        subtitle: member['email'] != null
+                            ? Text(member['email'].toString())
+                            : null,
+                        value: isSelected,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            if (value == true) {
+                              selectedMemberIds.add(memberId);
+                            } else {
+                              selectedMemberIds.remove(memberId);
+                            }
+                          });
+                        },
+                        dense: true,
                       );
-                    }).toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedMemberId = value;
-                      });
-                    },
-                  ),
-                ],
+                    }),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -810,37 +860,70 @@ class _MembersTabState extends State<_MembersTab> {
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: selectedMemberId == null
+                onPressed: selectedMemberIds.isEmpty
                     ? null
                     : () => Navigator.pop(context, true),
-                child: const Text('Add'),
+                child: Text(
+                  selectedMemberIds.isEmpty
+                      ? 'Add'
+                      : 'Add ${selectedMemberIds.length}',
+                ),
               ),
             ],
           ),
         ),
       );
 
-      if (result == true && selectedMemberId != null) {
-        await ClassService.addMemberToClass(
-          classId: widget.classId,
-          memberId: selectedMemberId!,
-        );
+      if (result == true && selectedMemberIds.isNotEmpty) {
+        // Add all selected members
+        int successCount = 0;
+        int errorCount = 0;
+        final errors = <String>[];
+
+        for (final memberId in selectedMemberIds) {
+          try {
+            await ClassService.addMemberToClass(
+              classId: widget.classId,
+              memberId: memberId,
+            );
+            successCount++;
+          } catch (e) {
+            errorCount++;
+            errors.add(e.toString());
+          }
+        }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Member added successfully'),
-              backgroundColor: AppColors.success,
-            ),
-          );
           _loadMembers();
+          if (errorCount == 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  successCount == 1
+                      ? 'Member added successfully'
+                      : '$successCount members added successfully',
+                ),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '$successCount members added, $errorCount failed',
+                ),
+                backgroundColor: AppColors.warning,
+                duration: const Duration(seconds: 5),
+              ),
+            );
+          }
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error adding member: $e'),
+            content: Text('Error adding members: $e'),
             backgroundColor: AppColors.error,
           ),
         );

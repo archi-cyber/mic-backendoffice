@@ -47,6 +47,14 @@ class StorageService {
 
       return url;
     } catch (e) {
+      final errorMessage = e.toString();
+      if (errorMessage.contains('Bucket not found')) {
+        throw Exception(
+          'Storage bucket "$_bucketName" not found. '
+          'Please create the bucket in Supabase Dashboard → Storage → Create Bucket. '
+          'Bucket name: $_bucketName',
+        );
+      }
       throw Exception('Failed to upload file: $e');
     }
   }

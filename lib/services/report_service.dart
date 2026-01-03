@@ -111,8 +111,13 @@ class ReportService {
 
       // Calculate statistics
       final totalSessions = sessions.length;
-      final totalAttendance = (attendance as List).length;
-      final uniqueMembers = (attendance as List)
+      final attendanceList = attendance as List;
+      // Total attendance should count only 'present' records (actual attendance)
+      final totalAttendance = attendanceList
+          .where((record) =>
+              record['status']?.toString().toLowerCase() == 'present')
+          .length;
+      final uniqueMembers = attendanceList
           .map((a) => a['member_id'])
           .toSet()
           .length;

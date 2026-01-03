@@ -103,6 +103,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
 
     try {
       // Create department first
+      debugPrint('[AddDepartmentPage] Creating department...');
       final department = await DepartmentService.createDepartment(
         departmentData: {
           'name': _nameController.text.trim(),
@@ -114,71 +115,163 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
       );
 
       final departmentId = department['id'].toString();
+      debugPrint('[AddDepartmentPage] Department created successfully. ID: $departmentId');
       final folder = 'departments/$departmentId';
+      debugPrint('[AddDepartmentPage] Storage folder: $folder');
 
       // Upload documents if any
       final Map<String, dynamic> documentUpdates = {};
+      final List<String> uploadErrors = [];
 
       if (_document1 != null) {
         try {
+          debugPrint('[AddDepartmentPage] Uploading document 1: $_document1Name');
           final url = await StorageService.uploadFile(
             file: _document1!,
             folder: folder,
             fileName: _document1Name,
           );
+          debugPrint('[AddDepartmentPage] Document 1 uploaded successfully. URL: $url');
           documentUpdates['document_1_url'] = url;
           documentUpdates['document_1_name'] = _document1Name;
         } catch (e) {
-          debugPrint('Error uploading document 1: $e');
+          debugPrint('[AddDepartmentPage] Error uploading document 1: $e');
+          uploadErrors.add('Failed to upload "${_document1Name}": ${e.toString()}');
         }
       }
 
       if (_document2 != null) {
         try {
+          debugPrint('[AddDepartmentPage] Uploading document 2: $_document2Name');
           final url = await StorageService.uploadFile(
             file: _document2!,
             folder: folder,
             fileName: _document2Name,
           );
+          debugPrint('[AddDepartmentPage] Document 2 uploaded successfully. URL: $url');
           documentUpdates['document_2_url'] = url;
           documentUpdates['document_2_name'] = _document2Name;
         } catch (e) {
-          debugPrint('Error uploading document 2: $e');
+          debugPrint('[AddDepartmentPage] Error uploading document 2: $e');
+          uploadErrors.add('Failed to upload "${_document2Name}": ${e.toString()}');
         }
       }
 
       if (_document3 != null) {
         try {
+          debugPrint('[AddDepartmentPage] Uploading document 3: $_document3Name');
           final url = await StorageService.uploadFile(
             file: _document3!,
             folder: folder,
             fileName: _document3Name,
           );
+          debugPrint('[AddDepartmentPage] Document 3 uploaded successfully. URL: $url');
           documentUpdates['document_3_url'] = url;
           documentUpdates['document_3_name'] = _document3Name;
         } catch (e) {
-          debugPrint('Error uploading document 3: $e');
+          debugPrint('[AddDepartmentPage] Error uploading document 3: $e');
+          uploadErrors.add('Failed to upload "${_document3Name}": ${e.toString()}');
         }
       }
 
       // Update department with document URLs if any were uploaded
       if (documentUpdates.isNotEmpty) {
-        await DepartmentService.updateDepartment(
+        debugPrint('[AddDepartmentPage] Updating department with document data: $documentUpdates');
+        final updatedDepartment = await DepartmentService.updateDepartment(
           departmentId: departmentId,
           updates: documentUpdates,
         );
+        debugPrint('[AddDepartmentPage] Department updated successfully with documents.');
+        debugPrint('[AddDepartmentPage] Updated department data:');
+        debugPrint('  - document_1_url: ${updatedDepartment['document_1_url']}');
+        debugPrint('  - document_1_name: ${updatedDepartment['document_1_name']}');
+        debugPrint('  - document_2_url: ${updatedDepartment['document_2_url']}');
+        debugPrint('  - document_2_name: ${updatedDepartment['document_2_name']}');
+        debugPrint('  - document_3_url: ${updatedDepartment['document_3_url']}');
+        debugPrint('  - document_3_name: ${updatedDepartment['document_3_name']}');
+      } else {
+        debugPrint('[AddDepartmentPage] No documents to upload.');
       }
 
       if (mounted) {
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Department created successfully'),
-            backgroundColor: AppColors.success,
+          SnackBar(
+            content: Text(
+              uploadErrors.isEmpty
+                  ? 'Department created successfully'
+                  : 'Department created, but some documents failed to upload',
+            ),
+            backgroundColor: uploadErrors.isEmpty
+                ? AppColors.success
+                : AppColors.warning,
+            duration: const Duration(seconds: 3),
           ),
         );
+
+        // Show detailed error dialog if there were upload errors
+        if (uploadErrors.isNotEmpty) {
+          if (mounted) {
+            await showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning, color: AppColors.warning),
+                    SizedBox(width: 8),
+                    Text('Document Upload Errors'),
+                  ],
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'The department was created, but the following documents failed to upload:',
+                      ),
+                      const SizedBox(height: 16),
+                      ...uploadErrors.map(
+                        (error) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            '• $error',
+                            style: const TextStyle(
+                              color: AppColors.error,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'You can add these documents later by editing the department.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+          }
+        }
+
+        debugPrint('[AddDepartmentPage] Department creation completed successfully.');
+        debugPrint('[AddDepartmentPage] Summary:');
+        debugPrint('  - Department ID: $departmentId');
+        debugPrint('  - Documents uploaded: ${documentUpdates.length}');
+        debugPrint('  - Upload errors: ${uploadErrors.length}');
+        
         Navigator.of(context).pop(true); // Return true to indicate success
       }
     } catch (e) {
+      debugPrint('[AddDepartmentPage] Error creating department: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(

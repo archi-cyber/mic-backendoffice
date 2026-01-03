@@ -1,6 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'supabase_service.dart';
 
 /// Service for managing FCM device tokens
@@ -50,20 +50,29 @@ class DeviceTokenService {
         final token = await messaging.getToken();
         _currentToken = token;
 
+        debugPrint('[DeviceTokenService] ✅ FCM token generated: ${token?.substring(0, 20)}...');
+        debugPrint('[DeviceTokenService] Token length: ${token?.length}');
+
         // Save token to database if user is authenticated
         if (SupabaseService.isAuthenticated) {
+          debugPrint('[DeviceTokenService] User is authenticated, saving device token to database...');
           await saveDeviceToken(token);
+        } else {
+          debugPrint('[DeviceTokenService] User is not authenticated, token will be saved after login');
         }
 
         // Listen for token refresh
         messaging.onTokenRefresh.listen((newToken) {
           _currentToken = newToken;
+          debugPrint('[DeviceTokenService] 🔄 FCM token refreshed: ${newToken.substring(0, 20)}...');
           if (SupabaseService.isAuthenticated) {
             saveDeviceToken(newToken);
           }
         });
 
         return token;
+      } else {
+        debugPrint('[DeviceTokenService] ❌ Notification permission not authorized. Status: ${settings.authorizationStatus}');
       }
 
       return null;
@@ -78,7 +87,12 @@ class DeviceTokenService {
 
     try {
       final authUserId = SupabaseService.currentUser?.id;
-      if (authUserId == null) return;
+      if (authUserId == null) {
+        debugPrint('[DeviceTokenService] Cannot save token: User not authenticated');
+        return;
+      }
+
+      debugPrint('[DeviceTokenService] Saving device token for user: $authUserId');
 
       // Get the user_id from users table (not auth.users)
       // The user_devices table references users.id, not auth.users.id
@@ -93,12 +107,10 @@ class DeviceTokenService {
       if (user == null) {
         // Log warning but don't throw error - device token will be saved on next login
         // when user record is created
-        if (kDebugMode) {
-          print(
-            'Warning: User $authUserId not found in users table. '
-            'Device token will not be saved. User record may need to be created.',
-          );
-        }
+        debugPrint(
+          '[DeviceTokenService] ⚠️ Warning: User $authUserId not found in users table. '
+          'Device token will not be saved. User record may need to be created.',
+        );
         return;
       }
 
@@ -114,6 +126,8 @@ class DeviceTokenService {
         'platform': 'mobile', // Could be 'android' or 'ios'
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'user_id,device_token');
+
+      debugPrint('[DeviceTokenService] ✅ Device token saved successfully to user_devices table');
     } catch (e) {
       // If it's a foreign key constraint error, provide helpful message
       if (e.toString().contains('foreign key constraint') ||

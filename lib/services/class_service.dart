@@ -252,21 +252,62 @@ class ClassService {
     required List<Map<String, dynamic>> attendanceRecords,
   }) async {
     try {
-      // Prepare attendance records
-      final records = attendanceRecords
-          .map(
-            (record) => {
-              'session_id': sessionId,
-              'member_id': record['member_id'],
-              'status': record['status'], // 'present', 'absent', 'late', etc.
-              'notes': record['notes'],
-              'created_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            },
-          )
-          .toList();
+      // Get existing attendance records for this session to avoid duplicates
+      final existingAttendance = await _client
+          .from('attendance')
+          .select('id, member_id')
+          .eq('session_id', sessionId);
 
-      await _client.from('attendance').insert(records);
+      final existingMemberIds = (existingAttendance as List)
+          .map((record) => record['member_id']?.toString())
+          .where((id) => id != null)
+          .toSet();
+
+      // Separate records into new and updates
+      final recordsToInsert = <Map<String, dynamic>>[];
+      final recordsToUpdate = <Map<String, dynamic>>[];
+
+      for (final record in attendanceRecords) {
+        final memberId = record['member_id']?.toString();
+        if (memberId == null) continue;
+
+        final attendanceData = {
+          'session_id': sessionId,
+          'member_id': memberId,
+          'status': record['status'], // 'present', 'absent', 'late', etc.
+          'notes': record['notes'],
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+
+        if (existingMemberIds.contains(memberId)) {
+          // Update existing record
+          recordsToUpdate.add(attendanceData);
+        } else {
+          // Insert new record
+          recordsToInsert.add({
+            ...attendanceData,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+
+      // Insert new records
+      if (recordsToInsert.isNotEmpty) {
+        await _client.from('attendance').insert(recordsToInsert);
+      }
+
+      // Update existing records
+      for (final record in recordsToUpdate) {
+        await _client
+            .from('attendance')
+            .update({
+              'status': record['status'],
+              'notes': record['notes'],
+              'updated_at': record['updated_at'],
+            })
+            .eq('session_id', sessionId)
+            .eq('member_id', record['member_id']);
+      }
     } catch (e) {
       throw Exception('Failed to record attendance: $e');
     }

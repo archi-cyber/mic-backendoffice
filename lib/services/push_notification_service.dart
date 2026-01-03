@@ -39,18 +39,52 @@ class PushNotificationService {
         final totalSuccess = responseData?['totalSuccess'] as int? ?? 0;
         final totalFailure = responseData?['totalFailure'] as int? ?? 0;
         debugPrint(
-          '[PushNotificationService] Successfully sent: $totalSuccess success, $totalFailure failures',
+          '[PushNotificationService] ✅ Successfully sent: $totalSuccess success, $totalFailure failures',
         );
       } else {
+        final errorData = response.data;
         debugPrint(
-          '[PushNotificationService] Edge Function error: ${response.status} - ${response.data}',
+          '[PushNotificationService] ❌ Edge Function error: HTTP ${response.status}',
         );
+        debugPrint('[PushNotificationService] Error response: $errorData');
+        
+        // Provide helpful error messages based on status code
+        if (response.status == 404) {
+          debugPrint(
+            '[PushNotificationService] ⚠️ Edge Function not found. '
+            'Please deploy the function: supabase functions deploy send-push-notification',
+          );
+        } else if (response.status == 500) {
+          debugPrint(
+            '[PushNotificationService] ⚠️ Edge Function internal error. '
+            'Check Supabase secrets (FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT) are set correctly.',
+          );
+        }
       }
     } catch (e, stackTrace) {
       debugPrint(
-        '[PushNotificationService] ERROR: Failed to send push notifications: $e',
+        '[PushNotificationService] ❌ ERROR: Failed to send push notifications: $e',
       );
+      debugPrint('[PushNotificationService] Error type: ${e.runtimeType}');
       debugPrint('[PushNotificationService] Stack trace: $stackTrace');
+      
+      // Provide helpful diagnostic information
+      if (e.toString().contains('Function not found') || 
+          e.toString().contains('404') ||
+          e.toString().contains('not deployed')) {
+        debugPrint(
+          '[PushNotificationService] 💡 DIAGNOSIS: Edge Function not deployed. '
+          'Run: supabase functions deploy send-push-notification',
+        );
+      } else if (e.toString().contains('secret') || 
+                 e.toString().contains('FIREBASE_PROJECT_ID') ||
+                 e.toString().contains('FIREBASE_SERVICE_ACCOUNT')) {
+        debugPrint(
+          '[PushNotificationService] 💡 DIAGNOSIS: Supabase secrets not configured. '
+          'Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT secrets.',
+        );
+      }
+      
       // Don't throw - push notifications are secondary to announcement creation
     }
   }

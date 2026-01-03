@@ -26,13 +26,13 @@ class _EditMemberPageState extends State<EditMemberPage> {
   final _zipCodeController = TextEditingController();
   final _countryController = TextEditingController();
   final _quarterController = TextEditingController();
-  final _levelOfStudyController = TextEditingController();
   final _sectorOfStudiesController = TextEditingController();
   final _domainOfActivityController = TextEditingController();
-  final _lastDiplomasController = TextEditingController();
   final _keySkillsList = <String>[];
   final _keySkillInputController = TextEditingController();
   String? _selectedProfession;
+  String? _selectedLevelOfStudy;
+  String? _selectedLastDiploma;
   String? _selectedRole;
   String? _selectedGender;
   String? _selectedMaritalStatus;
@@ -60,11 +60,9 @@ class _EditMemberPageState extends State<EditMemberPage> {
     _zipCodeController.dispose();
     _countryController.dispose();
     _quarterController.dispose();
-    _levelOfStudyController.dispose();
     _sectorOfStudiesController.dispose();
     _domainOfActivityController.dispose();
     _keySkillInputController.dispose();
-    _lastDiplomasController.dispose();
     super.dispose();
   }
 
@@ -104,7 +102,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
         _countryController.text = member['country'] ?? '';
         _quarterController.text = member['quarter'] ?? '';
         _selectedProfession = member['profession'];
-        _levelOfStudyController.text = member['level_of_study'] ?? '';
+        _selectedLevelOfStudy = member['level_of_study'];
         _sectorOfStudiesController.text = member['sector_of_studies'] ?? '';
         _domainOfActivityController.text = member['domain_of_activity'] ?? '';
         // Handle key_skills as list (could be List or null)
@@ -127,7 +125,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
         } else {
           _keySkillsList.clear();
         }
-        _lastDiplomasController.text = member['last_diplomas'] ?? '';
+        _selectedLastDiploma = member['last_diplomas'];
         _selectedRole = member['role'] ?? 'member';
         _selectedGender = member['gender'];
         _selectedMaritalStatus = member['marital_status'];
@@ -204,9 +202,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ? _quarterController.text.trim()
               : null,
           'profession': _selectedProfession,
-          'level_of_study': _levelOfStudyController.text.trim().isNotEmpty
-              ? _levelOfStudyController.text.trim()
-              : null,
+          'level_of_study': _selectedLevelOfStudy,
           'sector_of_studies': _sectorOfStudiesController.text.trim().isNotEmpty
               ? _sectorOfStudiesController.text.trim()
               : null,
@@ -215,9 +211,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ? _domainOfActivityController.text.trim()
               : null,
           'key_skills': _keySkillsList.isNotEmpty ? _keySkillsList : null,
-          'last_diplomas': _lastDiplomasController.text.trim().isNotEmpty
-              ? _lastDiplomasController.text.trim()
-              : null,
+          'last_diplomas': _selectedLastDiploma,
           'role': _selectedRole,
           'gender': _selectedGender,
           'marital_status': _selectedMaritalStatus,
@@ -427,10 +421,19 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     _selectedProfession = value;
                     // Clear dependent fields when profession changes
                     if (!MemberConstants.requiresLevelOfStudy(value)) {
-                      _levelOfStudyController.clear();
+                      _selectedLevelOfStudy = null;
+                    } else {
+                      // Reset level of study when profession changes
+                      // Only reset if current level is not valid for new profession
+                      final availableLevels =
+                          MemberConstants.getLevelsOfStudy(value);
+                      if (_selectedLevelOfStudy != null &&
+                          !availableLevels.contains(_selectedLevelOfStudy)) {
+                        _selectedLevelOfStudy = null;
+                      }
                     }
                     if (!MemberConstants.requiresLastDiplomas(value)) {
-                      _lastDiplomasController.clear();
+                      _selectedLastDiploma = null;
                     }
                     if (!MemberConstants.requiresSectorOfStudies(value)) {
                       _sectorOfStudiesController.clear();
@@ -446,19 +449,31 @@ class _EditMemberPageState extends State<EditMemberPage> {
                 _selectedProfession,
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
-                TextFormField(
-                  controller: _levelOfStudyController,
+                DropdownButtonFormField<String>(
+                  value: _selectedLevelOfStudy,
                   decoration: const InputDecoration(
                     labelText: 'Level of Study *',
                     prefixIcon: Icon(Icons.school),
                     helperText:
                         'Required for students, job seeking, and workers',
                   ),
+                  items: MemberConstants.getLevelsOfStudy(_selectedProfession)
+                      .map((level) {
+                    return DropdownMenuItem<String>(
+                      value: level,
+                      child: Text(level),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedLevelOfStudy = value;
+                    });
+                  },
                   validator: (value) {
                     if (MemberConstants.requiresLevelOfStudy(
                           _selectedProfession,
                         ) &&
-                        (value == null || value.trim().isEmpty)) {
+                        (value == null || value.isEmpty)) {
                       return 'Level of study is required';
                     }
                     return null;
@@ -517,20 +532,30 @@ class _EditMemberPageState extends State<EditMemberPage> {
                 _selectedProfession,
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
-                TextFormField(
-                  controller: _lastDiplomasController,
+                DropdownButtonFormField<String>(
+                  value: _selectedLastDiploma,
                   decoration: const InputDecoration(
                     labelText: 'Last Diplomas *',
                     prefixIcon: Icon(Icons.workspace_premium),
                     helperText:
                         'Required for secondary and university students, job seeking, and workers',
                   ),
-                  maxLines: 2,
+                  items: MemberConstants.getDiplomaOptions().map((diploma) {
+                    return DropdownMenuItem<String>(
+                      value: diploma,
+                      child: Text(diploma),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedLastDiploma = value;
+                    });
+                  },
                   validator: (value) {
                     if (MemberConstants.requiresLastDiplomas(
                           _selectedProfession,
                         ) &&
-                        (value == null || value.trim().isEmpty)) {
+                        (value == null || value.isEmpty)) {
                       return 'Last diplomas is required';
                     }
                     return null;

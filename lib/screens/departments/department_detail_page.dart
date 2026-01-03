@@ -248,19 +248,19 @@ class _OverviewTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppDimensions.spacingMD),
-        // Documents section
-        if (_hasDocuments(department))
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Documents',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+        // Department Files section
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Department Files',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppDimensions.spacingSM),
+                if (_hasDocuments(department)) ...[
                   if (department['document_1_name'] != null)
                     _buildDocumentTile(
                       context,
@@ -279,10 +279,20 @@ class _OverviewTab extends StatelessWidget {
                       department['document_3_name'].toString(),
                       department['document_3_url']?.toString(),
                     ),
-                ],
-              ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Text(
+                      'No files uploaded',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                    ),
+                  ),
+              ],
             ),
           ),
+        ),
         const SizedBox(height: AppDimensions.spacingMD),
         // Stats cards
         Row(
@@ -325,24 +335,45 @@ class _OverviewTab extends StatelessWidget {
       trailing: fileUrl != null
           ? IconButton(
               icon: const Icon(Icons.open_in_new),
-              onPressed: () async {
-                final uri = Uri.parse(fileUrl);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-              tooltip: 'Open document',
+              onPressed: () => _openDocument(context, fileUrl, fileName),
+              tooltip: 'Open file',
             )
           : null,
       onTap: fileUrl != null
-          ? () async {
-              final uri = Uri.parse(fileUrl);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            }
+          ? () => _openDocument(context, fileUrl, fileName)
           : null,
     );
+  }
+
+  Future<void> _openDocument(
+    BuildContext context,
+    String fileUrl,
+    String fileName,
+  ) async {
+    try {
+      final uri = Uri.parse(fileUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Cannot open file: $fileName'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening file: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -65,4 +65,61 @@ class MemberConstants {
       {'value': worker, 'label': 'Worker'},
     ];
   }
+
+  /// Get levels of study based on profession
+  static List<String> getLevelsOfStudy(String? profession) {
+    if (profession == null) return [];
+
+    switch (profession) {
+      case primarySchoolStudent:
+        return [
+          'nursery',
+          'primary 1',
+          'primary 2',
+          'primary 3',
+          'primary 4',
+          'primary 5',
+          'primary 6',
+        ];
+      case secondarySchoolStudent:
+        return [
+          'form 1',
+          'form 2',
+          'form 3',
+          'form 4',
+          'form 5',
+          'lower sixth',
+          'upper sixth',
+        ];
+      case universityStudent:
+      case jobSeeking:
+      case worker:
+        return [
+          'level 1',
+          'level 2',
+          'level 3',
+          'masters 1',
+          'masters 2',
+          'phd',
+        ];
+      default:
+        return [];
+    }
+  }
+
+  /// Get all diploma options
+  static List<String> getDiplomaOptions() {
+    return [
+      'CEP',
+      'GCE A levels',
+      'GCE O levels',
+      'BAC',
+      'Probatoire',
+      'BEPC',
+      'Licence (Bachelors)',
+      'Masters 1',
+      'Masters 2',
+      'PHD',
+    ];
+  }
 }

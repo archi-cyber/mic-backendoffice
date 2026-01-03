@@ -56,7 +56,7 @@ serve(async (req) => {
   try {
     // Get Firebase project ID and service account from secrets
     const projectId = Deno.env.get('FIREBASE_PROJECT_ID');
-    const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
+    let serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
 
     if (!projectId) {
       console.error('FIREBASE_PROJECT_ID secret is not set');
@@ -84,6 +84,24 @@ serve(async (req) => {
           },
         }
       );
+    }
+
+    // Handle base64-encoded service account (common when setting via CLI with special characters)
+    try {
+      // Try to decode as base64 first (if it's base64, it will decode successfully)
+      // Base64 strings are typically longer and don't start with '{'
+      if (!serviceAccountJson.trim().startsWith('{')) {
+        try {
+          const decoded = atob(serviceAccountJson);
+          // If decoding works and results in valid JSON, use it
+          JSON.parse(decoded);
+          serviceAccountJson = decoded;
+        } catch {
+          // If base64 decode fails, assume it's already JSON
+        }
+      }
+    } catch {
+      // If any error, assume it's already JSON format
     }
 
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson);
