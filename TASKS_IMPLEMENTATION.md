@@ -7,14 +7,20 @@ Complete CRUD functionality for tasks with assignment management, status trackin
 ```sql
 CREATE TABLE tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  department_id UUID NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
+  department_id UUID REFERENCES departments(id) ON DELETE CASCADE,
+  member_id UUID REFERENCES members(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
   due_date DATE,
   priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT tasks_department_or_member_check 
+    CHECK (
+      (department_id IS NOT NULL AND member_id IS NULL) OR 
+      (department_id IS NULL AND member_id IS NOT NULL)
+    )
 );
 
 CREATE TABLE task_assignments (
@@ -78,7 +84,9 @@ CREATE TABLE task_assignments (
 - ✅ Form validation
 - ✅ Task title (required)
 - ✅ Description (optional, multi-line)
-- ✅ Department selection (required dropdown)
+- ✅ Assignment type switch (Department or Individual)
+- ✅ Department selection (required when assigning to department)
+- ✅ Member selection with search (required when assigning to individual)
 - ✅ Due date picker (optional)
 - ✅ Priority selection (low, medium, high, urgent)
 - ✅ Status selection (pending, in_progress, completed, cancelled)
@@ -152,10 +160,12 @@ CREATE TABLE task_assignments (
 - Overdue highlighting (red, bold)
 - Date picker for selection
 
-### 5. Department Scoping
-- Tasks belong to departments
-- Can filter by department
-- Department selection in add/edit forms
+### 5. Department and Individual Assignment
+- Tasks can be assigned to either a department OR an individual member
+- Department assignment: task is visible to all department members
+- Individual assignment: task is assigned directly to a specific member
+- Switch toggle in add task form to choose between department or individual assignment
+- Either department_id or member_id must be set, but not both
 
 ## Usage Flow
 

@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
 import '../services/supabase_service.dart';
+import '../services/role_service.dart';
+import '../services/device_token_service.dart';
 import 'dart:async';
 
 /// Authentication provider for state management
@@ -30,9 +32,54 @@ class AuthProvider extends ChangeNotifier {
       if (user != null) {
         _currentUser = user;
         _isAuthenticated = true;
-        _mustChangePassword =
-            user.userMetadata?['must_change_password'] == true ||
-            user.userMetadata?['must_change_password'] == 'true';
+
+        // Check must_change_password flag from users table (primary source)
+        // Also check user metadata as fallback
+        try {
+          final userRecord = await SupabaseService.client
+              .from('users')
+              .select('must_change_password')
+              .eq('id', user.id)
+              .maybeSingle();
+
+          if (userRecord != null) {
+            _mustChangePassword = userRecord['must_change_password'] == true;
+          } else {
+            // Fallback to metadata if users table record doesn't exist
+            _mustChangePassword =
+                user.userMetadata?['must_change_password'] == true ||
+                user.userMetadata?['must_change_password'] == 'true';
+          }
+        } catch (e) {
+          // Fallback to metadata if query fails
+          debugPrint(
+            '[AuthProvider] Error checking users table: $e, using metadata',
+          );
+          _mustChangePassword =
+              user.userMetadata?['must_change_password'] == true ||
+              user.userMetadata?['must_change_password'] == 'true';
+        }
+
+        // Ensure mic@mic.com has admin privileges
+        final userEmail = user.email;
+        if (userEmail != null && userEmail == RoleService.superAdminEmail) {
+          await RoleService.ensureSuperAdminPrivileges(userEmail);
+        }
+
+        // Save device token if user is already authenticated on app start
+        try {
+          final deviceToken = DeviceTokenService.currentToken;
+          if (deviceToken != null) {
+            debugPrint(
+              '[AuthProvider] Saving device token on initialization: ${deviceToken.substring(0, 20)}...',
+            );
+            await DeviceTokenService.saveDeviceToken(deviceToken);
+          }
+        } catch (e) {
+          debugPrint(
+            '[AuthProvider] Warning: Failed to save device token on initialization: $e',
+          );
+        }
 
         // Start token monitoring
         _startTokenMonitoring();
@@ -163,6 +210,34 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
+      // Ensure mic@mic.com has admin privileges
+      final userEmail = _currentUser?.email;
+      if (userEmail != null && userEmail == RoleService.superAdminEmail) {
+        await RoleService.ensureSuperAdminPrivileges(userEmail);
+      }
+
+      // Save device token after successful login
+      // This ensures push notifications work for users who log in after app start
+      try {
+        final deviceToken = DeviceTokenService.currentToken;
+        if (deviceToken != null) {
+          debugPrint(
+            '[AuthProvider] Saving device token after login: ${deviceToken.substring(0, 20)}...',
+          );
+          await DeviceTokenService.saveDeviceToken(deviceToken);
+        } else {
+          debugPrint(
+            '[AuthProvider] No device token available to save. '
+            'FCM may not be initialized or permission not granted.',
+          );
+        }
+      } catch (e) {
+        debugPrint(
+          '[AuthProvider] Warning: Failed to save device token after login: $e',
+        );
+        // Don't fail login if device token save fails
+      }
+
       // Start token monitoring after successful login
       _startTokenMonitoring();
 
@@ -184,6 +259,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Update password (this also updates users table)
       await AuthService.resetPassword(
         token: '', // Not needed when authenticated
         newPassword: newPassword,
@@ -193,6 +269,25 @@ class AuthProvider extends ChangeNotifier {
       await SupabaseService.client.auth.updateUser(
         UserAttributes(data: {'must_change_password': false}),
       );
+
+      // Ensure users table is updated (resetPassword should have done this, but double-check)
+      try {
+        final userId = _currentUser?.id;
+        if (userId != null) {
+          await SupabaseService.client
+              .from('users')
+              .update({
+                'must_change_password': false,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', userId);
+        }
+      } catch (e) {
+        debugPrint(
+          '[AuthProvider] Warning: Could not update users table: $e',
+        );
+        // Don't fail password change if users table update fails
+      }
 
       _mustChangePassword = false;
       _isLoading = false;

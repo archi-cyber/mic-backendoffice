@@ -126,7 +126,7 @@ class _ClassReportPageState extends State<ClassReportPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${_class?['name'] ?? 'Class'} - Report'),
+        title: Text('${_class?['name'] ?? 'Training'} - Report'),
         actions: [
           IconButton(
             icon: const Icon(Icons.date_range),

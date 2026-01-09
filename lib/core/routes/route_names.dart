@@ -20,6 +20,7 @@ class RouteNames {
   static const String memberDetail = '/members/:id';
   static const String addMember = '/members/add';
   static const String editMember = '/members/:id/edit';
+  static const String upcomingBirthdays = '/members/birthdays';
 
   // Attendance Routes
   static const String attendance = '/attendance';
@@ -59,12 +60,12 @@ class RouteNames {
   static const String editDepartmentReport = '/departments/reports/:id/edit';
   static const String departmentReportDetail = '/departments/reports/:id';
 
-  // Class Routes
-  static const String classes = '/classes';
-  static const String classDetail = '/classes/:id';
-  static const String addClass = '/classes/add';
-  static const String editClass = '/classes/:id/edit';
-  static const String sessions = '/classes/:id/sessions';
+  // Training Routes
+  static const String classes = '/trainings';
+  static const String classDetail = '/trainings/:id';
+  static const String addClass = '/trainings/add';
+  static const String editClass = '/trainings/:id/edit';
+  static const String sessions = '/trainings/:id/sessions';
   static const String sessionDetail = '/sessions/:id';
 
   // Task Routes
@@ -76,11 +77,26 @@ class RouteNames {
   // Report Routes
   static const String reports = '/reports';
   static const String memberReport = '/reports/member/:id';
-  static const String classReport = '/reports/class/:id';
+  static const String classReport = '/reports/training/:id';
 
   // Chat/Announcement Routes
   static const String chat = '/chat';
 
+  // Visitor Routes
+  static const String visitors = '/visitors';
+  static const String addVisitor = '/visitors/add';
+  static const String editVisitor = '/visitors/:id/edit';
+
+  // Teaching Routes
+  static const String teachings = '/teachings';
+  static const String teachingDetail = '/teachings/:id';
+  static const String addTeaching = '/teachings/add';
+  static const String editTeaching = '/teachings/:id/edit';
+
   // Admin Routes
   static const String admin = '/admin';
+  static const String leaderAccess = '/settings/leader-access';
+
+  // Common Routes
+  static const String fileViewer = '/file-viewer';
 }

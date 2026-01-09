@@ -66,7 +66,15 @@ class DeviceTokenService {
           _currentToken = newToken;
           debugPrint('[DeviceTokenService] 🔄 FCM token refreshed: ${newToken.substring(0, 20)}...');
           if (SupabaseService.isAuthenticated) {
-            saveDeviceToken(newToken);
+            saveDeviceToken(newToken).catchError((e) {
+              debugPrint(
+                '[DeviceTokenService] ⚠️ Failed to save refreshed token: $e',
+              );
+            });
+          } else {
+            debugPrint(
+              '[DeviceTokenService] ⚠️ User not authenticated, token will be saved on next login',
+            );
           }
         });
 
@@ -94,12 +102,20 @@ class DeviceTokenService {
 
       debugPrint('[DeviceTokenService] Saving device token for user: $authUserId');
 
-      // Get the user_id from users table (not auth.users)
+      // Get the user_id from users table by email (not by auth.users.id)
       // The user_devices table references users.id, not auth.users.id
+      // We need to find the user by email since users.id might not match auth.users.id
+      final authUserEmail = SupabaseService.currentUser?.email;
+      if (authUserEmail == null) {
+        debugPrint('[DeviceTokenService] Cannot save token: User email not available');
+        return;
+      }
+
       final user = await _client
           .from('users')
           .select('id')
-          .eq('id', authUserId)
+          .eq('email', authUserEmail)
+          .limit(1)
           .maybeSingle();
 
       // If user doesn't exist in users table, we can't save the device token
@@ -108,8 +124,11 @@ class DeviceTokenService {
         // Log warning but don't throw error - device token will be saved on next login
         // when user record is created
         debugPrint(
-          '[DeviceTokenService] ⚠️ Warning: User $authUserId not found in users table. '
-          'Device token will not be saved. User record may need to be created.',
+          '[DeviceTokenService] ⚠️ Warning: User with email $authUserEmail not found in users table. '
+          'Device token will not be saved. User record may need to be created or synced.',
+        );
+        debugPrint(
+          '[DeviceTokenService] 💡 TIP: Ensure the user has logged in at least once to create their user record.',
         );
         return;
       }
@@ -128,16 +147,58 @@ class DeviceTokenService {
       }, onConflict: 'user_id,device_token');
 
       debugPrint('[DeviceTokenService] ✅ Device token saved successfully to user_devices table');
+      debugPrint('[DeviceTokenService] User ID: $userId, Token: ${token.substring(0, 20)}...');
     } catch (e) {
       // If it's a foreign key constraint error, provide helpful message
       if (e.toString().contains('foreign key constraint') ||
           e.toString().contains('user_devices_user_id_fkey')) {
+        debugPrint(
+          '[DeviceTokenService] ❌ ERROR: User record not found in users table. '
+          'User may need to log in first to create their user record.',
+        );
         throw Exception(
           'Failed to save device token: User record not found in users table. '
           'Please ensure the user is properly synced. Original error: $e',
         );
       }
+      debugPrint('[DeviceTokenService] ❌ ERROR: Failed to save device token: $e');
       throw Exception('Failed to save device token: $e');
+    }
+  }
+
+  /// Manually register device token for current user
+  /// Useful for re-registering tokens or fixing missing registrations
+  static Future<bool> registerCurrentDeviceToken() async {
+    try {
+      final token = _currentToken;
+      if (token == null) {
+        debugPrint(
+          '[DeviceTokenService] No device token available. Initializing FCM...',
+        );
+        final newToken = await initialize();
+        if (newToken == null) {
+          debugPrint(
+            '[DeviceTokenService] Failed to get device token. '
+            'User may need to grant notification permissions.',
+          );
+          return false;
+        }
+        await saveDeviceToken(newToken);
+        return true;
+      }
+
+      if (!SupabaseService.isAuthenticated) {
+        debugPrint(
+          '[DeviceTokenService] User not authenticated. Cannot register device token.',
+        );
+        return false;
+      }
+
+      await saveDeviceToken(token);
+      return true;
+    } catch (e) {
+      debugPrint('[DeviceTokenService] Failed to register device token: $e');
+      return false;
     }
   }
 

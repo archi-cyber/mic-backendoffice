@@ -1,10 +1,10 @@
 import 'supabase_service.dart';
 
-/// Class service for classes and sessions management
+/// Training service for trainings and sessions management
 class ClassService {
   static final _client = SupabaseService.client;
 
-  /// Create class
+  /// Create training
   /// POST /classes
   static Future<Map<String, dynamic>> createClass({
     required Map<String, dynamic> classData,
@@ -22,11 +22,11 @@ class ClassService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to create class: $e');
+      throw Exception('Failed to create training: $e');
     }
   }
 
-  /// Get all classes
+  /// Get all trainings
   /// GET /classes
   static Future<List<Map<String, dynamic>>> getClasses({
     Map<String, dynamic>? filters,
@@ -67,11 +67,11 @@ class ClassService {
       final response = await transformQuery;
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get classes: $e');
+      throw Exception('Failed to get trainings: $e');
     }
   }
 
-  /// Get class by ID
+  /// Get training by ID
   /// GET /classes/:id
   static Future<Map<String, dynamic>> getClassById(String classId) async {
     try {
@@ -83,11 +83,12 @@ class ClassService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to get class: $e');
+      throw Exception('Failed to get training: $e');
     }
   }
 
   /// Update class
+  /// Update training
   /// PATCH /classes/:id
   static Future<Map<String, dynamic>> updateClass({
     required String classId,
@@ -103,7 +104,7 @@ class ClassService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to update class: $e');
+      throw Exception('Failed to update training: $e');
     }
   }
 
@@ -119,7 +120,7 @@ class ClassService {
           })
           .eq('id', classId);
     } catch (e) {
-      throw Exception('Failed to delete class: $e');
+      throw Exception('Failed to delete training: $e');
     }
   }
 
@@ -136,7 +137,7 @@ class ClassService {
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get class sessions: $e');
+      throw Exception('Failed to get training sessions: $e');
     }
   }
 
@@ -152,7 +153,7 @@ class ClassService {
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get class members: $e');
+      throw Exception('Failed to get training members: $e');
     }
   }
 
@@ -341,7 +342,7 @@ class ClassService {
         'updated_at': DateTime.now().toIso8601String(),
       });
     } catch (e) {
-      throw Exception('Failed to add member to class: $e');
+      throw Exception('Failed to add member to training: $e');
     }
   }
 
@@ -358,7 +359,7 @@ class ClassService {
           .eq('class_id', classId)
           .eq('member_id', memberId);
     } catch (e) {
-      throw Exception('Failed to remove member from class: $e');
+      throw Exception('Failed to remove member from training: $e');
     }
   }
 }

@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/task_service.dart';
 import '../../services/department_service.dart';
+import '../../services/member_service.dart';
 
 /// Add task page
 class AddTaskPage extends StatefulWidget {
@@ -19,12 +20,17 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _selectedDepartmentId;
+  String? _selectedMemberId;
   DateTime? _dueDate;
   String _priority = 'medium';
   String _status = 'pending';
   List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _members = [];
+  bool _assignToIndividual = false; // Default: assign to department
   bool _isLoading = false;
   bool _isLoadingDepartments = true;
+  bool _isLoadingMembers = false;
+  final TextEditingController _memberSearchController = TextEditingController();
 
   @override
   void initState() {
@@ -33,12 +39,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
       _selectedDepartmentId = widget.departmentId;
     }
     _loadDepartments();
+    _loadMembers();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _memberSearchController.dispose();
     super.dispose();
   }
 
@@ -59,6 +67,24 @@ class _AddTaskPageState extends State<AddTaskPage> {
     }
   }
 
+  Future<void> _loadMembers() async {
+    setState(() => _isLoadingMembers = true);
+    try {
+      final members = await MemberService.getMembers(limit: 100);
+      setState(() {
+        _members = members;
+        _isLoadingMembers = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingMembers = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+      }
+    }
+  }
+
   Future<void> _selectDueDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -75,7 +101,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedDepartmentId == null) {
+
+    // Validate based on assignment type
+    if (!_assignToIndividual && _selectedDepartmentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a department'),
@@ -85,11 +113,23 @@ class _AddTaskPageState extends State<AddTaskPage> {
       return;
     }
 
+    if (_assignToIndividual && _selectedMemberId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a member'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      await TaskService.createTask(
-        departmentId: _selectedDepartmentId!,
+      // Create task - use selected department or member_id if assigning to individual
+      final task = await TaskService.createTask(
+        departmentId: _assignToIndividual ? null : _selectedDepartmentId!,
+        memberId: _assignToIndividual ? _selectedMemberId! : null,
         taskData: {
           'title': _titleController.text.trim(),
           'description': _descriptionController.text.trim().isNotEmpty
@@ -100,6 +140,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
           'status': _status,
         },
       );
+
+      // If assigning to individual, also create task assignment for notification
+      if (_assignToIndividual && _selectedMemberId != null) {
+        await TaskService.assignTask(
+          taskId: task['id'].toString(),
+          memberId: _selectedMemberId!,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -123,19 +171,114 @@ class _AddTaskPageState extends State<AddTaskPage> {
     }
   }
 
-  Color _getPriorityColor(String priority) {
-    switch (priority) {
-      case 'urgent':
-        return AppColors.error;
-      case 'high':
-        return Colors.orange;
-      case 'medium':
-        return AppColors.primary;
-      case 'low':
-        return AppColors.textSecondary;
-      default:
-        return AppColors.primary;
-    }
+  String _getMemberName(String memberId) {
+    final member = _members.firstWhere(
+      (m) => m['id'].toString() == memberId,
+      orElse: () => {},
+    );
+    if (member.isEmpty) return 'Unknown';
+    return '${member['first_name']} ${member['last_name']}';
+  }
+
+  Future<void> _showMemberSearchDialog() async {
+    _memberSearchController.clear();
+    List<Map<String, dynamic>> filteredMembers = _members;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Select Member'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _memberSearchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Search members',
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Type to search...',
+                    ),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value.isEmpty) {
+                          filteredMembers = _members;
+                        } else {
+                          final query = value.toLowerCase();
+                          filteredMembers = _members.where((member) {
+                            final firstName =
+                                member['first_name']
+                                    ?.toString()
+                                    .toLowerCase() ??
+                                '';
+                            final lastName =
+                                member['last_name']?.toString().toLowerCase() ??
+                                '';
+                            final email =
+                                member['email']?.toString().toLowerCase() ?? '';
+                            return firstName.contains(query) ||
+                                lastName.contains(query) ||
+                                email.contains(query) ||
+                                '$firstName $lastName'.contains(query);
+                          }).toList();
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+                  Flexible(
+                    child: filteredMembers.isEmpty
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(AppDimensions.paddingMD),
+                              child: Text('No members found'),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filteredMembers.length,
+                            itemBuilder: (context, index) {
+                              final member = filteredMembers[index];
+                              final name =
+                                  '${member['first_name']} ${member['last_name']}';
+                              final email = member['email']?.toString() ?? '';
+                              return ListTile(
+                                title: Text(
+                                  name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: email.isNotEmpty
+                                    ? Text(
+                                        email,
+                                        overflow: TextOverflow.ellipsis,
+                                      )
+                                    : null,
+                                onTap: () {
+                                  setState(() {
+                                    _selectedMemberId = member['id'].toString();
+                                  });
+                                  Navigator.of(context).pop();
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -172,33 +315,116 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 maxLines: 4,
               ),
               const SizedBox(height: AppDimensions.spacingMD),
-              if (_isLoadingDepartments)
-                const Center(child: CircularProgressIndicator())
-              else
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedDepartmentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Department *',
-                    prefixIcon: Icon(Icons.group_work),
+              // Switch between department and individual assignment - only show if not accessed from department detail page
+              if (widget.departmentId == null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.group_work, color: AppColors.primary),
+                        const SizedBox(width: AppDimensions.spacingSM),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _assignToIndividual
+                                    ? 'Assign to Individual'
+                                    : 'Assign to Department',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              Text(
+                                _assignToIndividual
+                                    ? 'Assign this task to a specific member'
+                                    : 'Assign this task to a department',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _assignToIndividual,
+                          onChanged: (value) {
+                            setState(() {
+                              _assignToIndividual = value;
+                              // Clear selections when switching
+                              if (value) {
+                                _selectedDepartmentId = null;
+                              } else {
+                                _selectedMemberId = null;
+                              }
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                  items: _departments.map((dept) {
-                    return DropdownMenuItem<String>(
-                      value: dept['id'].toString(),
-                      child: Text(dept['name']?.toString() ?? 'Unnamed'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedDepartmentId = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null) {
-                      return 'Department is required';
-                    }
-                    return null;
-                  },
                 ),
+              if (widget.departmentId == null)
+                const SizedBox(height: AppDimensions.spacingMD),
+              // Show department or member selection based on switch
+              // If departmentId is provided (from department detail page), don't show department dropdown
+              if (!_assignToIndividual && widget.departmentId == null) ...[
+                if (_isLoadingDepartments)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedDepartmentId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Department *',
+                      prefixIcon: Icon(Icons.group_work),
+                    ),
+                    items: _departments.map((dept) {
+                      return DropdownMenuItem<String>(
+                        value: dept['id'].toString(),
+                        child: Text(
+                          dept['name']?.toString() ?? 'Unnamed',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedDepartmentId = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (!_assignToIndividual && value == null) {
+                        return 'Department is required';
+                      }
+                      return null;
+                    },
+                  ),
+              ] else if (_assignToIndividual) ...[
+                InkWell(
+                  onTap: _isLoadingMembers ? null : _showMemberSearchDialog,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Member *',
+                      prefixIcon: const Icon(Icons.person),
+                      suffixIcon: const Icon(Icons.arrow_drop_down),
+                      errorText:
+                          _assignToIndividual && _selectedMemberId == null
+                          ? 'Member is required'
+                          : null,
+                    ),
+                    child: Text(
+                      _selectedMemberId != null
+                          ? _getMemberName(_selectedMemberId!)
+                          : 'Select a member',
+                      style: TextStyle(
+                        color: _selectedMemberId != null
+                            ? Theme.of(context).textTheme.bodyLarge?.color
+                            : Theme.of(context).hintColor,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppDimensions.spacingMD),
               // Due date
               InkWell(
@@ -224,6 +450,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               // Priority
               DropdownButtonFormField<String>(
                 initialValue: _priority,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Priority',
                   prefixIcon: Icon(Icons.flag),
@@ -244,6 +471,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               // Status
               DropdownButtonFormField<String>(
                 initialValue: _status,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Status',
                   prefixIcon: Icon(Icons.check_circle),

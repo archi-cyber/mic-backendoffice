@@ -4,7 +4,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../services/class_service.dart';
 import '../../services/department_service.dart';
 
-/// Add class page
+/// Add training page
 class AddClassPage extends StatefulWidget {
   const AddClassPage({super.key});
 
@@ -71,7 +71,7 @@ class _AddClassPageState extends State<AddClassPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Class created successfully'),
+            content: Text('Training created successfully'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -93,7 +93,7 @@ class _AddClassPageState extends State<AddClassPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Class')),
+      appBar: AppBar(title: const Text('Add Training')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -110,7 +110,7 @@ class _AddClassPageState extends State<AddClassPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Class name is required';
+                    return 'Training name is required';
                   }
                   return null;
                 },

@@ -92,4 +92,62 @@ class AdminService {
       throw Exception('Failed to force password reset: $e');
     }
   }
+
+  /// Update user role
+  /// PATCH /users/:id/role
+  /// Business Rule: Only admins can update user roles
+  static Future<void> updateUserRole({
+    required String userId,
+    required String role, // 'admin', 'pastor', 'leader', etc.
+  }) async {
+    try {
+      // Update role in users table
+      await _client
+          .from('users')
+          .update({
+            'role': role,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', userId);
+
+      // Also update Supabase Auth metadata if possible
+      try {
+        final user = await _client
+            .from('users')
+            .select('email')
+            .eq('id', userId)
+            .maybeSingle();
+
+        if (user?['email'] != null) {
+          // Note: Updating auth metadata requires admin privileges
+          // This might need to be done through Supabase Dashboard or Admin API
+          print('Note: User role updated in users table. Auth metadata may need manual update.');
+        }
+      } catch (e) {
+        // Log but don't fail - role update in users table is the primary source
+        print('Warning: Could not update auth metadata: $e');
+      }
+    } catch (e) {
+      throw Exception('Failed to update user role: $e');
+    }
+  }
+
+  /// Update user role by email
+  /// PATCH /users/role
+  static Future<void> updateUserRoleByEmail({
+    required String email,
+    required String role, // 'admin', 'pastor', 'leader', etc.
+  }) async {
+    try {
+      await _client
+          .from('users')
+          .update({
+            'role': role,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('email', email);
+    } catch (e) {
+      throw Exception('Failed to update user role: $e');
+    }
+  }
 }

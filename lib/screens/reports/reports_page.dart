@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
 import '../../services/class_service.dart';
 import 'member_report_page.dart';
 
-/// Reports page with member and class reports
+/// Reports page with member and training reports
 class ReportsPage extends StatelessWidget {
   const ReportsPage({super.key});
 
@@ -31,11 +30,11 @@ class ReportsPage extends StatelessWidget {
           ),
           const SizedBox(height: AppDimensions.spacingMD),
           _ReportCard(
-            title: 'Class Report',
-            description: 'View attendance statistics for a class',
+            title: 'Training Report',
+            description: 'View attendance statistics for a training',
             icon: Icons.class_outlined,
             onTap: () {
-              // Show class selection dialog
+              // Show training selection dialog
               _showClassSelectionDialog(context);
             },
           ),
@@ -102,18 +101,18 @@ class ReportsPage extends StatelessWidget {
       final selectedClass = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Select Class'),
+          title: const Text('Select Training'),
           content: SizedBox(
             width: double.maxFinite,
             child: classes.isEmpty
-                ? const Text('No classes available')
+                ? const Text('No trainings available')
                 : ListView.builder(
                     shrinkWrap: true,
                     itemCount: classes.length,
                     itemBuilder: (context, index) {
                       final classItem = classes[index];
                       return ListTile(
-                        title: Text(classItem['name'] ?? 'Unnamed Class'),
+                        title: Text(classItem['name'] ?? 'Unnamed Training'),
                         subtitle: classItem['description'] != null
                             ? Text(classItem['description'].toString())
                             : null,
@@ -132,13 +131,16 @@ class ReportsPage extends StatelessWidget {
       );
 
       if (selectedClass != null && context.mounted) {
-        Navigator.pushNamed(context, '/reports/class/${selectedClass['id']}');
+        Navigator.pushNamed(
+          context,
+          '/reports/training/${selectedClass['id']}',
+        );
       }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error loading classes: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error loading trainings: $e')));
       }
     }
   }

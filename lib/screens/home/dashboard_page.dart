@@ -19,6 +19,7 @@ class _DashboardPageState extends State<DashboardPage> {
   int _upcomingEvents = 0;
   int _tasks = 0;
   int _birthdays = 0;
+  int _members = 0;
   bool _isLoading = true;
 
   @override
@@ -32,12 +33,12 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       final now = DateTime.now();
 
-      // Load upcoming sessions from classes (next 5 weeks = 35 days)
+      // Load upcoming sessions from trainings (next 5 weeks = 35 days)
       final sessionsEndDate = now.add(const Duration(days: 35));
       final sessions = await SupabaseService.client
           .from('sessions')
           .select()
-          .not('class_id', 'is', null) // Only sessions from classes
+          .not('class_id', 'is', null) // Only sessions from trainings
           .gte('session_date', now.toIso8601String())
           .lte('session_date', sessionsEndDate.toIso8601String());
       final upcomingSessionsCount = (sessions as List).length;
@@ -54,19 +55,25 @@ class _DashboardPageState extends State<DashboardPage> {
           .gte('event_date', tomorrowStart.toIso8601String());
       final upcomingEventsCount = (events as List).length;
 
-      // Load all tasks (pending/in-progress)
-      final allTasks = await SupabaseService.client
+      // Load task count (pending/in-progress) - only select id for efficiency
+      final tasksList = await SupabaseService.client
           .from('tasks')
-          .select()
+          .select('id')
           .inFilter('status', ['pending', 'in_progress']);
-      final tasksCount = (allTasks as List).length;
+      final tasksCount = (tasksList as List).length;
+
+      // Load total active members count - only select id for efficiency
+      final membersList = await SupabaseService.client
+          .from('members')
+          .select('id')
+          .eq('is_active', true);
+      final membersCount = (membersList as List).length;
 
       // Load upcoming birthdays (current month, day >= today)
-      // Get all active members with birthdays and filter by month and day
+      // Get all members with birthdays (active and inactive) and filter by month and day
       final allMembers = await SupabaseService.client
           .from('members')
           .select('id, birthday')
-          .eq('is_active', true)
           .not('birthday', 'is', null);
 
       // Filter to only include birthdays where:
@@ -92,6 +99,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _upcomingEvents = upcomingEventsCount;
         _tasks = tasksCount;
         _birthdays = birthdaysCount;
+        _members = membersCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -186,8 +194,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       icon: Icons.cake_outlined,
                       color: AppColors.accent,
                       onTap: () {
-                        // Navigate to members with birthday filter
-                        Navigator.of(context).pushNamed(RouteNames.members);
+                        // Navigate to upcoming birthdays page
+                        Navigator.of(context).pushNamed(RouteNames.upcomingBirthdays);
                       },
                     ),
                   ),
@@ -211,6 +219,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   _QuickActionCard(
                     title: localizations?.members ?? 'Members',
                     icon: Icons.people_outlined,
+                    value: _isLoading ? '...' : '$_members',
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.members);
                     },
@@ -223,7 +232,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _QuickActionCard(
-                    title: localizations?.classes ?? 'Classes',
+                    title: localizations?.classes ?? 'Trainings',
                     icon: Icons.class_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.classes);
@@ -252,6 +261,20 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.of(
                         context,
                       ).pushNamed(RouteNames.sundaySchoolAttendanceList);
+                    },
+                  ),
+                  _QuickActionCard(
+                    title: 'Visitors',
+                    icon: Icons.person_add_outlined,
+                    onTap: () {
+                      Navigator.of(context).pushNamed(RouteNames.visitors);
+                    },
+                  ),
+                  _QuickActionCard(
+                    title: 'Teachings',
+                    icon: Icons.menu_book_outlined,
+                    onTap: () {
+                      Navigator.of(context).pushNamed(RouteNames.teachings);
                     },
                   ),
                 ],
@@ -324,11 +347,13 @@ class _SummaryCard extends StatelessWidget {
 class _QuickActionCard extends StatelessWidget {
   final String title;
   final IconData icon;
+  final String? value;
   final VoidCallback onTap;
 
   const _QuickActionCard({
     required this.title,
     required this.icon,
+    this.value,
     required this.onTap,
   });
 
@@ -344,7 +369,33 @@ class _QuickActionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 40, color: AppColors.primary),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 40, color: AppColors.primary),
+                  if (value != null) ...[
+                    const SizedBox(width: AppDimensions.spacingSM),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        value!,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
               const SizedBox(height: AppDimensions.spacingSM),
               Flexible(
                 child: Text(

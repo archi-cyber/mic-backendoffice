@@ -8,6 +8,7 @@ import '../../screens/members/members_list_page.dart';
 import '../../screens/members/member_profile_page.dart';
 import '../../screens/members/add_member_page.dart';
 import '../../screens/members/edit_member_page.dart';
+import '../../screens/members/upcoming_birthdays_page.dart';
 import '../../screens/departments/departments_list_page.dart';
 import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
@@ -35,6 +36,7 @@ import '../../screens/admin/admin_panel_page.dart';
 import '../../screens/notifications/notifications_list_page.dart';
 import '../../screens/settings/birthday_notifications_settings_page.dart';
 import '../../screens/settings/settings_page.dart';
+import '../../screens/settings/leader_access_page.dart';
 import '../../screens/finance/finance_page.dart';
 import '../../screens/finance/add_giving_page.dart';
 import '../../screens/finance/edit_giving_page.dart';
@@ -42,6 +44,14 @@ import '../../screens/attendance/church_attendance_page.dart';
 import '../../screens/attendance/church_attendance_list_page.dart';
 import '../../screens/attendance/sunday_school_attendance_page.dart';
 import '../../screens/attendance/sunday_school_attendance_list_page.dart';
+import '../../screens/visitors/visitors_list_page.dart';
+import '../../screens/visitors/add_visitor_page.dart';
+import '../../screens/visitors/edit_visitor_page.dart';
+import '../../screens/teachings/teachings_list_page.dart';
+import '../../screens/teachings/add_teaching_page.dart';
+import '../../screens/teachings/edit_teaching_page.dart';
+import '../../screens/teachings/teaching_detail_page.dart';
+import '../../screens/common/file_viewer_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
 
@@ -83,6 +93,11 @@ class AppRouter {
       case RouteNames.members:
         return MaterialPageRoute(
           builder: (_) => const MembersListPage(),
+          settings: settings,
+        );
+      case RouteNames.upcomingBirthdays:
+        return MaterialPageRoute(
+          builder: (_) => const UpcomingBirthdaysPage(),
           settings: settings,
         );
 
@@ -131,12 +146,6 @@ class AppRouter {
           settings: settings,
         );
 
-      case RouteNames.churchAttendanceList:
-        return MaterialPageRoute(
-          builder: (_) => const ChurchAttendanceListPage(),
-          settings: settings,
-        );
-
       case RouteNames.churchAttendance:
         // Check if arguments are provided (for viewing specific service)
         final args = settings.arguments as Map<String, dynamic>?;
@@ -161,6 +170,48 @@ class AppRouter {
           builder: (_) => SundaySchoolAttendancePage(
             sessionDate: args?['sessionDate'] as String?,
           ),
+          settings: settings,
+        );
+
+      case RouteNames.visitors:
+        return MaterialPageRoute(
+          builder: (_) => const VisitorsListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.addVisitor:
+        return MaterialPageRoute(
+          builder: (_) => const AddVisitorPage(),
+          settings: settings,
+        );
+
+      case RouteNames.editVisitor:
+        // Extract visitor ID from route
+        if (settings.name?.startsWith('/visitors/') == true) {
+          final parts = settings.name!.split('/');
+          if (parts.length >= 4 && parts[2] != 'add') {
+            final visitorId = parts[2];
+            return MaterialPageRoute(
+              builder: (_) => EditVisitorPage(visitorId: visitorId),
+              settings: settings,
+            );
+          }
+        }
+        // Fallback if route parsing fails
+        return MaterialPageRoute(
+          builder: (_) => const VisitorsListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.teachings:
+        return MaterialPageRoute(
+          builder: (_) => const TeachingsListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.addTeaching:
+        return MaterialPageRoute(
+          builder: (_) => const AddTeachingPage(),
           settings: settings,
         );
 
@@ -221,6 +272,12 @@ class AppRouter {
           settings: settings,
         );
 
+      case RouteNames.leaderAccess:
+        return MaterialPageRoute(
+          builder: (_) => const LeaderAccessPage(),
+          settings: settings,
+        );
+
       case RouteNames.notifications:
         // Birthday notifications settings
         if (settings.arguments == 'birthday') {
@@ -232,6 +289,16 @@ class AppRouter {
         // Regular notifications list page
         return MaterialPageRoute(
           builder: (_) => const NotificationsListPage(),
+          settings: settings,
+        );
+
+      case RouteNames.fileViewer:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => FileViewerPage(
+            fileUrl: args?['fileUrl'] as String? ?? '',
+            fileName: args?['fileName'] as String? ?? 'File',
+          ),
           settings: settings,
         );
 
@@ -366,7 +433,7 @@ class AppRouter {
             settings: settings,
           );
         }
-        if (settings.name?.startsWith('/classes/') == true) {
+        if (settings.name?.startsWith('/trainings/') == true) {
           final parts = settings.name!.split('/');
 
           // Check if it's an edit route (last part is 'edit')
@@ -406,11 +473,39 @@ class AppRouter {
             settings: settings,
           );
         }
-        if (settings.name?.startsWith('/reports/class/') == true) {
+        if (settings.name?.startsWith('/reports/training/') == true) {
           final parts = settings.name!.split('/');
           final classId = parts.last;
           return MaterialPageRoute(
             builder: (_) => ClassReportPage(classId: classId),
+            settings: settings,
+          );
+        }
+        if (settings.name?.startsWith('/teachings/') == true) {
+          final parts = settings.name!.split('/');
+
+          // Skip if it's the add route (handled by case statement)
+          if (parts.length >= 3 && parts[2] == 'add') {
+            return MaterialPageRoute(
+              builder: (_) => const AddTeachingPage(),
+              settings: settings,
+            );
+          }
+
+          // Check if it's an edit route (last part is 'edit')
+          if (parts.length >= 4 && parts.last == 'edit') {
+            final teachingId =
+                parts[parts.length - 2]; // Get ID from second-to-last part
+            return MaterialPageRoute(
+              builder: (_) => EditTeachingPage(teachingId: teachingId),
+              settings: settings,
+            );
+          }
+
+          // Otherwise it's a detail page
+          final teachingId = parts.last;
+          return MaterialPageRoute(
+            builder: (_) => TeachingDetailPage(teachingId: teachingId),
             settings: settings,
           );
         }

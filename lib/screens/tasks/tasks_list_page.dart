@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../services/task_service.dart';
 
 /// Tasks list (department-scoped)
@@ -283,17 +284,24 @@ class _TasksListPageState extends State<TasksListPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.of(context).pushNamed(
-            RouteNames.addTask,
-            arguments: widget.departmentId,
+      floatingActionButton: FutureBuilder<bool>(
+        future: PermissionHelper.canCreate('tasks'),
+        builder: (context, snapshot) {
+          final canCreate = snapshot.data ?? false;
+          if (!canCreate) return const SizedBox.shrink();
+          return FloatingActionButton(
+            onPressed: () async {
+              final result = await Navigator.of(context).pushNamed(
+                RouteNames.addTask,
+                arguments: widget.departmentId,
+              );
+              if (result == true) {
+                _loadTasks();
+              }
+            },
+            child: const Icon(Icons.add),
           );
-          if (result == true) {
-            _loadTasks();
-          }
         },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -307,6 +315,7 @@ class _TasksListPageState extends State<TasksListPage> {
         ? DateTime.parse(task['due_date'])
         : null;
     final taskId = task['id'].toString();
+    final departmentName = _getDepartmentName(task);
 
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -318,11 +327,15 @@ class _TasksListPageState extends State<TasksListPage> {
         borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.pushNamed(
+        onTap: () async {
+          final result = await Navigator.pushNamed(
             context,
             '${RouteNames.tasks}/$taskId',
           );
+          // If task was deleted (result is true), refresh the list
+          if (result == true) {
+            _loadTasks();
+          }
         },
         borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
         child: Padding(
@@ -397,6 +410,40 @@ class _TasksListPageState extends State<TasksListPage> {
                       ),
                     ),
                   ),
+                  if (departmentName != null) ...[
+                    const SizedBox(width: AppDimensions.spacingSM),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.group_work,
+                            size: 12,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            departmentName,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   if (dueDate != null) ...[
                     const Spacer(),
                     Icon(
@@ -427,5 +474,16 @@ class _TasksListPageState extends State<TasksListPage> {
         ),
       ),
     );
+  }
+
+  String? _getDepartmentName(Map<String, dynamic> task) {
+    // Check if department info is included in the response
+    final department = task['departments'];
+    if (department != null) {
+      if (department is Map<String, dynamic>) {
+        return department['name']?.toString();
+      }
+    }
+    return null;
   }
 }

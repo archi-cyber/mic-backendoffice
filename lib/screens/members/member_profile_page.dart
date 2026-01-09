@@ -7,6 +7,9 @@ import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
 import '../../services/report_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/role_service.dart';
+import '../../core/localization/app_localizations.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../../utils/member_utils.dart';
 
 /// Member profile with attendance summary, classes, and departments
@@ -23,6 +26,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
   Map<String, dynamic>? _member;
   Map<String, dynamic>? _report;
   bool _isLoading = true;
+  bool _canDelete = false;
 
   @override
   void initState() {
@@ -39,9 +43,17 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
         fromDate: DateTime.now().subtract(const Duration(days: 90)),
         toDate: DateTime.now(),
       );
+      
+      // Check if current user can delete (admin or leader)
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      final userRole = await RoleService.getUserRole();
+      final isLeader = userRole == 'leader';
+      final canDelete = isAdmin || isLeader;
+      
       setState(() {
         _member = member;
         _report = report;
+        _canDelete = canDelete;
         _isLoading = false;
       });
     } catch (e) {
@@ -50,6 +62,67 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading member: $e')));
+      }
+    }
+  }
+  
+  Future<void> _deleteMember() async {
+    final localizations = AppLocalizations.of(context);
+    final memberName = '${_member!['first_name']} ${_member!['last_name']}';
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(localizations?.deleteMember ?? 'Delete Member'),
+        content: Text(
+          (localizations?.deleteMemberConfirmation.replaceAll(
+                      '{name}',
+                      memberName,
+                    )) ??
+              'Are you sure you want to delete $memberName? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(localizations?.cancel ?? 'Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+            ),
+            child: Text(localizations?.delete ?? 'Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await MemberService.deleteMember(widget.memberId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                localizations?.memberDeletedSuccessfully ??
+                    'Member deleted successfully',
+              ),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.of(context).pop(true); // Return true to indicate deletion
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                ErrorMessageHelper.getErrorMessage(context, e),
+              ),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     }
   }
@@ -86,6 +159,30 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
               },
               tooltip: 'Edit Member',
             ),
+            if (_canDelete)
+              PopupMenuButton(
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.delete, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Text(
+                          AppLocalizations.of(context)?.deleteMember ??
+                              'Delete Member',
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      // Delay to allow popup to close first
+                      Future.delayed(
+                        const Duration(milliseconds: 100),
+                        () => _deleteMember(),
+                      );
+                    },
+                  ),
+                ],
+              ),
           ],
           bottom: const TabBar(
             tabs: [
@@ -309,6 +406,14 @@ class _ProfileTab extends StatelessWidget {
         chipColor = AppColors.warning;
         label = 'Leader';
         break;
+      case 'worker':
+        chipColor = AppColors.primary;
+        label = 'Worker';
+        break;
+      case 'sympathiser':
+        chipColor = AppColors.textSecondary;
+        label = 'Sympathiser';
+        break;
       default:
         chipColor = AppColors.textSecondary;
         label = 'Member';
@@ -338,6 +443,10 @@ class _ProfileTab extends StatelessWidget {
         return 'Admin';
       case 'leader':
         return 'Leader';
+      case 'worker':
+        return 'Worker';
+      case 'sympathiser':
+        return 'Sympathiser';
       default:
         return 'Member';
     }

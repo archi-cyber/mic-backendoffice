@@ -18,6 +18,11 @@ class _AddMemberPageState extends State<AddMemberPage> {
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _stateController = TextEditingController();
+  final _zipCodeController = TextEditingController();
+  final _countryController = TextEditingController();
   final _quarterController = TextEditingController();
   final _sectorOfStudiesController = TextEditingController();
   final _domainOfActivityController = TextEditingController();
@@ -27,8 +32,14 @@ class _AddMemberPageState extends State<AddMemberPage> {
   String? _selectedLevelOfStudy;
   String? _selectedLastDiploma;
   String _selectedRole = 'member';
+  String? _selectedGender;
+  String? _selectedMaritalStatus;
+  bool _isActive = true;
+  bool _birthdayNotificationsOptOut = false;
   DateTime? _selectedBirthday;
   bool _isNewComer = false;
+  DateTime? _newcomerJoinDate;
+  String? _newcomerIntention;
   bool _isLoading = false;
 
   @override
@@ -37,6 +48,11 @@ class _AddMemberPageState extends State<AddMemberPage> {
     _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
+    _addressController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _zipCodeController.dispose();
+    _countryController.dispose();
     _quarterController.dispose();
     _sectorOfStudiesController.dispose();
     _domainOfActivityController.dispose();
@@ -57,6 +73,21 @@ class _AddMemberPageState extends State<AddMemberPage> {
     if (picked != null) {
       setState(() {
         _selectedBirthday = picked;
+      });
+    }
+  }
+
+  Future<void> _selectNewcomerJoinDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _newcomerJoinDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      helpText: 'Select Join Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _newcomerJoinDate = picked;
       });
     }
   }
@@ -95,6 +126,21 @@ class _AddMemberPageState extends State<AddMemberPage> {
           'birthday': _selectedBirthday != null
               ? _selectedBirthday!.toIso8601String().split('T')[0]
               : null,
+          'address': _addressController.text.trim().isNotEmpty
+              ? _addressController.text.trim()
+              : null,
+          'city': _cityController.text.trim().isNotEmpty
+              ? _cityController.text.trim()
+              : null,
+          'state': _stateController.text.trim().isNotEmpty
+              ? _stateController.text.trim()
+              : null,
+          'zip_code': _zipCodeController.text.trim().isNotEmpty
+              ? _zipCodeController.text.trim()
+              : null,
+          'country': _countryController.text.trim().isNotEmpty
+              ? _countryController.text.trim()
+              : null,
           'quarter': _quarterController.text.trim().isNotEmpty
               ? _quarterController.text.trim()
               : null,
@@ -110,8 +156,15 @@ class _AddMemberPageState extends State<AddMemberPage> {
           'key_skills': _keySkillsList.isNotEmpty ? _keySkillsList : null,
           'last_diplomas': _selectedLastDiploma,
           'role': _selectedRole,
+          'gender': _selectedGender,
+          'marital_status': _selectedMaritalStatus,
           'is_new_comer': _isNewComer,
-          'is_active': true, // Active by default
+          'newcomer_join_date': _newcomerJoinDate != null
+              ? _newcomerJoinDate!.toIso8601String().split('T')[0]
+              : null,
+          'newcomer_intention': _newcomerIntention,
+          'is_active': _isActive,
+          'birthday_notifications_opt_out': _birthdayNotificationsOptOut,
         },
       );
 
@@ -227,6 +280,62 @@ class _AddMemberPageState extends State<AddMemberPage> {
               ),
               const SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
+                controller: _addressController,
+                decoration: const InputDecoration(
+                  labelText: 'Address',
+                  prefixIcon: Icon(Icons.home),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _cityController,
+                      decoration: const InputDecoration(
+                        labelText: 'City',
+                        prefixIcon: Icon(Icons.location_city),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.spacingMD),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _stateController,
+                      decoration: const InputDecoration(
+                        labelText: 'State',
+                        prefixIcon: Icon(Icons.map),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _zipCodeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Zip Code',
+                        prefixIcon: Icon(Icons.pin),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.spacingMD),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _countryController,
+                      decoration: const InputDecoration(
+                        labelText: 'Country',
+                        prefixIcon: Icon(Icons.public),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              TextFormField(
                 controller: _quarterController,
                 decoration: const InputDecoration(
                   labelText: 'Quarter',
@@ -235,35 +344,45 @@ class _AddMemberPageState extends State<AddMemberPage> {
               ),
               const SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
-                value: _selectedProfession,
+                initialValue: _selectedProfession,
                 decoration: const InputDecoration(
                   labelText: 'Profession',
                   prefixIcon: Icon(Icons.work),
                   helperText: 'Select your current profession/status',
                 ),
-                items: MemberConstants.getProfessionOptions().map((option) {
-                  return DropdownMenuItem<String>(
-                    value: option['value'],
-                    child: Text(option['label']!),
-                  );
-                }).toList(),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('Not specified'),
+                  ),
+                  ...MemberConstants.getProfessionOptions().map((option) {
+                    return DropdownMenuItem<String>(
+                      value: option['value'],
+                      child: Text(option['label']!),
+                    );
+                  }),
+                ],
                 onChanged: (value) {
                   setState(() {
                     _selectedProfession = value;
-                    // Clear dependent fields when profession changes
-                    if (!MemberConstants.requiresLevelOfStudy(value)) {
+                    // Clear dependent fields when profession changes or is set to null
+                    if (value == null ||
+                        !MemberConstants.requiresLevelOfStudy(value)) {
                       _selectedLevelOfStudy = null;
                     } else {
                       // Reset level of study when profession changes
                       _selectedLevelOfStudy = null;
                     }
-                    if (!MemberConstants.requiresLastDiplomas(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresLastDiplomas(value)) {
                       _selectedLastDiploma = null;
                     }
-                    if (!MemberConstants.requiresSectorOfStudies(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresSectorOfStudies(value)) {
                       _sectorOfStudiesController.clear();
                     }
-                    if (!MemberConstants.requiresDomainOfActivity(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresDomainOfActivity(value)) {
                       _domainOfActivityController.clear();
                     }
                   });
@@ -275,7 +394,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String>(
-                  value: _selectedLevelOfStudy,
+                  initialValue: _selectedLevelOfStudy,
                   decoration: const InputDecoration(
                     labelText: 'Level of Study *',
                     prefixIcon: Icon(Icons.school),
@@ -283,11 +402,12 @@ class _AddMemberPageState extends State<AddMemberPage> {
                   ),
                   items: MemberConstants.getLevelsOfStudy(_selectedProfession)
                       .map((level) {
-                    return DropdownMenuItem<String>(
-                      value: level,
-                      child: Text(level),
-                    );
-                  }).toList(),
+                        return DropdownMenuItem<String>(
+                          value: level,
+                          child: Text(level),
+                        );
+                      })
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedLevelOfStudy = value;
@@ -357,7 +477,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String>(
-                  value: _selectedLastDiploma,
+                  initialValue: _selectedLastDiploma,
                   decoration: const InputDecoration(
                     labelText: 'Last Diplomas *',
                     prefixIcon: Icon(Icons.workspace_premium),
@@ -400,6 +520,11 @@ class _AddMemberPageState extends State<AddMemberPage> {
                   DropdownMenuItem(value: 'member', child: Text('Member')),
                   DropdownMenuItem(value: 'leader', child: Text('Leader')),
                   DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  DropdownMenuItem(value: 'worker', child: Text('Worker')),
+                  DropdownMenuItem(
+                    value: 'sympathiser',
+                    child: Text('Sympathiser'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -407,6 +532,66 @@ class _AddMemberPageState extends State<AddMemberPage> {
                       _selectedRole = value;
                     });
                   }
+                },
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedGender,
+                decoration: const InputDecoration(
+                  labelText: 'Gender',
+                  prefixIcon: Icon(Icons.person),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                  DropdownMenuItem(value: 'other', child: Text('Other')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedGender = value;
+                  });
+                },
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedMaritalStatus,
+                decoration: const InputDecoration(
+                  labelText: 'Marital Status',
+                  prefixIcon: Icon(Icons.favorite),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'single', child: Text('Single')),
+                  DropdownMenuItem(value: 'married', child: Text('Married')),
+                  DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
+                  DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedMaritalStatus = value;
+                  });
+                },
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              SwitchListTile(
+                title: const Text('Active'),
+                subtitle: const Text('Is this member active?'),
+                value: _isActive,
+                onChanged: (value) {
+                  setState(() {
+                    _isActive = value;
+                  });
+                },
+              ),
+              SwitchListTile(
+                title: const Text('Opt out of birthday notifications'),
+                subtitle: const Text(
+                  'Disable birthday notifications for this member',
+                ),
+                value: _birthdayNotificationsOptOut,
+                onChanged: (value) {
+                  setState(() {
+                    _birthdayNotificationsOptOut = value;
+                  });
                 },
               ),
               const SizedBox(height: AppDimensions.spacingMD),
@@ -419,10 +604,68 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 onChanged: (value) {
                   setState(() {
                     _isNewComer = value ?? false;
+                    // Clear join date and intention if unchecked
+                    if (!(value ?? false)) {
+                      _newcomerJoinDate = null;
+                      _newcomerIntention = null;
+                    }
                   });
                 },
                 controlAffinity: ListTileControlAffinity.leading,
               ),
+              // Show join date field only when new comer is checked
+              if (_isNewComer) ...[
+                const SizedBox(height: AppDimensions.spacingMD),
+                InkWell(
+                  onTap: _selectNewcomerJoinDate,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Newcomer Join Date',
+                      prefixIcon: const Icon(Icons.event_available),
+                      suffixIcon: const Icon(Icons.calendar_today),
+                      helperText: 'Select the date when the newcomer joined',
+                    ),
+                    child: Text(
+                      _newcomerJoinDate != null
+                          ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
+                          : 'Select join date',
+                      style: TextStyle(
+                        color: _newcomerJoinDate != null
+                            ? Theme.of(context).textTheme.bodyLarge?.color
+                            : Theme.of(context).hintColor,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String>(
+                  initialValue: _newcomerIntention,
+                  decoration: const InputDecoration(
+                    labelText: 'Newcomer Intention',
+                    prefixIcon: Icon(Icons.help_outline),
+                    helperText: 'Select the newcomer\'s intention',
+                  ),
+                  items: const [
+                    DropdownMenuItem<String>(
+                      value: 'wants_to_stay',
+                      child: Text('Wants to stay'),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'does_not_know_yet',
+                      child: Text('Does not know yet'),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'just_passing',
+                      child: Text('Just passing'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _newcomerIntention = value;
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,

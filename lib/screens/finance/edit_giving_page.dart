@@ -288,7 +288,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
           ? date.hour - 12
           : (date.hour == 0 ? 12 : date.hour);
       final amPm = date.hour >= 12 ? 'PM' : 'AM';
-      return '${months[date.month - 1]} ${date.day}, ${date.year} at ${hour}:${date.minute.toString().padLeft(2, '0')} $amPm';
+      return '${months[date.month - 1]} ${date.day}, ${date.year} at $hour:${date.minute.toString().padLeft(2, '0')} $amPm';
     } catch (e) {
       return dateString;
     }
@@ -526,7 +526,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                       ),
                     )
                   : DropdownButtonFormField<String>(
-                      value: _selectedMemberId,
+                      initialValue: _selectedMemberId,
                       decoration: InputDecoration(
                         labelText: '${localizations.selectMember} *',
                         prefixIcon: const Icon(Icons.person),
@@ -603,7 +603,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
 
             // Tag Selection
             DropdownButtonFormField<String>(
-              value: _selectedTag,
+              initialValue: _selectedTag,
               decoration: InputDecoration(
                 labelText: '${localizations.tag} *',
                 prefixIcon: const Icon(Icons.label),

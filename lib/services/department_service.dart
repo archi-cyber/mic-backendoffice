@@ -1,16 +1,150 @@
 import 'supabase_service.dart';
 import 'user_management_service.dart';
+import 'role_service.dart';
 
 /// Department service for department management
 class DepartmentService {
   static final _client = SupabaseService.client;
 
+  /// Check if current user is a leader of a specific department
+  static Future<bool> isDepartmentLeader(String departmentId) async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) return false;
+
+      // Check if user is admin (admins can manage all departments)
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      if (isAdmin) return true;
+
+      // Get user's member_id
+      final user = await _client
+          .from('users')
+          .select('member_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+      if (user == null || user['member_id'] == null) return false;
+
+      final memberId = user['member_id'].toString();
+
+      // Check if member is a leader of this department
+      final assignment = await _client
+          .from('department_members')
+          .select('role')
+          .eq('department_id', departmentId)
+          .eq('member_id', memberId)
+          .eq('role', 'leader')
+          .maybeSingle();
+
+      return assignment != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Check if current user is a subleader of a specific department
+  static Future<bool> isDepartmentSubleader(String departmentId) async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) return false;
+
+      // Get user's member_id
+      final user = await _client
+          .from('users')
+          .select('member_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+      if (user == null || user['member_id'] == null) return false;
+
+      final memberId = user['member_id'].toString();
+
+      // Check if member is a subleader of this department
+      final assignment = await _client
+          .from('department_members')
+          .select('role')
+          .eq('department_id', departmentId)
+          .eq('member_id', memberId)
+          .eq('role', 'subleader')
+          .maybeSingle();
+
+      return assignment != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Check if current user can edit a department (admin, leader, or subleader)
+  static Future<bool> canEditDepartment(String departmentId) async {
+    try {
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      if (isAdmin) return true;
+
+      final isLeader = await isDepartmentLeader(departmentId);
+      if (isLeader) return true;
+
+      final isSubleader = await isDepartmentSubleader(departmentId);
+      return isSubleader;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Check if current user can delete a department (admin or leader only, not subleader)
+  static Future<bool> canDeleteDepartment(String departmentId) async {
+    try {
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      if (isAdmin) return true;
+
+      final isLeader = await isDepartmentLeader(departmentId);
+      return isLeader;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// Create department
   /// POST /departments
+  /// Only admin or department leaders can create departments
   static Future<Map<String, dynamic>> createDepartment({
     required Map<String, dynamic> departmentData,
   }) async {
     try {
+      // Check if user has permission (admin or any department leader)
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      
+      if (!isAdmin) {
+        // Check if user is a leader of any department
+        final currentUser = SupabaseService.currentUser;
+        if (currentUser == null) {
+          throw Exception('Must be logged in');
+        }
+
+        final user = await _client
+            .from('users')
+            .select('member_id')
+            .eq('id', currentUser.id)
+            .maybeSingle();
+
+        if (user == null || user['member_id'] == null) {
+          throw Exception('Admin or leader required');
+        }
+
+        final memberId = user['member_id'].toString();
+
+        // Check if user is a leader of any department
+        final hasLeadership = await _client
+            .from('department_members')
+            .select('id')
+            .eq('member_id', memberId)
+            .eq('role', 'leader')
+            .maybeSingle();
+
+        if (hasLeadership == null) {
+          throw Exception('Admin or leader required');
+        }
+      }
+
       final response = await _client
           .from('departments')
           .insert({
@@ -23,7 +157,7 @@ class DepartmentService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to create department: $e');
+      throw Exception('Failed to create department');
     }
   }
 
@@ -64,7 +198,7 @@ class DepartmentService {
       final response = await paginatedQuery;
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get departments: $e');
+      throw Exception('Failed to load departments');
     }
   }
 
@@ -82,17 +216,25 @@ class DepartmentService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to get department: $e');
+      throw Exception('Failed to load department');
     }
   }
 
   /// Update department
   /// PATCH /departments/:id
+  /// Only admin, department leader, or subleader can update departments
   static Future<Map<String, dynamic>> updateDepartment({
     required String departmentId,
     required Map<String, dynamic> updates,
   }) async {
     try {
+      // Check if user has permission (admin, leader, or subleader of this department)
+      final canEdit = await canEditDepartment(departmentId);
+
+      if (!canEdit) {
+        throw Exception('Admin, leader, or subleader required');
+      }
+
       final response = await _client
           .from('departments')
           .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
@@ -102,14 +244,22 @@ class DepartmentService {
 
       return response;
     } catch (e) {
-      throw Exception('Failed to update department: $e');
+      throw Exception('Failed to update department');
     }
   }
 
   /// Delete department (soft delete by setting is_active=false)
   /// DELETE /departments/:id
+  /// Only admin or department leader can delete (not subleaders)
   static Future<void> deleteDepartment(String departmentId) async {
     try {
+      // Check if user has permission (admin or leader only, not subleader)
+      final canDelete = await canDeleteDepartment(departmentId);
+
+      if (!canDelete) {
+        throw Exception('Admin or leader required to delete department');
+      }
+
       await _client
           .from('departments')
           .update({
@@ -118,7 +268,7 @@ class DepartmentService {
           })
           .eq('id', departmentId);
     } catch (e) {
-      throw Exception('Failed to delete department: $e');
+      throw Exception('Failed to delete department');
     }
   }
 
@@ -134,7 +284,7 @@ class DepartmentService {
 
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get department members: $e');
+      throw Exception('Failed to load members');
     }
   }
 
@@ -180,7 +330,35 @@ class DepartmentService {
 
       // Business Rule: If assigned as leader/subleader, activate user
       if (role == 'leader' || role == 'subleader') {
-        final userId = await UserManagementService.getUserIdForMember(memberId);
+        var userId = await UserManagementService.getUserIdForMember(memberId);
+
+        // If user doesn't exist, create account for the member
+        if (userId == null) {
+          // Get member details to create account
+          final member = await _client
+              .from('members')
+              .select('email, phone')
+              .eq('id', memberId)
+              .maybeSingle();
+
+          if (member != null) {
+            final email = member['email'] as String?;
+            final phone = member['phone'] as String?;
+
+            if (email != null || phone != null) {
+              // Create inactive user account first
+              userId = await UserManagementService.createInactiveUserForMember(
+                memberId: memberId,
+                email: email,
+                phone: phone,
+              );
+            } else {
+              throw Exception('Email or phone required');
+            }
+          } else {
+            throw Exception('Member not found');
+          }
+        }
 
         if (userId != null) {
           // Check if user is already active (re-assignment)
@@ -201,13 +379,13 @@ class DepartmentService {
               userId: userId,
               defaultPassword:
                   defaultPassword ??
-                  'DefaultPassword123!', // Should be configurable
+                  'Password123', // Default password for new leaders
             );
           }
         }
       }
     } catch (e) {
-      throw Exception('Failed to add member to department: $e');
+      throw Exception('Failed to add member');
     }
   }
 
@@ -274,7 +452,7 @@ class DepartmentService {
             .eq('id', memberId);
       }
     } catch (e) {
-      throw Exception('Failed to remove member from department: $e');
+      throw Exception('Failed to remove member');
     }
   }
 }

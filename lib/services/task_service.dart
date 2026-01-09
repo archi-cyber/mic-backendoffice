@@ -4,17 +4,21 @@ import 'supabase_service.dart';
 class TaskService {
   static final _client = SupabaseService.client;
 
-  /// Create task for a department
+  /// Create task for a department or individual
   /// POST /departments/:deptId/tasks
+  /// If departmentId is null and memberId is provided, task is created for individual assignment
+  /// If departmentId is provided, task is created for department
   static Future<Map<String, dynamic>> createTask({
-    required String departmentId,
+    String? departmentId,
+    String? memberId,
     required Map<String, dynamic> taskData,
   }) async {
     try {
       final response = await _client
           .from('tasks')
           .insert({
-            'department_id': departmentId,
+            if (departmentId != null) 'department_id': departmentId,
+            if (departmentId == null && memberId != null) 'member_id': memberId,
             ...taskData,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
@@ -147,7 +151,7 @@ class TaskService {
     try {
       var filterQuery = _client
           .from('tasks')
-          .select()
+          .select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)')
           .eq('department_id', departmentId);
 
       // Order by created date (returns PostgrestTransformBuilder)
@@ -180,7 +184,7 @@ class TaskService {
     try {
       final response = await _client
           .from('tasks')
-          .select()
+          .select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)')
           .eq('id', taskId)
           .single();
 
@@ -245,7 +249,7 @@ class TaskService {
     int? offset,
   }) async {
     try {
-      var filterQuery = _client.from('tasks').select();
+      var filterQuery = _client.from('tasks').select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)');
 
       // Apply filters
       if (departmentId != null) {

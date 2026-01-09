@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -12,6 +10,7 @@ import '../../services/department_report_service.dart';
 import '../../services/department_report_pdf_service.dart';
 import '../../services/task_report_pdf_service.dart';
 import '../../services/task_report_service.dart';
+import '../../services/storage_service.dart';
 
 /// Department detail with members, docs, tasks, and reports
 class DepartmentDetailPage extends StatefulWidget {
@@ -29,6 +28,8 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
   List<Map<String, dynamic>> _tasks = [];
   List<Map<String, dynamic>> _reports = [];
   bool _isLoading = true;
+  bool _canEdit = false;
+  bool _canDelete = false;
 
   @override
   void initState() {
@@ -61,12 +62,24 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         debugPrint('Could not load reports: $e');
       }
 
+      // Check if user can edit this department (admin, leader, or subleader)
+      final canEdit = await DepartmentService.canEditDepartment(
+        widget.departmentId,
+      );
+
+      // Check if user can delete this department (admin or leader only, not subleader)
+      final canDelete = await DepartmentService.canDeleteDepartment(
+        widget.departmentId,
+      );
+
       setState(() {
         _department = department;
         // Store full department_members data (includes role)
         _members = departmentMembers;
         _tasks = departmentTasks;
         _reports = departmentReports;
+        _canEdit = canEdit;
+        _canDelete = canDelete;
         _isLoading = false;
       });
     } catch (e) {
@@ -98,35 +111,37 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         appBar: AppBar(
           title: Text(_department!['name'] ?? 'Department'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () async {
-                final result = await Navigator.of(context).pushNamed(
-                  RouteNames.editDepartment.replaceAll(
-                    ':id',
-                    widget.departmentId,
+            if (_canEdit)
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () async {
+                  final result = await Navigator.of(context).pushNamed(
+                    RouteNames.editDepartment.replaceAll(
+                      ':id',
+                      widget.departmentId,
+                    ),
+                  );
+                  if (result == true) {
+                    _loadDepartmentData();
+                  }
+                },
+                tooltip: 'Edit Department',
+              ),
+            if (_canDelete)
+              PopupMenuButton(
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    child: const Row(
+                      children: [
+                        Icon(Icons.delete, color: AppColors.error),
+                        SizedBox(width: 8),
+                        Text('Delete Department'),
+                      ],
+                    ),
+                    onTap: () => _deleteDepartment(),
                   ),
-                );
-                if (result == true) {
-                  _loadDepartmentData();
-                }
-              },
-              tooltip: 'Edit Department',
-            ),
-            PopupMenuButton(
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  child: const Row(
-                    children: [
-                      Icon(Icons.delete, color: AppColors.error),
-                      SizedBox(width: 8),
-                      Text('Delete Department'),
-                    ],
-                  ),
-                  onTap: () => _deleteDepartment(),
-                ),
-              ],
-            ),
+                ],
+              ),
           ],
           bottom: const TabBar(
             tabs: [
@@ -149,7 +164,11 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
               departmentId: widget.departmentId,
               onMembersUpdated: _loadDepartmentData,
             ),
-            _TasksTab(departmentId: widget.departmentId, tasks: _tasks),
+            _TasksTab(
+              departmentId: widget.departmentId,
+              tasks: _tasks,
+              onTasksUpdated: _loadDepartmentData,
+            ),
             _ReportsTab(
               departmentId: widget.departmentId,
               reports: _reports,
@@ -279,14 +298,20 @@ class _OverviewTab extends StatelessWidget {
                       department['document_3_name'].toString(),
                       department['document_3_url']?.toString(),
                     ),
+                  if (department['document_4_name'] != null)
+                    _buildDocumentTile(
+                      context,
+                      department['document_4_name'].toString(),
+                      department['document_4_url']?.toString(),
+                    ),
                 ] else
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8.0),
                     child: Text(
                       'No files uploaded',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -321,7 +346,8 @@ class _OverviewTab extends StatelessWidget {
   bool _hasDocuments(Map<String, dynamic> department) {
     return department['document_1_name'] != null ||
         department['document_2_name'] != null ||
-        department['document_3_name'] != null;
+        department['document_3_name'] != null ||
+        department['document_4_name'] != null;
   }
 
   Widget _buildDocumentTile(
@@ -351,18 +377,25 @@ class _OverviewTab extends StatelessWidget {
     String fileName,
   ) async {
     try {
-      final uri = Uri.parse(fileUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Cannot open file: $fileName'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+      // Try to create a signed URL first (works for both public and private buckets)
+      String urlToOpen = fileUrl;
+
+      try {
+        // Create a signed URL that's valid for 1 hour
+        // This ensures the file can be accessed even if the bucket is private
+        urlToOpen = await StorageService.createSignedUrl(fileUrl);
+      } catch (e) {
+        // If creating signed URL fails, try using the original URL
+        // This might work if the bucket is public
+        debugPrint('Could not create signed URL, using original URL: $e');
+      }
+
+      // Navigate to webview to display the file
+      if (context.mounted) {
+        Navigator.of(context).pushNamed(
+          RouteNames.fileViewer,
+          arguments: {'fileUrl': urlToOpen, 'fileName': fileName},
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -407,6 +440,29 @@ class _MembersTabState extends State<_MembersTab> {
       final members = await DepartmentService.getDepartmentMembers(
         widget.departmentId,
       );
+      // Sort members alphabetically by first name, then last name
+      members.sort((a, b) {
+        final memberA = a['members'] as Map<String, dynamic>?;
+        final memberB = b['members'] as Map<String, dynamic>?;
+        if (memberA == null && memberB == null) return 0;
+        if (memberA == null) return 1;
+        if (memberB == null) return -1;
+
+        final firstNameA = (memberA['first_name'] ?? '')
+            .toString()
+            .toLowerCase();
+        final lastNameA = (memberA['last_name'] ?? '').toString().toLowerCase();
+        final firstNameB = (memberB['first_name'] ?? '')
+            .toString()
+            .toLowerCase();
+        final lastNameB = (memberB['last_name'] ?? '').toString().toLowerCase();
+
+        final firstNameComparison = firstNameA.compareTo(firstNameB);
+        if (firstNameComparison != 0) {
+          return firstNameComparison;
+        }
+        return lastNameA.compareTo(lastNameB);
+      });
       setState(() {
         _members = members;
         _isLoading = false;
@@ -437,6 +493,20 @@ class _MembersTabState extends State<_MembersTab> {
           .where((m) => !currentMemberIds.contains(m['id']?.toString()))
           .toList();
 
+      // Sort alphabetically by first name, then last name
+      availableMembers.sort((a, b) {
+        final firstNameA = (a['first_name'] ?? '').toString().toLowerCase();
+        final lastNameA = (a['last_name'] ?? '').toString().toLowerCase();
+        final firstNameB = (b['first_name'] ?? '').toString().toLowerCase();
+        final lastNameB = (b['last_name'] ?? '').toString().toLowerCase();
+
+        final firstNameComparison = firstNameA.compareTo(firstNameB);
+        if (firstNameComparison != 0) {
+          return firstNameComparison;
+        }
+        return lastNameA.compareTo(lastNameB);
+      });
+
       if (availableMembers.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -448,93 +518,70 @@ class _MembersTabState extends State<_MembersTab> {
         return;
       }
 
-      String? selectedMemberId;
-      String selectedRole = 'member';
-
-      final result = await showDialog<bool>(
+      final result = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Add Member'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(
-                      labelText: 'Select Member',
-                      prefixIcon: Icon(Icons.person),
-                    ),
-                    items: availableMembers.map((member) {
-                      return DropdownMenuItem<String>(
-                        value: member['id'].toString(),
-                        child: Text(
-                          '${member['first_name']} ${member['last_name']}',
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedMemberId = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: AppDimensions.spacingMD),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedRole,
-                    decoration: const InputDecoration(
-                      labelText: 'Role',
-                      prefixIcon: Icon(Icons.badge),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'member', child: Text('Member')),
-                      DropdownMenuItem(
-                        value: 'subleader',
-                        child: Text('Subleader'),
-                      ),
-                      DropdownMenuItem(value: 'leader', child: Text('Leader')),
-                    ],
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedRole = value ?? 'member';
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: selectedMemberId == null
-                    ? null
-                    : () => Navigator.pop(context, true),
-                child: const Text('Add'),
-              ),
-            ],
-          ),
-        ),
+        builder: (context) =>
+            _MultiSelectMemberDialog(availableMembers: availableMembers),
       );
 
-      if (result == true && selectedMemberId != null) {
-        await DepartmentService.addMemberToDepartment(
-          departmentId: widget.departmentId,
-          memberId: selectedMemberId!,
-          role: selectedRole,
-        );
+      if (result != null) {
+        final selectedMemberIds = result['memberIds'] as List<String>;
+        final selectedRole = result['role'] as String;
+
+        if (selectedMemberIds.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please select at least one member'),
+                backgroundColor: AppColors.warning,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Add all selected members
+        bool allSuccess = true;
+        int successCount = 0;
+        String? errorMessage;
+
+        for (final memberId in selectedMemberIds) {
+          try {
+            await DepartmentService.addMemberToDepartment(
+              departmentId: widget.departmentId,
+              memberId: memberId,
+              role: selectedRole,
+            );
+            successCount++;
+          } catch (e) {
+            allSuccess = false;
+            errorMessage = e.toString();
+            break;
+          }
+        }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Member added successfully'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-          _loadMembers();
-          widget.onMembersUpdated();
+          if (allSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  successCount == 1
+                      ? 'Member added successfully'
+                      : '$successCount members added successfully',
+                ),
+                backgroundColor: AppColors.success,
+              ),
+            );
+            _loadMembers();
+            widget.onMembersUpdated();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage ?? 'Error adding members'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -559,6 +606,7 @@ class _MembersTabState extends State<_MembersTab> {
           title: const Text('Change Role'),
           content: DropdownButtonFormField<String>(
             initialValue: selectedRole,
+            isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Role',
               prefixIcon: Icon(Icons.badge),
@@ -785,8 +833,16 @@ class _MembersTabState extends State<_MembersTab> {
                                   'M',
                             ),
                           ),
-                          title: Text(memberName),
-                          subtitle: Text(member['email']?.toString() ?? ''),
+                          title: Text(
+                            memberName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            member['email']?.toString() ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -845,8 +901,13 @@ class _MembersTabState extends State<_MembersTab> {
 class _TasksTab extends StatefulWidget {
   final String departmentId;
   final List<Map<String, dynamic>> tasks;
+  final VoidCallback? onTasksUpdated;
 
-  const _TasksTab({required this.departmentId, required this.tasks});
+  const _TasksTab({
+    required this.departmentId,
+    required this.tasks,
+    this.onTasksUpdated,
+  });
 
   @override
   State<_TasksTab> createState() => _TasksTabState();
@@ -1012,11 +1073,15 @@ class _TasksTabState extends State<_TasksTab> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushNamed(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).pushNamed(
                       RouteNames.tasks,
                       arguments: widget.departmentId,
                     );
+                    // If any changes were made (result is true), reload tasks
+                    if (result == true && widget.onTasksUpdated != null) {
+                      widget.onTasksUpdated!();
+                    }
                   },
                   icon: const Icon(Icons.manage_search),
                   label: const Text('Manage Tasks'),
@@ -1070,13 +1135,17 @@ class _TasksTabState extends State<_TasksTab> {
                         title: Text(task['title'] ?? 'Task'),
                         subtitle: Text(task['description'] ?? ''),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          Navigator.of(context).pushNamed(
+                        onTap: () async {
+                          final result = await Navigator.of(context).pushNamed(
                             RouteNames.taskDetail.replaceAll(
                               ':id',
                               task['id'].toString(),
                             ),
                           );
+                          // If task was deleted (result is true), reload tasks
+                          if (result == true && widget.onTasksUpdated != null) {
+                            widget.onTasksUpdated!();
+                          }
                         },
                       ),
                     );
@@ -1442,6 +1511,258 @@ class _StatCard extends StatelessWidget {
               ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             Text(title, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Multi-select member dialog with search
+class _MultiSelectMemberDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> availableMembers;
+
+  const _MultiSelectMemberDialog({required this.availableMembers});
+
+  @override
+  State<_MultiSelectMemberDialog> createState() =>
+      _MultiSelectMemberDialogState();
+}
+
+class _MultiSelectMemberDialogState extends State<_MultiSelectMemberDialog> {
+  final _searchController = TextEditingController();
+  final Set<String> _selectedMemberIds = {};
+  String _selectedRole = 'member';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filteredMembers {
+    final query = _searchController.text.toLowerCase();
+    List<Map<String, dynamic>> members;
+    if (query.isEmpty) {
+      members = widget.availableMembers;
+    } else {
+      members = widget.availableMembers
+          .where(
+            (member) =>
+                (member['first_name']?.toString().toLowerCase().contains(
+                      query,
+                    ) ??
+                    false) ||
+                (member['last_name']?.toString().toLowerCase().contains(
+                      query,
+                    ) ??
+                    false) ||
+                (member['email']?.toString().toLowerCase().contains(query) ??
+                    false),
+          )
+          .toList();
+    }
+
+    // Sort alphabetically by first name, then last name
+    members.sort((a, b) {
+      final firstNameA = (a['first_name'] ?? '').toString().toLowerCase();
+      final lastNameA = (a['last_name'] ?? '').toString().toLowerCase();
+      final firstNameB = (b['first_name'] ?? '').toString().toLowerCase();
+      final lastNameB = (b['last_name'] ?? '').toString().toLowerCase();
+
+      final firstNameComparison = firstNameA.compareTo(firstNameB);
+      if (firstNameComparison != 0) {
+        return firstNameComparison;
+      }
+      return lastNameA.compareTo(lastNameB);
+    });
+
+    return members;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: double.maxFinite,
+        constraints: const BoxConstraints(maxHeight: 600),
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Row(
+                children: [
+                  const Text(
+                    'Add Members',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                ),
+              ),
+            ),
+            // Role selection
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingMD,
+              ),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedRole,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Role',
+                  prefixIcon: Icon(Icons.badge),
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'member', child: Text('Member')),
+                  DropdownMenuItem(
+                    value: 'subleader',
+                    child: Text('Subleader'),
+                  ),
+                  DropdownMenuItem(value: 'leader', child: Text('Leader')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedRole = value ?? 'member';
+                  });
+                },
+              ),
+            ),
+            const SizedBox(height: AppDimensions.spacingSM),
+            const Divider(height: 1),
+            // Members list
+            Expanded(
+              child: _filteredMembers.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.search_off,
+                            size: 48,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(height: AppDimensions.spacingSM),
+                          Text(
+                            _searchController.text.isEmpty
+                                ? 'No members available'
+                                : 'No members found',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _filteredMembers.length,
+                      itemBuilder: (context, index) {
+                        final member = _filteredMembers[index];
+                        final memberId = member['id'].toString();
+                        final isSelected = _selectedMemberIds.contains(
+                          memberId,
+                        );
+                        final memberName =
+                            '${member['first_name']} ${member['last_name']}';
+                        final memberEmail = member['email']?.toString() ?? '';
+
+                        return CheckboxListTile(
+                          value: isSelected,
+                          onChanged: (value) {
+                            setState(() {
+                              if (value == true) {
+                                _selectedMemberIds.add(memberId);
+                              } else {
+                                _selectedMemberIds.remove(memberId);
+                              }
+                            });
+                          },
+                          title: Text(
+                            memberName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: memberEmail.isNotEmpty
+                              ? Text(
+                                  memberEmail,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                )
+                              : null,
+                          secondary: CircleAvatar(
+                            child: Text(
+                              member['first_name']?[0]
+                                      ?.toString()
+                                      .toUpperCase() ??
+                                  'M',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const Divider(height: 1),
+            // Footer with actions
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${_selectedMemberIds.length} selected',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: AppDimensions.spacingSM),
+                      ElevatedButton(
+                        onPressed: _selectedMemberIds.isEmpty
+                            ? null
+                            : () {
+                                Navigator.pop(context, {
+                                  'memberIds': _selectedMemberIds.toList(),
+                                  'role': _selectedRole,
+                                });
+                              },
+                        child: const Text('Add Selected'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),

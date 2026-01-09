@@ -5,6 +5,7 @@ import '../../core/routes/route_names.dart';
 import '../../services/event_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/member_service.dart';
+import '../../core/utils/permission_helper.dart';
 
 /// Event detail page with registration and leader management
 class EventDetailPage extends StatefulWidget {
@@ -19,29 +20,23 @@ class EventDetailPage extends StatefulWidget {
 class _EventDetailPageState extends State<EventDetailPage> {
   Map<String, dynamic>? _event;
   bool _isLoading = true;
-  bool _isLeader = false;
+  bool _canEdit = false;
+  bool _canDelete = false;
 
   @override
   void initState() {
     super.initState();
-    _checkLeaderStatus();
+    _checkPermissions();
     _loadEventData();
   }
 
-  Future<void> _checkLeaderStatus() async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser != null) {
-        final role = currentUser.userMetadata?['role']?.toString();
-        setState(() {
-          _isLeader =
-              role == 'admin' || role == 'pastor' || role == 'leader' || false;
-        });
-      }
-    } catch (e) {
-      // If error, default to false
-      setState(() => _isLeader = false);
-    }
+  Future<void> _checkPermissions() async {
+    final canEdit = await PermissionHelper.canEdit('events');
+    final canDelete = await PermissionHelper.canDelete('events');
+    setState(() {
+      _canEdit = canEdit;
+      _canDelete = canDelete;
+    });
   }
 
   Future<void> _loadEventData() async {
@@ -126,7 +121,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         appBar: AppBar(
           title: Text(_event!['title'] ?? 'Event'),
           actions: [
-            if (_isLeader) ...[
+            if (_canEdit) ...[
               IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: () async {
@@ -138,6 +133,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   }
                 },
               ),
+            ],
+            if (_canDelete) ...[
               IconButton(
                 icon: const Icon(Icons.delete),
                 onPressed: _deleteEvent,
@@ -156,7 +153,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
             _OverviewTab(event: _event!),
             _RegistrationsTab(
               eventId: widget.eventId,
-              isLeader: _isLeader,
+              isLeader: _canEdit || _canDelete,
               onRegistrationsUpdated: _loadEventData,
             ),
           ],

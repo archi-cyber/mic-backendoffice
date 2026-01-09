@@ -24,11 +24,13 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
   File? _document1;
   File? _document2;
   File? _document3;
+  File? _document4;
 
   // Document names
   String? _document1Name;
   String? _document2Name;
   String? _document3Name;
+  String? _document4Name;
 
   @override
   void dispose() {
@@ -62,6 +64,10 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
               _document3 = file;
               _document3Name = fileName;
               break;
+            case 4:
+              _document4 = file;
+              _document4Name = fileName;
+              break;
           }
         });
       }
@@ -92,6 +98,10 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
           _document3 = null;
           _document3Name = null;
           break;
+        case 4:
+          _document4 = null;
+          _document4Name = null;
+          break;
       }
     });
   }
@@ -115,7 +125,9 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
       );
 
       final departmentId = department['id'].toString();
-      debugPrint('[AddDepartmentPage] Department created successfully. ID: $departmentId');
+      debugPrint(
+        '[AddDepartmentPage] Department created successfully. ID: $departmentId',
+      );
       final folder = 'departments/$departmentId';
       debugPrint('[AddDepartmentPage] Storage folder: $folder');
 
@@ -125,70 +137,133 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
 
       if (_document1 != null) {
         try {
-          debugPrint('[AddDepartmentPage] Uploading document 1: $_document1Name');
+          debugPrint(
+            '[AddDepartmentPage] Uploading document 1: $_document1Name',
+          );
           final url = await StorageService.uploadFile(
             file: _document1!,
             folder: folder,
             fileName: _document1Name,
           );
-          debugPrint('[AddDepartmentPage] Document 1 uploaded successfully. URL: $url');
+          debugPrint(
+            '[AddDepartmentPage] Document 1 uploaded successfully. URL: $url',
+          );
           documentUpdates['document_1_url'] = url;
           documentUpdates['document_1_name'] = _document1Name;
         } catch (e) {
           debugPrint('[AddDepartmentPage] Error uploading document 1: $e');
-          uploadErrors.add('Failed to upload "${_document1Name}": ${e.toString()}');
+          uploadErrors.add(
+            'Failed to upload "$_document1Name": ${e.toString()}',
+          );
         }
       }
 
       if (_document2 != null) {
         try {
-          debugPrint('[AddDepartmentPage] Uploading document 2: $_document2Name');
+          debugPrint(
+            '[AddDepartmentPage] Uploading document 2: $_document2Name',
+          );
           final url = await StorageService.uploadFile(
             file: _document2!,
             folder: folder,
             fileName: _document2Name,
           );
-          debugPrint('[AddDepartmentPage] Document 2 uploaded successfully. URL: $url');
+          debugPrint(
+            '[AddDepartmentPage] Document 2 uploaded successfully. URL: $url',
+          );
           documentUpdates['document_2_url'] = url;
           documentUpdates['document_2_name'] = _document2Name;
         } catch (e) {
           debugPrint('[AddDepartmentPage] Error uploading document 2: $e');
-          uploadErrors.add('Failed to upload "${_document2Name}": ${e.toString()}');
+          uploadErrors.add(
+            'Failed to upload "$_document2Name": ${e.toString()}',
+          );
         }
       }
 
       if (_document3 != null) {
         try {
-          debugPrint('[AddDepartmentPage] Uploading document 3: $_document3Name');
+          debugPrint(
+            '[AddDepartmentPage] Uploading document 3: $_document3Name',
+          );
           final url = await StorageService.uploadFile(
             file: _document3!,
             folder: folder,
             fileName: _document3Name,
           );
-          debugPrint('[AddDepartmentPage] Document 3 uploaded successfully. URL: $url');
+          debugPrint(
+            '[AddDepartmentPage] Document 3 uploaded successfully. URL: $url',
+          );
           documentUpdates['document_3_url'] = url;
           documentUpdates['document_3_name'] = _document3Name;
         } catch (e) {
           debugPrint('[AddDepartmentPage] Error uploading document 3: $e');
-          uploadErrors.add('Failed to upload "${_document3Name}": ${e.toString()}');
+          uploadErrors.add(
+            'Failed to upload "$_document3Name": ${e.toString()}',
+          );
+        }
+      }
+
+      if (_document4 != null) {
+        try {
+          debugPrint(
+            '[AddDepartmentPage] Uploading document 4: $_document4Name',
+          );
+          final url = await StorageService.uploadFile(
+            file: _document4!,
+            folder: folder,
+            fileName: _document4Name,
+          );
+          debugPrint(
+            '[AddDepartmentPage] Document 4 uploaded successfully. URL: $url',
+          );
+          documentUpdates['document_4_url'] = url;
+          documentUpdates['document_4_name'] = _document4Name;
+        } catch (e) {
+          debugPrint('[AddDepartmentPage] Error uploading document 4: $e');
+          uploadErrors.add(
+            'Failed to upload "$_document4Name": ${e.toString()}',
+          );
         }
       }
 
       // Update department with document URLs if any were uploaded
       if (documentUpdates.isNotEmpty) {
-        debugPrint('[AddDepartmentPage] Updating department with document data: $documentUpdates');
+        debugPrint(
+          '[AddDepartmentPage] Updating department with document data: $documentUpdates',
+        );
         final updatedDepartment = await DepartmentService.updateDepartment(
           departmentId: departmentId,
           updates: documentUpdates,
         );
-        debugPrint('[AddDepartmentPage] Department updated successfully with documents.');
+        debugPrint(
+          '[AddDepartmentPage] Department updated successfully with documents.',
+        );
         debugPrint('[AddDepartmentPage] Updated department data:');
-        debugPrint('  - document_1_url: ${updatedDepartment['document_1_url']}');
-        debugPrint('  - document_1_name: ${updatedDepartment['document_1_name']}');
-        debugPrint('  - document_2_url: ${updatedDepartment['document_2_url']}');
-        debugPrint('  - document_2_name: ${updatedDepartment['document_2_name']}');
-        debugPrint('  - document_3_url: ${updatedDepartment['document_3_url']}');
-        debugPrint('  - document_3_name: ${updatedDepartment['document_3_name']}');
+        debugPrint(
+          '  - document_1_url: ${updatedDepartment['document_1_url']}',
+        );
+        debugPrint(
+          '  - document_1_name: ${updatedDepartment['document_1_name']}',
+        );
+        debugPrint(
+          '  - document_2_url: ${updatedDepartment['document_2_url']}',
+        );
+        debugPrint(
+          '  - document_2_name: ${updatedDepartment['document_2_name']}',
+        );
+        debugPrint(
+          '  - document_3_url: ${updatedDepartment['document_3_url']}',
+        );
+        debugPrint(
+          '  - document_3_name: ${updatedDepartment['document_3_name']}',
+        );
+        debugPrint(
+          '  - document_4_url: ${updatedDepartment['document_4_url']}',
+        );
+        debugPrint(
+          '  - document_4_name: ${updatedDepartment['document_4_name']}',
+        );
       } else {
         debugPrint('[AddDepartmentPage] No documents to upload.');
       }
@@ -262,12 +337,14 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
           }
         }
 
-        debugPrint('[AddDepartmentPage] Department creation completed successfully.');
+        debugPrint(
+          '[AddDepartmentPage] Department creation completed successfully.',
+        );
         debugPrint('[AddDepartmentPage] Summary:');
         debugPrint('  - Department ID: $departmentId');
         debugPrint('  - Documents uploaded: ${documentUpdates.length}');
         debugPrint('  - Upload errors: ${uploadErrors.length}');
-        
+
         Navigator.of(context).pop(true); // Return true to indicate success
       }
     } catch (e) {
@@ -335,6 +412,8 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
               _buildDocumentPicker(2, _document2Name),
               const SizedBox(height: AppDimensions.spacingSM),
               _buildDocumentPicker(3, _document3Name),
+              const SizedBox(height: AppDimensions.spacingSM),
+              _buildDocumentPicker(4, _document4Name),
               const SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/constants/member_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
@@ -21,10 +22,13 @@ class _MembersListPageState extends State<MembersListPage> {
   String? _selectedBirthdayMonth;
   bool? _isActiveFilter;
   String? _selectedRole;
+  String? _selectedProfession;
+  bool? _isNewcomerFilter;
 
   @override
   void initState() {
     super.initState();
+    // If showing upcoming birthdays, we'll filter in _filteredMembers
     _loadMembers();
   }
 
@@ -46,6 +50,12 @@ class _MembersListPageState extends State<MembersListPage> {
       }
       if (_selectedRole != null) {
         filters['role'] = _selectedRole;
+      }
+      if (_selectedProfession != null) {
+        filters['profession'] = _selectedProfession;
+      }
+      if (_isNewcomerFilter != null) {
+        filters['is_new_comer'] = _isNewcomerFilter;
       }
 
       final members = await MemberService.getMembers(filters: filters);
@@ -79,6 +89,7 @@ class _MembersListPageState extends State<MembersListPage> {
 
     // Birthday month filter
     if (_selectedBirthdayMonth != null) {
+      // Single month filter (existing behavior)
       filtered = filtered.where((member) {
         final birthday = member['birthday'];
         if (birthday == null) return false;
@@ -99,6 +110,36 @@ class _MembersListPageState extends State<MembersListPage> {
       }).toList();
     }
 
+    // Profession filter
+    if (_selectedProfession != null) {
+      filtered = filtered.where((member) {
+        return (member['profession'] ?? '') == _selectedProfession;
+      }).toList();
+    }
+
+    // Newcomer filter
+    if (_isNewcomerFilter != null) {
+      filtered = filtered.where((member) {
+        return (member['is_new_comer'] == true) == _isNewcomerFilter;
+      }).toList();
+    }
+
+    // Sort alphabetically by first name, then last name
+    filtered.sort((a, b) {
+      final firstNameA = (a['first_name'] ?? '').toString().toLowerCase();
+      final lastNameA = (a['last_name'] ?? '').toString().toLowerCase();
+      final firstNameB = (b['first_name'] ?? '').toString().toLowerCase();
+      final lastNameB = (b['last_name'] ?? '').toString().toLowerCase();
+
+      // Compare by first name first
+      final firstNameComparison = firstNameA.compareTo(firstNameB);
+      if (firstNameComparison != 0) {
+        return firstNameComparison;
+      }
+      // If first names are equal, compare by last name
+      return lastNameA.compareTo(lastNameB);
+    });
+
     return filtered;
   }
 
@@ -107,7 +148,6 @@ class _MembersListPageState extends State<MembersListPage> {
     final lastName = member['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
     final email = member['email']?.toString() ?? '';
-    final phone = member['phone']?.toString() ?? '';
     final role = member['role']?.toString() ?? 'member';
     final isActive = member['is_active'] == true;
     final memberId = member['id'].toString();
@@ -249,8 +289,13 @@ class _MembersListPageState extends State<MembersListPage> {
         return AppColors.error;
       case 'leader':
         return AppColors.warning;
-      default:
+      case 'worker':
         return AppColors.primary;
+      case 'sympathiser':
+        return AppColors.textSecondary;
+      case 'member':
+      default:
+        return AppColors.textSecondary;
     }
   }
 
@@ -269,6 +314,17 @@ class _MembersListPageState extends State<MembersListPage> {
         label = 'Leader';
         icon = Icons.leaderboard;
         break;
+      case 'worker':
+        chipColor = AppColors.primary;
+        label = 'Worker';
+        icon = Icons.work;
+        break;
+      case 'sympathiser':
+        chipColor = AppColors.textSecondary;
+        label = 'Sympathiser';
+        icon = Icons.favorite;
+        break;
+      case 'member':
       default:
         chipColor = AppColors.textSecondary;
         label = 'Member';
@@ -304,9 +360,11 @@ class _MembersListPageState extends State<MembersListPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
 
+    final memberCount = _filteredMembers.length;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(localizations?.members ?? 'Members'),
+        title: Text('${localizations?.members ?? 'Members'} ($memberCount)'),
         actions: [
           IconButton(
             icon: const Icon(Icons.filter_list),
@@ -390,6 +448,15 @@ class _MembersListPageState extends State<MembersListPage> {
                     });
                   },
                 ),
+                CheckboxListTile(
+                  title: const Text('Newcomers Only'),
+                  value: _isNewcomerFilter == true,
+                  onChanged: (value) {
+                    setDialogState(() {
+                      _isNewcomerFilter = value == true ? true : null;
+                    });
+                  },
+                ),
                 const Divider(),
                 // Role filter
                 ListTile(
@@ -439,6 +506,32 @@ class _MembersListPageState extends State<MembersListPage> {
                       });
                     },
                   ),
+                const Divider(),
+                // Profession filter
+                ListTile(
+                  title: const Text('Profession'),
+                  subtitle: Text(
+                    _selectedProfession != null
+                        ? MemberConstants.getProfessionLabel(
+                            _selectedProfession,
+                          )
+                        : 'All professions',
+                  ),
+                  trailing: const Icon(Icons.arrow_drop_down),
+                  onTap: () {
+                    _showProfessionPicker(context, setDialogState);
+                  },
+                ),
+                if (_selectedProfession != null)
+                  ListTile(
+                    leading: const Icon(Icons.clear),
+                    title: const Text('Clear Profession Filter'),
+                    onTap: () {
+                      setDialogState(() {
+                        _selectedProfession = null;
+                      });
+                    },
+                  ),
               ],
             ),
           ),
@@ -450,6 +543,8 @@ class _MembersListPageState extends State<MembersListPage> {
                   _selectedBirthdayMonth = null;
                   _isActiveFilter = null;
                   _selectedRole = null;
+                  _selectedProfession = null;
+                  _isNewcomerFilter = null;
                 });
                 Navigator.pop(context);
                 _loadMembers();
@@ -628,6 +723,84 @@ class _MembersListPageState extends State<MembersListPage> {
                 Navigator.pop(context);
               },
             ),
+            ListTile(
+              title: const Text('Worker'),
+              leading: const Icon(Icons.work, color: AppColors.primary),
+              trailing: _selectedRole == 'worker'
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                setDialogState(() {
+                  _selectedRole = 'worker';
+                });
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text('Sympathiser'),
+              leading: const Icon(Icons.favorite, color: AppColors.accent),
+              trailing: _selectedRole == 'sympathiser'
+                  ? const Icon(Icons.check)
+                  : null,
+              onTap: () {
+                setDialogState(() {
+                  _selectedRole = 'sympathiser';
+                });
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showProfessionPicker(BuildContext context, StateSetter setDialogState) {
+    final professionOptions = MemberConstants.getProfessionOptions();
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select Profession',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            ListTile(
+              title: const Text('All Professions'),
+              leading: const Icon(Icons.clear_all),
+              onTap: () {
+                setDialogState(() {
+                  _selectedProfession = null;
+                });
+                Navigator.pop(context);
+              },
+            ),
+            const Divider(),
+            ...professionOptions.map((option) {
+              final value = option['value']!;
+              final label = option['label']!;
+              final isSelected = _selectedProfession == value;
+
+              return ListTile(
+                title: Text(label),
+                leading: const Icon(
+                  Icons.work_outline,
+                  color: AppColors.primary,
+                ),
+                trailing: isSelected ? const Icon(Icons.check) : null,
+                onTap: () {
+                  setDialogState(() {
+                    _selectedProfession = isSelected ? null : value;
+                  });
+                  Navigator.pop(context);
+                },
+              );
+            }),
           ],
         ),
       ),

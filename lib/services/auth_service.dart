@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'device_token_service.dart';
+import 'role_service.dart';
 
 /// Authentication service for login, password reset, etc.
 class AuthService {
@@ -22,7 +23,7 @@ class AuthService {
       );
 
       if (response.session == null) {
-        throw Exception('Login failed: No session returned');
+        throw Exception('Login failed. No session returned.');
       }
 
       // Check if password is the default password
@@ -31,12 +32,41 @@ class AuthService {
 
       debugPrint('[AuthService] Is default password: $isDefaultPassword');
 
-      // Get user metadata to check must_change_password flag
-      bool mustChangePassword =
-          response.user?.userMetadata?['must_change_password'] == true ||
-          response.user?.userMetadata?['must_change_password'] == 'true';
+      // Check must_change_password flag from users table (primary source)
+      // Also check user metadata as fallback
+      bool mustChangePassword = false;
+      try {
+        final userRecord = await _client
+            .from('users')
+            .select('must_change_password')
+            .eq('id', response.user!.id)
+            .maybeSingle();
 
-      // Force password change if using default password
+        if (userRecord != null) {
+          mustChangePassword = userRecord['must_change_password'] == true;
+          debugPrint(
+            '[AuthService] Found user record, must_change_password: $mustChangePassword',
+          );
+        } else {
+          // Fallback to metadata if users table record doesn't exist
+          mustChangePassword =
+              response.user?.userMetadata?['must_change_password'] == true ||
+              response.user?.userMetadata?['must_change_password'] == 'true';
+          debugPrint(
+            '[AuthService] No user record found, using metadata: $mustChangePassword',
+          );
+        }
+      } catch (e) {
+        // Fallback to metadata if query fails
+        debugPrint(
+          '[AuthService] Error checking users table: $e, using metadata',
+        );
+        mustChangePassword =
+            response.user?.userMetadata?['must_change_password'] == true ||
+            response.user?.userMetadata?['must_change_password'] == 'true';
+      }
+
+      // Force password change if using default password (for newly created users)
       if (isDefaultPassword && !mustChangePassword) {
         debugPrint(
           '[AuthService] Default password detected, forcing password change',
@@ -75,6 +105,12 @@ class AuthService {
         '[AuthService] Login successful. must_change_password: $mustChangePassword',
       );
 
+      // Ensure mic@mic.com has admin privileges
+      final userEmail = response.user?.email;
+      if (userEmail != null && userEmail == RoleService.superAdminEmail) {
+        await RoleService.ensureSuperAdminPrivileges(userEmail);
+      }
+
       return {
         'token': response.session!.accessToken,
         'must_change_password': mustChangePassword,
@@ -82,11 +118,44 @@ class AuthService {
       };
     } on AuthException catch (e) {
       debugPrint('[AuthService] Login failed: ${e.message}');
-      throw Exception('Login failed: ${e.message}');
+
+      // Handle email not confirmed error
+      if (e.message.toLowerCase().contains('email not confirmed') ||
+          e.message.toLowerCase().contains('email_not_confirmed')) {
+        throw Exception('Email not confirmed');
+      }
+
+      // Handle invalid credentials
+      if (e.message.toLowerCase().contains('invalid') ||
+          e.message.toLowerCase().contains('wrong password') ||
+          e.message.toLowerCase().contains('incorrect')) {
+        throw Exception('Invalid credentials');
+      }
+
+      throw Exception('Login failed');
     } catch (e, stackTrace) {
       debugPrint('[AuthService] Login error: $e');
       debugPrint('[AuthService] Stack trace: $stackTrace');
-      throw Exception('Login failed: $e');
+
+      // Handle email not confirmed error in generic catch
+      if (e.toString().toLowerCase().contains('email not confirmed') ||
+          e.toString().toLowerCase().contains('email_not_confirmed')) {
+        throw Exception('Email not confirmed');
+      }
+
+      throw Exception('Login failed');
+    }
+  }
+
+  /// Resend email confirmation
+  /// Sends a new confirmation email to the user
+  static Future<void> resendConfirmationEmail({required String email}) async {
+    try {
+      await _client.auth.resend(type: OtpType.signup, email: email);
+    } on AuthException {
+      throw Exception('Failed to resend confirmation email');
+    } catch (_) {
+      throw Exception('Failed to resend confirmation email');
     }
   }
 
@@ -108,10 +177,7 @@ class AuthService {
 
         // Business Rule: Only active leaders can reset password
         if (!isActive || role != 'leader') {
-          throw Exception(
-            'Password reset is only available for active leaders. '
-            'Please contact an administrator.',
-          );
+          throw Exception('Password reset only available for active leaders');
         }
       }
 
@@ -119,26 +185,43 @@ class AuthService {
         email,
         redirectTo: null, // Configure redirect URL in Supabase dashboard
       );
-    } on AuthException catch (e) {
-      throw Exception('Failed to send reset link: ${e.message}');
-    } catch (e) {
-      throw Exception('Failed to send reset link: $e');
+    } on AuthException {
+      throw Exception('Failed to send reset link');
+    } catch (_) {
+      throw Exception('Failed to send reset link');
     }
   }
 
   /// Reset password with token
+  /// Also used for changing password when authenticated
   static Future<void> resetPassword({
     required String token,
     required String newPassword,
   }) async {
     try {
-      // Supabase handles password reset through email link
-      // This method is typically called after user clicks the reset link
+      // Update password in Supabase Auth
       await _client.auth.updateUser(UserAttributes(password: newPassword));
-    } on AuthException catch (e) {
-      throw Exception('Password reset failed: ${e.message}');
-    } catch (e) {
-      throw Exception('Password reset failed: $e');
+
+      // Also update users table to clear must_change_password flag
+      try {
+        final userId = SupabaseService.currentUser?.id;
+        if (userId != null) {
+          await _client
+              .from('users')
+              .update({
+                'must_change_password': false,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', userId);
+        }
+      } catch (e) {
+        debugPrint('[AuthService] Warning: Could not update users table: $e');
+        // Don't fail password change if users table update fails
+      }
+    } on AuthException {
+      throw Exception('Password reset failed');
+    } catch (_) {
+      throw Exception('Password reset failed');
     }
   }
 
@@ -159,7 +242,7 @@ class AuthService {
 
       await _client.auth.signOut();
     } catch (e) {
-      throw Exception('Logout failed: $e');
+      throw Exception('Logout failed');
     }
   }
 

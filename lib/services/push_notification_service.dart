@@ -41,6 +41,11 @@ class PushNotificationService {
         debugPrint(
           '[PushNotificationService] ✅ Successfully sent: $totalSuccess success, $totalFailure failures',
         );
+        if (totalFailure > 0) {
+          debugPrint(
+            '[PushNotificationService] ⚠️ Some notifications failed. Check Edge Function logs for details.',
+          );
+        }
       } else {
         final errorData = response.data;
         debugPrint(
@@ -139,7 +144,10 @@ class PushNotificationService {
       );
 
       if (allTokens.isEmpty) {
-        debugPrint('[PushNotificationService] No device tokens found');
+        debugPrint(
+          '[PushNotificationService] ⚠️ WARNING: No device tokens found for ${userIds.length} users. '
+          'Users may not have registered their device tokens. Ensure users have logged in and granted notification permissions.',
+        );
         return;
       }
 

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
+import '../../services/role_service.dart';
+import '../../services/supabase_service.dart';
+import '../../core/utils/permission_helper.dart';
 
 /// Departments list page
 class DepartmentsListPage extends StatefulWidget {
@@ -29,6 +34,39 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     super.dispose();
   }
 
+  Future<bool> _canCreateDepartment() async {
+    try {
+      // Check leader access first
+      final canCreate = await PermissionHelper.canCreate('departments');
+      if (canCreate) return true;
+
+      // Fallback: Check if user is a leader of any department (legacy check)
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) return false;
+
+      final user = await SupabaseService.client
+          .from('users')
+          .select('member_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+      if (user == null || user['member_id'] == null) return false;
+
+      final memberId = user['member_id'].toString();
+
+      final hasLeadership = await SupabaseService.client
+          .from('department_members')
+          .select('id')
+          .eq('member_id', memberId)
+          .eq('role', 'leader')
+          .maybeSingle();
+
+      return hasLeadership != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> _loadDepartments() async {
     setState(() => _isLoading = true);
     try {
@@ -40,9 +78,10 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading departments: $e')),
-        );
+        final errorMessage = ErrorMessageHelper.getErrorMessage(context, e);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMessage)));
       }
     }
   }
@@ -65,14 +104,15 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Departments'),
+        title: Text(localizations?.departments ?? 'Departments'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadDepartments,
-            tooltip: 'Refresh',
+            tooltip: localizations?.refresh ?? 'Refresh',
           ),
         ],
       ),
@@ -84,7 +124,8 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search departments...',
+                hintText:
+                    localizations?.searchDepartments ?? 'Search departments...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -119,8 +160,10 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                         const SizedBox(height: AppDimensions.spacingMD),
                         Text(
                           _searchController.text.isNotEmpty
-                              ? 'No departments found'
-                              : 'No departments yet',
+                              ? (localizations?.noDepartmentsFound ??
+                                    'No departments found')
+                              : (localizations?.noDepartments ??
+                                    'No departments yet'),
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
@@ -139,18 +182,26 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          // Navigate to add department page and wait for result
-          final result = await Navigator.of(
-            context,
-          ).pushNamed(RouteNames.addDepartment);
-          // If department was created (result is true), reload the list
-          if (result == true) {
-            _loadDepartments();
+      floatingActionButton: FutureBuilder<bool>(
+        future: _canCreateDepartment(),
+        builder: (context, snapshot) {
+          if (snapshot.data == true) {
+            return FloatingActionButton(
+              onPressed: () async {
+                // Navigate to add department page and wait for result
+                final result = await Navigator.of(
+                  context,
+                ).pushNamed(RouteNames.addDepartment);
+                // If department was created (result is true), reload the list
+                if (result == true) {
+                  _loadDepartments();
+                }
+              },
+              child: const Icon(Icons.add),
+            );
           }
+          return const SizedBox.shrink();
         },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -160,6 +211,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     final description = department['description']?.toString();
     final isActive = department['is_active'] == true;
     final departmentId = department['id'].toString();
+    final localizations = AppLocalizations.of(context);
 
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -229,7 +281,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'Inactive',
+                              localizations?.inactive ?? 'Inactive',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,

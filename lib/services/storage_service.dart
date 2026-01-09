@@ -103,4 +103,42 @@ class StorageService {
       throw Exception('Failed to delete files: $e');
     }
   }
+
+  /// Extract file path from a Supabase Storage URL
+  static String? extractFilePath(String fileUrl) {
+    try {
+      final uri = Uri.parse(fileUrl);
+      final pathSegments = uri.pathSegments;
+      final bucketIndex = pathSegments.indexOf(_bucketName);
+
+      if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
+        return pathSegments.sublist(bucketIndex + 1).join('/');
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Create a signed URL for a file (valid for 1 hour by default)
+  /// This is useful for private buckets or when you need temporary access
+  static Future<String> createSignedUrl(
+    String fileUrl, {
+    int expiresIn = 3600, // 1 hour in seconds
+  }) async {
+    try {
+      final filePath = extractFilePath(fileUrl);
+      if (filePath == null) {
+        throw Exception('Invalid file URL: $fileUrl');
+      }
+
+      final signedUrl = await _client.storage
+          .from(_bucketName)
+          .createSignedUrl(filePath, expiresIn);
+
+      return signedUrl;
+    } catch (e) {
+      throw Exception('Failed to create signed URL: $e');
+    }
+  }
 }

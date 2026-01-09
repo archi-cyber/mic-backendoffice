@@ -3,6 +3,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/member_service.dart';
 import '../../services/report_service.dart';
+import '../../services/finance_service.dart';
 import '../../widgets/attendance_chart.dart';
 import '../../utils/export_utils.dart';
 
@@ -22,11 +23,31 @@ class _MemberReportPageState extends State<MemberReportPage> {
   DateTime _fromDate = DateTime.now().subtract(const Duration(days: 90));
   DateTime _toDate = DateTime.now();
   bool _isLoading = true;
+  bool _isFinanceLeader = false;
 
   @override
   void initState() {
     super.initState();
+    _checkFinanceLeaderStatus();
     _loadReport();
+  }
+
+  Future<void> _checkFinanceLeaderStatus() async {
+    try {
+      final isFinanceLeader = await FinanceService.isFinanceLeader();
+      if (mounted) {
+        setState(() {
+          _isFinanceLeader = isFinanceLeader;
+        });
+      }
+    } catch (e) {
+      // If error, default to false
+      if (mounted) {
+        setState(() {
+          _isFinanceLeader = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadReport() async {
@@ -159,16 +180,18 @@ class _MemberReportPageState extends State<MemberReportPage> {
                     color: AppColors.primary,
                   ),
                 ),
-                const SizedBox(width: AppDimensions.spacingMD),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Total Giving',
-                    value:
-                        '\$${giving?['total']?.toStringAsFixed(2) ?? '0.00'}',
-                    icon: Icons.attach_money,
-                    color: AppColors.accent,
+                if (_isFinanceLeader) ...[
+                  const SizedBox(width: AppDimensions.spacingMD),
+                  Expanded(
+                    child: _StatCard(
+                      title: 'Total Giving',
+                      value:
+                          '\$${giving?['total']?.toStringAsFixed(2) ?? '0.00'}',
+                      icon: Icons.attach_money,
+                      color: AppColors.accent,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: AppDimensions.spacingMD),

@@ -31,16 +31,20 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
   String? _existingDoc2Name;
   String? _existingDoc3Url;
   String? _existingDoc3Name;
+  String? _existingDoc4Url;
+  String? _existingDoc4Name;
 
   // New document files to upload
   File? _newDocument1;
   File? _newDocument2;
   File? _newDocument3;
+  File? _newDocument4;
 
   // New document names
   String? _newDocument1Name;
   String? _newDocument2Name;
   String? _newDocument3Name;
+  String? _newDocument4Name;
 
   @override
   void initState() {
@@ -57,6 +61,26 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
 
   Future<void> _loadData() async {
     try {
+      // Check if user has permission to edit this department
+      final canEdit = await DepartmentService.canEditDepartment(
+        widget.departmentId,
+      );
+
+      if (!canEdit) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'You do not have permission to edit this department. Only leaders and subleaders can edit.',
+              ),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          Navigator.of(context).pop();
+        }
+        return;
+      }
+
       final department = await DepartmentService.getDepartmentById(
         widget.departmentId,
       );
@@ -73,6 +97,8 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
         _existingDoc2Name = department['document_2_name']?.toString();
         _existingDoc3Url = department['document_3_url']?.toString();
         _existingDoc3Name = department['document_3_name']?.toString();
+        _existingDoc4Url = department['document_4_url']?.toString();
+        _existingDoc4Name = department['document_4_name']?.toString();
 
         _isLoadingData = false;
       });
@@ -110,6 +136,10 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
             case 3:
               _newDocument3 = file;
               _newDocument3Name = fileName;
+              break;
+            case 4:
+              _newDocument4 = file;
+              _newDocument4Name = fileName;
               break;
           }
         });
@@ -155,6 +185,15 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
           } else {
             _existingDoc3Url = null;
             _existingDoc3Name = null;
+          }
+          break;
+        case 4:
+          if (_newDocument4 != null) {
+            _newDocument4 = null;
+            _newDocument4Name = null;
+          } else {
+            _existingDoc4Url = null;
+            _existingDoc4Name = null;
           }
           break;
       }
@@ -246,6 +285,31 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
       } else if (_existingDoc3Url == null && _existingDoc3Name == null) {
         documentUpdates['document_3_url'] = null;
         documentUpdates['document_3_name'] = null;
+      }
+
+      // Handle document 4
+      if (_newDocument4 != null) {
+        if (_existingDoc4Url != null) {
+          try {
+            await StorageService.deleteFile(_existingDoc4Url!);
+          } catch (e) {
+            debugPrint('Error deleting old document 4: $e');
+          }
+        }
+        try {
+          final url = await StorageService.uploadFile(
+            file: _newDocument4!,
+            folder: folder,
+            fileName: _newDocument4Name,
+          );
+          documentUpdates['document_4_url'] = url;
+          documentUpdates['document_4_name'] = _newDocument4Name;
+        } catch (e) {
+          debugPrint('Error uploading document 4: $e');
+        }
+      } else if (_existingDoc4Url == null && _existingDoc4Name == null) {
+        documentUpdates['document_4_url'] = null;
+        documentUpdates['document_4_name'] = null;
       }
 
       // Update department
@@ -349,6 +413,13 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                 _existingDoc3Name,
                 _newDocument3Name,
                 _existingDoc3Url,
+              ),
+              const SizedBox(height: AppDimensions.spacingSM),
+              _buildDocumentPicker(
+                4,
+                _existingDoc4Name,
+                _newDocument4Name,
+                _existingDoc4Url,
               ),
               const SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(

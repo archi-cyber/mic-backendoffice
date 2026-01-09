@@ -7,14 +7,24 @@ class ChurchAttendanceService {
 
   /// Mark attendance for a member
   /// serviceType: 'wednesday' or 'sunday'
+  /// attendanceType: 'onsite', 'online', or 'absent'
   static Future<Map<String, dynamic>> markAttendance({
     required String memberId,
     required DateTime serviceDate,
     required String serviceType, // 'wednesday' or 'sunday'
+    String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
   }) async {
     try {
       if (serviceType != 'wednesday' && serviceType != 'sunday') {
         throw Exception('Service type must be "wednesday" or "sunday"');
+      }
+
+      if (attendanceType != 'onsite' &&
+          attendanceType != 'online' &&
+          attendanceType != 'absent') {
+        throw Exception(
+          'Attendance type must be "onsite", "online", or "absent"',
+        );
       }
 
       final currentUser = SupabaseService.currentUser;
@@ -23,7 +33,7 @@ class ChurchAttendanceService {
       }
 
       debugPrint(
-        '[ChurchAttendanceService] Marking attendance for member: $memberId, date: $serviceDate, type: $serviceType',
+        '[ChurchAttendanceService] Marking attendance for member: $memberId, date: $serviceDate, type: $serviceType, attendance: $attendanceType',
       );
 
       final response = await _client
@@ -34,6 +44,7 @@ class ChurchAttendanceService {
               'T',
             )[0], // Date only
             'service_type': serviceType,
+            'attendance_type': attendanceType,
             'created_by': currentUser.id,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
@@ -50,14 +61,24 @@ class ChurchAttendanceService {
   }
 
   /// Mark attendance for multiple members (bulk operation)
+  /// attendanceType: 'onsite', 'online', or 'absent'
   static Future<List<Map<String, dynamic>>> markBulkAttendance({
     required List<String> memberIds,
     required DateTime serviceDate,
     required String serviceType,
+    String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
   }) async {
     try {
       if (serviceType != 'wednesday' && serviceType != 'sunday') {
         throw Exception('Service type must be "wednesday" or "sunday"');
+      }
+
+      if (attendanceType != 'onsite' &&
+          attendanceType != 'online' &&
+          attendanceType != 'absent') {
+        throw Exception(
+          'Attendance type must be "onsite", "online", or "absent"',
+        );
       }
 
       final currentUser = SupabaseService.currentUser;
@@ -76,6 +97,7 @@ class ChurchAttendanceService {
               'member_id': memberId,
               'service_date': dateString,
               'service_type': serviceType,
+              'attendance_type': attendanceType,
               'created_by': currentUser.id,
               'created_at': DateTime.now().toIso8601String(),
               'updated_at': DateTime.now().toIso8601String(),
@@ -193,11 +215,12 @@ class ChurchAttendanceService {
   }) async {
     try {
       // Get all attendance records with filters
+      // Note: Filters must be applied before transforms (order, limit)
       dynamic query = _client
           .from('church_attendance')
-          .select('service_date, service_type, id')
-          .order('service_date', ascending: false);
+          .select('service_date, service_type, id');
 
+      // Apply filters first
       if (startDate != null) {
         query = query.gte(
           'service_date',
@@ -210,6 +233,9 @@ class ChurchAttendanceService {
           endDate.toIso8601String().split('T')[0],
         );
       }
+
+      // Apply transforms after filters
+      query = query.order('service_date', ascending: false);
 
       if (limit != null) {
         query = query.limit(
@@ -296,6 +322,42 @@ class ChurchAttendanceService {
         '[ChurchAttendanceService] Error getting attendance count: $e',
       );
       throw Exception('Failed to get attendance count: $e');
+    }
+  }
+
+  /// Update attendance record
+  static Future<Map<String, dynamic>> updateAttendance({
+    required String attendanceId,
+    String? attendanceType,
+  }) async {
+    try {
+      final updates = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (attendanceType != null) {
+        if (attendanceType != 'onsite' &&
+            attendanceType != 'online' &&
+            attendanceType != 'absent') {
+          throw Exception(
+            'Attendance type must be "onsite", "online", or "absent"',
+          );
+        }
+        updates['attendance_type'] = attendanceType;
+      }
+
+      final response = await _client
+          .from('church_attendance')
+          .update(updates)
+          .eq('id', attendanceId)
+          .select()
+          .single();
+
+      debugPrint('[ChurchAttendanceService] Attendance updated successfully');
+      return response;
+    } catch (e) {
+      debugPrint('[ChurchAttendanceService] Error updating attendance: $e');
+      throw Exception('Failed to update attendance: $e');
     }
   }
 

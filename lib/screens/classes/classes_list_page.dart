@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../services/class_service.dart';
 
-/// Classes list page
+/// Trainings list page
 class ClassesListPage extends StatefulWidget {
   const ClassesListPage({super.key});
 
@@ -42,7 +43,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error loading classes: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error loading trainings: $e')));
       }
     }
   }
@@ -67,7 +68,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Classes'),
+        title: const Text('Trainings'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -84,7 +85,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search classes...',
+                hintText: 'Search trainings...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -102,7 +103,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
               onChanged: (_) => setState(() {}),
             ),
           ),
-          // Classes list
+          // Trainings list
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -119,8 +120,8 @@ class _ClassesListPageState extends State<ClassesListPage> {
                         const SizedBox(height: AppDimensions.spacingMD),
                         Text(
                           _searchController.text.isNotEmpty
-                              ? 'No classes found'
-                              : 'No classes yet',
+                              ? 'No trainings found'
+                              : 'No trainings yet',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
@@ -139,18 +140,25 @@ class _ClassesListPageState extends State<ClassesListPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          // Navigate to add class page and wait for result
-          final result = await Navigator.of(
-            context,
-          ).pushNamed(RouteNames.addClass);
-          // If class was created (result is true), reload the list
-          if (result == true) {
-            _loadClasses();
-          }
+      floatingActionButton: FutureBuilder<bool>(
+        future: PermissionHelper.canCreate('trainings'),
+        builder: (context, snapshot) {
+          final canCreate = snapshot.data ?? false;
+          if (!canCreate) return const SizedBox.shrink();
+          return FloatingActionButton(
+            onPressed: () async {
+              // Navigate to add training page and wait for result
+              final result = await Navigator.of(
+                context,
+              ).pushNamed(RouteNames.addClass);
+              // If class was created (result is true), reload the list
+              if (result == true) {
+                _loadClasses();
+              }
+            },
+            child: const Icon(Icons.add),
+          );
         },
-        child: const Icon(Icons.add),
       ),
     );
   }
@@ -179,7 +187,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Row(
             children: [
-              // Class icon
+              // Training icon
               Container(
                 width: 60,
                 height: 60,
@@ -190,7 +198,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                 child: Icon(Icons.class_, color: AppColors.primary, size: 32),
               ),
               const SizedBox(width: AppDimensions.spacingMD),
-              // Class info
+              // Training info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

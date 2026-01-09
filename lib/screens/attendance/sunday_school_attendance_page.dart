@@ -33,9 +33,10 @@ class _SundaySchoolAttendancePageState
     // Initialize from arguments if provided
     if (widget.sessionDate != null) {
       _selectedDate = DateTime.parse(widget.sessionDate!);
-      _isViewMode = true;
+      _isViewMode = true; // Existing sessions start in view mode
     } else {
       _selectedDate = DateTime.now();
+      _isViewMode = false; // New sessions start in edit mode
     }
     _loadMembers();
     _loadExistingAttendance();
@@ -147,19 +148,45 @@ class _SundaySchoolAttendancePageState
     setState(() => _isSaving = true);
 
     try {
-      await SundaySchoolAttendanceService.markBulkAttendance(
-        memberIds: _attendedMemberIds.toList(),
-        attendanceDate: _selectedDate,
-      );
+      // Check if this is an existing session (has attendance records)
+      final hasExistingAttendance = _attendanceRecords.isNotEmpty;
+
+      if (hasExistingAttendance) {
+        // Update existing session
+        await SundaySchoolAttendanceService.updateSessionAttendance(
+          attendanceDate: _selectedDate,
+          memberIds: _attendedMemberIds.toList(),
+        );
+      } else {
+        // Create new session
+        await SundaySchoolAttendanceService.markBulkAttendance(
+          memberIds: _attendedMemberIds.toList(),
+          attendanceDate: _selectedDate,
+        );
+      }
+
+      // Reload attendance to reflect changes
+      await _loadExistingAttendance();
 
       if (mounted) {
+        setState(() {
+          _isSaving = false;
+          _isViewMode = true; // Switch back to view mode after saving
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Attendance saved successfully'),
+          SnackBar(
+            content: Text(
+              hasExistingAttendance
+                  ? 'Attendance updated successfully'
+                  : 'Attendance saved successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        // Only pop if this was a new session (not editing existing)
+        if (!hasExistingAttendance) {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -174,60 +201,23 @@ class _SundaySchoolAttendancePageState
     }
   }
 
-  Future<void> _removeAttendance(String attendanceId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Remove Attendance'),
-        content: const Text(
-          'Are you sure you want to remove this attendance record?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await SundaySchoolAttendanceService.removeAttendance(attendanceId);
-        _loadExistingAttendance();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Attendance removed successfully'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error removing attendance: $e'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isViewMode ? 'Session Details' : 'Mark Attendance'),
         actions: [
-          if (!_isViewMode) ...[
+          if (_isViewMode) ...[
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                setState(() {
+                  _isViewMode = false;
+                });
+              },
+              tooltip: 'Edit Session',
+            ),
+          ] else ...[
             if (_isSaving)
               const Padding(
                 padding: EdgeInsets.all(16.0),
@@ -237,12 +227,24 @@ class _SundaySchoolAttendancePageState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
-            else
+            else ...[
+              IconButton(
+                icon: const Icon(Icons.cancel),
+                onPressed: () {
+                  // Reload to reset changes
+                  _loadExistingAttendance();
+                  setState(() {
+                    _isViewMode = true;
+                  });
+                },
+                tooltip: 'Cancel',
+              ),
               IconButton(
                 icon: const Icon(Icons.save),
                 onPressed: _saveAttendance,
                 tooltip: 'Save Attendance',
               ),
+            ],
           ],
         ],
       ),
@@ -257,13 +259,13 @@ class _SundaySchoolAttendancePageState
                   child: Column(
                     children: [
                       InkWell(
-                        onTap: _isViewMode ? null : _selectDate,
+                        onTap: (_isViewMode || widget.sessionDate != null) ? null : _selectDate,
                         child: InputDecorator(
                           decoration: InputDecoration(
                             labelText: 'Session Date',
                             prefixIcon: const Icon(Icons.calendar_today),
-                            filled: _isViewMode,
-                            fillColor: _isViewMode
+                            filled: _isViewMode || widget.sessionDate != null,
+                            fillColor: (_isViewMode || widget.sessionDate != null)
                                 ? Theme.of(
                                     context,
                                   ).disabledColor.withOpacity(0.1)
@@ -435,7 +437,6 @@ class _SundaySchoolAttendancePageState
               final member = record['member'] as Map<String, dynamic>?;
               final firstName = member?['first_name'] ?? 'Unknown';
               final lastName = member?['last_name'] ?? '';
-              final attendanceId = record['id']?.toString() ?? '';
 
               return Card(
                 margin: const EdgeInsets.only(bottom: AppDimensions.spacingXS),
@@ -451,14 +452,8 @@ class _SundaySchoolAttendancePageState
                   subtitle: Text(
                     'Recorded: ${_formatDateTime(record['created_at'])}',
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline,
-                      color: AppColors.error,
-                    ),
-                    onPressed: () => _removeAttendance(attendanceId),
-                    tooltip: 'Remove Attendance',
-                  ),
+                  // Remove delete button for existing sessions (view-only)
+                  trailing: null,
                 ),
               );
             },

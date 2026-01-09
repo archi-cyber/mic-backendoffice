@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
 
@@ -51,9 +52,13 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
       }
     } else {
+      final errorMessage = ErrorMessageHelper.getErrorMessage(
+        context,
+        authProvider.errorMessage,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage ?? 'Login failed'),
+          content: Text(errorMessage),
           backgroundColor: AppColors.error,
         ),
       );

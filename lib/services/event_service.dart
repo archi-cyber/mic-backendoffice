@@ -38,6 +38,9 @@ class EventService {
     try {
       var query = _client.from('events').select();
 
+      // Filter out inactive (deleted) events by default
+      query = query.eq('is_active', true);
+
       // Apply date filters
       if (fromDate != null) {
         query = query.gte('event_date', fromDate.toIso8601String());

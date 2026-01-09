@@ -341,8 +341,8 @@ class _FinancePageState extends State<FinancePage> {
             _loadGivingRecords();
           }
         },
-        child: const Icon(Icons.add),
         tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
+        child: const Icon(Icons.add),
       ),
     );
   }

@@ -39,6 +39,9 @@ class _EditMemberPageState extends State<EditMemberPage> {
   bool? _isActive;
   bool? _birthdayNotificationsOptOut;
   DateTime? _selectedBirthday;
+  bool _isNewComer = false;
+  DateTime? _newcomerJoinDate;
+  String? _newcomerIntention;
   bool _isLoading = false;
   bool _isLoadingData = true;
 
@@ -79,6 +82,21 @@ class _EditMemberPageState extends State<EditMemberPage> {
     if (picked != null) {
       setState(() {
         _selectedBirthday = picked;
+      });
+    }
+  }
+
+  Future<void> _selectNewcomerJoinDate() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _newcomerJoinDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+      helpText: 'Select Join Date',
+    );
+    if (picked != null) {
+      setState(() {
+        _newcomerJoinDate = picked;
       });
     }
   }
@@ -132,6 +150,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
         _isActive = member['is_active'] ?? true;
         _birthdayNotificationsOptOut =
             member['birthday_notifications_opt_out'] ?? false;
+        _isNewComer = member['is_new_comer'] ?? false;
+        _newcomerJoinDate = member['newcomer_join_date'] != null
+            ? DateTime.parse(member['newcomer_join_date'])
+            : null;
+        _newcomerIntention = member['newcomer_intention'];
         _isLoadingData = false;
       });
     } catch (e) {
@@ -218,6 +241,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
           'is_active': _isActive ?? true,
           'birthday_notifications_opt_out':
               _birthdayNotificationsOptOut ?? false,
+          'is_new_comer': _isNewComer,
+          'newcomer_join_date': _newcomerJoinDate != null
+              ? _newcomerJoinDate!.toIso8601String().split('T')[0]
+              : null,
+          'newcomer_intention': _newcomerIntention,
         },
       );
 
@@ -404,41 +432,52 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ),
               const SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
-                value: _selectedProfession,
+                initialValue: _selectedProfession,
                 decoration: const InputDecoration(
                   labelText: 'Profession',
                   prefixIcon: Icon(Icons.work),
                   helperText: 'Select your current profession/status',
                 ),
-                items: MemberConstants.getProfessionOptions().map((option) {
-                  return DropdownMenuItem<String>(
-                    value: option['value'],
-                    child: Text(option['label']!),
-                  );
-                }).toList(),
+                items: [
+                  const DropdownMenuItem<String>(
+                    value: null,
+                    child: Text('Not specified'),
+                  ),
+                  ...MemberConstants.getProfessionOptions().map((option) {
+                    return DropdownMenuItem<String>(
+                      value: option['value'],
+                      child: Text(option['label']!),
+                    );
+                  }),
+                ],
                 onChanged: (value) {
                   setState(() {
                     _selectedProfession = value;
-                    // Clear dependent fields when profession changes
-                    if (!MemberConstants.requiresLevelOfStudy(value)) {
+                    // Clear dependent fields when profession changes or is set to null
+                    if (value == null ||
+                        !MemberConstants.requiresLevelOfStudy(value)) {
                       _selectedLevelOfStudy = null;
                     } else {
                       // Reset level of study when profession changes
                       // Only reset if current level is not valid for new profession
-                      final availableLevels =
-                          MemberConstants.getLevelsOfStudy(value);
+                      final availableLevels = MemberConstants.getLevelsOfStudy(
+                        value,
+                      );
                       if (_selectedLevelOfStudy != null &&
                           !availableLevels.contains(_selectedLevelOfStudy)) {
                         _selectedLevelOfStudy = null;
                       }
                     }
-                    if (!MemberConstants.requiresLastDiplomas(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresLastDiplomas(value)) {
                       _selectedLastDiploma = null;
                     }
-                    if (!MemberConstants.requiresSectorOfStudies(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresSectorOfStudies(value)) {
                       _sectorOfStudiesController.clear();
                     }
-                    if (!MemberConstants.requiresDomainOfActivity(value)) {
+                    if (value == null ||
+                        !MemberConstants.requiresDomainOfActivity(value)) {
                       _domainOfActivityController.clear();
                     }
                   });
@@ -450,7 +489,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String>(
-                  value: _selectedLevelOfStudy,
+                  initialValue: _selectedLevelOfStudy,
                   decoration: const InputDecoration(
                     labelText: 'Level of Study *',
                     prefixIcon: Icon(Icons.school),
@@ -459,11 +498,12 @@ class _EditMemberPageState extends State<EditMemberPage> {
                   ),
                   items: MemberConstants.getLevelsOfStudy(_selectedProfession)
                       .map((level) {
-                    return DropdownMenuItem<String>(
-                      value: level,
-                      child: Text(level),
-                    );
-                  }).toList(),
+                        return DropdownMenuItem<String>(
+                          value: level,
+                          child: Text(level),
+                        );
+                      })
+                      .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedLevelOfStudy = value;
@@ -533,7 +573,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               )) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String>(
-                  value: _selectedLastDiploma,
+                  initialValue: _selectedLastDiploma,
                   decoration: const InputDecoration(
                     labelText: 'Last Diplomas *',
                     prefixIcon: Icon(Icons.workspace_premium),
@@ -566,15 +606,21 @@ class _EditMemberPageState extends State<EditMemberPage> {
               _buildKeySkillsField(),
               const SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
-                value: _selectedRole,
+                initialValue: _selectedRole,
                 decoration: const InputDecoration(
                   labelText: 'Role *',
                   prefixIcon: Icon(Icons.person_outline),
+                  helperText: 'Select member role',
                 ),
                 items: const [
                   DropdownMenuItem(value: 'member', child: Text('Member')),
                   DropdownMenuItem(value: 'leader', child: Text('Leader')),
                   DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  DropdownMenuItem(value: 'worker', child: Text('Worker')),
+                  DropdownMenuItem(
+                    value: 'sympathiser',
+                    child: Text('Sympathiser'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -586,7 +632,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ),
               const SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
-                value: _selectedGender,
+                initialValue: _selectedGender,
                 decoration: const InputDecoration(
                   labelText: 'Gender',
                   prefixIcon: Icon(Icons.person),
@@ -604,7 +650,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
               ),
               const SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
-                value: _selectedMaritalStatus,
+                initialValue: _selectedMaritalStatus,
                 decoration: const InputDecoration(
                   labelText: 'Marital Status',
                   prefixIcon: Icon(Icons.favorite),
@@ -644,6 +690,78 @@ class _EditMemberPageState extends State<EditMemberPage> {
                   });
                 },
               ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              CheckboxListTile(
+                title: const Text('New Comer'),
+                subtitle: const Text(
+                  'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
+                ),
+                value: _isNewComer,
+                onChanged: (value) {
+                  setState(() {
+                    _isNewComer = value ?? false;
+                    // Clear join date and intention if unchecked
+                    if (!(value ?? false)) {
+                      _newcomerJoinDate = null;
+                      _newcomerIntention = null;
+                    }
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              // Show join date field only when new comer is checked
+              if (_isNewComer) ...[
+                const SizedBox(height: AppDimensions.spacingMD),
+                InkWell(
+                  onTap: _selectNewcomerJoinDate,
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: 'Newcomer Join Date',
+                      prefixIcon: const Icon(Icons.event_available),
+                      suffixIcon: const Icon(Icons.calendar_today),
+                      helperText: 'Select the date when the newcomer joined',
+                    ),
+                    child: Text(
+                      _newcomerJoinDate != null
+                          ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
+                          : 'Select join date',
+                      style: TextStyle(
+                        color: _newcomerJoinDate != null
+                            ? Theme.of(context).textTheme.bodyLarge?.color
+                            : Theme.of(context).hintColor,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String>(
+                  initialValue: _newcomerIntention,
+                  decoration: const InputDecoration(
+                    labelText: 'Newcomer Intention',
+                    prefixIcon: Icon(Icons.help_outline),
+                    helperText: 'Select the newcomer\'s intention',
+                  ),
+                  items: const [
+                    DropdownMenuItem<String>(
+                      value: 'wants_to_stay',
+                      child: Text('Wants to stay'),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'does_not_know_yet',
+                      child: Text('Does not know yet'),
+                    ),
+                    DropdownMenuItem<String>(
+                      value: 'just_passing',
+                      child: Text('Just passing'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _newcomerIntention = value;
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,

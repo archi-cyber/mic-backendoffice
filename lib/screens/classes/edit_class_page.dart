@@ -4,7 +4,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../services/class_service.dart';
 import '../../services/department_service.dart';
 
-/// Edit class page
+/// Edit training page
 class EditClassPage extends StatefulWidget {
   final String classId;
 
@@ -90,7 +90,7 @@ class _EditClassPageState extends State<EditClassPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Class updated successfully'),
+            content: Text('Training updated successfully'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -116,7 +116,7 @@ class _EditClassPageState extends State<EditClassPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Class')),
+      appBar: AppBar(title: const Text('Edit Training')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -127,12 +127,12 @@ class _EditClassPageState extends State<EditClassPage> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'Class Name *',
+                  labelText: 'Training Name *',
                   prefixIcon: Icon(Icons.class_),
                 ),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
-                    return 'Class name is required';
+                    return 'Training name is required';
                   }
                   return null;
                 },

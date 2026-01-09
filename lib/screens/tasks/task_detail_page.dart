@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/task_service.dart';
 import '../../services/member_service.dart';
+import '../../services/department_service.dart';
+import '../../services/role_service.dart';
+import '../../services/supabase_service.dart';
 
 /// Task detail page with assign and remind functionality
 class TaskDetailPage extends StatefulWidget {
@@ -19,6 +23,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   Map<String, dynamic>? _task;
   List<Map<String, dynamic>> _assignments = [];
   bool _isLoading = true;
+  bool _canAssignMembers = false;
 
   @override
   void initState() {
@@ -32,9 +37,22 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       final task = await TaskService.getTaskById(widget.taskId);
       final assignments = await TaskService.getTaskAssignments(widget.taskId);
 
+      // Check if user can assign members (admin or department leader)
+      bool canAssign = false;
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      if (isAdmin) {
+        canAssign = true;
+      } else if (task['department_id'] != null) {
+        // Check if user is a leader of the task's department
+        canAssign = await DepartmentService.isDepartmentLeader(
+          task['department_id'].toString(),
+        );
+      }
+
       setState(() {
         _task = task;
         _assignments = assignments;
+        _canAssignMembers = canAssign;
         _isLoading = false;
       });
     } catch (e) {
@@ -96,35 +114,50 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   void _showAssignDialog() async {
     try {
-      final members = await MemberService.getMembers(limit: 100);
+      // Get department ID from task
+      final departmentId = _task?['department_id']?.toString();
+
+      if (departmentId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Task must be assigned to a department first'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Load department members
+      final departmentMembers = await DepartmentService.getDepartmentMembers(
+        departmentId,
+      );
+
       if (!mounted) return;
+
+      // Extract member data from department_members structure
+      final members = departmentMembers
+          .map((dm) => dm['members'] as Map<String, dynamic>?)
+          .where((m) => m != null)
+          .cast<Map<String, dynamic>>()
+          .toList();
+
+      if (members.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No members found in this department'),
+              backgroundColor: AppColors.warning,
+            ),
+          );
+        }
+        return;
+      }
 
       final selectedMember = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Assign Task'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: members.length,
-              itemBuilder: (context, index) {
-                final member = members[index];
-                final name = '${member['first_name']} ${member['last_name']}';
-                return ListTile(
-                  title: Text(name),
-                  onTap: () => Navigator.pop(context, member),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
+        builder: (context) => _AssignMemberDialog(members: members),
       );
 
       if (selectedMember != null) {
@@ -162,9 +195,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {
-              final result = await Navigator.of(context).pushNamed(
-                RouteNames.editTask.replaceAll(':id', widget.taskId),
-              );
+              final result = await Navigator.of(
+                context,
+              ).pushNamed(RouteNames.editTask.replaceAll(':id', widget.taskId));
               if (result == true) {
                 _loadTaskData();
               }
@@ -276,6 +309,28 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         ),
                       ],
                     ),
+                    if (_task!['department_id'] != null) ...[
+                      const SizedBox(height: AppDimensions.spacingSM),
+                      Row(
+                        children: [
+                          const Icon(Icons.group_work, size: 16),
+                          const SizedBox(width: AppDimensions.spacingSM),
+                          Text(
+                            'Department: ',
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          Expanded(
+                            child: Text(
+                              _getDepartmentName(),
+                              style: Theme.of(context).textTheme.bodyMedium,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (_task!['due_date'] != null) ...[
                       const SizedBox(height: AppDimensions.spacingSM),
                       Row(
@@ -323,7 +378,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                           : 'Member';
                       final assignmentStatus =
                           assignment['status']?.toString() ?? 'pending';
-                      final memberId = assignment['member_id']?.toString() ?? '';
+                      final memberId =
+                          assignment['member_id']?.toString() ?? '';
 
                       return Card(
                         margin: const EdgeInsets.symmetric(
@@ -332,7 +388,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         child: ListTile(
                           leading: CircleAvatar(
                             child: Text(
-                              member?['first_name']?[0]?.toString().toUpperCase() ?? 'M',
+                              member?['first_name']?[0]
+                                      ?.toString()
+                                      .toUpperCase() ??
+                                  'M',
                             ),
                           ),
                           title: Text(memberName),
@@ -349,7 +408,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                       status: newStatus,
                                     );
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         const SnackBar(
                                           content: Text('Status updated'),
                                           backgroundColor: AppColors.success,
@@ -359,7 +420,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                     }
                                   } catch (e) {
                                     if (mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text('Error: $e'),
                                           backgroundColor: AppColors.error,
@@ -392,8 +455,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: _getStatusColor(assignmentStatus)
-                                        .withOpacity(0.1),
+                                    color: _getStatusColor(
+                                      assignmentStatus,
+                                    ).withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
@@ -407,11 +471,18 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 18),
-                                onPressed: () => _removeAssignment(
-                                  memberId,
-                                  memberName,
+                                icon: const Icon(Icons.message, size: 18),
+                                onPressed: () => _showReminderDialog(
+                                  member: member,
+                                  memberId: memberId,
+                                  memberName: memberName,
                                 ),
+                                tooltip: 'Send Reminder',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () =>
+                                    _removeAssignment(memberId, memberName),
                                 tooltip: 'Remove',
                               ),
                             ],
@@ -429,21 +500,22 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                     },
                   ),
             const SizedBox(height: AppDimensions.spacingXL),
-            // Action buttons
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showAssignDialog,
-                icon: const Icon(Icons.person_add),
-                label: const Text('Assign to Member'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
+            // Action buttons - only show if user can assign members
+            if (_canAssignMembers)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _showAssignDialog,
+                  icon: const Icon(Icons.person_add),
+                  label: const Text('Assign to Member'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(
+                      double.infinity,
+                      AppDimensions.buttonHeightLG,
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -577,5 +649,496 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  String _getDepartmentName() {
+    // Check if department info is included in the response
+    final department = _task!['departments'];
+    if (department != null) {
+      if (department is Map<String, dynamic>) {
+        return department['name']?.toString() ?? 'Unknown Department';
+      }
+    }
+
+    // Fallback: return department_id if name not available
+    final departmentId = _task!['department_id']?.toString();
+    return departmentId ?? 'No Department';
+  }
+
+  Future<void> _showReminderDialog({
+    required Map<String, dynamic>? member,
+    required String memberId,
+    required String memberName,
+  }) async {
+    // Get current user's email
+    final currentUserEmail = SupabaseService.currentUser?.email;
+    if (currentUserEmail == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to get current user information'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Get current user's member profile
+    Map<String, dynamic>? currentUserMember;
+    String? currentUserPhone;
+    try {
+      final members = await MemberService.getMembers(
+        filters: {'email': currentUserEmail},
+        limit: 1,
+      );
+      if (members.isNotEmpty) {
+        currentUserMember = members.first;
+        currentUserPhone = currentUserMember['phone']?.toString();
+      }
+    } catch (e) {
+      // Continue with null phone
+    }
+
+    // Get assigned member's phone
+    final assignedMemberPhone = member?['phone']?.toString();
+
+    // Show dialog to get phone numbers if needed
+    if (!mounted) return;
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => _ReminderDialog(
+        currentUserPhone: currentUserPhone,
+        assignedMemberPhone: assignedMemberPhone,
+        memberName: memberName,
+        taskTitle: _task!['title']?.toString() ?? 'Task',
+      ),
+    );
+
+    if (result != null) {
+      final senderPhone = result['sender'];
+      final receiverPhone = result['receiver'];
+      final platform = result['platform'];
+
+      if (senderPhone != null && receiverPhone != null && platform != null) {
+        await _sendReminder(
+          senderPhone: senderPhone,
+          receiverPhone: receiverPhone,
+          platform: platform,
+          taskTitle: _task!['title']?.toString() ?? 'Task',
+          taskDescription: _task!['description']?.toString() ?? '',
+        );
+      }
+    }
+  }
+
+  Future<void> _sendReminder({
+    required String senderPhone,
+    required String receiverPhone,
+    required String platform,
+    required String taskTitle,
+    required String taskDescription,
+  }) async {
+    try {
+      // Format phone numbers (remove any non-digit characters except +)
+      String formatPhone(String phone) {
+        // Remove spaces, dashes, parentheses
+        String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+        // Ensure it starts with country code if not already
+        if (!cleaned.startsWith('+')) {
+          // Assume default country code if not present
+          // You might want to adjust this based on your needs
+          if (!cleaned.startsWith('1') && !cleaned.startsWith('2')) {
+            cleaned = '+1$cleaned'; // Default to +1, adjust as needed
+          } else {
+            cleaned = '+$cleaned';
+          }
+        }
+        return cleaned;
+      }
+
+      final formattedReceiver = formatPhone(receiverPhone);
+      final message =
+          'Reminder: $taskTitle\n\n${taskDescription.isNotEmpty ? taskDescription : "Please check your assigned task."}';
+
+      Uri uri;
+      if (platform == 'whatsapp') {
+        // WhatsApp URL format: https://wa.me/PHONENUMBER?text=MESSAGE
+        uri = Uri.parse(
+          'https://wa.me/${formattedReceiver.replaceAll('+', '')}?text=${Uri.encodeComponent(message)}',
+        );
+      } else {
+        // Telegram URL format: https://t.me/PHONENUMBER or https://t.me/share/url?url=&text=
+        // For Telegram, we'll use the share URL format as direct messaging requires username
+        uri = Uri.parse(
+          'https://t.me/share/url?url=&text=${Uri.encodeComponent(message)}',
+        );
+      }
+
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Opening $platform...'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Could not launch $platform');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send reminder: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+}
+
+class _ReminderDialog extends StatefulWidget {
+  final String? currentUserPhone;
+  final String? assignedMemberPhone;
+  final String memberName;
+  final String taskTitle;
+
+  const _ReminderDialog({
+    required this.currentUserPhone,
+    required this.assignedMemberPhone,
+    required this.memberName,
+    required this.taskTitle,
+  });
+
+  @override
+  State<_ReminderDialog> createState() => _ReminderDialogState();
+}
+
+class _ReminderDialogState extends State<_ReminderDialog> {
+  final _senderController = TextEditingController();
+  final _receiverController = TextEditingController();
+  String _selectedPlatform = 'whatsapp';
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-fill existing numbers
+    _senderController.text = widget.currentUserPhone ?? '';
+    _receiverController.text = widget.assignedMemberPhone ?? '';
+  }
+
+  @override
+  void dispose() {
+    _senderController.dispose();
+    _receiverController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Send Reminder'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Task: ${widget.taskTitle}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            Text(
+              'To: ${widget.memberName}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: AppDimensions.spacingLG),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedPlatform,
+              decoration: const InputDecoration(
+                labelText: 'Platform',
+                prefixIcon: Icon(Icons.message),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'whatsapp',
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text('WhatsApp'),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'telegram',
+                  child: Row(
+                    children: [
+                      Icon(Icons.send, color: Colors.blue),
+                      SizedBox(width: 8),
+                      Text('Telegram'),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _selectedPlatform = value;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            TextFormField(
+              controller: _senderController,
+              decoration: const InputDecoration(
+                labelText: 'Your Phone Number *',
+                prefixIcon: Icon(Icons.phone),
+                helperText: 'The number you will send from',
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Phone number is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            TextFormField(
+              controller: _receiverController,
+              decoration: InputDecoration(
+                labelText: '${widget.memberName}\'s Phone Number *',
+                prefixIcon: const Icon(Icons.phone),
+                helperText: 'The recipient\'s phone number',
+              ),
+              keyboardType: TextInputType.phone,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Phone number is required';
+                }
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_senderController.text.trim().isNotEmpty &&
+                _receiverController.text.trim().isNotEmpty) {
+              Navigator.pop(context, {
+                'sender': _senderController.text.trim(),
+                'receiver': _receiverController.text.trim(),
+                'platform': _selectedPlatform,
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Please enter both phone numbers'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+            }
+          },
+          child: const Text('Send'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for assigning task to a department member with search
+class _AssignMemberDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> members;
+
+  const _AssignMemberDialog({required this.members});
+
+  @override
+  State<_AssignMemberDialog> createState() => _AssignMemberDialogState();
+}
+
+class _AssignMemberDialogState extends State<_AssignMemberDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredMembers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredMembers = widget.members;
+    _searchController.addListener(_filterMembers);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterMembers() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredMembers = widget.members;
+      } else {
+        _filteredMembers = widget.members.where((member) {
+          final firstName = (member['first_name'] ?? '')
+              .toString()
+              .toLowerCase();
+          final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+          final email = (member['email'] ?? '').toString().toLowerCase();
+          final phone = (member['phone'] ?? '').toString().toLowerCase();
+
+          return firstName.contains(query) ||
+              lastName.contains(query) ||
+              email.contains(query) ||
+              phone.contains(query) ||
+              '$firstName $lastName'.contains(query);
+        }).toList();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: double.maxFinite,
+        constraints: const BoxConstraints(maxHeight: 600),
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Row(
+                children: [
+                  const Text(
+                    'Assign Task to Member',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                ),
+              ),
+            ),
+            // Members list
+            Expanded(
+              child: _filteredMembers.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.search_off,
+                            size: 48,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(height: AppDimensions.spacingSM),
+                          Text(
+                            _searchController.text.isEmpty
+                                ? 'No members available'
+                                : 'No members found',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _filteredMembers.length,
+                      itemBuilder: (context, index) {
+                        final member = _filteredMembers[index];
+                        final memberName =
+                            '${member['first_name']} ${member['last_name']}';
+                        final memberEmail = member['email']?.toString() ?? '';
+                        final memberPhone = member['phone']?.toString() ?? '';
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              member['first_name']?[0]
+                                      ?.toString()
+                                      .toUpperCase() ??
+                                  'M',
+                            ),
+                          ),
+                          title: Text(memberName),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (memberEmail.isNotEmpty)
+                                Text(
+                                  memberEmail,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              if (memberPhone.isNotEmpty)
+                                Text(
+                                  memberPhone,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                            ],
+                          ),
+                          onTap: () => Navigator.pop(context, member),
+                        );
+                      },
+                    ),
+            ),
+            const Divider(height: 1),
+            // Footer
+            Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${_filteredMembers.length} member${_filteredMembers.length != 1 ? 's' : ''}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancel'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

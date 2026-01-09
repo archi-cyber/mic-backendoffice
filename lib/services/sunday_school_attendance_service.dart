@@ -123,11 +123,12 @@ class SundaySchoolAttendanceService {
   }) async {
     try {
       // Get all attendance records with filters
+      // Note: Filters must be applied before transforms (order, limit)
       dynamic query = _client
           .from('sunday_school_attendance')
-          .select('attendance_date, id')
-          .order('attendance_date', ascending: false);
+          .select('attendance_date, id');
 
+      // Apply filters first
       if (startDate != null) {
         query = query.gte(
           'attendance_date',
@@ -140,6 +141,9 @@ class SundaySchoolAttendanceService {
           endDate.toIso8601String().split('T')[0],
         );
       }
+
+      // Apply transforms after filters
+      query = query.order('attendance_date', ascending: false);
 
       if (limit != null) {
         query = query.limit(limit * 10);
@@ -209,6 +213,91 @@ class SundaySchoolAttendanceService {
         '[SundaySchoolAttendanceService] Error removing attendance: $e',
       );
       throw Exception('Failed to remove attendance: $e');
+    }
+  }
+
+  /// Update attendance for a session (add/remove members)
+  /// This will sync the attendance records for a date to match the provided member IDs
+  static Future<void> updateSessionAttendance({
+    required DateTime attendanceDate,
+    required List<String> memberIds,
+  }) async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User must be authenticated to update attendance');
+      }
+
+      debugPrint(
+        '[SundaySchoolAttendanceService] Updating session attendance for date: $attendanceDate',
+      );
+
+      final dateString = attendanceDate.toIso8601String().split('T')[0];
+
+      // Get existing attendance records for this date
+      final existingRecordsResponse = await _client
+          .from('sunday_school_attendance')
+          .select('id, member_id')
+          .eq('attendance_date', dateString);
+
+      final existingRecords = (existingRecordsResponse as List)
+          .where((r) => r['deleted_at'] == null)
+          .toList();
+
+      final existingMemberIds = existingRecords
+          .map((r) => r['member_id']?.toString())
+          .whereType<String>()
+          .toSet();
+
+      // Find members to add (in new list but not in existing)
+      final membersToAdd = memberIds
+          .where((id) => !existingMemberIds.contains(id))
+          .toList();
+
+      // Find members to remove (in existing but not in new list)
+      final recordsToRemove = (existingRecords)
+          .where((r) {
+            final memberId = r['member_id']?.toString();
+            return memberId != null && !memberIds.contains(memberId);
+          })
+          .map((r) => r['id'].toString())
+          .toList();
+
+      // Remove members that are no longer in the list
+      if (recordsToRemove.isNotEmpty) {
+        await _client
+            .from('sunday_school_attendance')
+            .update({'deleted_at': DateTime.now().toIso8601String()})
+            .inFilter('id', recordsToRemove);
+      }
+
+      // Add new members
+      if (membersToAdd.isNotEmpty) {
+        final attendanceRecords = membersToAdd
+            .map(
+              (memberId) => {
+                'member_id': memberId,
+                'attendance_date': dateString,
+                'created_by': currentUser.id,
+                'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
+              },
+            )
+            .toList();
+
+        await _client
+            .from('sunday_school_attendance')
+            .insert(attendanceRecords);
+      }
+
+      debugPrint(
+        '[SundaySchoolAttendanceService] Session attendance updated successfully. Added: ${membersToAdd.length}, Removed: ${recordsToRemove.length}',
+      );
+    } catch (e) {
+      debugPrint(
+        '[SundaySchoolAttendanceService] Error updating session attendance: $e',
+      );
+      throw Exception('Failed to update session attendance: $e');
     }
   }
 }

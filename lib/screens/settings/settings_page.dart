@@ -10,6 +10,7 @@ import '../../services/data_export_service.dart';
 import '../../services/data_import_service.dart';
 import '../../services/user_member_sync_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/role_service.dart';
 import '../../providers/auth_provider.dart';
 
 /// Settings page
@@ -25,11 +26,24 @@ class _SettingsPageState extends State<SettingsPage> {
   ThemeMode _currentThemeMode = ThemeMode.system;
   bool _notificationsEnabled = true;
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
+    _checkAdminStatus();
     _loadSettings();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    try {
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      setState(() {
+        _isAdmin = isAdmin;
+      });
+    } catch (e) {
+      setState(() => _isAdmin = false);
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -535,6 +549,23 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: AppDimensions.spacingMD),
+
+          // Admin Settings
+          if (_isAdmin) ...[
+            _buildSectionHeader('Admin Settings'),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.admin_panel_settings, color: AppColors.primary),
+                title: const Text('Leader Access Management'),
+                subtitle: const Text('Define feature access for each leader'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+                },
+              ),
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+          ],
 
           // Account
           _buildSectionHeader('Account'),

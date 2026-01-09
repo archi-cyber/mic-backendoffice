@@ -84,6 +84,11 @@ class MemberService {
       dynamic transformQuery = filterQuery;
       if (orderBy != null) {
         transformQuery = transformQuery.order(orderBy, ascending: ascending);
+      } else {
+        // Default to alphabetical order by first_name, then last_name
+        transformQuery = transformQuery
+            .order('first_name', ascending: true)
+            .order('last_name', ascending: true);
       }
 
       // Apply pagination (on PostgrestTransformBuilder)

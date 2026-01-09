@@ -230,7 +230,10 @@ class ChatService {
         // Send push notifications to all users (excluding creator)
         try {
           debugPrint(
-            '[ChatService] Sending push notifications for announcement',
+            '[ChatService] Sending push notifications for announcement: ${response['id']}',
+          );
+          debugPrint(
+            '[ChatService] Announcement title: $title, message: ${message.substring(0, message.length > 50 ? 50 : message.length)}...',
           );
           await PushNotificationService.sendAnnouncementPushNotification(
             title: title,
@@ -238,11 +241,12 @@ class ChatService {
             announcementId: response['id']?.toString() ?? '',
             excludeUserId: createdByUserId,
           );
-          debugPrint('[ChatService] Successfully sent push notifications');
-        } catch (e) {
+          debugPrint('[ChatService] ✅ Successfully sent push notifications');
+        } catch (e, stackTrace) {
           debugPrint(
-            '[ChatService] WARNING: Failed to send push notifications: $e',
+            '[ChatService] ❌ ERROR: Failed to send push notifications: $e',
           );
+          debugPrint('[ChatService] Stack trace: $stackTrace');
           // Don't throw - push notifications are secondary
         }
       } catch (e, stackTrace) {

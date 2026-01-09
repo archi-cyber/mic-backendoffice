@@ -36,10 +36,10 @@ class FinancePdfService {
       final periodText = fromDate != null && toDate != null
           ? '${dateFormat.format(fromDate)} - ${dateFormat.format(toDate)}'
           : fromDate != null
-              ? 'From ${dateFormat.format(fromDate)}'
-              : toDate != null
-                  ? 'Until ${dateFormat.format(toDate)}'
-                  : 'All Records';
+          ? 'From ${dateFormat.format(fromDate)}'
+          : toDate != null
+          ? 'Until ${dateFormat.format(toDate)}'
+          : 'All Records';
 
       // Calculate statistics
       double totalIncome = 0.0;
@@ -106,7 +106,10 @@ class FinancePdfService {
                   ),
                   pw.Text(
                     'Generated: ${dateTimeFormat.format(DateTime.now())}',
-                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey700,
+                    ),
                   ),
                 ],
               ),
@@ -133,10 +136,16 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Records:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Records:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '${records.length}',
-                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -144,7 +153,10 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Income:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Income:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '\$${totalIncome.toStringAsFixed(2)}',
                           style: pw.TextStyle(
@@ -159,7 +171,10 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Expenses:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Expenses:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '\$${totalExpenses.toStringAsFixed(2)}',
                           style: pw.TextStyle(
@@ -186,7 +201,9 @@ class FinancePdfService {
                           style: pw.TextStyle(
                             fontSize: 14,
                             fontWeight: pw.FontWeight.bold,
-                            color: netBalance >= 0 ? PdfColors.green700 : PdfColors.red700,
+                            color: netBalance >= 0
+                                ? PdfColors.green700
+                                : PdfColors.red700,
                           ),
                         ),
                       ],
@@ -210,7 +227,9 @@ class FinancePdfService {
                   border: pw.TableBorder.all(color: PdfColors.grey300),
                   children: [
                     pw.TableRow(
-                      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey200,
+                      ),
                       children: [
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
@@ -245,7 +264,7 @@ class FinancePdfService {
                           ),
                         ],
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
                 pw.SizedBox(height: 20),
@@ -272,7 +291,9 @@ class FinancePdfService {
                 children: [
                   // Header row
                   pw.TableRow(
-                    decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey200,
+                    ),
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
@@ -329,7 +350,8 @@ class FinancePdfService {
                   ),
                   // Data rows
                   ...records.map((record) {
-                    final amount = (record['amount'] as num?)?.toDouble() ?? 0.0;
+                    final amount =
+                        (record['amount'] as num?)?.toDouble() ?? 0.0;
                     final isExpense = amount < 0;
                     final dateStr = record['date']?.toString() ?? '';
                     String formattedDate = dateStr;
@@ -378,14 +400,16 @@ class FinancePdfService {
                             '\$${amount.abs().toStringAsFixed(2)}',
                             style: pw.TextStyle(
                               fontSize: 9,
-                              color: isExpense ? PdfColors.red700 : PdfColors.green700,
+                              color: isExpense
+                                  ? PdfColors.red700
+                                  : PdfColors.green700,
                             ),
                             textAlign: pw.TextAlign.right,
                           ),
                         ),
                       ],
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ];
@@ -421,7 +445,8 @@ class FinancePdfService {
       final dateFormat = DateFormat('yyyyMMdd');
       String fileName = 'finance_report';
       if (fromDate != null && toDate != null) {
-        fileName = 'finance_report_${dateFormat.format(fromDate)}_${dateFormat.format(toDate)}';
+        fileName =
+            'finance_report_${dateFormat.format(fromDate)}_${dateFormat.format(toDate)}';
       } else if (fromDate != null) {
         fileName = 'finance_report_from_${dateFormat.format(fromDate)}';
       } else if (toDate != null) {
@@ -493,10 +518,10 @@ class FinancePdfService {
       final periodText = fromDate != null && toDate != null
           ? '${dateFormat.format(fromDate)} - ${dateFormat.format(toDate)}'
           : fromDate != null
-              ? 'From ${dateFormat.format(fromDate)}'
-              : toDate != null
-                  ? 'Until ${dateFormat.format(toDate)}'
-                  : 'All Records';
+          ? 'From ${dateFormat.format(fromDate)}'
+          : toDate != null
+          ? 'Until ${dateFormat.format(toDate)}'
+          : 'All Records';
 
       // Calculate statistics
       double totalIncome = 0.0;
@@ -563,7 +588,10 @@ class FinancePdfService {
                   ),
                   pw.Text(
                     'Generated: ${dateTimeFormat.format(DateTime.now())}',
-                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                    style: const pw.TextStyle(
+                      fontSize: 10,
+                      color: PdfColors.grey700,
+                    ),
                   ),
                 ],
               ),
@@ -590,10 +618,16 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Records:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Records:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '${records.length}',
-                          style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -601,7 +635,10 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Income:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Income:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '\$${totalIncome.toStringAsFixed(2)}',
                           style: pw.TextStyle(
@@ -616,7 +653,10 @@ class FinancePdfService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Total Expenses:', style: const pw.TextStyle(fontSize: 12)),
+                        pw.Text(
+                          'Total Expenses:',
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
                         pw.Text(
                           '\$${totalExpenses.toStringAsFixed(2)}',
                           style: pw.TextStyle(
@@ -643,7 +683,9 @@ class FinancePdfService {
                           style: pw.TextStyle(
                             fontSize: 14,
                             fontWeight: pw.FontWeight.bold,
-                            color: netBalance >= 0 ? PdfColors.green700 : PdfColors.red700,
+                            color: netBalance >= 0
+                                ? PdfColors.green700
+                                : PdfColors.red700,
                           ),
                         ),
                       ],
@@ -667,7 +709,9 @@ class FinancePdfService {
                   border: pw.TableBorder.all(color: PdfColors.grey300),
                   children: [
                     pw.TableRow(
-                      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.grey200,
+                      ),
                       children: [
                         pw.Padding(
                           padding: const pw.EdgeInsets.all(8),
@@ -729,7 +773,9 @@ class FinancePdfService {
                 children: [
                   // Header row
                   pw.TableRow(
-                    decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColors.grey200,
+                    ),
                     children: [
                       pw.Padding(
                         padding: const pw.EdgeInsets.all(6),
@@ -786,7 +832,8 @@ class FinancePdfService {
                   ),
                   // Data rows
                   ...records.map((record) {
-                    final amount = (record['amount'] as num?)?.toDouble() ?? 0.0;
+                    final amount =
+                        (record['amount'] as num?)?.toDouble() ?? 0.0;
                     final isExpense = amount < 0;
                     final dateStr = record['date']?.toString() ?? '';
                     String formattedDate = dateStr;
@@ -835,7 +882,9 @@ class FinancePdfService {
                             '\$${amount.abs().toStringAsFixed(2)}',
                             style: pw.TextStyle(
                               fontSize: 9,
-                              color: isExpense ? PdfColors.red700 : PdfColors.green700,
+                              color: isExpense
+                                  ? PdfColors.red700
+                                  : PdfColors.green700,
                             ),
                             textAlign: pw.TextAlign.right,
                           ),
@@ -877,4 +926,3 @@ class FinancePdfService {
     }
   }
 }
-

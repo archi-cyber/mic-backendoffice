@@ -6,7 +6,7 @@ import '../../services/class_service.dart';
 import '../../services/member_service.dart';
 import 'attendance_page.dart';
 
-/// Class detail page with sessions and attendance
+/// Training detail page with sessions and attendance
 class ClassDetailPage extends StatefulWidget {
   final String classId;
 
@@ -39,7 +39,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Error loading class: $e')));
+        ).showSnackBar(SnackBar(content: Text('Error loading training: $e')));
       }
     }
   }
@@ -52,8 +52,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
     if (_classData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Class')),
-        body: const Center(child: Text('Class not found')),
+        appBar: AppBar(title: const Text('Training')),
+        body: const Center(child: Text('Training not found')),
       );
     }
 
@@ -61,7 +61,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_classData!['name'] ?? 'Class'),
+          title: Text(_classData!['name'] ?? 'Training'),
           actions: [
             IconButton(
               icon: const Icon(Icons.edit),
@@ -73,7 +73,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                   _loadClassData();
                 }
               },
-              tooltip: 'Edit Class',
+              tooltip: 'Edit Training',
             ),
             PopupMenuButton(
               itemBuilder: (context) => [
@@ -138,7 +138,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Class deleted successfully'),
+              content: Text('Training deleted successfully'),
               backgroundColor: AppColors.success,
             ),
           );
@@ -347,7 +347,7 @@ class _SessionsTabState extends State<_SessionsTab> {
     String sessionId,
   ) async {
     try {
-      // Get class members for attendance
+      // Get training members for attendance
       final members = await ClassService.getClassMembers(widget.classId);
       final memberList = members
           .map((enrollment) => enrollment['members'] as Map<String, dynamic>?)
@@ -722,7 +722,7 @@ class _MembersTabState extends State<_MembersTab> {
               trailing: IconButton(
                 icon: const Icon(Icons.close, color: AppColors.error),
                 onPressed: () => _removeMember(member['id'].toString()),
-                tooltip: 'Remove from class',
+                tooltip: 'Remove from training',
               ),
               onTap: () {
                 Navigator.of(context).pushNamed(
@@ -785,7 +785,7 @@ class _MembersTabState extends State<_MembersTab> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Add Members to Class'),
+            title: const Text('Add Members to Training'),
             content: SizedBox(
               width: double.maxFinite,
               child: SingleChildScrollView(

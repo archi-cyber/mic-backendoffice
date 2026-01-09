@@ -309,7 +309,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                         ),
                       )
                     : DropdownButtonFormField<String>(
-                        value: _selectedMemberId,
+                        initialValue: _selectedMemberId,
                         decoration: InputDecoration(
                           labelText: '${localizations.selectMember} *',
                           prefixIcon: const Icon(Icons.person),
@@ -386,7 +386,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
 
               // Tag Selection
               DropdownButtonFormField<String>(
-                value: _selectedTag,
+                initialValue: _selectedTag,
                 decoration: InputDecoration(
                   labelText: '${localizations.tag} *',
                   prefixIcon: const Icon(Icons.label),
