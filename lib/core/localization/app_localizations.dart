@@ -94,6 +94,9 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['events'] ?? 'Events';
   String get settings =>
       _localizedValues[locale.languageCode]?['settings'] ?? 'Settings';
+  String get notifications =>
+      _localizedValues[locale.languageCode]?['notifications'] ??
+      'Notifications';
   String get profile =>
       _localizedValues[locale.languageCode]?['profile'] ?? 'Profile';
 
@@ -306,11 +309,14 @@ class AppLocalizations {
 
   // Departments
   String get addDepartment =>
-      _localizedValues[locale.languageCode]?['addDepartment'] ?? 'Add Department';
+      _localizedValues[locale.languageCode]?['addDepartment'] ??
+      'Add Department';
   String get editDepartment =>
-      _localizedValues[locale.languageCode]?['editDepartment'] ?? 'Edit Department';
+      _localizedValues[locale.languageCode]?['editDepartment'] ??
+      'Edit Department';
   String get departmentName =>
-      _localizedValues[locale.languageCode]?['departmentName'] ?? 'Department Name';
+      _localizedValues[locale.languageCode]?['departmentName'] ??
+      'Department Name';
   String get departmentNameRequired =>
       _localizedValues[locale.languageCode]?['departmentNameRequired'] ??
       'Department name is required';
@@ -348,7 +354,8 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['searchDepartments'] ??
       'Search departments...';
   String get departmentFiles =>
-      _localizedValues[locale.languageCode]?['departmentFiles'] ?? 'Department Files';
+      _localizedValues[locale.languageCode]?['departmentFiles'] ??
+      'Department Files';
   String get noFilesUploaded =>
       _localizedValues[locale.languageCode]?['noFilesUploaded'] ??
       'No files uploaded';
@@ -363,8 +370,7 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['upload'] ?? 'Upload';
   String get remove =>
       _localizedValues[locale.languageCode]?['remove'] ?? 'Remove';
-  String get view =>
-      _localizedValues[locale.languageCode]?['view'] ?? 'View';
+  String get view => _localizedValues[locale.languageCode]?['view'] ?? 'View';
   String get newFile =>
       _localizedValues[locale.languageCode]?['newFile'] ?? 'New file';
   String get deleteDepartment =>
@@ -387,8 +393,7 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['removeMember'] ?? 'Remove Member';
   String get changeRole =>
       _localizedValues[locale.languageCode]?['changeRole'] ?? 'Change Role';
-  String get role =>
-      _localizedValues[locale.languageCode]?['role'] ?? 'Role';
+  String get role => _localizedValues[locale.languageCode]?['role'] ?? 'Role';
   String get leader =>
       _localizedValues[locale.languageCode]?['leader'] ?? 'Leader';
   String get subleader =>
@@ -437,7 +442,8 @@ class AppLocalizations {
 
   // Password Change
   String get changePassword =>
-      _localizedValues[locale.languageCode]?['changePassword'] ?? 'Change Password';
+      _localizedValues[locale.languageCode]?['changePassword'] ??
+      'Change Password';
   String get changePasswordRequired =>
       _localizedValues[locale.languageCode]?['changePasswordRequired'] ??
       'Change Password Required';
@@ -469,9 +475,11 @@ class AppLocalizations {
   String get manageTasks =>
       _localizedValues[locale.languageCode]?['manageTasks'] ?? 'Manage Tasks';
   String get generateReport =>
-      _localizedValues[locale.languageCode]?['generateReport'] ?? 'Generate Report';
+      _localizedValues[locale.languageCode]?['generateReport'] ??
+      'Generate Report';
   String get taskCompletion =>
-      _localizedValues[locale.languageCode]?['taskCompletion'] ?? 'Task Completion';
+      _localizedValues[locale.languageCode]?['taskCompletion'] ??
+      'Task Completion';
   String get total =>
       _localizedValues[locale.languageCode]?['total'] ?? 'Total';
   String get completed =>
@@ -481,7 +489,8 @@ class AppLocalizations {
   String get inProgress =>
       _localizedValues[locale.languageCode]?['inProgress'] ?? 'In Progress';
   String get noTasks =>
-      _localizedValues[locale.languageCode]?['noTasks'] ?? 'No tasks in this department';
+      _localizedValues[locale.languageCode]?['noTasks'] ??
+      'No tasks in this department';
 
   // Reports
   String get createReport =>
@@ -518,7 +527,8 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['errorGeneratingReport'] ??
       'Failed to generate report';
   String get generatingPdf =>
-      _localizedValues[locale.languageCode]?['generatingPdf'] ?? 'Generating PDF...';
+      _localizedValues[locale.languageCode]?['generatingPdf'] ??
+      'Generating PDF...';
   String get generatingReport =>
       _localizedValues[locale.languageCode]?['generatingReport'] ??
       'Generating report...';
@@ -540,17 +550,17 @@ class AppLocalizations {
   String get phone =>
       _localizedValues[locale.languageCode]?['phone'] ?? 'Phone';
   String get phoneOrEmail =>
-      _localizedValues[locale.languageCode]?['phoneOrEmail'] ?? 'Email or Phone';
+      _localizedValues[locale.languageCode]?['phoneOrEmail'] ??
+      'Email or Phone';
 
   // Update
   String get update =>
       _localizedValues[locale.languageCode]?['update'] ?? 'Update';
-  String get add =>
-      _localizedValues[locale.languageCode]?['add'] ?? 'Add';
-  String get name =>
-      _localizedValues[locale.languageCode]?['name'] ?? 'Name';
+  String get add => _localizedValues[locale.languageCode]?['add'] ?? 'Add';
+  String get name => _localizedValues[locale.languageCode]?['name'] ?? 'Name';
   String get nameRequired =>
-      _localizedValues[locale.languageCode]?['nameRequired'] ?? 'Name is required';
+      _localizedValues[locale.languageCode]?['nameRequired'] ??
+      'Name is required';
 
   // Success messages
   String get successOperation =>
@@ -574,8 +584,7 @@ class AppLocalizations {
       'You can add these documents later by editing the department.';
 
   // OK button
-  String get ok =>
-      _localizedValues[locale.languageCode]?['ok'] ?? 'OK';
+  String get ok => _localizedValues[locale.languageCode]?['ok'] ?? 'OK';
 
   // Optional
   String get optional =>
@@ -588,6 +597,547 @@ class AppLocalizations {
   String get optionalDescription =>
       _localizedValues[locale.languageCode]?['optionalDescription'] ??
       'Optional description for the department';
+
+  // Teachings
+  String get teachings =>
+      _localizedValues[locale.languageCode]?['teachings'] ?? 'Teachings';
+  String get addTeaching =>
+      _localizedValues[locale.languageCode]?['addTeaching'] ?? 'Add Teaching';
+  String get editTeaching =>
+      _localizedValues[locale.languageCode]?['editTeaching'] ?? 'Edit Teaching';
+  String get teachingDetails =>
+      _localizedValues[locale.languageCode]?['teachingDetails'] ??
+      'Teaching Details';
+  String get teachingTitle =>
+      _localizedValues[locale.languageCode]?['teachingTitle'] ?? 'Title';
+  String get teachingTitleRequired =>
+      _localizedValues[locale.languageCode]?['teachingTitleRequired'] ??
+      'Please enter a title';
+  String get teachingDate =>
+      _localizedValues[locale.languageCode]?['teachingDate'] ?? 'Teaching Date';
+  String get teachingDateRequired =>
+      _localizedValues[locale.languageCode]?['teachingDateRequired'] ??
+      'Please select a date';
+  String get speaker =>
+      _localizedValues[locale.languageCode]?['speaker'] ?? 'Speaker';
+  String get teachingDescription =>
+      _localizedValues[locale.languageCode]?['teachingDescription'] ??
+      'Description';
+  String get updateTeaching =>
+      _localizedValues[locale.languageCode]?['updateTeaching'] ??
+      'Update Teaching';
+  String get teachingAdded =>
+      _localizedValues[locale.languageCode]?['teachingAdded'] ??
+      'Teaching added successfully';
+  String get teachingUpdated =>
+      _localizedValues[locale.languageCode]?['teachingUpdated'] ??
+      'Teaching updated successfully';
+  String get teachingDeleted =>
+      _localizedValues[locale.languageCode]?['teachingDeleted'] ??
+      'Teaching deleted successfully';
+  String get errorLoadingTeaching =>
+      _localizedValues[locale.languageCode]?['errorLoadingTeaching'] ??
+      'Error loading teaching';
+  String get errorDeletingTeaching =>
+      _localizedValues[locale.languageCode]?['errorDeletingTeaching'] ??
+      'Error deleting teaching';
+  String get deleteTeachingConfirm =>
+      _localizedValues[locale.languageCode]?['deleteTeachingConfirm'] ??
+      'Are you sure you want to delete "{title}"?';
+  String deleteTeachingConfirmWithTitle(String title) =>
+      deleteTeachingConfirm.replaceAll('{title}', title);
+  String get searchTeachings =>
+      _localizedValues[locale.languageCode]?['searchTeachings'] ??
+      'Search teachings...';
+  String get noTeachings =>
+      _localizedValues[locale.languageCode]?['noTeachings'] ??
+      'No teachings yet';
+  String get noTeachingsFound =>
+      _localizedValues[locale.languageCode]?['noTeachingsFound'] ??
+      'No teachings found matching your search';
+  String get listeners =>
+      _localizedValues[locale.languageCode]?['listeners'] ?? 'Listeners';
+  String get syncFromAttendance =>
+      _localizedValues[locale.languageCode]?['syncFromAttendance'] ??
+      'Sync from Church Attendance';
+  String get searchPotentialListeners =>
+      _localizedValues[locale.languageCode]?['searchPotentialListeners'] ??
+      'Search potential listeners...';
+  String get noListeners =>
+      _localizedValues[locale.languageCode]?['noListeners'] ??
+      'No listeners yet';
+  String get addListener =>
+      _localizedValues[locale.languageCode]?['addListener'] ?? 'Add';
+  String get addListenerTitle =>
+      _localizedValues[locale.languageCode]?['addListenerTitle'] ??
+      'Add Listener';
+  String get removeListener =>
+      _localizedValues[locale.languageCode]?['removeListener'] ??
+      'Remove Listener';
+  String get removeListenerConfirm =>
+      _localizedValues[locale.languageCode]?['removeListenerConfirm'] ??
+      'Remove "{name}" from listeners?';
+  String removeListenerConfirmWithName(String name) =>
+      removeListenerConfirm.replaceAll('{name}', name);
+  String get listenerAdded =>
+      _localizedValues[locale.languageCode]?['listenerAdded'] ??
+      'Listener added successfully';
+  String get listenerRemoved =>
+      _localizedValues[locale.languageCode]?['listenerRemoved'] ??
+      'Listener removed successfully';
+  String get errorAddingListener =>
+      _localizedValues[locale.languageCode]?['errorAddingListener'] ??
+      'Error adding listener';
+  String get errorRemovingListener =>
+      _localizedValues[locale.languageCode]?['errorRemovingListener'] ??
+      'Error removing listener';
+  String get errorSyncingListeners =>
+      _localizedValues[locale.languageCode]?['errorSyncingListeners'] ??
+      'Error syncing listeners';
+  String get listenersSynced =>
+      _localizedValues[locale.languageCode]?['listenersSynced'] ??
+      'Synced {count} listener(s) from church attendance';
+  String listenersSyncedWithCount(int count) =>
+      listenersSynced.replaceAll('{count}', count.toString());
+  String get allListenersAdded =>
+      _localizedValues[locale.languageCode]?['allListenersAdded'] ??
+      'All potential listeners are already added';
+  String get useSyncOrAdd =>
+      _localizedValues[locale.languageCode]?['useSyncOrAdd'] ??
+      'Use "Sync from Church Attendance" or "Add" to add listeners';
+
+  // Visitors
+  String get visitors =>
+      _localizedValues[locale.languageCode]?['visitors'] ?? 'Visitors';
+  String get addVisitor =>
+      _localizedValues[locale.languageCode]?['addVisitor'] ?? 'Add Visitor';
+  String get editVisitor =>
+      _localizedValues[locale.languageCode]?['editVisitor'] ?? 'Edit Visitor';
+  String get updateVisitor =>
+      _localizedValues[locale.languageCode]?['updateVisitor'] ??
+      'Update Visitor';
+  String get visitorFirstName =>
+      _localizedValues[locale.languageCode]?['visitorFirstName'] ??
+      'First Name';
+  String get visitorFirstNameRequired =>
+      _localizedValues[locale.languageCode]?['visitorFirstNameRequired'] ??
+      'First name is required';
+  String get visitorLastName =>
+      _localizedValues[locale.languageCode]?['visitorLastName'] ?? 'Last Name';
+  String get visitorLastNameRequired =>
+      _localizedValues[locale.languageCode]?['visitorLastNameRequired'] ??
+      'Last name is required';
+  String get visitDate =>
+      _localizedValues[locale.languageCode]?['visitDate'] ?? 'Visit Date';
+  String get visitDateRequired =>
+      _localizedValues[locale.languageCode]?['visitDateRequired'] ??
+      'Visit date is required';
+  String get visitorAdded =>
+      _localizedValues[locale.languageCode]?['visitorAdded'] ??
+      'Visitor added successfully';
+  String get visitorUpdated =>
+      _localizedValues[locale.languageCode]?['visitorUpdated'] ??
+      'Visitor updated successfully';
+  String get visitorDeleted =>
+      _localizedValues[locale.languageCode]?['visitorDeleted'] ??
+      'Visitor deleted successfully';
+  String get errorLoadingVisitor =>
+      _localizedValues[locale.languageCode]?['errorLoadingVisitor'] ??
+      'Error loading visitor';
+  String get errorDeletingVisitor =>
+      _localizedValues[locale.languageCode]?['errorDeletingVisitor'] ??
+      'Error deleting visitor';
+  String get deleteVisitorConfirm =>
+      _localizedValues[locale.languageCode]?['deleteVisitorConfirm'] ??
+      'Are you sure you want to delete "{name}"?';
+  String deleteVisitorConfirmWithName(String name) =>
+      deleteVisitorConfirm.replaceAll('{name}', name);
+  String get searchVisitors =>
+      _localizedValues[locale.languageCode]?['searchVisitors'] ??
+      'Search visitors...';
+  String get noVisitors =>
+      _localizedValues[locale.languageCode]?['noVisitors'] ?? 'No visitors yet';
+  String get noVisitorsFound =>
+      _localizedValues[locale.languageCode]?['noVisitorsFound'] ??
+      'No visitors found matching your search';
+
+  // Workers & Departments
+  String get workers =>
+      _localizedValues[locale.languageCode]?['workers'] ?? 'Workers';
+  String get searchWorkers =>
+      _localizedValues[locale.languageCode]?['searchWorkers'] ??
+      'Search workers...';
+  String get noWorkers =>
+      _localizedValues[locale.languageCode]?['noWorkers'] ?? 'No workers found';
+  String get noWorkersFound =>
+      _localizedValues[locale.languageCode]?['noWorkersFound'] ??
+      'No workers found matching your search';
+  String get noDepartmentsAssigned =>
+      _localizedValues[locale.languageCode]?['noDepartmentsAssigned'] ??
+      'No departments assigned';
+  String get setMainDepartment =>
+      _localizedValues[locale.languageCode]?['setMainDepartment'] ??
+      'Set Main Department';
+  String get setMainDepartmentFor =>
+      _localizedValues[locale.languageCode]?['setMainDepartmentFor'] ??
+      'Set Main Department for {name}';
+  String setMainDepartmentForWithName(String name) =>
+      setMainDepartmentFor.replaceAll('{name}', name);
+  String get workerNoDepartments =>
+      _localizedValues[locale.languageCode]?['workerNoDepartments'] ??
+      'Worker has no departments assigned';
+  String get updatingMainDepartment =>
+      _localizedValues[locale.languageCode]?['updatingMainDepartment'] ??
+      'Updating main department...';
+  String get mainDepartmentUpdated =>
+      _localizedValues[locale.languageCode]?['mainDepartmentUpdated'] ??
+      'Main department updated successfully';
+  String get errorUpdatingMainDepartment =>
+      _localizedValues[locale.languageCode]?['errorUpdatingMainDepartment'] ??
+      'Error updating main department';
+
+  // Leader Access
+  String get leaderAccessManagement =>
+      _localizedValues[locale.languageCode]?['leaderAccessManagement'] ??
+      'Leader Access Management';
+  String get defineFeatureAccess =>
+      _localizedValues[locale.languageCode]?['defineFeatureAccess'] ??
+      'Define feature access for each leader';
+  String get featureAccessPermissions =>
+      _localizedValues[locale.languageCode]?['featureAccessPermissions'] ??
+      'Feature Access Permissions';
+  String get unsavedChanges =>
+      _localizedValues[locale.languageCode]?['unsavedChanges'] ??
+      'Unsaved changes';
+  String get saveAllChanges =>
+      _localizedValues[locale.languageCode]?['saveAllChanges'] ??
+      'Save All Changes';
+  String get allAccessSaved =>
+      _localizedValues[locale.languageCode]?['allAccessSaved'] ??
+      'All access permissions saved successfully';
+  String get errorSavingAccess =>
+      _localizedValues[locale.languageCode]?['errorSavingAccess'] ??
+      'Error saving access';
+  String get errorLoadingLeaders =>
+      _localizedValues[locale.languageCode]?['errorLoadingLeaders'] ??
+      'Error loading leaders';
+  String get errorLoadingAccess =>
+      _localizedValues[locale.languageCode]?['errorLoadingAccess'] ??
+      'Error loading access';
+  String get canView =>
+      _localizedValues[locale.languageCode]?['canView'] ?? 'View';
+  String get canCreate =>
+      _localizedValues[locale.languageCode]?['canCreate'] ?? 'Create';
+  String get canEdit =>
+      _localizedValues[locale.languageCode]?['canEdit'] ?? 'Edit';
+  String get canDelete =>
+      _localizedValues[locale.languageCode]?['canDelete'] ?? 'Delete';
+
+  // Settings
+  String get adminSettings =>
+      _localizedValues[locale.languageCode]?['adminSettings'] ??
+      'Admin Settings';
+  String get language =>
+      _localizedValues[locale.languageCode]?['language'] ?? 'Language';
+  String get theme =>
+      _localizedValues[locale.languageCode]?['theme'] ?? 'Theme';
+  String get enableNotifications =>
+      _localizedValues[locale.languageCode]?['enableNotifications'] ??
+      'Enable Notifications';
+  String get receivePushNotifications =>
+      _localizedValues[locale.languageCode]?['receivePushNotifications'] ??
+      'Receive push notifications';
+  String get exportAllData =>
+      _localizedValues[locale.languageCode]?['exportAllData'] ??
+      'Export All Data';
+  String get exportAllDataSubtitle =>
+      _localizedValues[locale.languageCode]?['exportAllDataSubtitle'] ??
+      'Export all data to JSON file';
+  String get importData =>
+      _localizedValues[locale.languageCode]?['importData'] ?? 'Import Data';
+  String get importDataSubtitle =>
+      _localizedValues[locale.languageCode]?['importDataSubtitle'] ??
+      'Import data from JSON file';
+  String get exportMembers =>
+      _localizedValues[locale.languageCode]?['exportMembers'] ??
+      'Export Members';
+  String get exportMembersSubtitle =>
+      _localizedValues[locale.languageCode]?['exportMembersSubtitle'] ??
+      'Export members to CSV';
+  String get syncUsersMembers =>
+      _localizedValues[locale.languageCode]?['syncUsersMembers'] ??
+      'Sync Users & Members';
+  String get generateAllUsersReport =>
+      _localizedValues[locale.languageCode]?['generateAllUsersReport'] ??
+      'Generate All Users Report';
+  String get birthdayNotifications =>
+      _localizedValues[locale.languageCode]?['birthdayNotifications'] ??
+      'Birthday Notifications';
+  String get configureBirthdayNotifications =>
+      _localizedValues[locale
+          .languageCode]?['configureBirthdayNotifications'] ??
+      'Configure birthday notification settings';
+  String get currentUser =>
+      _localizedValues[locale.languageCode]?['currentUser'] ?? 'Current User';
+  String get signOutAccount =>
+      _localizedValues[locale.languageCode]?['signOutAccount'] ??
+      'Sign out of your account';
+  String get appVersion =>
+      _localizedValues[locale.languageCode]?['appVersion'] ?? 'App Version';
+  String get logoutConfirm =>
+      _localizedValues[locale.languageCode]?['logoutConfirm'] ??
+      'Are you sure you want to logout?';
+  String get languageChanged =>
+      _localizedValues[locale.languageCode]?['languageChanged'] ??
+      'Language changed successfully';
+  String get errorChangingLanguage =>
+      _localizedValues[locale.languageCode]?['errorChangingLanguage'] ??
+      'Failed to change language';
+  String get themeChanged =>
+      _localizedValues[locale.languageCode]?['themeChanged'] ??
+      'Theme changed successfully';
+  String get errorChangingTheme =>
+      _localizedValues[locale.languageCode]?['errorChangingTheme'] ??
+      'Failed to change theme';
+  String get errorUpdatingNotifications =>
+      _localizedValues[locale.languageCode]?['errorUpdatingNotifications'] ??
+      'Failed to update notifications';
+  String get export =>
+      _localizedValues[locale.languageCode]?['export'] ?? 'Export';
+  String get importing =>
+      _localizedValues[locale.languageCode]?['importing'] ??
+      'Importing data...';
+  String get exporting =>
+      _localizedValues[locale.languageCode]?['exporting'] ??
+      'Exporting data...';
+  String get dataExported =>
+      _localizedValues[locale.languageCode]?['dataExported'] ??
+      'Data exported successfully to:\n{path}';
+  String dataExportedWithPath(String path) =>
+      dataExported.replaceAll('{path}', path);
+  String get exportCancelled =>
+      _localizedValues[locale.languageCode]?['exportCancelled'] ??
+      'Export cancelled';
+  String get exportFailed =>
+      _localizedValues[locale.languageCode]?['exportFailed'] ?? 'Export failed';
+  String get membersExported =>
+      _localizedValues[locale.languageCode]?['membersExported'] ??
+      'Members exported successfully';
+  String get sync => _localizedValues[locale.languageCode]?['sync'] ?? 'Sync';
+  String get syncing =>
+      _localizedValues[locale.languageCode]?['syncing'] ??
+      'Syncing users and members...';
+  String get syncFailed =>
+      _localizedValues[locale.languageCode]?['syncFailed'] ?? 'Sync failed';
+  String get reportSaved =>
+      _localizedValues[locale.languageCode]?['reportSaved'] ??
+      'Report saved successfully to:\n{path}';
+  String reportSavedWithPath(String path) =>
+      reportSaved.replaceAll('{path}', path);
+  String get reportGenerationCancelled =>
+      _localizedValues[locale.languageCode]?['reportGenerationCancelled'] ??
+      'Report generation cancelled';
+  String get reportGenerationFailed =>
+      _localizedValues[locale.languageCode]?['reportGenerationFailed'] ??
+      'Report generation failed';
+  String get import =>
+      _localizedValues[locale.languageCode]?['import'] ?? 'Import';
+  String get importFailed =>
+      _localizedValues[locale.languageCode]?['importFailed'] ?? 'Import failed';
+  String get english =>
+      _localizedValues[locale.languageCode]?['english'] ?? 'English';
+  String get french =>
+      _localizedValues[locale.languageCode]?['french'] ?? 'Français';
+  String get selectTheme =>
+      _localizedValues[locale.languageCode]?['selectTheme'] ?? 'Select Theme';
+  String get light =>
+      _localizedValues[locale.languageCode]?['light'] ?? 'Light';
+  String get dark => _localizedValues[locale.languageCode]?['dark'] ?? 'Dark';
+  String get systemDefault =>
+      _localizedValues[locale.languageCode]?['systemDefault'] ??
+      'System Default';
+  String get birthdayNotificationsSettings =>
+      _localizedValues[locale.languageCode]?['birthdayNotificationsSettings'] ??
+      'Birthday Notifications';
+  String get allChurchAppUsers =>
+      _localizedValues[locale.languageCode]?['allChurchAppUsers'] ??
+      'All Church App Users';
+  String get defaultAllActiveMembers =>
+      _localizedValues[locale.languageCode]?['defaultAllActiveMembers'] ??
+      'Default: All active members';
+  String get leadersOnly =>
+      _localizedValues[locale.languageCode]?['leadersOnly'] ?? 'Leaders Only';
+  String get onlyDepartmentLeadersAdmins =>
+      _localizedValues[locale.languageCode]?['onlyDepartmentLeadersAdmins'] ??
+      'Only department leaders and admins';
+  String get optOutNoNotifications =>
+      _localizedValues[locale.languageCode]?['optOutNoNotifications'] ??
+      'Opt-Out (No Notifications)';
+  String get usersCanOptIn =>
+      _localizedValues[locale.languageCode]?['usersCanOptIn'] ??
+      'Users can opt-in individually';
+  String get note => _localizedValues[locale.languageCode]?['note'] ?? 'Note';
+  String get saveSettings =>
+      _localizedValues[locale.languageCode]?['saveSettings'] ?? 'Save Settings';
+  String get settingsSaved =>
+      _localizedValues[locale.languageCode]?['settingsSaved'] ??
+      'Settings saved successfully';
+  String get errorSavingConfig =>
+      _localizedValues[locale.languageCode]?['errorSavingConfig'] ??
+      'Error saving config';
+  String get errorLoadingConfig =>
+      _localizedValues[locale.languageCode]?['errorLoadingConfig'] ??
+      'Error loading config';
+  String get notificationsEnabled =>
+      _localizedValues[locale.languageCode]?['notificationsEnabled'] ??
+      'Notifications enabled';
+  String get notificationsDisabled =>
+      _localizedValues[locale.languageCode]?['notificationsDisabled'] ??
+      'Notifications disabled';
+  String get exportAllDataConfirm =>
+      _localizedValues[locale.languageCode]?['exportAllDataConfirm'] ??
+      'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?';
+  String get syncUsersMembersConfirm =>
+      _localizedValues[locale.languageCode]?['syncUsersMembersConfirm'] ??
+      'This will:\n1. Create a member for every user\n2. Create a user (with default password "Password123") for every leader member\n\nLeaders will be required to change their password on first login.\n\nContinue?';
+  String get syncCompleted =>
+      _localizedValues[locale.languageCode]?['syncCompleted'] ??
+      'Sync completed!';
+  String get usersToMembers =>
+      _localizedValues[locale.languageCode]?['usersToMembers'] ??
+      'Users → Members';
+  String get leadersToUsers =>
+      _localizedValues[locale.languageCode]?['leadersToUsers'] ??
+      'Leaders → Users';
+  String get createdLabel =>
+      _localizedValues[locale.languageCode]?['createdLabel'] ?? 'created';
+  String get skippedLabel =>
+      _localizedValues[locale.languageCode]?['skippedLabel'] ?? 'skipped';
+  String get errorsLabel =>
+      _localizedValues[locale.languageCode]?['errorsLabel'] ?? 'errors';
+  String get importDataConfirm =>
+      _localizedValues[locale.languageCode]?['importDataConfirm'] ??
+      'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?';
+  String get importCompleted =>
+      _localizedValues[locale.languageCode]?['importCompleted'] ??
+      'Import completed';
+  String get importedLabel =>
+      _localizedValues[locale.languageCode]?['importedLabel'] ?? 'Imported';
+  String get notLoggedIn =>
+      _localizedValues[locale.languageCode]?['notLoggedIn'] ?? 'Not logged in';
+  String get logoutFailed =>
+      _localizedValues[locale.languageCode]?['logoutFailed'] ?? 'Logout failed';
+  String get languageAndRegion =>
+      _localizedValues[locale.languageCode]?['languageAndRegion'] ??
+      'Language & Region';
+  String get appearance =>
+      _localizedValues[locale.languageCode]?['appearance'] ?? 'Appearance';
+  String get dataManagement =>
+      _localizedValues[locale.languageCode]?['dataManagement'] ??
+      'Data Management';
+  String get about =>
+      _localizedValues[locale.languageCode]?['about'] ?? 'About';
+  String get generateReportComprehensive =>
+      _localizedValues[locale.languageCode]?['generateReportComprehensive'] ??
+      'Generate comprehensive report for all users';
+  String get account =>
+      _localizedValues[locale.languageCode]?['account'] ?? 'Account';
+
+  // Events
+  String get addEvent =>
+      _localizedValues[locale.languageCode]?['addEvent'] ?? 'Add Event';
+  String get editEvent =>
+      _localizedValues[locale.languageCode]?['editEvent'] ?? 'Edit Event';
+  String get deleteEvent =>
+      _localizedValues[locale.languageCode]?['deleteEvent'] ?? 'Delete Event';
+  String get eventDeleted =>
+      _localizedValues[locale.languageCode]?['eventDeleted'] ??
+      'Event deleted successfully';
+  String get errorDeletingEvent =>
+      _localizedValues[locale.languageCode]?['errorDeletingEvent'] ??
+      'Error deleting event';
+  String get deleteEventConfirm =>
+      _localizedValues[locale.languageCode]?['deleteEventConfirm'] ??
+      'Are you sure you want to delete "{title}"?';
+  String deleteEventConfirmWithTitle(String title) =>
+      deleteEventConfirm.replaceAll('{title}', title);
+  String get searchEvents =>
+      _localizedValues[locale.languageCode]?['searchEvents'] ??
+      'Search events...';
+  String get noEvents =>
+      _localizedValues[locale.languageCode]?['noEvents'] ?? 'No events yet';
+  String get noEventsFound =>
+      _localizedValues[locale.languageCode]?['noEventsFound'] ??
+      'No events found matching your search';
+
+  // Church Attendance
+  String get churchAttendance =>
+      _localizedValues[locale.languageCode]?['churchAttendance'] ??
+      'Church Attendance';
+  String get sundaySchool =>
+      _localizedValues[locale.languageCode]?['sundaySchool'] ?? 'Sunday School';
+
+  // Reports
+  String get trainingReport =>
+      _localizedValues[locale.languageCode]?['trainingReport'] ??
+      'Training Report';
+  String get memberReport =>
+      _localizedValues[locale.languageCode]?['memberReport'] ?? 'Member Report';
+  String get updateReport =>
+      _localizedValues[locale.languageCode]?['updateReport'] ?? 'Update Report';
+  String get createReportTitle =>
+      _localizedValues[locale.languageCode]?['createReportTitle'] ??
+      'Create Report';
+  String get reportTitle =>
+      _localizedValues[locale.languageCode]?['reportTitle'] ?? 'Title';
+  String get reportTitleRequired =>
+      _localizedValues[locale.languageCode]?['reportTitleRequired'] ??
+      'Title is required';
+  String get monthlyReport =>
+      _localizedValues[locale.languageCode]?['monthlyReport'] ??
+      'Monthly Report';
+  String get yearlyReport =>
+      _localizedValues[locale.languageCode]?['yearlyReport'] ?? 'Yearly Report';
+  String get year => _localizedValues[locale.languageCode]?['year'] ?? 'Year';
+  String get month =>
+      _localizedValues[locale.languageCode]?['month'] ?? 'Month';
+  String get selectMonth =>
+      _localizedValues[locale.languageCode]?['selectMonth'] ?? 'Select month';
+  String get pleaseSelectMonth =>
+      _localizedValues[locale.languageCode]?['pleaseSelectMonth'] ??
+      'Please select a month';
+  String get summaryReportGenerated =>
+      _localizedValues[locale.languageCode]?['summaryReportGenerated'] ??
+      'Summary report generated successfully';
+  String get errorGeneratingSummaryReport =>
+      _localizedValues[locale.languageCode]?['errorGeneratingSummaryReport'] ??
+      'Error generating report';
+  String get reportCreated =>
+      _localizedValues[locale.languageCode]?['reportCreated'] ??
+      'Report created successfully';
+  String get reportUpdated =>
+      _localizedValues[locale.languageCode]?['reportUpdated'] ??
+      'Report updated successfully';
+  String get errorCreatingReport =>
+      _localizedValues[locale.languageCode]?['errorCreatingReport'] ??
+      'Error creating report';
+  String get errorUpdatingReport =>
+      _localizedValues[locale.languageCode]?['errorUpdatingReport'] ??
+      'Error updating report';
+  String get errorLoadingReport =>
+      _localizedValues[locale.languageCode]?['errorLoadingReport'] ??
+      'Error loading report';
+  String get errorLoadingData =>
+      _localizedValues[locale.languageCode]?['errorLoadingData'] ??
+      'Error loading data';
+  String get failedToGetDepartment =>
+      _localizedValues[locale.languageCode]?['failedToGetDepartment'] ??
+      'Failed to get department';
+  String get reportGeneratedWithPath =>
+      _localizedValues[locale.languageCode]?['reportGeneratedWithPath'] ??
+      'Report generated successfully: {path}';
+  String reportGeneratedWithPathString(String path) =>
+      reportGeneratedWithPath.replaceAll('{path}', path);
 
   static const Map<String, Map<String, String>> _localizedValues = {
     'en': {
@@ -624,6 +1174,7 @@ class AppLocalizations {
       'giving': 'Giving',
       'events': 'Events',
       'settings': 'Settings',
+      'notifications': 'Notifications',
       'profile': 'Profile',
       'noData': 'No data available',
       'networkError': 'Network error. Please check your connection.',
@@ -698,7 +1249,8 @@ class AppLocalizations {
       'errorInvalidCredentials': 'Invalid email or password.',
       'errorPasswordResetFailed': 'Password reset failed.',
       'errorMustBeLoggedIn': 'Please log in to continue.',
-      'errorAdminOrLeaderRequired': 'Only admins or leaders can perform this action.',
+      'errorAdminOrLeaderRequired':
+          'Only admins or leaders can perform this action.',
       'errorMemberNotFound': 'Member not found.',
       'errorEmailOrPhoneRequired': 'Email or phone is required.',
       'errorDepartmentNotFound': 'Department not found.',
@@ -733,7 +1285,8 @@ class AppLocalizations {
       'view': 'View',
       'newFile': 'New file',
       'deleteDepartment': 'Delete Department',
-      'deleteDepartmentConfirm': 'Are you sure you want to delete this department? This will deactivate it.',
+      'deleteDepartmentConfirm':
+          'Are you sure you want to delete this department? This will deactivate it.',
       'createDepartment': 'Create Department',
       'updateDepartment': 'Update Department',
       // Department Members
@@ -754,14 +1307,17 @@ class AppLocalizations {
       'errorLoadingMembers': 'Failed to load members',
       'noMembersInDepartment': 'No members in this department',
       'allMembersInDepartment': 'All members are already in this department',
-      'removeMemberConfirm': 'Are you sure you want to remove {name} from this department?',
+      'removeMemberConfirm':
+          'Are you sure you want to remove {name} from this department?',
       'deleteMember': 'Delete Member',
-      'deleteMemberConfirmation': 'Are you sure you want to delete {name}? This action cannot be undone.',
+      'deleteMemberConfirmation':
+          'Are you sure you want to delete {name}? This action cannot be undone.',
       'memberDeletedSuccessfully': 'Member deleted successfully',
       // Password Change
       'changePassword': 'Change Password',
       'changePasswordRequired': 'Change Password Required',
-      'changePasswordMessage': 'You must change your password before continuing.',
+      'changePasswordMessage':
+          'You must change your password before continuing.',
       'newPassword': 'New Password',
       'confirmPassword': 'Confirm New Password',
       'newPasswordRequired': 'New password is required',
@@ -806,14 +1362,221 @@ class AppLocalizations {
       'nameRequired': 'Name is required',
       'successOperation': 'Operation completed successfully',
       'warning': 'Warning',
-      'someDocumentsFailed': 'Department created, but some documents failed to upload',
+      'someDocumentsFailed':
+          'Department created, but some documents failed to upload',
       'documentUploadErrors': 'Document Upload Errors',
-      'documentsFailedMessage': 'The department was created, but the following documents failed to upload:',
-      'canAddDocumentsLater': 'You can add these documents later by editing the department.',
+      'documentsFailedMessage':
+          'The department was created, but the following documents failed to upload:',
+      'canAddDocumentsLater':
+          'You can add these documents later by editing the department.',
       'ok': 'OK',
       'optional': '(Optional)',
       'enterDepartmentName': 'Enter the name of the department',
       'optionalDescription': 'Optional description for the department',
+      // Teachings
+      'teachings': 'Teachings',
+      'addTeaching': 'Add Teaching',
+      'editTeaching': 'Edit Teaching',
+      'teachingDetails': 'Teaching Details',
+      'teachingTitle': 'Title',
+      'teachingTitleRequired': 'Please enter a title',
+      'teachingDate': 'Teaching Date',
+      'teachingDateRequired': 'Please select a date',
+      'speaker': 'Speaker',
+      'teachingDescription': 'Description',
+      'updateTeaching': 'Update Teaching',
+      'teachingAdded': 'Teaching added successfully',
+      'teachingUpdated': 'Teaching updated successfully',
+      'teachingDeleted': 'Teaching deleted successfully',
+      'errorLoadingTeaching': 'Error loading teaching',
+      'errorDeletingTeaching': 'Error deleting teaching',
+      'deleteTeachingConfirm': 'Are you sure you want to delete "{title}"?',
+      'searchTeachings': 'Search teachings...',
+      'noTeachings': 'No teachings yet',
+      'noTeachingsFound': 'No teachings found matching your search',
+      'listeners': 'Listeners',
+      'syncFromAttendance': 'Sync from Church Attendance',
+      'searchPotentialListeners': 'Search potential listeners...',
+      'noListeners': 'No listeners yet',
+      'addListener': 'Add',
+      'addListenerTitle': 'Add Listener',
+      'removeListener': 'Remove Listener',
+      'removeListenerConfirm': 'Remove "{name}" from listeners?',
+      'listenerAdded': 'Listener added successfully',
+      'listenerRemoved': 'Listener removed successfully',
+      'errorAddingListener': 'Error adding listener',
+      'errorRemovingListener': 'Error removing listener',
+      'errorSyncingListeners': 'Error syncing listeners',
+      'listenersSynced': 'Synced {count} listener(s) from church attendance',
+      'allListenersAdded': 'All potential listeners are already added',
+      'useSyncOrAdd':
+          'Use "Sync from Church Attendance" or "Add" to add listeners',
+      // Visitors
+      'visitors': 'Visitors',
+      'addVisitor': 'Add Visitor',
+      'editVisitor': 'Edit Visitor',
+      'updateVisitor': 'Update Visitor',
+      'visitorFirstName': 'First Name',
+      'visitorFirstNameRequired': 'First name is required',
+      'visitorLastName': 'Last Name',
+      'visitorLastNameRequired': 'Last name is required',
+      'visitDate': 'Visit Date',
+      'visitDateRequired': 'Visit date is required',
+      'visitorAdded': 'Visitor added successfully',
+      'visitorUpdated': 'Visitor updated successfully',
+      'visitorDeleted': 'Visitor deleted successfully',
+      'errorLoadingVisitor': 'Error loading visitor',
+      'errorDeletingVisitor': 'Error deleting visitor',
+      'deleteVisitorConfirm': 'Are you sure you want to delete "{name}"?',
+      'searchVisitors': 'Search visitors...',
+      'noVisitors': 'No visitors yet',
+      'noVisitorsFound': 'No visitors found matching your search',
+      // Workers & Departments
+      'workers': 'Workers',
+      'searchWorkers': 'Search workers...',
+      'noWorkers': 'No workers found',
+      'noWorkersFound': 'No workers found matching your search',
+      'noDepartmentsAssigned': 'No departments assigned',
+      'setMainDepartment': 'Set Main Department',
+      'setMainDepartmentFor': 'Set Main Department for {name}',
+      'workerNoDepartments': 'Worker has no departments assigned',
+      'updatingMainDepartment': 'Updating main department...',
+      'mainDepartmentUpdated': 'Main department updated successfully',
+      'errorUpdatingMainDepartment': 'Error updating main department',
+      // Leader Access
+      'leaderAccessManagement': 'Leader Access Management',
+      'defineFeatureAccess': 'Define feature access for each leader',
+      'featureAccessPermissions': 'Feature Access Permissions',
+      'unsavedChanges': 'Unsaved changes',
+      'saveAllChanges': 'Save All Changes',
+      'allAccessSaved': 'All access permissions saved successfully',
+      'errorSavingAccess': 'Error saving access',
+      'errorLoadingLeaders': 'Error loading leaders',
+      'errorLoadingAccess': 'Error loading access',
+      'canView': 'View',
+      'canCreate': 'Create',
+      'canEdit': 'Edit',
+      'canDelete': 'Delete',
+      // Settings
+      'adminSettings': 'Admin Settings',
+      'language': 'Language',
+      'theme': 'Theme',
+      'enableNotifications': 'Enable Notifications',
+      'receivePushNotifications': 'Receive push notifications',
+      'exportAllData': 'Export All Data',
+      'exportAllDataSubtitle': 'Export all data to JSON file',
+      'importData': 'Import Data',
+      'importDataSubtitle': 'Import data from JSON file',
+      'exportMembers': 'Export Members',
+      'exportMembersSubtitle': 'Export members to CSV',
+      'syncUsersMembers': 'Sync Users & Members',
+      'generateAllUsersReport': 'Generate All Users Report',
+      'birthdayNotifications': 'Birthday Notifications',
+      'configureBirthdayNotifications':
+          'Configure birthday notification settings',
+      'currentUser': 'Current User',
+      'signOutAccount': 'Sign out of your account',
+      'appVersion': 'App Version',
+      'logoutConfirm': 'Are you sure you want to logout?',
+      'languageChanged': 'Language changed successfully',
+      'errorChangingLanguage': 'Failed to change language',
+      'themeChanged': 'Theme changed successfully',
+      'errorChangingTheme': 'Failed to change theme',
+      'errorUpdatingNotifications': 'Failed to update notifications',
+      'export': 'Export',
+      'importing': 'Importing data...',
+      'exporting': 'Exporting data...',
+      'dataExported': 'Data exported successfully to:\n{path}',
+      'exportCancelled': 'Export cancelled',
+      'exportFailed': 'Export failed',
+      'membersExported': 'Members exported successfully',
+      'sync': 'Sync',
+      'syncing': 'Syncing users and members...',
+      'syncFailed': 'Sync failed',
+      'reportSaved': 'Report saved successfully to:\n{path}',
+      'reportGenerationCancelled': 'Report generation cancelled',
+      'reportGenerationFailed': 'Report generation failed',
+      'import': 'Import',
+      'importFailed': 'Import failed',
+      'english': 'English',
+      'french': 'Français',
+      'selectTheme': 'Select Theme',
+      'light': 'Light',
+      'dark': 'Dark',
+      'systemDefault': 'System Default',
+      'birthdayNotificationsSettings': 'Birthday Notifications',
+      'allChurchAppUsers': 'All Church App Users',
+      'defaultAllActiveMembers': 'Default: All active members',
+      'leadersOnly': 'Leaders Only',
+      'onlyDepartmentLeadersAdmins': 'Only department leaders and admins',
+      'optOutNoNotifications': 'Opt-Out (No Notifications)',
+      'usersCanOptIn': 'Users can opt-in individually',
+      'note': 'Note',
+      'saveSettings': 'Save Settings',
+      'settingsSaved': 'Settings saved successfully',
+      'errorSavingConfig': 'Error saving config',
+      'errorLoadingConfig': 'Error loading config',
+      'notificationsEnabled': 'Notifications enabled',
+      'notificationsDisabled': 'Notifications disabled',
+      'exportAllDataConfirm':
+          'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
+      'syncUsersMembersConfirm':
+          'This will:\n1. Create a member for every user\n2. Create a user (with default password "Password123") for every leader member\n\nLeaders will be required to change their password on first login.\n\nContinue?',
+      'syncCompleted': 'Sync completed!',
+      'usersToMembers': 'Users → Members',
+      'leadersToUsers': 'Leaders → Users',
+      'createdLabel': 'created',
+      'skippedLabel': 'skipped',
+      'errorsLabel': 'errors',
+      'importDataConfirm':
+          'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?',
+      'importCompleted': 'Import completed',
+      'importedLabel': 'Imported',
+      'notLoggedIn': 'Not logged in',
+      'logoutFailed': 'Logout failed',
+      'languageAndRegion': 'Language & Region',
+      'appearance': 'Appearance',
+      'dataManagement': 'Data Management',
+      'about': 'About',
+      'generateReportComprehensive':
+          'Generate comprehensive report for all users',
+      'account': 'Account',
+      // Events
+      'addEvent': 'Add Event',
+      'editEvent': 'Edit Event',
+      'deleteEvent': 'Delete Event',
+      'eventDeleted': 'Event deleted successfully',
+      'errorDeletingEvent': 'Error deleting event',
+      'deleteEventConfirm': 'Are you sure you want to delete "{title}"?',
+      'searchEvents': 'Search events...',
+      'noEvents': 'No events yet',
+      'noEventsFound': 'No events found matching your search',
+      // Church Attendance
+      'churchAttendance': 'Church Attendance',
+      'sundaySchool': 'Sunday School',
+      // Reports
+      'trainingReport': 'Training Report',
+      'memberReport': 'Member Report',
+      'updateReport': 'Update Report',
+      'createReportTitle': 'Create Report',
+      'reportTitle': 'Title',
+      'reportTitleRequired': 'Title is required',
+      'monthlyReport': 'Monthly Report',
+      'yearlyReport': 'Yearly Report',
+      'year': 'Year',
+      'month': 'Month',
+      'selectMonth': 'Select month',
+      'pleaseSelectMonth': 'Please select a month',
+      'summaryReportGenerated': 'Summary report generated successfully',
+      'errorGeneratingSummaryReport': 'Error generating report',
+      'reportCreated': 'Report created successfully',
+      'reportUpdated': 'Report updated successfully',
+      'errorCreatingReport': 'Error creating report',
+      'errorUpdatingReport': 'Error updating report',
+      'errorLoadingReport': 'Error loading report',
+      'errorLoadingData': 'Error loading data',
+      'failedToGetDepartment': 'Failed to get department',
+      'reportGeneratedWithPath': 'Report generated successfully: {path}',
     },
     'es': {
       'appName': 'SysteMIC',
@@ -864,7 +1627,8 @@ class AppLocalizations {
       'errorInvalidCredentials': 'Correo o contraseña inválidos.',
       'errorPasswordResetFailed': 'Error al restablecer la contraseña.',
       'errorMustBeLoggedIn': 'Por favor, inicia sesión para continuar.',
-      'errorAdminOrLeaderRequired': 'Solo administradores o líderes pueden realizar esta acción.',
+      'errorAdminOrLeaderRequired':
+          'Solo administradores o líderes pueden realizar esta acción.',
       'errorMemberNotFound': 'Miembro no encontrado.',
       'errorEmailOrPhoneRequired': 'Se requiere correo o teléfono.',
       'errorDepartmentNotFound': 'Departamento no encontrado.',
@@ -899,7 +1663,8 @@ class AppLocalizations {
       'view': 'Ver',
       'newFile': 'Nuevo archivo',
       'deleteDepartment': 'Eliminar Departamento',
-      'deleteDepartmentConfirm': '¿Estás seguro de que deseas eliminar este departamento? Esto lo desactivará.',
+      'deleteDepartmentConfirm':
+          '¿Estás seguro de que deseas eliminar este departamento? Esto lo desactivará.',
       'createDepartment': 'Crear Departamento',
       'updateDepartment': 'Actualizar Departamento',
       // Department Members
@@ -919,15 +1684,19 @@ class AppLocalizations {
       'errorUpdatingRole': 'Error al actualizar rol',
       'errorLoadingMembers': 'Error al cargar miembros',
       'noMembersInDepartment': 'No hay miembros en este departamento',
-      'allMembersInDepartment': 'Todos los miembros ya están en este departamento',
-      'removeMemberConfirm': '¿Estás seguro de que deseas eliminar a {name} de este departamento?',
+      'allMembersInDepartment':
+          'Todos los miembros ya están en este departamento',
+      'removeMemberConfirm':
+          '¿Estás seguro de que deseas eliminar a {name} de este departamento?',
       'deleteMember': 'Eliminar Miembro',
-      'deleteMemberConfirmation': '¿Estás seguro de que deseas eliminar a {name}? Esta acción no se puede deshacer.',
+      'deleteMemberConfirmation':
+          '¿Estás seguro de que deseas eliminar a {name}? Esta acción no se puede deshacer.',
       'memberDeletedSuccessfully': 'Miembro eliminado exitosamente',
       // Password Change
       'changePassword': 'Cambiar Contraseña',
       'changePasswordRequired': 'Cambio de Contraseña Requerido',
-      'changePasswordMessage': 'Debes cambiar tu contraseña antes de continuar.',
+      'changePasswordMessage':
+          'Debes cambiar tu contraseña antes de continuar.',
       'newPassword': 'Nueva Contraseña',
       'confirmPassword': 'Confirmar Nueva Contraseña',
       'newPasswordRequired': 'La nueva contraseña es obligatoria',
@@ -972,14 +1741,229 @@ class AppLocalizations {
       'nameRequired': 'El nombre es obligatorio',
       'successOperation': 'Operación completada exitosamente',
       'warning': 'Advertencia',
-      'someDocumentsFailed': 'Departamento creado, pero algunos documentos fallaron al subir',
+      'someDocumentsFailed':
+          'Departamento creado, pero algunos documentos fallaron al subir',
       'documentUploadErrors': 'Errores al Subir Documentos',
-      'documentsFailedMessage': 'El departamento fue creado, pero los siguientes documentos fallaron al subir:',
-      'canAddDocumentsLater': 'Puedes agregar estos documentos más tarde editando el departamento.',
+      'documentsFailedMessage':
+          'El departamento fue creado, pero los siguientes documentos fallaron al subir:',
+      'canAddDocumentsLater':
+          'Puedes agregar estos documentos más tarde editando el departamento.',
       'ok': 'OK',
       'optional': '(Opcional)',
       'enterDepartmentName': 'Ingresa el nombre del departamento',
       'optionalDescription': 'Descripción opcional para el departamento',
+      // Teachings
+      'teachings': 'Enseñanzas',
+      'addTeaching': 'Agregar Enseñanza',
+      'editTeaching': 'Editar Enseñanza',
+      'teachingDetails': 'Detalles de la Enseñanza',
+      'teachingTitle': 'Título',
+      'teachingTitleRequired': 'Por favor ingresa un título',
+      'teachingDate': 'Fecha de la Enseñanza',
+      'teachingDateRequired': 'Por favor selecciona una fecha',
+      'speaker': 'Orador',
+      'teachingDescription': 'Descripción',
+      'updateTeaching': 'Actualizar Enseñanza',
+      'teachingAdded': 'Enseñanza agregada exitosamente',
+      'teachingUpdated': 'Enseñanza actualizada exitosamente',
+      'teachingDeleted': 'Enseñanza eliminada exitosamente',
+      'errorLoadingTeaching': 'Error al cargar enseñanza',
+      'errorDeletingTeaching': 'Error al eliminar enseñanza',
+      'deleteTeachingConfirm':
+          '¿Estás seguro de que deseas eliminar "{title}"?',
+      'searchTeachings': 'Buscar enseñanzas...',
+      'noTeachings': 'Aún no hay enseñanzas',
+      'noTeachingsFound':
+          'No se encontraron enseñanzas que coincidan con tu búsqueda',
+      'listeners': 'Oyentes',
+      'syncFromAttendance': 'Sincronizar desde Asistencia de la Iglesia',
+      'searchPotentialListeners': 'Buscar oyentes potenciales...',
+      'noListeners': 'Aún no hay oyentes',
+      'addListener': 'Agregar',
+      'addListenerTitle': 'Agregar Oyente',
+      'removeListener': 'Eliminar Oyente',
+      'removeListenerConfirm': '¿Eliminar "{name}" de los oyentes?',
+      'listenerAdded': 'Oyente agregado exitosamente',
+      'listenerRemoved': 'Oyente eliminado exitosamente',
+      'errorAddingListener': 'Error al agregar oyente',
+      'errorRemovingListener': 'Error al eliminar oyente',
+      'errorSyncingListeners': 'Error al sincronizar oyentes',
+      'listenersSynced':
+          'Sincronizados {count} oyente(s) desde la asistencia de la iglesia',
+      'allListenersAdded': 'Todos los oyentes potenciales ya están agregados',
+      'useSyncOrAdd':
+          'Usa "Sincronizar desde Asistencia de la Iglesia" o "Agregar" para agregar oyentes',
+      // Visitors
+      'visitors': 'Visitantes',
+      'addVisitor': 'Agregar Visitante',
+      'editVisitor': 'Editar Visitante',
+      'updateVisitor': 'Actualizar Visitante',
+      'visitorFirstName': 'Nombre',
+      'visitorFirstNameRequired': 'El nombre es obligatorio',
+      'visitorLastName': 'Apellido',
+      'visitorLastNameRequired': 'El apellido es obligatorio',
+      'visitDate': 'Fecha de Visita',
+      'visitDateRequired': 'La fecha de visita es obligatoria',
+      'visitorAdded': 'Visitante agregado exitosamente',
+      'visitorUpdated': 'Visitante actualizado exitosamente',
+      'visitorDeleted': 'Visitante eliminado exitosamente',
+      'errorLoadingVisitor': 'Error al cargar visitante',
+      'errorDeletingVisitor': 'Error al eliminar visitante',
+      'deleteVisitorConfirm': '¿Estás seguro de que deseas eliminar "{name}"?',
+      'searchVisitors': 'Buscar visitantes...',
+      'noVisitors': 'Aún no hay visitantes',
+      'noVisitorsFound':
+          'No se encontraron visitantes que coincidan con tu búsqueda',
+      // Workers & Departments
+      'workers': 'Trabajadores',
+      'searchWorkers': 'Buscar trabajadores...',
+      'noWorkers': 'No se encontraron trabajadores',
+      'noWorkersFound':
+          'No se encontraron trabajadores que coincidan con tu búsqueda',
+      'noDepartmentsAssigned': 'No hay departamentos asignados',
+      'setMainDepartment': 'Establecer Departamento Principal',
+      'setMainDepartmentFor': 'Establecer Departamento Principal para {name}',
+      'workerNoDepartments': 'El trabajador no tiene departamentos asignados',
+      'updatingMainDepartment': 'Actualizando departamento principal...',
+      'mainDepartmentUpdated':
+          'Departamento principal actualizado exitosamente',
+      'errorUpdatingMainDepartment':
+          'Error al actualizar departamento principal',
+      // Leader Access
+      'leaderAccessManagement': 'Gestión de Acceso de Líderes',
+      'defineFeatureAccess': 'Definir acceso a funciones para cada líder',
+      'featureAccessPermissions': 'Permisos de Acceso a Funciones',
+      'unsavedChanges': 'Cambios sin guardar',
+      'saveAllChanges': 'Guardar Todos los Cambios',
+      'allAccessSaved': 'Todos los permisos de acceso guardados exitosamente',
+      'errorSavingAccess': 'Error al guardar acceso',
+      'errorLoadingLeaders': 'Error al cargar líderes',
+      'errorLoadingAccess': 'Error al cargar acceso',
+      'canView': 'Ver',
+      'canCreate': 'Crear',
+      'canEdit': 'Editar',
+      'canDelete': 'Eliminar',
+      // Settings
+      'adminSettings': 'Configuración de Administrador',
+      'language': 'Idioma',
+      'theme': 'Tema',
+      'enableNotifications': 'Habilitar Notificaciones',
+      'receivePushNotifications': 'Recibir notificaciones push',
+      'exportAllData': 'Exportar Todos los Datos',
+      'exportAllDataSubtitle': 'Exportar todos los datos a archivo JSON',
+      'importData': 'Importar Datos',
+      'importDataSubtitle': 'Importar datos desde archivo JSON',
+      'exportMembers': 'Exportar Miembros',
+      'exportMembersSubtitle': 'Exportar miembros a CSV',
+      'syncUsersMembers': 'Sincronizar Usuarios y Miembros',
+      'generateAllUsersReport': 'Generar Reporte de Todos los Usuarios',
+      'birthdayNotifications': 'Notificaciones de Cumpleaños',
+      'configureBirthdayNotifications':
+          'Configurar ajustes de notificaciones de cumpleaños',
+      'currentUser': 'Usuario Actual',
+      'signOutAccount': 'Cerrar sesión de tu cuenta',
+      'appVersion': 'Versión de la App',
+      'logoutConfirm': '¿Estás seguro de que deseas cerrar sesión?',
+      'languageChanged': 'Idioma cambiado exitosamente',
+      'errorChangingLanguage': 'Error al cambiar idioma',
+      'themeChanged': 'Tema cambiado exitosamente',
+      'errorChangingTheme': 'Error al cambiar tema',
+      'errorUpdatingNotifications': 'Error al actualizar notificaciones',
+      'notificationsEnabled': 'Notificaciones habilitadas',
+      'notificationsDisabled': 'Notificaciones deshabilitadas',
+      'exportAllDataConfirm':
+          'Esto exportará todos los miembros, departamentos, clases, eventos y tareas a un archivo JSON. Se te pedirá que selecciones una ubicación de guardado. ¿Continuar?',
+      'syncUsersMembersConfirm':
+          'Esto:\n1. Creará un miembro para cada usuario\n2. Creará un usuario (con contraseña predeterminada "Password123") para cada miembro líder\n\nLos líderes deberán cambiar su contraseña en el primer inicio de sesión.\n\n¿Continuar?',
+      'syncCompleted': '¡Sincronización completada!',
+      'usersToMembers': 'Usuarios → Miembros',
+      'leadersToUsers': 'Líderes → Usuarios',
+      'createdLabel': 'creados',
+      'skippedLabel': 'omitidos',
+      'errorsLabel': 'errores',
+      'importDataConfirm':
+          'Esto importará datos desde un archivo JSON. Los miembros existentes con el mismo correo electrónico serán omitidos. ¿Continuar?',
+      'importCompleted': 'Importación completada',
+      'importedLabel': 'Importados',
+      'notLoggedIn': 'No has iniciado sesión',
+      'logoutFailed': 'Error al cerrar sesión',
+      'languageAndRegion': 'Idioma y Región',
+      'appearance': 'Apariencia',
+      'dataManagement': 'Gestión de Datos',
+      'about': 'Acerca de',
+      'generateReportComprehensive':
+          'Generar reporte completo para todos los usuarios',
+      'export': 'Exportar',
+      'importing': 'Importando datos...',
+      'exporting': 'Exportando datos...',
+      'dataExported': 'Datos exportados exitosamente a:\n{path}',
+      'exportCancelled': 'Exportación cancelada',
+      'exportFailed': 'Error en la exportación',
+      'membersExported': 'Miembros exportados exitosamente',
+      'sync': 'Sincronizar',
+      'syncing': 'Sincronizando usuarios y miembros...',
+      'syncFailed': 'Error en la sincronización',
+      'reportSaved': 'Reporte guardado exitosamente en:\n{path}',
+      'reportGenerationCancelled': 'Generación de reporte cancelada',
+      'reportGenerationFailed': 'Error en la generación del reporte',
+      'import': 'Importar',
+      'importFailed': 'Error en la importación',
+      'english': 'Inglés',
+      'french': 'Francés',
+      'selectTheme': 'Seleccionar Tema',
+      'light': 'Claro',
+      'dark': 'Oscuro',
+      'systemDefault': 'Predeterminado del Sistema',
+      'birthdayNotificationsSettings': 'Notificaciones de Cumpleaños',
+      'allChurchAppUsers': 'Todos los Usuarios de la App de la Iglesia',
+      'defaultAllActiveMembers': 'Predeterminado: Todos los miembros activos',
+      'leadersOnly': 'Solo Líderes',
+      'onlyDepartmentLeadersAdmins':
+          'Solo líderes de departamento y administradores',
+      'optOutNoNotifications': 'Optar por No Recibir (Sin Notificaciones)',
+      'usersCanOptIn': 'Los usuarios pueden optar individualmente',
+      'note': 'Nota',
+      'saveSettings': 'Guardar Configuración',
+      'settingsSaved': 'Configuración guardada exitosamente',
+      'errorSavingConfig': 'Error al guardar configuración',
+      'errorLoadingConfig': 'Error al cargar configuración',
+      // Events
+      'addEvent': 'Agregar Evento',
+      'editEvent': 'Editar Evento',
+      'deleteEvent': 'Eliminar Evento',
+      'eventDeleted': 'Evento eliminado exitosamente',
+      'errorDeletingEvent': 'Error al eliminar evento',
+      'deleteEventConfirm': '¿Estás seguro de que deseas eliminar "{title}"?',
+      'searchEvents': 'Buscar eventos...',
+      'noEvents': 'Aún no hay eventos',
+      'noEventsFound':
+          'No se encontraron eventos que coincidan con tu búsqueda',
+      // Church Attendance
+      'churchAttendance': 'Asistencia de la Iglesia',
+      'sundaySchool': 'Escuela Dominical',
+      // Reports
+      'trainingReport': 'Reporte de Entrenamiento',
+      'memberReport': 'Reporte de Miembro',
+      'updateReport': 'Actualizar Reporte',
+      'createReportTitle': 'Crear Reporte',
+      'reportTitle': 'Título',
+      'reportTitleRequired': 'El título es obligatorio',
+      'monthlyReport': 'Reporte Mensual',
+      'yearlyReport': 'Reporte Anual',
+      'year': 'Año',
+      'month': 'Mes',
+      'selectMonth': 'Seleccionar mes',
+      'pleaseSelectMonth': 'Por favor selecciona un mes',
+      'summaryReportGenerated': 'Reporte resumen generado exitosamente',
+      'errorGeneratingSummaryReport': 'Error al generar reporte',
+      'reportCreated': 'Reporte creado exitosamente',
+      'reportUpdated': 'Reporte actualizado exitosamente',
+      'errorCreatingReport': 'Error al crear reporte',
+      'errorUpdatingReport': 'Error al actualizar reporte',
+      'errorLoadingReport': 'Error al cargar reporte',
+      'errorLoadingData': 'Error al cargar datos',
+      'failedToGetDepartment': 'Error al obtener departamento',
+      'reportGeneratedWithPath': 'Reporte generado exitosamente: {path}',
     },
     'fr': {
       'appName': 'SysteMIC',
@@ -1015,6 +1999,7 @@ class AppLocalizations {
       'giving': 'Dons',
       'events': 'Événements',
       'settings': 'Paramètres',
+      'notifications': 'Notifications',
       'profile': 'Profil',
       'noData': 'Aucune donnée disponible',
       'networkError': 'Erreur réseau. Veuillez vérifier votre connexion.',
@@ -1083,16 +2068,20 @@ class AppLocalizations {
       'errorLoadingDashboard': 'Erreur lors du chargement du tableau de bord',
       // Error Messages
       'errorLoginFailed': 'Échec de la connexion. Vérifiez vos identifiants.',
-      'errorEmailNotConfirmed': 'Veuillez confirmer votre e-mail pour continuer.',
+      'errorEmailNotConfirmed':
+          'Veuillez confirmer votre e-mail pour continuer.',
       'errorUserNotFound': 'Utilisateur introuvable.',
       'errorAccountCreationFailed': 'Échec de la création du compte.',
       'errorDuplicateEmail': 'L\'e-mail est déjà utilisé.',
-      'errorPermissionDenied': 'Vous n\'avez pas la permission pour cette action.',
+      'errorPermissionDenied':
+          'Vous n\'avez pas la permission pour cette action.',
       'errorOperationFailed': 'Opération échouée. Veuillez réessayer.',
       'errorInvalidCredentials': 'E-mail ou mot de passe invalide.',
-      'errorPasswordResetFailed': 'Échec de la réinitialisation du mot de passe.',
+      'errorPasswordResetFailed':
+          'Échec de la réinitialisation du mot de passe.',
       'errorMustBeLoggedIn': 'Veuillez vous connecter pour continuer.',
-      'errorAdminOrLeaderRequired': 'Seuls les administrateurs ou les dirigeants peuvent effectuer cette action.',
+      'errorAdminOrLeaderRequired':
+          'Seuls les administrateurs ou les dirigeants peuvent effectuer cette action.',
       'errorMemberNotFound': 'Membre introuvable.',
       'errorEmailOrPhoneRequired': 'E-mail ou téléphone requis.',
       'errorDepartmentNotFound': 'Département introuvable.',
@@ -1127,7 +2116,8 @@ class AppLocalizations {
       'view': 'Voir',
       'newFile': 'Nouveau fichier',
       'deleteDepartment': 'Supprimer le Département',
-      'deleteDepartmentConfirm': 'Êtes-vous sûr de vouloir supprimer ce département? Cela le désactivera.',
+      'deleteDepartmentConfirm':
+          'Êtes-vous sûr de vouloir supprimer ce département? Cela le désactivera.',
       'createDepartment': 'Créer un Département',
       'updateDepartment': 'Mettre à jour le Département',
       // Department Members
@@ -1146,19 +2136,24 @@ class AppLocalizations {
       'errorRemovingMember': 'Échec du retrait du membre',
       'errorUpdatingRole': 'Échec de la mise à jour du rôle',
       'noMembersInDepartment': 'Aucun membre dans ce département',
-      'allMembersInDepartment': 'Tous les membres sont déjà dans ce département',
-      'removeMemberConfirm': 'Êtes-vous sûr de vouloir retirer {name} de ce département?',
+      'allMembersInDepartment':
+          'Tous les membres sont déjà dans ce département',
+      'removeMemberConfirm':
+          'Êtes-vous sûr de vouloir retirer {name} de ce département?',
       'deleteMember': 'Supprimer le Membre',
-      'deleteMemberConfirmation': 'Êtes-vous sûr de vouloir supprimer {name}? Cette action ne peut pas être annulée.',
+      'deleteMemberConfirmation':
+          'Êtes-vous sûr de vouloir supprimer {name}? Cette action ne peut pas être annulée.',
       'memberDeletedSuccessfully': 'Membre supprimé avec succès',
       // Password Change
       'changePassword': 'Changer le Mot de Passe',
       'changePasswordRequired': 'Changement de Mot de Passe Requis',
-      'changePasswordMessage': 'Vous devez changer votre mot de passe avant de continuer.',
+      'changePasswordMessage':
+          'Vous devez changer votre mot de passe avant de continuer.',
       'newPassword': 'Nouveau Mot de Passe',
       'confirmPassword': 'Confirmer le Nouveau Mot de Passe',
       'newPasswordRequired': 'Le nouveau mot de passe est requis',
-      'passwordMinLength': 'Le mot de passe doit contenir au moins 6 caractères',
+      'passwordMinLength':
+          'Le mot de passe doit contenir au moins 6 caractères',
       'passwordsDoNotMatch': 'Les mots de passe ne correspondent pas',
       'passwordChanged': 'Mot de passe changé avec succès',
       'errorChangingPassword': 'Échec du changement de mot de passe',
@@ -1199,14 +2194,233 @@ class AppLocalizations {
       'nameRequired': 'Le nom est requis',
       'successOperation': 'Opération terminée avec succès',
       'warning': 'Avertissement',
-      'someDocumentsFailed': 'Département créé, mais certains documents n\'ont pas pu être téléchargés',
+      'someDocumentsFailed':
+          'Département créé, mais certains documents n\'ont pas pu être téléchargés',
       'documentUploadErrors': 'Erreurs de Téléchargement de Documents',
-      'documentsFailedMessage': 'Le département a été créé, mais les documents suivants n\'ont pas pu être téléchargés:',
-      'canAddDocumentsLater': 'Vous pouvez ajouter ces documents plus tard en modifiant le département.',
+      'documentsFailedMessage':
+          'Le département a été créé, mais les documents suivants n\'ont pas pu être téléchargés:',
+      'canAddDocumentsLater':
+          'Vous pouvez ajouter ces documents plus tard en modifiant le département.',
       'ok': 'OK',
       'optional': '(Optionnel)',
       'enterDepartmentName': 'Entrez le nom du département',
       'optionalDescription': 'Description optionnelle pour le département',
+      // Teachings
+      'teachings': 'Enseignements',
+      'addTeaching': 'Ajouter un Enseignement',
+      'editTeaching': 'Modifier l\'Enseignement',
+      'teachingDetails': 'Détails de l\'Enseignement',
+      'teachingTitle': 'Titre',
+      'teachingTitleRequired': 'Veuillez entrer un titre',
+      'teachingDate': 'Date de l\'Enseignement',
+      'teachingDateRequired': 'Veuillez sélectionner une date',
+      'speaker': 'Orateur',
+      'teachingDescription': 'Description',
+      'updateTeaching': 'Mettre à jour l\'Enseignement',
+      'teachingAdded': 'Enseignement ajouté avec succès',
+      'teachingUpdated': 'Enseignement mis à jour avec succès',
+      'teachingDeleted': 'Enseignement supprimé avec succès',
+      'errorLoadingTeaching': 'Erreur lors du chargement de l\'enseignement',
+      'errorDeletingTeaching':
+          'Erreur lors de la suppression de l\'enseignement',
+      'deleteTeachingConfirm': 'Êtes-vous sûr de vouloir supprimer "{title}"?',
+      'searchTeachings': 'Rechercher des enseignements...',
+      'noTeachings': 'Aucun enseignement pour le moment',
+      'noTeachingsFound':
+          'Aucun enseignement trouvé correspondant à votre recherche',
+      'listeners': 'Auditeurs',
+      'syncFromAttendance': 'Synchroniser depuis l\'Assistance de l\'Église',
+      'searchPotentialListeners': 'Rechercher des auditeurs potentiels...',
+      'noListeners': 'Aucun auditeur pour le moment',
+      'addListener': 'Ajouter',
+      'addListenerTitle': 'Ajouter un Auditeur',
+      'removeListener': 'Retirer un Auditeur',
+      'removeListenerConfirm': 'Retirer "{name}" des auditeurs?',
+      'listenerAdded': 'Auditeur ajouté avec succès',
+      'listenerRemoved': 'Auditeur retiré avec succès',
+      'errorAddingListener': 'Erreur lors de l\'ajout de l\'auditeur',
+      'errorRemovingListener': 'Erreur lors du retrait de l\'auditeur',
+      'errorSyncingListeners':
+          'Erreur lors de la synchronisation des auditeurs',
+      'listenersSynced':
+          'Synchronisés {count} auditeur(s) depuis l\'assistance de l\'église',
+      'allListenersAdded': 'Tous les auditeurs potentiels sont déjà ajoutés',
+      'useSyncOrAdd':
+          'Utilisez "Synchroniser depuis l\'Assistance de l\'Église" ou "Ajouter" pour ajouter des auditeurs',
+      // Visitors
+      'visitors': 'Visiteurs',
+      'addVisitor': 'Ajouter un Visiteur',
+      'editVisitor': 'Modifier le Visiteur',
+      'updateVisitor': 'Mettre à jour le Visiteur',
+      'visitorFirstName': 'Prénom',
+      'visitorFirstNameRequired': 'Le prénom est requis',
+      'visitorLastName': 'Nom de famille',
+      'visitorLastNameRequired': 'Le nom de famille est requis',
+      'visitDate': 'Date de Visite',
+      'visitDateRequired': 'La date de visite est requise',
+      'visitorAdded': 'Visiteur ajouté avec succès',
+      'visitorUpdated': 'Visiteur mis à jour avec succès',
+      'visitorDeleted': 'Visiteur supprimé avec succès',
+      'errorLoadingVisitor': 'Erreur lors du chargement du visiteur',
+      'errorDeletingVisitor': 'Erreur lors de la suppression du visiteur',
+      'deleteVisitorConfirm': 'Êtes-vous sûr de vouloir supprimer "{name}"?',
+      'searchVisitors': 'Rechercher des visiteurs...',
+      'noVisitors': 'Aucun visiteur pour le moment',
+      'noVisitorsFound':
+          'Aucun visiteur trouvé correspondant à votre recherche',
+      // Workers & Departments
+      'workers': 'Travailleurs',
+      'searchWorkers': 'Rechercher des travailleurs...',
+      'noWorkers': 'Aucun travailleur trouvé',
+      'noWorkersFound':
+          'Aucun travailleur trouvé correspondant à votre recherche',
+      'noDepartmentsAssigned': 'Aucun département assigné',
+      'setMainDepartment': 'Définir le Département Principal',
+      'setMainDepartmentFor': 'Définir le Département Principal pour {name}',
+      'workerNoDepartments': 'Le travailleur n\'a aucun département assigné',
+      'updatingMainDepartment': 'Mise à jour du département principal...',
+      'mainDepartmentUpdated': 'Département principal mis à jour avec succès',
+      'errorUpdatingMainDepartment':
+          'Erreur lors de la mise à jour du département principal',
+      // Leader Access
+      'leaderAccessManagement': 'Gestion de l\'Accès des Dirigeants',
+      'defineFeatureAccess':
+          'Définir l\'accès aux fonctionnalités pour chaque dirigeant',
+      'featureAccessPermissions': 'Permissions d\'Accès aux Fonctionnalités',
+      'unsavedChanges': 'Modifications non enregistrées',
+      'saveAllChanges': 'Enregistrer Toutes les Modifications',
+      'allAccessSaved':
+          'Toutes les permissions d\'accès enregistrées avec succès',
+      'errorSavingAccess': 'Erreur lors de l\'enregistrement de l\'accès',
+      'errorLoadingLeaders': 'Erreur lors du chargement des dirigeants',
+      'errorLoadingAccess': 'Erreur lors du chargement de l\'accès',
+      'canView': 'Voir',
+      'canCreate': 'Créer',
+      'canEdit': 'Modifier',
+      'canDelete': 'Supprimer',
+      // Settings
+      'adminSettings': 'Paramètres d\'Administrateur',
+      'language': 'Langue',
+      'theme': 'Thème',
+      'enableNotifications': 'Activer les Notifications',
+      'receivePushNotifications': 'Recevoir les notifications push',
+      'exportAllData': 'Exporter Toutes les Données',
+      'exportAllDataSubtitle':
+          'Exporter toutes les données vers un fichier JSON',
+      'importData': 'Importer des Données',
+      'importDataSubtitle': 'Importer des données depuis un fichier JSON',
+      'exportMembers': 'Exporter les Membres',
+      'exportMembersSubtitle': 'Exporter les membres vers CSV',
+      'syncUsersMembers': 'Synchroniser les Utilisateurs et Membres',
+      'generateAllUsersReport': 'Générer un Rapport de Tous les Utilisateurs',
+      'birthdayNotifications': 'Notifications d\'Anniversaire',
+      'configureBirthdayNotifications':
+          'Configurer les paramètres de notifications d\'anniversaire',
+      'currentUser': 'Utilisateur Actuel',
+      'signOutAccount': 'Se déconnecter de votre compte',
+      'appVersion': 'Version de l\'App',
+      'logoutConfirm': 'Êtes-vous sûr de vouloir vous déconnecter?',
+      'languageChanged': 'Langue changée avec succès',
+      'errorChangingLanguage': 'Échec du changement de langue',
+      'themeChanged': 'Thème changé avec succès',
+      'errorChangingTheme': 'Échec du changement de thème',
+      'errorUpdatingNotifications': 'Échec de la mise à jour des notifications',
+      'notificationsEnabled': 'Notifications activées',
+      'notificationsDisabled': 'Notifications désactivées',
+      'exportAllDataConfirm':
+          'Cela exportera tous les membres, départements, classes, événements et tâches vers un fichier JSON. Il vous sera demandé de sélectionner un emplacement de sauvegarde. Continuer?',
+      'syncUsersMembersConfirm':
+          'Cela:\n1. Créera un membre pour chaque utilisateur\n2. Créera un utilisateur (avec mot de passe par défaut "Password123") pour chaque membre dirigeant\n\nLes dirigeants devront changer leur mot de passe lors de la première connexion.\n\nContinuer?',
+      'syncCompleted': 'Synchronisation terminée!',
+      'usersToMembers': 'Utilisateurs → Membres',
+      'leadersToUsers': 'Dirigeants → Utilisateurs',
+      'createdLabel': 'créés',
+      'skippedLabel': 'ignorés',
+      'errorsLabel': 'erreurs',
+      'importDataConfirm':
+          'Cela importera des données depuis un fichier JSON. Les membres existants avec le même e-mail seront ignorés. Continuer?',
+      'importCompleted': 'Importation terminée',
+      'importedLabel': 'Importés',
+      'notLoggedIn': 'Non connecté',
+      'logoutFailed': 'Échec de la déconnexion',
+      'languageAndRegion': 'Langue et Région',
+      'appearance': 'Apparence',
+      'dataManagement': 'Gestion des Données',
+      'about': 'À propos',
+      'generateReportComprehensive':
+          'Générer un rapport complet pour tous les utilisateurs',
+      'account': 'Compte',
+      'export': 'Exporter',
+      'importing': 'Importation des données...',
+      'exporting': 'Exportation des données...',
+      'dataExported': 'Données exportées avec succès vers:\n{path}',
+      'exportCancelled': 'Exportation annulée',
+      'exportFailed': 'Échec de l\'exportation',
+      'membersExported': 'Membres exportés avec succès',
+      'sync': 'Synchroniser',
+      'syncing': 'Synchronisation des utilisateurs et membres...',
+      'syncFailed': 'Échec de la synchronisation',
+      'reportSaved': 'Rapport enregistré avec succès vers:\n{path}',
+      'reportGenerationCancelled': 'Génération du rapport annulée',
+      'reportGenerationFailed': 'Échec de la génération du rapport',
+      'import': 'Importer',
+      'importFailed': 'Échec de l\'importation',
+      'english': 'Anglais',
+      'french': 'Français',
+      'selectTheme': 'Sélectionner un Thème',
+      'light': 'Clair',
+      'dark': 'Sombre',
+      'systemDefault': 'Par Défaut du Système',
+      'birthdayNotificationsSettings': 'Notifications d\'Anniversaire',
+      'allChurchAppUsers': 'Tous les Utilisateurs de l\'App de l\'Église',
+      'defaultAllActiveMembers': 'Par défaut: Tous les membres actifs',
+      'leadersOnly': 'Dirigeants Uniquement',
+      'onlyDepartmentLeadersAdmins':
+          'Seulement les dirigeants de département et administrateurs',
+      'optOutNoNotifications': 'Désactivation (Aucune Notification)',
+      'usersCanOptIn': 'Les utilisateurs peuvent s\'inscrire individuellement',
+      'note': 'Note',
+      'saveSettings': 'Enregistrer les Paramètres',
+      'settingsSaved': 'Paramètres enregistrés avec succès',
+      'errorSavingConfig':
+          'Erreur lors de l\'enregistrement de la configuration',
+      'errorLoadingConfig': 'Erreur lors du chargement de la configuration',
+      // Events
+      'addEvent': 'Ajouter un Événement',
+      'editEvent': 'Modifier l\'Événement',
+      'deleteEvent': 'Supprimer l\'Événement',
+      'eventDeleted': 'Événement supprimé avec succès',
+      'errorDeletingEvent': 'Erreur lors de la suppression de l\'événement',
+      'deleteEventConfirm': 'Êtes-vous sûr de vouloir supprimer "{title}"?',
+      'searchEvents': 'Rechercher des événements...',
+      'noEvents': 'Aucun événement pour le moment',
+      'noEventsFound': 'Aucun événement trouvé correspondant à votre recherche',
+      // Church Attendance
+      'churchAttendance': 'Assistance de l\'Église',
+      'sundaySchool': 'École du Dimanche',
+      // Reports
+      'trainingReport': 'Rapport de Formation',
+      'memberReport': 'Rapport de Membre',
+      'updateReport': 'Mettre à jour le Rapport',
+      'createReportTitle': 'Créer un Rapport',
+      'reportTitle': 'Titre',
+      'reportTitleRequired': 'Le titre est requis',
+      'monthlyReport': 'Rapport Mensuel',
+      'yearlyReport': 'Rapport Annuel',
+      'year': 'Année',
+      'month': 'Mois',
+      'selectMonth': 'Sélectionner un mois',
+      'pleaseSelectMonth': 'Veuillez sélectionner un mois',
+      'summaryReportGenerated': 'Rapport résumé généré avec succès',
+      'errorGeneratingSummaryReport': 'Erreur lors de la génération du rapport',
+      'reportCreated': 'Rapport créé avec succès',
+      'reportUpdated': 'Rapport mis à jour avec succès',
+      'errorCreatingReport': 'Erreur lors de la création du rapport',
+      'errorUpdatingReport': 'Erreur lors de la mise à jour du rapport',
+      'errorLoadingReport': 'Erreur lors du chargement du rapport',
+      'errorLoadingData': 'Erreur lors du chargement des données',
+      'failedToGetDepartment': 'Échec de l\'obtention du département',
+      'reportGeneratedWithPath': 'Rapport généré avec succès: {path}',
     },
   };
 }

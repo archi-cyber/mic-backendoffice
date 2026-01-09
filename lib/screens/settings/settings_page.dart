@@ -5,13 +5,13 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../services/settings_service.dart';
 import '../../services/data_export_service.dart';
 import '../../services/data_import_service.dart';
 import '../../services/user_member_sync_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/role_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 
 /// Settings page
 class SettingsPage extends StatefulWidget {
@@ -22,17 +22,12 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  Locale? _currentLocale;
-  ThemeMode _currentThemeMode = ThemeMode.system;
-  bool _notificationsEnabled = true;
-  bool _isLoading = true;
   bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _checkAdminStatus();
-    _loadSettings();
   }
 
   Future<void> _checkAdminStatus() async {
@@ -46,43 +41,33 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  Future<void> _loadSettings() async {
-    setState(() => _isLoading = true);
-    try {
-      final results = await Future.wait([
-        SettingsService.getLocale(),
-        SettingsService.getThemeMode(),
-        SettingsService.getNotificationsEnabled(),
-      ]);
-
-      setState(() {
-        _currentLocale = results[0] as Locale?;
-        _currentThemeMode = results[1] as ThemeMode;
-        _notificationsEnabled = results[2] as bool;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-    }
-  }
-
   Future<void> _changeLanguage(Locale locale) async {
     try {
-      await SettingsService.setLocale(locale);
-      setState(() => _currentLocale = locale);
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+      await settingsProvider.setLocale(locale);
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Language changed. Please restart the app.'),
+          SnackBar(
+            content: Text(
+              localizations?.languageChanged ?? 'Language changed successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to change language: $e'),
+            content: Text(
+              localizations?.errorChangingLanguage ??
+                  'Failed to change language: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -92,23 +77,30 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _changeThemeMode(ThemeMode themeMode) async {
     try {
-      await SettingsService.setThemeMode(themeMode);
-      setState(() => _currentThemeMode = themeMode);
-      // Update theme in MaterialApp
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+      await settingsProvider.setThemeMode(themeMode);
       if (mounted) {
-        // Note: This requires a provider or state management to update theme
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Theme changed. Please restart the app.'),
+          SnackBar(
+            content: Text(
+              localizations?.themeChanged ?? 'Theme changed successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to change theme: $e'),
+            content: Text(
+              localizations?.errorChangingTheme ?? 'Failed to change theme: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -118,13 +110,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _toggleNotifications(bool enabled) async {
     try {
-      await SettingsService.setNotificationsEnabled(enabled);
-      setState(() => _notificationsEnabled = enabled);
+      final settingsProvider = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      );
+      await settingsProvider.setNotificationsEnabled(enabled);
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              enabled ? 'Notifications enabled' : 'Notifications disabled',
+              enabled
+                  ? (localizations?.notificationsEnabled ??
+                        'Notifications enabled')
+                  : (localizations?.notificationsDisabled ??
+                        'Notifications disabled'),
             ),
             backgroundColor: AppColors.success,
           ),
@@ -132,9 +132,13 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update notifications: $e'),
+            content: Text(
+              localizations?.errorUpdatingNotifications ??
+                  'Failed to update notifications: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -143,21 +147,23 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _exportAllData() async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Export All Data'),
-        content: const Text(
-          'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
+        title: Text(localizations?.exportAllData ?? 'Export All Data'),
+        content: Text(
+          localizations?.exportAllDataConfirm ??
+              'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Export'),
+            child: Text(localizations?.export ?? 'Export'),
           ),
         ],
       ),
@@ -167,9 +173,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Exporting data...'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(localizations?.exporting ?? 'Exporting data...'),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -180,15 +186,20 @@ class _SettingsPageState extends State<SettingsPage> {
         if (filePath != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Data exported successfully to:\n$filePath'),
+              content: Text(
+                localizations?.dataExportedWithPath(filePath) ??
+                    'Data exported successfully to:\n$filePath',
+              ),
               backgroundColor: AppColors.success,
               duration: const Duration(seconds: 4),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Export cancelled'),
+            SnackBar(
+              content: Text(
+                localizations?.exportCancelled ?? 'Export cancelled',
+              ),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -198,7 +209,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Export failed: $e'),
+            content: Text(localizations?.exportFailed ?? 'Export failed: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -207,13 +218,18 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _exportMembers() async {
+    final localizations = AppLocalizations.of(context);
     try {
       final file = await DataExportService.exportMembersToCSV();
-      await Share.shareXFiles([XFile(file.path)], text: 'Members Export');
+      await Share.shareXFiles([
+        XFile(file.path),
+      ], text: localizations?.exportMembers ?? 'Members Export');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Members exported successfully'),
+          SnackBar(
+            content: Text(
+              localizations?.membersExported ?? 'Members exported successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -222,7 +238,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Export failed: $e'),
+            content: Text(localizations?.exportFailed ?? 'Export failed: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -231,25 +247,27 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _syncUsersAndMembers() async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sync Users & Members'),
-        content: const Text(
-          'This will:\n'
-          '1. Create a member for every user\n'
-          '2. Create a user (with default password "Password123") for every leader member\n\n'
-          'Leaders will be required to change their password on first login.\n\n'
-          'Continue?',
+        title: Text(localizations?.syncUsersMembers ?? 'Sync Users & Members'),
+        content: Text(
+          localizations?.syncUsersMembersConfirm ??
+              'This will:\n'
+                  '1. Create a member for every user\n'
+                  '2. Create a user (with default password "Password123") for every leader member\n\n'
+                  'Leaders will be required to change their password on first login.\n\n'
+                  'Continue?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sync'),
+            child: Text(localizations?.sync ?? 'Sync'),
           ),
         ],
       ),
@@ -259,9 +277,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Syncing users and members...'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(
+            localizations?.syncing ?? 'Syncing users and members...',
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -274,13 +294,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
       if (mounted) {
         final message =
-            'Sync completed!\n'
-            'Users → Members: ${usersToMembers['created']} created, '
-            '${usersToMembers['skipped']} skipped, '
-            '${usersToMembers['errors']} errors\n'
-            'Leaders → Users: ${leadersToUsers['created']} created, '
-            '${leadersToUsers['skipped']} skipped, '
-            '${leadersToUsers['errors']} errors';
+            '${localizations?.syncCompleted ?? 'Sync completed!'}\n'
+            '${localizations?.usersToMembers ?? 'Users → Members'}: ${usersToMembers['created']} ${localizations?.createdLabel ?? 'created'}, '
+            '${usersToMembers['skipped']} ${localizations?.skippedLabel ?? 'skipped'}, '
+            '${usersToMembers['errors']} ${localizations?.errorsLabel ?? 'errors'}\n'
+            '${localizations?.leadersToUsers ?? 'Leaders → Users'}: ${leadersToUsers['created']} ${localizations?.createdLabel ?? 'created'}, '
+            '${leadersToUsers['skipped']} ${localizations?.skippedLabel ?? 'skipped'}, '
+            '${leadersToUsers['errors']} ${localizations?.errorsLabel ?? 'errors'}';
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -294,7 +314,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sync failed: $e'),
+            content: Text(localizations?.syncFailed ?? 'Sync failed: $e'),
             backgroundColor: AppColors.error,
             duration: const Duration(seconds: 5),
           ),
@@ -304,11 +324,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _generateAllUsersReport() async {
+    final localizations = AppLocalizations.of(context);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Generating report...'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(
+            localizations?.generatingReport ?? 'Generating report...',
+          ),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -319,15 +342,21 @@ class _SettingsPageState extends State<SettingsPage> {
         if (filePath != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Report saved successfully to:\n$filePath'),
+              content: Text(
+                localizations?.reportSavedWithPath(filePath) ??
+                    'Report saved successfully to:\n$filePath',
+              ),
               backgroundColor: AppColors.success,
               duration: const Duration(seconds: 4),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Report generation cancelled'),
+            SnackBar(
+              content: Text(
+                localizations?.reportGenerationCancelled ??
+                    'Report generation cancelled',
+              ),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -337,7 +366,10 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Report generation failed: $e'),
+            content: Text(
+              localizations?.reportGenerationFailed ??
+                  'Report generation failed: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -346,21 +378,23 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _importData() async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Import Data'),
-        content: const Text(
-          'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?',
+        title: Text(localizations?.importData ?? 'Import Data'),
+        content: Text(
+          localizations?.importDataConfirm ??
+              'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Import'),
+            child: Text(localizations?.import ?? 'Import'),
           ),
         ],
       ),
@@ -370,9 +404,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Importing data...'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(localizations?.importing ?? 'Importing data...'),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -383,9 +417,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
       if (mounted) {
         final message = membersResult != null
-            ? 'Imported ${membersResult['success_count']} members. '
-                  '${membersResult['error_count']} errors.'
-            : 'Import completed';
+            ? '${localizations?.importedLabel ?? 'Imported'} ${membersResult['success_count']} ${localizations?.members ?? 'members'}. '
+                  '${membersResult['error_count']} ${localizations?.errorsLabel ?? 'errors'}.'
+            : (localizations?.importCompleted ?? 'Import completed');
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -399,7 +433,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Import failed: $e'),
+            content: Text(localizations?.importFailed ?? 'Import failed: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -409,220 +443,296 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, _) {
+        if (settingsProvider.isLoading) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        children: [
-          // Language Settings
-          _buildSectionHeader('Language & Region'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.language),
-              title: const Text('Language'),
-              subtitle: Text(
-                _currentLocale?.languageCode == 'fr' ? 'Français' : 'English',
+        final localizations = AppLocalizations.of(context);
+        return Scaffold(
+          appBar: AppBar(title: Text(localizations?.settings ?? 'Settings')),
+          body: ListView(
+            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            children: [
+              // Language Settings
+              _buildSectionHeader(
+                localizations?.languageAndRegion ?? 'Language & Region',
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showLanguageDialog(),
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-
-          // Appearance Settings
-          _buildSectionHeader('Appearance'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.brightness_6),
-                  title: const Text('Theme'),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.language),
+                  title: Text(localizations?.language ?? 'Language'),
                   subtitle: Text(
-                    _currentThemeMode == ThemeMode.light
-                        ? 'Light'
-                        : _currentThemeMode == ThemeMode.dark
-                        ? 'Dark'
-                        : 'System Default',
+                    settingsProvider.locale?.languageCode == 'fr'
+                        ? 'Français'
+                        : settingsProvider.locale?.languageCode == 'es'
+                        ? 'Español'
+                        : 'English',
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _showThemeDialog(),
+                  onTap: () => _showLanguageDialog(settingsProvider.locale),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
 
-          // Notifications Settings
-          _buildSectionHeader('Notifications'),
-          Card(
-            child: SwitchListTile(
-              secondary: const Icon(Icons.notifications),
-              title: const Text('Enable Notifications'),
-              subtitle: const Text('Receive push notifications'),
-              value: _notificationsEnabled,
-              onChanged: _toggleNotifications,
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
+              // Appearance Settings
+              _buildSectionHeader(localizations?.appearance ?? 'Appearance'),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.brightness_6),
+                      title: Text(localizations?.theme ?? 'Theme'),
+                      subtitle: Text(
+                        settingsProvider.themeMode == ThemeMode.light
+                            ? (localizations?.light ?? 'Light')
+                            : settingsProvider.themeMode == ThemeMode.dark
+                            ? (localizations?.dark ?? 'Dark')
+                            : (localizations?.systemDefault ??
+                                  'System Default'),
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showThemeDialog(settingsProvider.themeMode),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
 
-          // Data Management
-          _buildSectionHeader('Data Management'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
+              // Notifications Settings
+              _buildSectionHeader(
+                localizations?.notifications ?? 'Notifications',
+              ),
+              Card(
+                child: SwitchListTile(
+                  secondary: const Icon(Icons.notifications),
+                  title: Text(
+                    localizations?.enableNotifications ??
+                        'Enable Notifications',
+                  ),
+                  subtitle: Text(
+                    localizations?.receivePushNotifications ??
+                        'Receive push notifications',
+                  ),
+                  value: settingsProvider.notificationsEnabled,
+                  onChanged: _toggleNotifications,
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+
+              // Data Management
+              _buildSectionHeader(
+                localizations?.dataManagement ?? 'Data Management',
+              ),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(
+                        Icons.upload_file,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        localizations?.exportAllData ?? 'Export All Data',
+                      ),
+                      subtitle: Text(
+                        localizations?.exportAllDataSubtitle ??
+                            'Export all data to JSON file',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _exportAllData,
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.file_download,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(localizations?.importData ?? 'Import Data'),
+                      subtitle: Text(
+                        localizations?.importDataSubtitle ??
+                            'Import data from JSON file',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _importData,
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(
+                        Icons.people,
+                        color: AppColors.primary,
+                      ),
+                      title: Text(
+                        localizations?.exportMembers ?? 'Export Members',
+                      ),
+                      subtitle: Text(
+                        localizations?.exportMembersSubtitle ??
+                            'Export members to CSV',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _exportMembers,
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.sync, color: AppColors.primary),
+                      title: Text(
+                        localizations?.syncUsersMembers ??
+                            'Sync Users & Members',
+                      ),
+                      subtitle: Text(
+                        localizations?.syncUsersMembers ??
+                            'Create members for all users and users for all leaders',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _syncUsersAndMembers,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+
+              // Reports
+              _buildSectionHeader(localizations?.reports ?? 'Reports'),
+              Card(
+                child: ListTile(
                   leading: const Icon(
-                    Icons.upload_file,
+                    Icons.assessment,
                     color: AppColors.primary,
                   ),
-                  title: const Text('Export All Data'),
-                  subtitle: const Text('Export all data to JSON file'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _exportAllData,
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(
-                    Icons.file_download,
-                    color: AppColors.primary,
+                  title: Text(
+                    localizations?.generateAllUsersReport ??
+                        'Generate All Users Report',
                   ),
-                  title: const Text('Import Data'),
-                  subtitle: const Text('Import data from JSON file'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _importData,
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.people, color: AppColors.primary),
-                  title: const Text('Export Members'),
-                  subtitle: const Text('Export members to CSV'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _exportMembers,
-                ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.sync, color: AppColors.primary),
-                  title: const Text('Sync Users & Members'),
-                  subtitle: const Text(
-                    'Create members for all users and users for all leaders',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _syncUsersAndMembers,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-
-          // Reports
-          _buildSectionHeader('Reports'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.assessment, color: AppColors.primary),
-              title: const Text('Generate All Users Report'),
-              subtitle: const Text(
-                'Generate comprehensive report for all users',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _generateAllUsersReport,
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-
-          // Other Settings
-          _buildSectionHeader('Other'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.cake),
-              title: const Text('Birthday Notifications'),
-              subtitle: const Text('Configure birthday notification settings'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.of(
-                  context,
-                ).pushNamed(RouteNames.notifications, arguments: 'birthday');
-              },
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-
-          // Admin Settings
-          if (_isAdmin) ...[
-            _buildSectionHeader('Admin Settings'),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.admin_panel_settings, color: AppColors.primary),
-                title: const Text('Leader Access Management'),
-                subtitle: const Text('Define feature access for each leader'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).pushNamed(RouteNames.leaderAccess);
-                },
-              ),
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-          ],
-
-          // Account
-          _buildSectionHeader('Account'),
-          Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.person),
-                  title: const Text('Current User'),
                   subtitle: Text(
-                    SupabaseService.currentUser?.email ?? 'Not logged in',
+                    localizations?.generateReportComprehensive ??
+                        'Generate comprehensive report for all users',
                   ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: _generateAllUsersReport,
                 ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.logout, color: AppColors.error),
-                  title: const Text(
-                    'Logout',
-                    style: TextStyle(color: AppColors.error),
-                  ),
-                  subtitle: const Text('Sign out of your account'),
-                  onTap: _handleLogout,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
 
-          // App Info
-          _buildSectionHeader('About'),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.info),
-              title: const Text('App Version'),
-              subtitle: const Text('1.0.0'),
-            ),
+              // Other Settings
+              _buildSectionHeader(localizations?.other ?? 'Other'),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.cake),
+                  title: Text(
+                    localizations?.birthdayNotifications ??
+                        'Birthday Notifications',
+                  ),
+                  subtitle: Text(
+                    localizations?.configureBirthdayNotifications ??
+                        'Configure birthday notification settings',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.of(context).pushNamed(
+                      RouteNames.notifications,
+                      arguments: 'birthday',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+
+              // Admin Settings
+              if (_isAdmin) ...[
+                _buildSectionHeader(
+                  localizations?.adminSettings ?? 'Admin Settings',
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.admin_panel_settings,
+                      color: AppColors.primary,
+                    ),
+                    title: Text(
+                      localizations?.leaderAccessManagement ??
+                          'Leader Access Management',
+                    ),
+                    subtitle: Text(
+                      localizations?.defineFeatureAccess ??
+                          'Define feature access for each leader',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+              ],
+
+              // Account
+              _buildSectionHeader(localizations?.account ?? 'Account'),
+              Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.person),
+                      title: Text(localizations?.currentUser ?? 'Current User'),
+                      subtitle: Text(
+                        SupabaseService.currentUser?.email ??
+                            (localizations?.notLoggedIn ?? 'Not logged in'),
+                      ),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: AppColors.error),
+                      title: Text(
+                        localizations?.logout ?? 'Logout',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                      subtitle: Text(
+                        localizations?.signOutAccount ??
+                            'Sign out of your account',
+                      ),
+                      onTap: _handleLogout,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+
+              // App Info
+              _buildSectionHeader(localizations?.about ?? 'About'),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.info),
+                  title: Text(localizations?.appVersion ?? 'App Version'),
+                  subtitle: const Text('1.0.0'),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Future<void> _handleLogout() async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: Text(localizations?.logout ?? 'Logout'),
+        content: Text(
+          localizations?.logoutConfirm ?? 'Are you sure you want to logout?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Logout'),
+            child: Text(localizations?.logout ?? 'Logout'),
           ),
         ],
       ),
@@ -644,7 +754,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Logout failed: $e'),
+            content: Text(localizations?.logoutFailed ?? 'Logout failed: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -668,25 +778,31 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _showLanguageDialog() async {
+  Future<void> _showLanguageDialog(Locale? currentLocale) async {
     final localizations = AppLocalizations.of(context);
     final selected = await showDialog<Locale>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.settings ?? 'Settings'),
+        title: Text(localizations?.language ?? 'Language'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<Locale>(
               title: const Text('English'),
               value: const Locale('en'),
-              groupValue: _currentLocale ?? const Locale('en'),
+              groupValue: currentLocale ?? const Locale('en'),
+              onChanged: (value) => Navigator.pop(context, value),
+            ),
+            RadioListTile<Locale>(
+              title: const Text('Español'),
+              value: const Locale('es'),
+              groupValue: currentLocale ?? const Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<Locale>(
               title: const Text('Français'),
               value: const Locale('fr'),
-              groupValue: _currentLocale ?? const Locale('en'),
+              groupValue: currentLocale ?? const Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
             ),
           ],
@@ -702,41 +818,34 @@ class _SettingsPageState extends State<SettingsPage> {
 
     if (selected != null) {
       await _changeLanguage(selected);
-      // Reload the app to apply locale change
-      // Note: In a production app, you might want to use a locale provider
-      // to update the locale dynamically without restart
-      if (mounted) {
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(RouteNames.dashboard, (route) => false);
-      }
     }
   }
 
-  Future<void> _showThemeDialog() async {
+  Future<void> _showThemeDialog(ThemeMode currentThemeMode) async {
+    final localizations = AppLocalizations.of(context);
     final selected = await showDialog<ThemeMode>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Select Theme'),
+        title: Text(localizations?.selectTheme ?? 'Select Theme'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<ThemeMode>(
-              title: const Text('Light'),
+              title: Text(localizations?.light ?? 'Light'),
               value: ThemeMode.light,
-              groupValue: _currentThemeMode,
+              groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<ThemeMode>(
-              title: const Text('Dark'),
+              title: Text(localizations?.dark ?? 'Dark'),
               value: ThemeMode.dark,
-              groupValue: _currentThemeMode,
+              groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<ThemeMode>(
-              title: const Text('System Default'),
+              title: Text(localizations?.systemDefault ?? 'System Default'),
               value: ThemeMode.system,
-              groupValue: _currentThemeMode,
+              groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
             ),
           ],
@@ -744,7 +853,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
         ],
       ),

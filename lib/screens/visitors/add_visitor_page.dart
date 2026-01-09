@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/visitor_service.dart';
 
 /// Add visitor page
@@ -78,9 +79,12 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
       );
 
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Visitor added successfully'),
+          SnackBar(
+            content: Text(
+              localizations?.visitorAdded ?? 'Visitor added successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -101,8 +105,11 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Visitor')),
+      appBar: AppBar(
+        title: Text(localizations?.addVisitor ?? 'Add Visitor'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -113,14 +120,15 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // First Name
               TextFormField(
                 controller: _firstNameController,
-                decoration: const InputDecoration(
-                  labelText: 'First Name *',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.visitorFirstName ?? 'First Name'} *',
+                  prefixIcon: const Icon(Icons.person),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter first name';
+                    return localizations?.visitorFirstNameRequired ??
+                        'Please enter first name';
                   }
                   return null;
                 },
@@ -131,14 +139,15 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // Last Name
               TextFormField(
                 controller: _lastNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Last Name *',
-                  prefixIcon: Icon(Icons.person_outline),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.visitorLastName ?? 'Last Name'} *',
+                  prefixIcon: const Icon(Icons.person_outline),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter last name';
+                    return localizations?.visitorLastNameRequired ??
+                        'Please enter last name';
                   }
                   return null;
                 },
@@ -149,10 +158,10 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // Email
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email (Optional)',
-                  prefixIcon: Icon(Icons.email),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.email ?? 'Email'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.email),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
@@ -161,10 +170,10 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // Phone
               TextFormField(
                 controller: _phoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Phone (Optional)',
-                  prefixIcon: Icon(Icons.phone),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.phone ?? 'Phone'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.phone),
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.phone,
               ),
@@ -173,10 +182,10 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // Address
               TextFormField(
                 controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Address (Optional)',
-                  prefixIcon: Icon(Icons.location_on),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: 'Address ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.location_on),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 2,
                 textCapitalization: TextCapitalization.words,
@@ -187,15 +196,15 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               InkWell(
                 onTap: _selectVisitDate,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Visit Date *',
-                    prefixIcon: Icon(Icons.calendar_today),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: '${localizations?.visitDate ?? 'Visit Date'} *',
+                    prefixIcon: const Icon(Icons.calendar_today),
+                    border: const OutlineInputBorder(),
                   ),
                   child: Text(
                     _visitDate != null
                         ? '${_visitDate!.year}-${_visitDate!.month.toString().padLeft(2, '0')}-${_visitDate!.day.toString().padLeft(2, '0')}'
-                        : 'Select date',
+                        : (localizations?.visitDateRequired ?? 'Select date'),
                     style: TextStyle(
                       color: _visitDate != null
                           ? Theme.of(context).textTheme.bodyLarge?.color
@@ -209,10 +218,10 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               // Notes
               TextFormField(
                 controller: _notesController,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (Optional)',
-                  prefixIcon: Icon(Icons.note),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.notes ?? 'Notes'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.note),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
@@ -234,7 +243,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Add Visitor'),
+                    : Text(localizations?.addVisitor ?? 'Add Visitor'),
               ),
             ],
           ),

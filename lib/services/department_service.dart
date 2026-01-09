@@ -288,6 +288,114 @@ class DepartmentService {
     }
   }
 
+  /// Get all workers with their departments
+  /// Returns a list of workers, each with their department assignments
+  static Future<List<Map<String, dynamic>>> getAllWorkersWithDepartments() async {
+    try {
+      // Get all department_members with member and department info
+      final response = await _client
+          .from('department_members')
+          .select('*, members(*), departments(id, name)')
+          .order('created_at', ascending: false);
+
+      final records = List<Map<String, dynamic>>.from(response);
+      
+      // Group by member_id to combine multiple departments per worker
+      final Map<String, Map<String, dynamic>> workersMap = {};
+      
+      for (final record in records) {
+        final member = record['members'] as Map<String, dynamic>?;
+        final department = record['departments'] as Map<String, dynamic>?;
+        
+        if (member == null) continue;
+        
+        final memberId = member['id']?.toString() ?? '';
+        if (memberId.isEmpty) continue;
+
+        // Initialize worker entry if not exists
+        if (!workersMap.containsKey(memberId)) {
+          workersMap[memberId] = {
+            'member': member,
+            'departments': <Map<String, dynamic>>[],
+            'main_department_id': null,
+          };
+        }
+
+        // Add department to worker's department list
+        if (department != null) {
+          final isMain = record['is_main'] == true;
+          final deptInfo = {
+            'department_id': department['id']?.toString(),
+            'department_name': department['name']?.toString(),
+            'role': record['role']?.toString() ?? 'member',
+            'is_main': isMain,
+          };
+          
+          // Track main department
+          if (isMain) {
+            workersMap[memberId]!['main_department_id'] = department['id']?.toString();
+          }
+          
+          // Avoid duplicates
+          final existingDept = workersMap[memberId]!['departments']
+              as List<Map<String, dynamic>>;
+          if (!existingDept.any((d) => d['department_id'] == deptInfo['department_id'])) {
+            existingDept.add(deptInfo);
+          }
+        }
+      }
+
+      // Convert map to list and sort by member name
+      final workersList = workersMap.values.toList();
+      workersList.sort((a, b) {
+        final memberA = a['member'] as Map<String, dynamic>;
+        final memberB = b['member'] as Map<String, dynamic>;
+        
+        final firstNameA = (memberA['first_name'] ?? '').toString().toLowerCase();
+        final lastNameA = (memberA['last_name'] ?? '').toString().toLowerCase();
+        final firstNameB = (memberB['first_name'] ?? '').toString().toLowerCase();
+        final lastNameB = (memberB['last_name'] ?? '').toString().toLowerCase();
+
+        final firstNameComparison = firstNameA.compareTo(firstNameB);
+        if (firstNameComparison != 0) {
+          return firstNameComparison;
+        }
+        return lastNameA.compareTo(lastNameB);
+      });
+
+      return workersList;
+    } catch (e) {
+      throw Exception('Failed to load workers with departments: $e');
+    }
+  }
+
+  /// Set main department for a worker
+  /// This will unset any existing main department and set the new one
+  static Future<void> setMainDepartment({
+    required String memberId,
+    required String departmentId,
+  }) async {
+    try {
+      // First, unset all main departments for this member
+      await _client
+          .from('department_members')
+          .update({'is_main': false})
+          .eq('member_id', memberId);
+
+      // Then set the new main department
+      await _client
+          .from('department_members')
+          .update({
+            'is_main': true,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('member_id', memberId)
+          .eq('department_id', departmentId);
+    } catch (e) {
+      throw Exception('Failed to set main department: $e');
+    }
+  }
+
   /// Add member to department (as leader/subleader/member)
   /// POST /departments/:id/members
   /// Business Rules:

@@ -10,11 +10,11 @@ import 'services/device_token_service.dart';
 import 'services/background_task_service.dart';
 import 'services/push_notification_handler.dart';
 import 'providers/auth_provider.dart';
+import 'providers/settings_provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/routes/app_router.dart';
 import 'core/routes/route_names.dart';
-import 'services/settings_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,62 +77,46 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  Locale? _locale;
-  ThemeMode _themeMode = ThemeMode.system;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    try {
-      final results = await Future.wait([
-        SettingsService.getLocale(),
-        SettingsService.getThemeMode(),
-      ]);
-
-      setState(() {
-        _locale = results[0] as Locale?;
-        _themeMode = results[1] as ThemeMode;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const MaterialApp(
-        home: Scaffold(body: Center(child: CircularProgressIndicator())),
-      );
-    }
-
-    return ChangeNotifierProvider(
-      create: (_) => AuthProvider()..initialize(),
-      child: _AppLifecycleWrapper(
-        child: MaterialApp(
-          title: AppConfig.appName,
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: _themeMode,
-          locale: _locale,
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
-          onGenerateRoute: AppRouter.generateRoute,
-          onUnknownRoute: AppRouter.onUnknownRoute,
-          initialRoute: RouteNames.splash,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => SettingsProvider()..initialize(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => AuthProvider()..initialize(),
+        ),
+      ],
+      child: Consumer<SettingsProvider>(
+        builder: (context, settingsProvider, _) {
+          if (settingsProvider.isLoading) {
+            return const MaterialApp(
+              home: Scaffold(body: Center(child: CircularProgressIndicator())),
+            );
+          }
+
+          return _AppLifecycleWrapper(
+            child: MaterialApp(
+              title: AppConfig.appName,
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: settingsProvider.themeMode,
+              locale: settingsProvider.locale,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.supportedLocales,
+              onGenerateRoute: AppRouter.generateRoute,
+              onUnknownRoute: AppRouter.onUnknownRoute,
+              initialRoute: RouteNames.splash,
+            ),
+          );
+        },
       ),
     );
   }

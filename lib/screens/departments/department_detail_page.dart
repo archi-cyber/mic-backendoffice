@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
 import '../../services/task_service.dart';
@@ -94,6 +95,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -143,12 +145,12 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                 ],
               ),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
-              Tab(text: 'Overview'),
-              Tab(text: 'Members'),
-              Tab(text: 'Tasks'),
-              Tab(text: 'Reports'),
+              Tab(text: localizations?.overview ?? 'Overview'),
+              Tab(text: localizations?.members ?? 'Members'),
+              Tab(text: localizations?.tasks ?? 'Tasks'),
+              Tab(text: localizations?.reports ?? 'Reports'),
             ],
           ),
         ),

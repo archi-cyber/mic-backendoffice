@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/teaching_service.dart';
 
 /// Edit teaching page with pre-filled form
@@ -98,9 +99,12 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
       );
 
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Teaching updated successfully'),
+          SnackBar(
+            content: Text(
+              localizations?.teachingUpdated ?? 'Teaching updated successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -121,15 +125,20 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     if (_isLoadingData) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Edit Teaching')),
+        appBar: AppBar(
+          title: Text(localizations?.editTeaching ?? 'Edit Teaching'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Teaching')),
+      appBar: AppBar(
+        title: Text(localizations?.editTeaching ?? 'Edit Teaching'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -140,14 +149,14 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
               // Title
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title *',
-                  prefixIcon: Icon(Icons.title),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.teachingTitle ?? 'Title'} *',
+                  prefixIcon: const Icon(Icons.title),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a title';
+                    return localizations?.teachingTitleRequired ?? 'Please enter a title';
                   }
                   return null;
                 },
@@ -159,15 +168,15 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
               InkWell(
                 onTap: _selectTeachingDate,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Teaching Date *',
-                    prefixIcon: Icon(Icons.calendar_today),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: '${localizations?.teachingDate ?? 'Teaching Date'} *',
+                    prefixIcon: const Icon(Icons.calendar_today),
+                    border: const OutlineInputBorder(),
                   ),
                   child: Text(
                     _teachingDate != null
                         ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
-                        : 'Select date',
+                        : (localizations?.teachingDateRequired ?? 'Select date'),
                     style: TextStyle(
                       color: _teachingDate != null
                           ? Theme.of(context).textTheme.bodyLarge?.color
@@ -181,10 +190,10 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
               // Speaker
               TextFormField(
                 controller: _speakerController,
-                decoration: const InputDecoration(
-                  labelText: 'Speaker (Optional)',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.person),
+                  border: const OutlineInputBorder(),
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
@@ -193,10 +202,10 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
               // Description
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description (Optional)',
-                  prefixIcon: Icon(Icons.description),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.description),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
@@ -218,7 +227,7 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Update Teaching'),
+                    : Text(localizations?.updateTeaching ?? 'Update Teaching'),
               ),
             ],
           ),

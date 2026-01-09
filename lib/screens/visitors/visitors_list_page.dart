@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/visitor_service.dart';
@@ -54,8 +55,13 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading visitors: $e')),
+          SnackBar(
+            content: Text(
+              localizations?.errorLoadingVisitor ?? 'Error loading visitors: $e',
+            ),
+          ),
         );
       }
     }
@@ -82,20 +88,24 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
   }
 
   Future<void> _deleteVisitor(String visitorId, String visitorName) async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Visitor'),
-        content: Text('Are you sure you want to delete "$visitorName"?'),
+        title: Text(localizations?.delete ?? 'Delete'),
+        content: Text(
+          localizations?.deleteVisitorConfirmWithName(visitorName) ??
+              'Are you sure you want to delete "$visitorName"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(localizations?.delete ?? 'Delete'),
           ),
         ],
       ),
@@ -106,8 +116,10 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         await VisitorService.deleteVisitor(visitorId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Visitor deleted successfully'),
+            SnackBar(
+              content: Text(
+                localizations?.visitorDeleted ?? 'Visitor deleted successfully',
+              ),
               backgroundColor: AppColors.success,
             ),
           );
@@ -117,7 +129,9 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting visitor: $e'),
+              content: Text(
+                localizations?.errorDeletingVisitor ?? 'Error deleting visitor: $e',
+              ),
               backgroundColor: AppColors.error,
             ),
           );
@@ -266,14 +280,15 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Visitors (${_filteredVisitors.length})'),
+        title: Text('${localizations?.visitors ?? 'Visitors'} (${_filteredVisitors.length})'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadVisitors,
-            tooltip: 'Refresh',
+            tooltip: localizations?.refresh ?? 'Refresh',
           ),
         ],
       ),
@@ -285,7 +300,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search visitors...',
+                hintText: localizations?.searchVisitors ?? 'Search visitors...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -351,7 +366,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
               }
             },
             icon: const Icon(Icons.add),
-            label: const Text('Add Visitor'),
+            label: Text(localizations?.addVisitor ?? 'Add Visitor'),
           );
         },
       ),

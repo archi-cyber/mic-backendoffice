@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/teaching_service.dart';
 
 /// Add teaching page
@@ -65,9 +66,12 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
       );
 
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Teaching added successfully'),
+          SnackBar(
+            content: Text(
+              localizations?.teachingAdded ?? 'Teaching added successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -88,8 +92,11 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Teaching')),
+      appBar: AppBar(
+        title: Text(localizations?.addTeaching ?? 'Add Teaching'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -100,14 +107,14 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               // Title
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title *',
-                  prefixIcon: Icon(Icons.title),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.teachingTitle ?? 'Title'} *',
+                  prefixIcon: const Icon(Icons.title),
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a title';
+                    return localizations?.teachingTitleRequired ?? 'Please enter a title';
                   }
                   return null;
                 },
@@ -119,15 +126,15 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               InkWell(
                 onTap: _selectTeachingDate,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Teaching Date *',
-                    prefixIcon: Icon(Icons.calendar_today),
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: '${localizations?.teachingDate ?? 'Teaching Date'} *',
+                    prefixIcon: const Icon(Icons.calendar_today),
+                    border: const OutlineInputBorder(),
                   ),
                   child: Text(
                     _teachingDate != null
                         ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
-                        : 'Select date',
+                        : (localizations?.teachingDateRequired ?? 'Select date'),
                     style: TextStyle(
                       color: _teachingDate != null
                           ? Theme.of(context).textTheme.bodyLarge?.color
@@ -141,10 +148,10 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               // Speaker
               TextFormField(
                 controller: _speakerController,
-                decoration: const InputDecoration(
-                  labelText: 'Speaker (Optional)',
-                  prefixIcon: Icon(Icons.person),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.person),
+                  border: const OutlineInputBorder(),
                 ),
                 textCapitalization: TextCapitalization.words,
               ),
@@ -153,10 +160,10 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               // Description
               TextFormField(
                 controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description (Optional)',
-                  prefixIcon: Icon(Icons.description),
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
+                  prefixIcon: const Icon(Icons.description),
+                  border: const OutlineInputBorder(),
                 ),
                 maxLines: 4,
                 textCapitalization: TextCapitalization.sentences,
@@ -178,7 +185,7 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Add Teaching'),
+                    : Text(localizations?.addTeaching ?? 'Add Teaching'),
               ),
             ],
           ),

@@ -214,7 +214,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: AppDimensions.spacingMD,
                 mainAxisSpacing: AppDimensions.spacingMD,
-                childAspectRatio: 1.5,
+                childAspectRatio: 1.4,
                 children: [
                   _QuickActionCard(
                     title: localizations?.members ?? 'Members',
@@ -246,7 +246,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Church Attendance',
+                    title: localizations?.churchAttendance ?? 'Church Attendance',
                     icon: Icons.church,
                     onTap: () {
                       Navigator.of(
@@ -255,7 +255,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Sunday School',
+                    title: localizations?.sundaySchool ?? 'Sunday School',
                     icon: Icons.school,
                     onTap: () {
                       Navigator.of(
@@ -264,14 +264,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Visitors',
+                    title: localizations?.visitors ?? 'Visitors',
                     icon: Icons.person_add_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.visitors);
                     },
                   ),
                   _QuickActionCard(
-                    title: 'Teachings',
+                    title: localizations?.teachings ?? 'Teachings',
                     icon: Icons.menu_book_outlined,
                     onTap: () {
                       Navigator.of(context).pushNamed(RouteNames.teachings);
@@ -367,10 +367,10 @@ class _QuickActionCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, size: 40, color: AppColors.primary),
                   if (value != null) ...[
@@ -398,12 +398,17 @@ class _QuickActionCard extends StatelessWidget {
               ),
               const SizedBox(height: AppDimensions.spacingSM),
               Flexible(
-                child: Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],

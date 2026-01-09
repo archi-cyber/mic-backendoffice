@@ -5,7 +5,6 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
-import '../../services/role_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/utils/permission_helper.dart';
 
@@ -105,103 +104,123 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(localizations?.departments ?? 'Departments'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadDepartments,
-            tooltip: localizations?.refresh ?? 'Refresh',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText:
-                    localizations?.searchDepartments ?? 'Search departments...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-                ),
-              ),
-              onChanged: (_) => setState(() {}),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(localizations?.departments ?? 'Departments'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _loadDepartments,
+              tooltip: localizations?.refresh ?? 'Refresh',
             ),
+          ],
+          bottom: TabBar(
+            tabs: [
+              Tab(text: localizations?.departments ?? 'Departments'),
+              Tab(text: localizations?.workers ?? 'Workers'),
+            ],
           ),
-          // Departments list
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredDepartments.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.group_work_outlined,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: AppDimensions.spacingMD),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? (localizations?.noDepartmentsFound ??
-                                    'No departments found')
-                              : (localizations?.noDepartments ??
-                                    'No departments yet'),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
+        ),
+        body: TabBarView(
+          children: [
+            // Departments tab
+            Column(
+              children: [
+                // Search bar
+                Padding(
+                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: localizations?.searchDepartments ??
+                          'Search departments...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMD),
+                      ),
                     ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _loadDepartments,
-                    child: ListView.builder(
-                      itemCount: _filteredDepartments.length,
-                      itemBuilder: (context, index) {
-                        final department = _filteredDepartments[index];
-                        return _buildDepartmentCard(department);
-                      },
-                    ),
+                    onChanged: (_) => setState(() {}),
                   ),
-          ),
-        ],
-      ),
-      floatingActionButton: FutureBuilder<bool>(
-        future: _canCreateDepartment(),
-        builder: (context, snapshot) {
-          if (snapshot.data == true) {
-            return FloatingActionButton(
-              onPressed: () async {
-                // Navigate to add department page and wait for result
-                final result = await Navigator.of(
-                  context,
-                ).pushNamed(RouteNames.addDepartment);
-                // If department was created (result is true), reload the list
-                if (result == true) {
-                  _loadDepartments();
-                }
-              },
-              child: const Icon(Icons.add),
-            );
-          }
-          return const SizedBox.shrink();
-        },
+                ),
+                // Departments list
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredDepartments.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.group_work_outlined,
+                                    size: 64,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(
+                                      height: AppDimensions.spacingMD),
+                                  Text(
+                                    _searchController.text.isNotEmpty
+                                        ? (localizations?.noDepartmentsFound ??
+                                            'No departments found')
+                                        : (localizations?.noDepartments ??
+                                            'No departments yet'),
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _loadDepartments,
+                              child: ListView.builder(
+                                itemCount: _filteredDepartments.length,
+                                itemBuilder: (context, index) {
+                                  final department =
+                                      _filteredDepartments[index];
+                                  return _buildDepartmentCard(department);
+                                },
+                              ),
+                            ),
+                ),
+              ],
+            ),
+            // Workers tab
+            _WorkersTab(),
+          ],
+        ),
+        floatingActionButton: FutureBuilder<bool>(
+          future: _canCreateDepartment(),
+          builder: (context, snapshot) {
+            if (snapshot.data == true) {
+              return FloatingActionButton(
+                onPressed: () async {
+                  // Navigate to add department page and wait for result
+                  final result = await Navigator.of(
+                    context,
+                  ).pushNamed(RouteNames.addDepartment);
+                  // If department was created (result is true), reload the list
+                  if (result == true) {
+                    _loadDepartments();
+                  }
+                },
+                child: const Icon(Icons.add),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
       ),
     );
   }
@@ -310,6 +329,428 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Workers tab - shows all workers with their departments
+class _WorkersTab extends StatefulWidget {
+  const _WorkersTab();
+
+  @override
+  State<_WorkersTab> createState() => _WorkersTabState();
+}
+
+class _WorkersTabState extends State<_WorkersTab> {
+  List<Map<String, dynamic>> _workers = [];
+  bool _isLoading = true;
+  final _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWorkers();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadWorkers() async {
+    setState(() => _isLoading = true);
+    try {
+      final workers = await DepartmentService.getAllWorkersWithDepartments();
+      setState(() {
+        _workers = workers;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading workers: $e')),
+        );
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredWorkers {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      return _workers;
+    }
+    return _workers.where((worker) {
+      final member = worker['member'] as Map<String, dynamic>?;
+      if (member == null) return false;
+
+      final firstName =
+          (member['first_name'] ?? '').toString().toLowerCase();
+      final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+      final email = (member['email'] ?? '').toString().toLowerCase();
+      final fullName = '$firstName $lastName';
+
+      return fullName.contains(query) || email.contains(query);
+    }).toList();
+  }
+
+  Widget _buildDepartmentChip(
+    String deptName,
+    String role,
+    bool isMain,
+  ) {
+    Color color;
+    IconData icon;
+
+    switch (role) {
+      case 'leader':
+        color = AppColors.error;
+        icon = Icons.star;
+        break;
+      case 'subleader':
+        color = AppColors.primary;
+        icon = Icons.star_border;
+        break;
+      default:
+        color = AppColors.textSecondary;
+        icon = Icons.business;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(right: AppDimensions.spacingXS),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isMain
+            ? AppColors.primary.withOpacity(0.2)
+            : color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isMain
+              ? AppColors.primary
+              : color.withOpacity(0.3),
+          width: isMain ? 2 : 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isMain) ...[
+            const Icon(Icons.home, size: 12, color: AppColors.primary),
+            const SizedBox(width: 4),
+          ],
+          Icon(icon, size: 12, color: isMain ? AppColors.primary : color),
+          const SizedBox(width: 4),
+          Text(
+            deptName,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isMain ? FontWeight.bold : FontWeight.w500,
+              color: isMain ? AppColors.primary : color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: localizations?.searchWorkers ?? 'Search workers...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        // Workers list
+        Expanded(
+          child: _filteredWorkers.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.people_outline,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        _searchController.text.isNotEmpty
+                            ? (localizations?.noWorkersFound ??
+                                'No workers found matching your search')
+                            : (localizations?.noWorkers ?? 'No workers found'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadWorkers,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingMD,
+                    ),
+                    itemCount: _filteredWorkers.length,
+                    itemBuilder: (context, index) {
+                      final worker = _filteredWorkers[index];
+                      final member =
+                          worker['member'] as Map<String, dynamic>?;
+                      final departments = worker['departments']
+                          as List<Map<String, dynamic>>? ?? [];
+
+                      if (member == null) return const SizedBox.shrink();
+
+                      final firstName = member['first_name']?.toString() ?? '';
+                      final lastName = member['last_name']?.toString() ?? '';
+                      final fullName = '$firstName $lastName'.trim();
+                      final email = member['email']?.toString() ?? '';
+                      final memberId = member['id']?.toString() ?? '';
+                      final mainDepartmentId =
+                          worker['main_department_id']?.toString();
+
+                      return Card(
+                        margin: const EdgeInsets.only(
+                          bottom: AppDimensions.spacingSM,
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              fullName.isNotEmpty
+                                  ? fullName[0].toUpperCase()
+                                  : 'W',
+                            ),
+                          ),
+                          title: Text(
+                            fullName.isEmpty ? 'Unknown Worker' : fullName,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (email.isNotEmpty) ...[
+                                Text(
+                                  email,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(
+                                    height: AppDimensions.spacingXS),
+                              ],
+                              if (departments.isNotEmpty) ...[
+                                Wrap(
+                                  children: departments.map((dept) {
+                                    final deptId =
+                                        dept['department_id']?.toString();
+                                    final isMain = deptId == mainDepartmentId;
+                                    return _buildDepartmentChip(
+                                      dept['department_name']?.toString() ??
+                                          'Unknown',
+                                      dept['role']?.toString() ?? 'member',
+                                      isMain,
+                                    );
+                                  }).toList(),
+                                ),
+                              ] else
+                                Text(
+                                  localizations?.noDepartmentsAssigned ??
+                                      'No departments assigned',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton(
+                            itemBuilder: (context) => [
+                              PopupMenuItem(
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.home, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      localizations?.setMainDepartment ??
+                                          'Set Main Department',
+                                    ),
+                                  ],
+                                ),
+                                onTap: () => Future.delayed(
+                                  const Duration(milliseconds: 100),
+                                  () => _showSetMainDepartmentDialog(
+                                    memberId,
+                                    fullName,
+                                    departments,
+                                    mainDepartmentId,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pushNamed(
+                              RouteNames.memberDetail
+                                  .replaceAll(':id', memberId),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showSetMainDepartmentDialog(
+    String memberId,
+    String memberName,
+    List<Map<String, dynamic>> departments,
+    String? currentMainDeptId,
+  ) async {
+    final localizations = AppLocalizations.of(context);
+    if (departments.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            localizations?.workerNoDepartments ??
+                'Worker has no departments assigned',
+          ),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          localizations?.setMainDepartmentForWithName(memberName) ??
+              'Set Main Department for $memberName',
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: departments.length,
+            itemBuilder: (context, index) {
+              final dept = departments[index];
+              final deptId = dept['department_id']?.toString();
+              final deptName = dept['department_name']?.toString() ?? 'Unknown';
+              final role = dept['role']?.toString() ?? 'member';
+              final isCurrentMain = deptId == currentMainDeptId;
+
+              return RadioListTile<String>(
+                title: Text(deptName),
+                subtitle: Text(
+                  '${localizations?.role ?? 'Role'}: ${role.toUpperCase()}',
+                ),
+                value: deptId ?? '',
+                groupValue: currentMainDeptId ?? '',
+                onChanged: (value) async {
+                  if (value != null && value != currentMainDeptId) {
+                    // Close dialog first
+                    Navigator.pop(context);
+                    
+                    // Show loading indicator
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                              const SizedBox(width: 16),
+                              Text(
+                                localizations?.updatingMainDepartment ??
+                                    'Updating main department...',
+                              ),
+                            ],
+                          ),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                    
+                    try {
+                      await DepartmentService.setMainDepartment(
+                        memberId: memberId,
+                        departmentId: value,
+                      );
+                      
+                      if (mounted) {
+                        // Reload workers to reflect the change
+                        await _loadWorkers();
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              localizations?.mainDepartmentUpdated ??
+                                  'Main department updated successfully',
+                            ),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              localizations?.errorUpdatingMainDepartment ??
+                                  'Error: $e',
+                            ),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    }
+                  }
+                },
+                secondary: isCurrentMain
+                    ? const Icon(
+                        Icons.home,
+                        color: AppColors.primary,
+                      )
+                    : null,
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(localizations?.cancel ?? 'Cancel'),
+          ),
+        ],
       ),
     );
   }
