@@ -87,19 +87,39 @@ class ChatService {
       String? createdByUserId;
       final currentAuthUser = SupabaseService.currentUser;
 
-      if (currentAuthUser != null && currentAuthUser.email != null) {
+      if (currentAuthUser != null) {
         try {
-          // Try to find the user in the users table by email
-          final user = await _client
+          // First try to find the user in the users table by auth.users.id
+          // (if users.id matches auth.users.id)
+          var user = await _client
               .from('users')
               .select('id')
-              .eq('email', currentAuthUser.email!)
+              .eq('id', currentAuthUser.id)
               .maybeSingle();
+
+          // If not found, try by email as fallback
+          if (user == null && currentAuthUser.email != null) {
+            user = await _client
+                .from('users')
+                .select('id')
+                .eq('email', currentAuthUser.email!)
+                .maybeSingle();
+          }
 
           if (user != null && user['id'] != null) {
             createdByUserId = user['id'].toString();
+            debugPrint(
+              '[ChatService] Found creator user ID: $createdByUserId',
+            );
+          } else {
+            debugPrint(
+              '[ChatService] Creator user not found in users table (auth ID: ${currentAuthUser.id})',
+            );
           }
         } catch (e) {
+          debugPrint(
+            '[ChatService] Error getting creator user ID: $e',
+          );
           // If user not found in users table or any error occurs,
           // set to null (foreign key constraint allows NULL)
           createdByUserId = null;
@@ -235,11 +255,18 @@ class ChatService {
           debugPrint(
             '[ChatService] Announcement title: $title, message: ${message.substring(0, message.length > 50 ? 50 : message.length)}...',
           );
+          debugPrint(
+            '[ChatService] Creator user ID (to exclude): ${createdByUserId ?? "null"}',
+          );
+          
+          // Ensure excludeUserId is a string or null
+          final excludeUserIdStr = createdByUserId?.toString();
+          
           await PushNotificationService.sendAnnouncementPushNotification(
             title: title,
             message: message,
             announcementId: response['id']?.toString() ?? '',
-            excludeUserId: createdByUserId,
+            excludeUserId: excludeUserIdStr,
           );
           debugPrint('[ChatService] ✅ Successfully sent push notifications');
         } catch (e, stackTrace) {

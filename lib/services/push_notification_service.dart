@@ -105,6 +105,9 @@ class PushNotificationService {
       debugPrint(
         '[PushNotificationService] Sending announcement push notifications: $announcementId',
       );
+      debugPrint(
+        '[PushNotificationService] Excluding user ID: ${excludeUserId ?? "none"}',
+      );
 
       // Get all active users
       final allUsers = await SupabaseService.client
@@ -113,10 +116,26 @@ class PushNotificationService {
           .eq('is_active', true)
           .limit(10000);
 
+      debugPrint(
+        '[PushNotificationService] Found ${(allUsers as List).length} active users in database',
+      );
+
+      // Convert excludeUserId to string for comparison, handle null
+      final excludeUserIdStr = excludeUserId?.toString();
+
       final userIds = (allUsers as List)
           .map((u) => u['id']?.toString())
           .whereType<String>()
-          .where((id) => id != excludeUserId)
+          .where((id) {
+            // Exclude the creator if excludeUserId is provided
+            if (excludeUserIdStr != null && id == excludeUserIdStr) {
+              debugPrint(
+                '[PushNotificationService] Excluding creator user ID: $id',
+              );
+              return false;
+            }
+            return true;
+          })
           .toList();
 
       debugPrint(
@@ -142,6 +161,9 @@ class PushNotificationService {
       debugPrint(
         '[PushNotificationService] Found ${allTokens.length} device tokens to send to',
       );
+      debugPrint(
+        '[PushNotificationService] Users with tokens: ${tokensMap.keys.length} out of ${userIds.length}',
+      );
 
       if (allTokens.isEmpty) {
         debugPrint(
@@ -161,6 +183,10 @@ class PushNotificationService {
           'announcement_id': announcementId,
           'click_action': 'FLUTTER_NOTIFICATION_CLICK',
         },
+      );
+
+      debugPrint(
+        '[PushNotificationService] ✅ Push notification request sent for ${allTokens.length} devices',
       );
     } catch (e, stackTrace) {
       debugPrint(

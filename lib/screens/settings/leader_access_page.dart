@@ -172,6 +172,33 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     return names[featureName] ?? featureName;
   }
 
+  String _getLeaderDisplayName(Map<String, dynamic> leader) {
+    final member = leader['members'];
+    String? firstName;
+    String? lastName;
+
+    if (member != null) {
+      if (member is List && member.isNotEmpty) {
+        final memberData = member[0];
+        firstName = memberData['first_name']?.toString();
+        lastName = memberData['last_name']?.toString();
+      } else if (member is Map) {
+        firstName = member['first_name']?.toString();
+        lastName = member['last_name']?.toString();
+      }
+    }
+
+    if (firstName != null || lastName != null) {
+      final name = '$firstName $lastName'.trim();
+      if (name.isNotEmpty) {
+        return name;
+      }
+    }
+
+    // Fallback to email if name is not available
+    return leader['email']?.toString() ?? 'Unknown';
+  }
+
   Widget _buildFeatureAccessCard(String featureName) {
     // Use pending changes if available, otherwise use original data
     final pending = _pendingChanges[featureName];
@@ -314,11 +341,11 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                               prefixIcon: Icon(Icons.person),
                             ),
                             items: _leaders.map((leader) {
-                              final email = leader['email']?.toString() ?? 'Unknown';
                               final id = leader['id'].toString();
+                              final displayName = _getLeaderDisplayName(leader);
                               return DropdownMenuItem(
                                 value: id,
-                                child: Text(email),
+                                child: Text(displayName),
                               );
                             }).toList(),
                             onChanged: (value) async {

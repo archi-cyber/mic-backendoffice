@@ -7,7 +7,6 @@ import '../../services/task_service.dart';
 import '../../services/member_service.dart';
 import '../../services/department_service.dart';
 import '../../services/role_service.dart';
-import '../../services/supabase_service.dart';
 
 /// Task detail page with assign and remind functionality
 class TaskDetailPage extends StatefulWidget {
@@ -670,45 +669,24 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     required String memberId,
     required String memberName,
   }) async {
-    // Get current user's email
-    final currentUserEmail = SupabaseService.currentUser?.email;
-    if (currentUserEmail == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to get current user information'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+    // Get assigned member's phone - try from member object first
+    String? assignedMemberPhone = member?['phone']?.toString();
+    
+    // If phone not in member object, try to fetch it directly
+    if ((assignedMemberPhone == null || assignedMemberPhone.isEmpty) && memberId.isNotEmpty) {
+      try {
+        final memberProfile = await MemberService.getMemberById(memberId);
+        assignedMemberPhone = memberProfile['phone']?.toString();
+      } catch (e) {
+        // Continue with phone from member object or null
       }
-      return;
     }
 
-    // Get current user's member profile
-    Map<String, dynamic>? currentUserMember;
-    String? currentUserPhone;
-    try {
-      final members = await MemberService.getMembers(
-        filters: {'email': currentUserEmail},
-        limit: 1,
-      );
-      if (members.isNotEmpty) {
-        currentUserMember = members.first;
-        currentUserPhone = currentUserMember['phone']?.toString();
-      }
-    } catch (e) {
-      // Continue with null phone
-    }
-
-    // Get assigned member's phone
-    final assignedMemberPhone = member?['phone']?.toString();
-
-    // Show dialog to get phone numbers if needed
+    // Show dialog to select platform and confirm phone number
     if (!mounted) return;
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => _ReminderDialog(
-        currentUserPhone: currentUserPhone,
         assignedMemberPhone: assignedMemberPhone,
         memberName: memberName,
         taskTitle: _task!['title']?.toString() ?? 'Task',
@@ -716,24 +694,30 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     );
 
     if (result != null) {
-      final senderPhone = result['sender'];
       final receiverPhone = result['receiver'];
       final platform = result['platform'];
 
-      if (senderPhone != null && receiverPhone != null && platform != null) {
+      if (receiverPhone != null && receiverPhone.isNotEmpty && platform != null) {
         await _sendReminder(
-          senderPhone: senderPhone,
           receiverPhone: receiverPhone,
           platform: platform,
           taskTitle: _task!['title']?.toString() ?? 'Task',
           taskDescription: _task!['description']?.toString() ?? '',
         );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Phone number is required'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
       }
     }
   }
 
   Future<void> _sendReminder({
-    required String senderPhone,
     required String receiverPhone,
     required String platform,
     required String taskTitle,
@@ -742,19 +726,20 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     try {
       // Format phone numbers (remove any non-digit characters except +)
       String formatPhone(String phone) {
-        // Remove spaces, dashes, parentheses
-        String cleaned = phone.replaceAll(RegExp(r'[\s\-\(\)]'), '');
-        // Ensure it starts with country code if not already
-        if (!cleaned.startsWith('+')) {
-          // Assume default country code if not present
-          // You might want to adjust this based on your needs
-          if (!cleaned.startsWith('1') && !cleaned.startsWith('2')) {
-            cleaned = '+1$cleaned'; // Default to +1, adjust as needed
-          } else {
-            cleaned = '+$cleaned';
-          }
+        if (phone.isEmpty) {
+          throw Exception('Invalid phone number format');
         }
-        return cleaned;
+        
+        // Extract all digits from the phone number (this preserves ALL digits)
+        final digitsOnly = phone.replaceAll(RegExp(r'[^\d]'), '');
+        
+        // Ensure we have digits
+        if (digitsOnly.isEmpty) {
+          throw Exception('Invalid phone number format');
+        }
+        
+        // Always return with + prefix for international format
+        return '+$digitsOnly';
       }
 
       final formattedReceiver = formatPhone(receiverPhone);
@@ -764,36 +749,92 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       Uri uri;
       if (platform == 'whatsapp') {
         // WhatsApp URL format: https://wa.me/PHONENUMBER?text=MESSAGE
+        // Remove + from phone number for WhatsApp URL
+        final phoneForUrl = formattedReceiver.replaceAll('+', '');
         uri = Uri.parse(
-          'https://wa.me/${formattedReceiver.replaceAll('+', '')}?text=${Uri.encodeComponent(message)}',
+          'https://wa.me/$phoneForUrl?text=${Uri.encodeComponent(message)}',
         );
       } else {
-        // Telegram URL format: https://t.me/PHONENUMBER or https://t.me/share/url?url=&text=
+        // Telegram URL format: https://t.me/share/url?url=&text=
         // For Telegram, we'll use the share URL format as direct messaging requires username
         uri = Uri.parse(
           'https://t.me/share/url?url=&text=${Uri.encodeComponent(message)}',
         );
       }
 
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Opening $platform...'),
-              backgroundColor: AppColors.success,
-            ),
+      // Try to launch the URL
+      // Note: canLaunchUrl can be unreliable, so we'll try to launch anyway
+      bool canLaunch = false;
+      try {
+        canLaunch = await canLaunchUrl(uri);
+      } catch (e) {
+        // If canLaunchUrl fails, we'll still try to launch
+        canLaunch = true;
+      }
+
+      if (canLaunch) {
+        try {
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
           );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Opening $platform...'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        } catch (e) {
+          // If launchUrl fails, try with platformDefault mode
+          try {
+            await launchUrl(
+              uri,
+              mode: LaunchMode.platformDefault,
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Opening $platform...'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            }
+          } catch (e2) {
+            throw Exception(
+              'Could not launch $platform. Please make sure $platform is installed on your device.',
+            );
+          }
         }
       } else {
-        throw Exception('Could not launch $platform');
+        // If canLaunchUrl returns false, still try to launch
+        try {
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Opening $platform...'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        } catch (e) {
+          throw Exception(
+            'Could not launch $platform. Please make sure $platform is installed on your device.',
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send reminder: $e'),
+            content: Text('Failed to send reminder: ${e.toString()}'),
             backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -802,13 +843,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 }
 
 class _ReminderDialog extends StatefulWidget {
-  final String? currentUserPhone;
   final String? assignedMemberPhone;
   final String memberName;
   final String taskTitle;
 
   const _ReminderDialog({
-    required this.currentUserPhone,
     required this.assignedMemberPhone,
     required this.memberName,
     required this.taskTitle,
@@ -819,21 +858,18 @@ class _ReminderDialog extends StatefulWidget {
 }
 
 class _ReminderDialogState extends State<_ReminderDialog> {
-  final _senderController = TextEditingController();
   final _receiverController = TextEditingController();
   String _selectedPlatform = 'whatsapp';
 
   @override
   void initState() {
     super.initState();
-    // Auto-fill existing numbers
-    _senderController.text = widget.currentUserPhone ?? '';
+    // Auto-fill assigned member's phone number
     _receiverController.text = widget.assignedMemberPhone ?? '';
   }
 
   @override
   void dispose() {
-    _senderController.dispose();
     _receiverController.dispose();
     super.dispose();
   }
@@ -895,22 +931,6 @@ class _ReminderDialogState extends State<_ReminderDialog> {
             ),
             const SizedBox(height: AppDimensions.spacingMD),
             TextFormField(
-              controller: _senderController,
-              decoration: const InputDecoration(
-                labelText: 'Your Phone Number *',
-                prefixIcon: Icon(Icons.phone),
-                helperText: 'The number you will send from',
-              ),
-              keyboardType: TextInputType.phone,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Phone number is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            TextFormField(
               controller: _receiverController,
               decoration: InputDecoration(
                 labelText: '${widget.memberName}\'s Phone Number *',
@@ -935,17 +955,15 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (_senderController.text.trim().isNotEmpty &&
-                _receiverController.text.trim().isNotEmpty) {
+            if (_receiverController.text.trim().isNotEmpty) {
               Navigator.pop(context, {
-                'sender': _senderController.text.trim(),
                 'receiver': _receiverController.text.trim(),
                 'platform': _selectedPlatform,
               });
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Please enter both phone numbers'),
+                  content: Text('Please enter the phone number'),
                   backgroundColor: AppColors.error,
                 ),
               );

@@ -9,7 +9,7 @@ class LeaderAccessService {
     try {
       final response = await _client
           .from('users')
-          .select('id, email, role')
+          .select('id, email, role, members(id, first_name, last_name)')
           .eq('role', 'leader')
           .eq('is_active', true)
           .order('email');
