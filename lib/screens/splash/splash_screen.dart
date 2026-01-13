@@ -70,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navigate based on auth status
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      // Check if password change is required
+      // User is authenticated - check if password change is required
       if (authProvider.mustChangePassword) {
         Navigator.of(context).pushReplacementNamed(RouteNames.changePassword);
       } else {

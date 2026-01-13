@@ -159,7 +159,7 @@ class AuthService {
     }
   }
 
-  /// Send password reset link
+  /// Send password reset OTP token via email
   /// Business Rule: Any active leader can reset password via "Forgot password" flow
   static Future<void> forgotPassword({required String email}) async {
     try {
@@ -181,30 +181,52 @@ class AuthService {
         }
       }
 
+      // Send OTP token via email for password recovery
       await _client.auth.resetPasswordForEmail(
         email,
-        redirectTo: null, // Configure redirect URL in Supabase dashboard
+        redirectTo: null, // Not using redirect, using token instead
       );
-    } on AuthException {
-      throw Exception('Failed to send reset link');
-    } catch (_) {
-      throw Exception('Failed to send reset link');
+    } on AuthException catch (e) {
+      debugPrint('[AuthService] Password reset error: ${e.message}');
+      throw Exception('Failed to send reset token: ${e.message}');
+    } catch (e) {
+      debugPrint('[AuthService] Password reset error: $e');
+      throw Exception('Failed to send reset token');
     }
   }
 
-  /// Reset password with token
-  /// Also used for changing password when authenticated
+  /// Verify password reset token and reset password
+  /// This method verifies the OTP token from email and then resets the password
   static Future<void> resetPassword({
     required String token,
+    required String email,
     required String newPassword,
   }) async {
     try {
-      // Update password in Supabase Auth
-      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      debugPrint('[AuthService] Verifying password reset token for: $email');
+
+      // Verify the OTP token by attempting to exchange it for a session
+      // Supabase will verify the token and create a temporary session
+      final response = await _client.auth.verifyOTP(
+        type: OtpType.recovery,
+        token: token,
+        email: email,
+      );
+
+      if (response.session == null) {
+        throw Exception('Invalid or expired token. Please request a new reset token.');
+      }
+
+      debugPrint('[AuthService] Token verified successfully');
+
+      // Now update the password using the temporary session
+      await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
+      );
 
       // Also update users table to clear must_change_password flag
       try {
-        final userId = SupabaseService.currentUser?.id;
+        final userId = response.user?.id;
         if (userId != null) {
           await _client
               .from('users')
@@ -218,9 +240,26 @@ class AuthService {
         debugPrint('[AuthService] Warning: Could not update users table: $e');
         // Don't fail password change if users table update fails
       }
-    } on AuthException {
-      throw Exception('Password reset failed');
-    } catch (_) {
+
+      // Sign out the temporary session after password reset
+      await _client.auth.signOut();
+
+      debugPrint('[AuthService] Password reset successful');
+    } on AuthException catch (e) {
+      debugPrint('[AuthService] Password reset error: ${e.message}');
+      if (e.message.toLowerCase().contains('invalid') ||
+          e.message.toLowerCase().contains('expired') ||
+          e.message.toLowerCase().contains('token')) {
+        throw Exception('Invalid or expired token. Please request a new reset token.');
+      }
+      throw Exception('Password reset failed: ${e.message}');
+    } catch (e) {
+      debugPrint('[AuthService] Password reset error: $e');
+      if (e.toString().toLowerCase().contains('invalid') ||
+          e.toString().toLowerCase().contains('expired') ||
+          e.toString().toLowerCase().contains('token')) {
+        throw Exception('Invalid or expired token. Please request a new reset token.');
+      }
       throw Exception('Password reset failed');
     }
   }

@@ -94,6 +94,57 @@ class _SundaySchoolAttendanceListPageState
     }
   }
 
+  Future<void> _deleteSession(String sessionDate) async {
+    final sessionDateObj = DateTime.parse(sessionDate);
+    final formattedDate = _formatDate(sessionDate);
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Session'),
+        content: Text(
+          'Are you sure you want to delete the Sunday school session on $formattedDate? This will remove all attendance records for this session and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await SundaySchoolAttendanceService.deleteSession(sessionDateObj);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          _loadSessions(); // Refresh the list
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting session: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -264,7 +315,20 @@ class _SundaySchoolAttendanceListPageState
                                       ),
                                     ],
                                   ),
-                                  trailing: const Icon(Icons.chevron_right),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          color: AppColors.error,
+                                        ),
+                                        onPressed: () => _deleteSession(sessionDate),
+                                        tooltip: 'Delete Session',
+                                      ),
+                                      const Icon(Icons.chevron_right),
+                                    ],
+                                  ),
                                   onTap: () => _viewSessionDetails(sessionDate),
                                 ),
                               );

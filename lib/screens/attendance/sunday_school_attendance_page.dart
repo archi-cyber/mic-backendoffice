@@ -201,6 +201,58 @@ class _SundaySchoolAttendancePageState
     }
   }
 
+  Future<void> _deleteSession() async {
+    if (_attendanceRecords.isEmpty) {
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Session'),
+        content: Text(
+          'Are you sure you want to delete this session for ${DateFormat('MMM d, yyyy').format(_selectedDate)}? This will remove all attendance records for this date and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await SundaySchoolAttendanceService.deleteSession(_selectedDate);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Session deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          Navigator.of(context).pop(true); // Return to list page
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting session: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,6 +260,12 @@ class _SundaySchoolAttendancePageState
         title: Text(_isViewMode ? 'Session Details' : 'Mark Attendance'),
         actions: [
           if (_isViewMode) ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _attendanceRecords.isEmpty ? null : _deleteSession,
+              tooltip: 'Delete Session',
+              color: AppColors.error,
+            ),
             IconButton(
               icon: const Icon(Icons.edit),
               onPressed: () {
@@ -259,13 +317,16 @@ class _SundaySchoolAttendancePageState
                   child: Column(
                     children: [
                       InkWell(
-                        onTap: (_isViewMode || widget.sessionDate != null) ? null : _selectDate,
+                        onTap: (_isViewMode || widget.sessionDate != null)
+                            ? null
+                            : _selectDate,
                         child: InputDecorator(
                           decoration: InputDecoration(
                             labelText: 'Session Date',
                             prefixIcon: const Icon(Icons.calendar_today),
                             filled: _isViewMode || widget.sessionDate != null,
-                            fillColor: (_isViewMode || widget.sessionDate != null)
+                            fillColor:
+                                (_isViewMode || widget.sessionDate != null)
                                 ? Theme.of(
                                     context,
                                   ).disabledColor.withOpacity(0.1)

@@ -16,8 +16,8 @@ class PermissionHelper {
 
     // Also check if user is a department leader or subleader
     try {
-      final _client = SupabaseService.client;
-      final user = await _client
+      final client = SupabaseService.client;
+      final user = await client
           .from('users')
           .select('member_id')
           .eq('id', currentUser.id)
@@ -28,7 +28,7 @@ class PermissionHelper {
       final memberId = user['member_id'].toString();
 
       // Check if member is a leader or subleader of any department
-      final assignment = await _client
+      final assignment = await client
           .from('department_members')
           .select('id')
           .eq('member_id', memberId)
@@ -41,6 +41,7 @@ class PermissionHelper {
       return false;
     }
   }
+
   /// Check if current user can view a feature
   static Future<bool> canView(String featureName) async {
     // Admins and pastors have full access

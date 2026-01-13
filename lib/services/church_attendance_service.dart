@@ -218,7 +218,7 @@ class ChurchAttendanceService {
       // Note: Filters must be applied before transforms (order, limit)
       dynamic query = _client
           .from('church_attendance')
-          .select('service_date, service_type, id');
+          .select('service_date, service_type, id, attendance_type, member_id');
 
       // Apply filters first
       if (startDate != null) {
@@ -247,32 +247,41 @@ class ChurchAttendanceService {
       final records = List<Map<String, dynamic>>.from(response);
 
       // Filter out deleted records and group by service_date + service_type
-      final serviceCounts = <String, int>{};
+      // Only count unique members with 'onsite' and 'online' attendance, exclude 'absent'
+      final serviceMemberSets =
+          <String, Set<String>>{}; // Track unique member IDs
       final serviceMap = <String, Map<String, dynamic>>{};
 
       for (final record in records) {
         if (record['deleted_at'] == null) {
-          final serviceDate = record['service_date'] as String;
-          final serviceType = record['service_type'] as String;
-          final key = '${serviceDate}_$serviceType';
+          final attendanceType = record['attendance_type']?.toString();
+          // Only count actual attendance (onsite or online), not absent
+          if (attendanceType != null && attendanceType != 'absent') {
+            final serviceDate = record['service_date'] as String;
+            final serviceType = record['service_type'] as String;
+            final key = '${serviceDate}_$serviceType';
+            final memberId = record['member_id']?.toString();
 
-          serviceCounts[key] = (serviceCounts[key] ?? 0) + 1;
+            // Track unique member IDs per service
+            if (memberId != null) {
+              serviceMemberSets.putIfAbsent(key, () => <String>{});
+              serviceMemberSets[key]!.add(memberId);
+            }
 
-          if (!serviceMap.containsKey(key)) {
-            serviceMap[key] = {
-              'service_date': serviceDate,
-              'service_type': serviceType,
-            };
+            if (!serviceMap.containsKey(key)) {
+              serviceMap[key] = {
+                'service_date': serviceDate,
+                'service_type': serviceType,
+              };
+            }
           }
         }
       }
 
-      // Combine service info with counts
+      // Combine service info with counts (using unique member count)
       final servicesWithCounts = serviceMap.entries.map((entry) {
-        return {
-          ...entry.value,
-          'attendance_count': serviceCounts[entry.key] ?? 0,
-        };
+        final uniqueMemberCount = serviceMemberSets[entry.key]?.length ?? 0;
+        return {...entry.value, 'attendance_count': uniqueMemberCount};
       }).toList();
 
       // Sort by date descending

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'config/app_config.dart';
 import 'services/supabase_service.dart';
@@ -27,6 +28,11 @@ void main() async {
     );
     firebaseInitialized = true;
     debugPrint('✓ Firebase initialized successfully');
+
+    // CRITICAL: Register background message handler IMMEDIATELY after Firebase init
+    // This MUST be done before any other FCM operations and before runApp()
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    debugPrint('✓ Background message handler registered');
   } catch (e) {
     debugPrint('⚠ Error initializing Firebase: $e');
   }
@@ -55,8 +61,11 @@ void main() async {
   }
 
   // Initialize FCM and get device token (only if Firebase is initialized)
+  // IMPORTANT: Background message handler must be registered BEFORE runApp()
   if (firebaseInitialized) {
     try {
+      // Register background message handler first (before any other FCM calls)
+      // This is done in PushNotificationHandler.initialize(), but we ensure it's early
       await DeviceTokenService.initialize();
       await PushNotificationHandler.initialize();
     } catch (e) {
@@ -81,12 +90,8 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => SettingsProvider()..initialize(),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider()..initialize(),
-        ),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()..initialize()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, _) {

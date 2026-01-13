@@ -64,6 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '615687440592',
     projectId: 'mic-backoffice',
     storageBucket: 'mic-backoffice.firebasestorage.app',
+    androidClientId: '615687440592-in6vi2be4ve4kji9mtokp69kq7iqgpu0.apps.googleusercontent.com',
     iosBundleId: 'com.example.micBackoffice',
   );
 
@@ -73,6 +74,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '615687440592',
     projectId: 'mic-backoffice',
     storageBucket: 'mic-backoffice.firebasestorage.app',
+    androidClientId: '615687440592-in6vi2be4ve4kji9mtokp69kq7iqgpu0.apps.googleusercontent.com',
     iosBundleId: 'com.example.micBackoffice',
   );
 
@@ -85,4 +87,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'mic-backoffice.firebasestorage.app',
     measurementId: 'G-QM2Y014CQ6',
   );
+
 }

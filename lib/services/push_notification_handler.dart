@@ -1,6 +1,30 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../firebase_options.dart';
+
+/// Top-level function for handling background messages
+/// This MUST be a top-level function, not a static method
+/// It runs in a separate isolate, so Firebase must be initialized here
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Ensure Firebase is initialized in the background isolate
+  // This is required because background handlers run in a separate isolate
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
+  // Handle background message
+  // This runs in a separate isolate
+  print('Background message received: ${message.messageId}');
+  print('Message data: ${message.data}');
+  print('Message notification: ${message.notification?.title}');
+  
+  // You can add additional processing here, such as:
+  // - Saving notification to local database
+  // - Updating app state
+  // - Triggering local notifications
+}
 
 /// Handler for push notifications (FCM)
 class PushNotificationHandler {
@@ -15,6 +39,10 @@ class PushNotificationHandler {
         'Firebase is not initialized. Please configure Firebase first.',
       );
     }
+    
+    // Note: Background message handler should already be registered in main.dart
+    // before this method is called. This ensures it's registered before runApp()
+    
     // Initialize local notifications
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
@@ -45,9 +73,6 @@ class PushNotificationHandler {
     // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-    // Handle background messages (when app is terminated)
-    FirebaseMessaging.onBackgroundMessage(_handleBackgroundMessage);
-
     // Handle notification taps
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
   }
@@ -71,14 +96,6 @@ class PushNotificationHandler {
       ),
       payload: message.data.toString(),
     );
-  }
-
-  /// Handle background messages
-  @pragma('vm:entry-point')
-  static Future<void> _handleBackgroundMessage(RemoteMessage message) async {
-    // Handle background message
-    // This runs in a separate isolate
-    print('Background message: ${message.messageId}');
   }
 
   /// Handle notification tap

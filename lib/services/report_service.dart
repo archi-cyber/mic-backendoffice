@@ -12,26 +12,102 @@ class ReportService {
     DateTime? toDate,
   }) async {
     try {
-      // Build query for member attendance
-      var attendanceQuery = _client
-          .from('attendance')
-          .select()
+      // Get church attendance records
+      var churchAttendanceQuery = _client
+          .from('church_attendance')
+          .select('*')
           .eq('member_id', memberId);
 
       if (fromDate != null) {
-        attendanceQuery = attendanceQuery.gte(
-          'created_at',
-          fromDate.toIso8601String(),
+        churchAttendanceQuery = churchAttendanceQuery.gte(
+          'service_date',
+          fromDate.toIso8601String().split('T')[0],
         );
       }
       if (toDate != null) {
-        attendanceQuery = attendanceQuery.lte(
-          'created_at',
-          toDate.toIso8601String(),
+        churchAttendanceQuery = churchAttendanceQuery.lte(
+          'service_date',
+          toDate.toIso8601String().split('T')[0],
         );
       }
 
-      final attendance = await attendanceQuery;
+      final churchAttendance = await churchAttendanceQuery;
+
+      // Get Sunday school attendance records
+      var sundaySchoolAttendanceQuery = _client
+          .from('sunday_school_attendance')
+          .select('*')
+          .eq('member_id', memberId);
+
+      if (fromDate != null) {
+        sundaySchoolAttendanceQuery = sundaySchoolAttendanceQuery.gte(
+          'attendance_date',
+          fromDate.toIso8601String().split('T')[0],
+        );
+      }
+      if (toDate != null) {
+        sundaySchoolAttendanceQuery = sundaySchoolAttendanceQuery.lte(
+          'attendance_date',
+          toDate.toIso8601String().split('T')[0],
+        );
+      }
+
+      final sundaySchoolAttendance = await sundaySchoolAttendanceQuery;
+
+      // Combine and format attendance records
+      final allAttendanceRecords = <Map<String, dynamic>>[];
+
+      // Add church attendance records with type indicator (filter out deleted)
+      for (var record in churchAttendance as List) {
+        if (record['deleted_at'] == null) {
+          allAttendanceRecords.add({
+            ...record,
+            'attendance_category': 'church',
+            'display_date': record['service_date'],
+            'display_type': record['service_type'] == 'sunday'
+                ? 'Sunday Service'
+                : 'Wednesday Service',
+            'attendance_type_display': record['attendance_type'] == 'onsite'
+                ? 'Onsite'
+                : record['attendance_type'] == 'online'
+                ? 'Online'
+                : 'Absent',
+          });
+        }
+      }
+
+      // Add Sunday school attendance records with type indicator (filter out deleted)
+      for (var record in sundaySchoolAttendance as List) {
+        if (record['deleted_at'] == null) {
+          allAttendanceRecords.add({
+            ...record,
+            'attendance_category': 'sunday_school',
+            'display_date': record['attendance_date'],
+            'display_type': 'Sunday School',
+            'attendance_type_display': 'Present',
+          });
+        }
+      }
+
+      // Sort by date descending
+      allAttendanceRecords.sort((a, b) {
+        final dateA = (a['display_date'] ?? '').toString();
+        final dateB = (b['display_date'] ?? '').toString();
+        return dateB.compareTo(dateA);
+      });
+
+      // Count only actual attendance (onsite or online for church, all for Sunday school)
+      final totalAttendance = allAttendanceRecords
+          .where((record) {
+            final category = record['attendance_category']?.toString();
+            final attendanceType = record['attendance_type']?.toString();
+            if (category == 'church') {
+              return attendanceType == 'onsite' || attendanceType == 'online';
+            } else {
+              return true; // All Sunday school records count as attendance
+            }
+          })
+          .length;
 
       // Get member giving records
       var givingQuery = _client
@@ -48,8 +124,7 @@ class ReportService {
 
       final giving = await givingQuery;
 
-      // Calculate statistics
-      final totalAttendance = (attendance as List).length;
+      // Calculate giving total
       final totalGiving = (giving as List).fold<double>(
         0.0,
         (sum, record) => sum + (record['amount'] ?? 0.0),
@@ -61,7 +136,10 @@ class ReportService {
           'from': fromDate?.toIso8601String(),
           'to': toDate?.toIso8601String(),
         },
-        'attendance': {'total': totalAttendance, 'records': attendance},
+        'attendance': {
+          'total': totalAttendance,
+          'records': allAttendanceRecords,
+        },
         'giving': {'total': totalGiving, 'records': giving},
         'generated_at': DateTime.now().toIso8601String(),
       };

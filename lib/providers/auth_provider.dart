@@ -252,25 +252,27 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Change password (for first-time login)
+  /// Change password (for first-time login or authenticated users)
   Future<bool> changePassword(String newPassword) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Update password (this also updates users table)
-      await AuthService.resetPassword(
-        token: '', // Not needed when authenticated
-        newPassword: newPassword,
-      );
+      // Check if user is authenticated
+      if (!_isAuthenticated || _currentUser == null) {
+        throw Exception('User must be authenticated to change password');
+      }
 
-      // Update metadata to clear must_change_password flag
+      // Update password and metadata in Supabase Auth
       await SupabaseService.client.auth.updateUser(
-        UserAttributes(data: {'must_change_password': false}),
+        UserAttributes(
+          password: newPassword,
+          data: {'must_change_password': false},
+        ),
       );
 
-      // Ensure users table is updated (resetPassword should have done this, but double-check)
+      // Ensure users table is updated
       try {
         final userId = _currentUser?.id;
         if (userId != null) {
@@ -283,9 +285,7 @@ class AuthProvider extends ChangeNotifier {
               .eq('id', userId);
         }
       } catch (e) {
-        debugPrint(
-          '[AuthProvider] Warning: Could not update users table: $e',
-        );
+        debugPrint('[AuthProvider] Warning: Could not update users table: $e');
         // Don't fail password change if users table update fails
       }
 

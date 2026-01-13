@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/routes/route_names.dart';
 import '../../services/auth_service.dart';
 
 /// Forgot password screen
@@ -86,12 +87,31 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
                     const SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      'Please check your email for password reset instructions.',
+                      'Please check your email for the password reset token. You\'ll need to enter it on the next screen.',
                       style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: AppDimensions.spacingXXL),
                     ElevatedButton(
+                      onPressed: () {
+                        // Navigate to reset password page with the email
+                        Navigator.of(context).pushReplacementNamed(
+                          RouteNames.resetPassword,
+                          arguments: {
+                            'email': _emailController.text.trim(),
+                          },
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          double.infinity,
+                          AppDimensions.buttonHeightLG,
+                        ),
+                      ),
+                      child: const Text('Enter Reset Token'),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       child: const Text('Back to Login'),
                     ),
@@ -109,7 +129,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
                     const SizedBox(height: AppDimensions.spacingSM),
                     Text(
-                      'Enter your email address and we\'ll send you a link to reset your password.',
+                      'Enter your email address and we\'ll send you a token to reset your password.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.textSecondary,
                       ),

@@ -50,39 +50,7 @@ class ReportsPage extends StatelessWidget {
 
       showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Select Member'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: members.length,
-              itemBuilder: (context, index) {
-                final member = members[index];
-                return ListTile(
-                  title: Text('${member['first_name']} ${member['last_name']}'),
-                  subtitle: Text(member['email'] ?? ''),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            MemberReportPage(memberId: member['id'].toString()),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
+        builder: (context) => _MemberSelectionDialog(members: members),
       );
     } catch (e) {
       if (context.mounted) {
@@ -98,44 +66,10 @@ class ReportsPage extends StatelessWidget {
       final classes = await ClassService.getClasses(limit: 100);
       if (!context.mounted) return;
 
-      final selectedClass = await showDialog<Map<String, dynamic>>(
+      showDialog(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Select Training'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: classes.isEmpty
-                ? const Text('No trainings available')
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: classes.length,
-                    itemBuilder: (context, index) {
-                      final classItem = classes[index];
-                      return ListTile(
-                        title: Text(classItem['name'] ?? 'Unnamed Training'),
-                        subtitle: classItem['description'] != null
-                            ? Text(classItem['description'].toString())
-                            : null,
-                        onTap: () => Navigator.pop(context, classItem),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
+        builder: (context) => _ClassSelectionDialog(classes: classes),
       );
-
-      if (selectedClass != null && context.mounted) {
-        Navigator.pushNamed(
-          context,
-          '/reports/training/${selectedClass['id']}',
-        );
-      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -191,6 +125,334 @@ class _ReportCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MemberSelectionDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> members;
+
+  const _MemberSelectionDialog({required this.members});
+
+  @override
+  State<_MemberSelectionDialog> createState() => _MemberSelectionDialogState();
+}
+
+class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredMembers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredMembers = widget.members;
+    _searchController.addListener(_filterMembers);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterMembers() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      _filteredMembers = widget.members;
+    } else {
+      _filteredMembers = widget.members.where((member) {
+        final firstName = (member['first_name'] ?? '').toString().toLowerCase();
+        final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+        final email = (member['email'] ?? '').toString().toLowerCase();
+        final phone = (member['phone'] ?? '').toString().toLowerCase();
+
+        return firstName.contains(query) ||
+            lastName.contains(query) ||
+            '$firstName $lastName'.contains(query) ||
+            email.contains(query) ||
+            phone.contains(query);
+      }).toList();
+    }
+    setState(() {}); // Rebuild to update UI
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Member'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 500),
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Search Bar
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                ),
+                onChanged: (_) =>
+                    setState(() {}), // Rebuild to update suffixIcon
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              // Members List
+              Flexible(
+                child: _filteredMembers.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: Theme.of(context).disabledColor,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              'No members found',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (_searchController.text.isNotEmpty) ...[
+                              const SizedBox(height: AppDimensions.spacingXS),
+                              Text(
+                                'Try adjusting your search',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: false,
+                        itemCount: _filteredMembers.length,
+                        itemBuilder: (context, index) {
+                          final member = _filteredMembers[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppColors.primary.withOpacity(
+                                0.1,
+                              ),
+                              child: Icon(
+                                Icons.person,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: Text(
+                              '${member['first_name']} ${member['last_name']}',
+                            ),
+                            subtitle: member['email'] != null
+                                ? Text(member['email'].toString())
+                                : null,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MemberReportPage(
+                                    memberId: member['id'].toString(),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ClassSelectionDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> classes;
+
+  const _ClassSelectionDialog({required this.classes});
+
+  @override
+  State<_ClassSelectionDialog> createState() => _ClassSelectionDialogState();
+}
+
+class _ClassSelectionDialogState extends State<_ClassSelectionDialog> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>> _filteredClasses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredClasses = widget.classes;
+    _searchController.addListener(_filterClasses);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _filterClasses() {
+    final query = _searchController.text.toLowerCase();
+    if (query.isEmpty) {
+      _filteredClasses = widget.classes;
+    } else {
+      _filteredClasses = widget.classes.where((classItem) {
+        final name = (classItem['name'] ?? '').toString().toLowerCase();
+        final description = (classItem['description'] ?? '')
+            .toString()
+            .toLowerCase();
+
+        return name.contains(query) || description.contains(query);
+      }).toList();
+    }
+    setState(() {}); // Rebuild to update UI
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Select Training'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 500),
+        child: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Search Bar
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search trainings...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                ),
+                onChanged: (_) =>
+                    setState(() {}), // Rebuild to update suffixIcon
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              // Classes List
+              Flexible(
+                child: widget.classes.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.class_outlined,
+                              size: 48,
+                              color: Theme.of(context).disabledColor,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              'No trainings available',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ],
+                        ),
+                      )
+                    : _filteredClasses.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.search_off,
+                              size: 48,
+                              color: Theme.of(context).disabledColor,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              'No trainings found',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (_searchController.text.isNotEmpty) ...[
+                              const SizedBox(height: AppDimensions.spacingXS),
+                              Text(
+                                'Try adjusting your search',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: false,
+                        itemCount: _filteredClasses.length,
+                        itemBuilder: (context, index) {
+                          final classItem = _filteredClasses[index];
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppColors.primary.withOpacity(
+                                0.1,
+                              ),
+                              child: Icon(
+                                Icons.class_outlined,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: Text(
+                              classItem['name'] ?? 'Unnamed Training',
+                            ),
+                            subtitle: classItem['description'] != null
+                                ? Text(classItem['description'].toString())
+                                : null,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushNamed(
+                                context,
+                                '/reports/training/${classItem['id']}',
+                              );
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
     );
   }
 }

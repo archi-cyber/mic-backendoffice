@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../screens/splash/splash_screen.dart';
 import '../../screens/auth/login_page.dart';
 import '../../screens/auth/forgot_password_page.dart';
+import '../../screens/auth/reset_password_page.dart';
 import '../../screens/auth/change_password_page.dart';
 import '../../screens/home/dashboard_page.dart';
 import '../../screens/members/members_list_page.dart';
@@ -74,6 +75,15 @@ class AppRouter {
       case RouteNames.forgotPassword:
         return MaterialPageRoute(
           builder: (_) => const ForgotPasswordPage(),
+          settings: settings,
+        );
+
+      case RouteNames.resetPassword:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => ResetPasswordPage(
+            email: args?['email'] as String?,
+          ),
           settings: settings,
         );
 

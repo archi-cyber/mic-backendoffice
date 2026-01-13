@@ -52,6 +52,10 @@ class DeviceTokenService {
 
         debugPrint('[DeviceTokenService] ✅ FCM token generated: ${token?.substring(0, 20)}...');
         debugPrint('[DeviceTokenService] Token length: ${token?.length}');
+        debugPrint('[DeviceTokenService] 📋 FULL TOKEN (for Firebase Console testing):');
+        debugPrint('═══════════════════════════════════════════════════════════════');
+        debugPrint('FCM TOKEN: $token');
+        debugPrint('═══════════════════════════════════════════════════════════════');
 
         // Save token to database if user is authenticated
         if (SupabaseService.isAuthenticated) {
@@ -65,6 +69,10 @@ class DeviceTokenService {
         messaging.onTokenRefresh.listen((newToken) {
           _currentToken = newToken;
           debugPrint('[DeviceTokenService] 🔄 FCM token refreshed: ${newToken.substring(0, 20)}...');
+          debugPrint('[DeviceTokenService] 📋 FULL REFRESHED TOKEN:');
+          debugPrint('═══════════════════════════════════════════════════════════════');
+          debugPrint('FCM TOKEN: $newToken');
+          debugPrint('═══════════════════════════════════════════════════════════════');
           if (SupabaseService.isAuthenticated) {
             saveDeviceToken(newToken).catchError((e) {
               debugPrint(

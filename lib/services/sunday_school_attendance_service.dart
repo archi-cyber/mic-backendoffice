@@ -170,7 +170,10 @@ class SundaySchoolAttendanceService {
       }
 
       // Combine session info with counts
-      final sessionsWithCounts = sessionMap.entries.map((entry) {
+      // Only include sessions that have at least one active attendance record
+      final sessionsWithCounts = sessionMap.entries
+          .where((entry) => (sessionCounts[entry.key] ?? 0) > 0)
+          .map((entry) {
         return {
           ...entry.value,
           'attendance_count': sessionCounts[entry.key] ?? 0,
@@ -213,6 +216,38 @@ class SundaySchoolAttendanceService {
         '[SundaySchoolAttendanceService] Error removing attendance: $e',
       );
       throw Exception('Failed to remove attendance: $e');
+    }
+  }
+
+  /// Delete an entire session (all attendance records for a date)
+  /// Permanently deletes all attendance records for the specified date
+  static Future<void> deleteSession(DateTime attendanceDate) async {
+    try {
+      final currentUser = SupabaseService.currentUser;
+      if (currentUser == null) {
+        throw Exception('User must be authenticated to delete session');
+      }
+
+      final dateString = attendanceDate.toIso8601String().split('T')[0];
+
+      debugPrint(
+        '[SundaySchoolAttendanceService] Deleting session for date: $attendanceDate',
+      );
+
+      // Permanently delete all attendance records for this date
+      await _client
+          .from('sunday_school_attendance')
+          .delete()
+          .eq('attendance_date', dateString);
+
+      debugPrint(
+        '[SundaySchoolAttendanceService] Session deleted successfully',
+      );
+    } catch (e) {
+      debugPrint(
+        '[SundaySchoolAttendanceService] Error deleting session: $e',
+      );
+      throw Exception('Failed to delete session: $e');
     }
   }
 

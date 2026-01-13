@@ -124,26 +124,32 @@ class _MemberReportPageState extends State<MemberReportPage> {
     final attendance = _report?['attendance'] as Map<String, dynamic>?;
     final giving = _report?['giving'] as Map<String, dynamic>?;
     final attendanceRecords = attendance?['records'] as List? ?? [];
-    final givingRecords = giving?['records'] as List? ?? [];
 
     // Prepare chart data
     final attendanceData = <String, int>{};
     for (final record in attendanceRecords) {
-      if (record['created_at'] != null) {
-        final date = DateTime.parse(
-          record['created_at'],
-        ).toString().split(' ')[0];
-        attendanceData[date] = (attendanceData[date] ?? 0) + 1;
+      final displayDate = record['display_date']?.toString();
+      if (displayDate != null) {
+        attendanceData[displayDate] = (attendanceData[displayDate] ?? 0) + 1;
       }
     }
 
     // Count attendance status
     int present = 0, absent = 0, late = 0;
     for (final record in attendanceRecords) {
-      final status = record['status']?.toString().toLowerCase() ?? '';
-      if (status == 'present') present++;
-      if (status == 'absent') absent++;
-      if (status == 'late') late++;
+      final attendanceCategory = record['attendance_category']?.toString();
+      if (attendanceCategory == 'sunday_school') {
+        // All Sunday school records count as present
+        present++;
+      } else {
+        // For church attendance, check attendance_type
+        final attendanceType = record['attendance_type']?.toString() ?? '';
+        if (attendanceType == 'onsite' || attendanceType == 'online') {
+          present++;
+        } else if (attendanceType == 'absent') {
+          absent++;
+        }
+      }
     }
 
     return Scaffold(
@@ -202,10 +208,168 @@ class _MemberReportPageState extends State<MemberReportPage> {
             ),
             const SizedBox(height: AppDimensions.spacingMD),
             AttendancePieChart(present: present, absent: absent, late: late),
+            const SizedBox(height: AppDimensions.spacingMD),
+            // Attendance Details Section
+            _buildAttendanceDetailsSection(attendanceRecords),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildAttendanceDetailsSection(List attendanceRecords) {
+    if (attendanceRecords.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: Column(
+            children: [
+              Icon(
+                Icons.event_busy,
+                size: 48,
+                color: Theme.of(context).disabledColor,
+              ),
+              const SizedBox(height: AppDimensions.spacingSM),
+              Text(
+                'No attendance records found',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            child: Row(
+              children: [
+                Icon(Icons.list, color: AppColors.primary),
+                const SizedBox(width: AppDimensions.spacingSM),
+                Text(
+                  'Attendance Details',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: attendanceRecords.length,
+            separatorBuilder: (context, index) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final record = attendanceRecords[index] as Map<String, dynamic>;
+              final attendanceCategory =
+                  record['attendance_category']?.toString() ?? 'church';
+              final displayDate = record['display_date']?.toString() ?? '';
+              final displayType = record['display_type']?.toString() ?? '';
+              final attendanceTypeDisplay =
+                  record['attendance_type_display']?.toString() ?? '';
+              final createdAt = record['created_at']?.toString();
+
+              // Determine icon and color based on attendance type
+              IconData icon;
+              Color color;
+              if (attendanceCategory == 'sunday_school') {
+                icon = Icons.school;
+                color = AppColors.primary;
+              } else {
+                final attendanceType = record['attendance_type']?.toString();
+                if (attendanceType == 'onsite') {
+                  icon = Icons.church;
+                  color = AppColors.success;
+                } else if (attendanceType == 'online') {
+                  icon = Icons.video_call;
+                  color = AppColors.primary;
+                } else {
+                  icon = Icons.cancel_outlined;
+                  color = AppColors.error;
+                }
+              }
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: color.withOpacity(0.1),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                title: Text(
+                  displayType,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, size: 14, color: AppColors.textSecondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          _formatDate(displayDate),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(icon, size: 14, color: color),
+                        const SizedBox(width: 4),
+                        Text(
+                          attendanceTypeDisplay,
+                          style: TextStyle(
+                            color: color,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (createdAt != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Recorded: ${_formatDateTime(createdAt)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _formatDateTime(String dateTimeString) {
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return dateTimeString;
+    }
   }
 }
 

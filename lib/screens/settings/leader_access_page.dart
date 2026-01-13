@@ -14,8 +14,10 @@ class LeaderAccessPage extends StatefulWidget {
 
 class _LeaderAccessPageState extends State<LeaderAccessPage> {
   List<Map<String, dynamic>> _leaders = [];
-  Map<String, Map<String, dynamic>> _leaderAccessMap = {}; // Original loaded data
-  Map<String, Map<String, dynamic>> _pendingChanges = {}; // Local changes not yet saved
+  Map<String, Map<String, dynamic>> _leaderAccessMap =
+      {}; // Original loaded data
+  Map<String, Map<String, dynamic>> _pendingChanges =
+      {}; // Local changes not yet saved
   bool _isLoading = true;
   bool _isSaving = false;
   String? _selectedLeaderId;
@@ -33,7 +35,9 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       final leaders = await LeaderAccessService.getLeaders();
       setState(() {
         _leaders = leaders;
-        _selectedLeaderId = leaders.isNotEmpty ? leaders.first['id'].toString() : null;
+        _selectedLeaderId = leaders.isNotEmpty
+            ? leaders.first['id'].toString()
+            : null;
         _isLoading = false;
       });
       if (_selectedLeaderId != null) {
@@ -56,11 +60,11 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     try {
       final accessList = await LeaderAccessService.getLeaderAccess(userId);
       final accessMap = <String, Map<String, dynamic>>{};
-      
+
       for (var access in accessList) {
         accessMap[access['feature_name'] as String] = access;
       }
-      
+
       setState(() {
         _leaderAccessMap = accessMap;
         _pendingChanges = {}; // Clear pending changes when loading new leader
@@ -105,7 +109,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       for (var entry in _pendingChanges.entries) {
         final featureName = entry.key;
         final permissions = entry.value;
-        
+
         await LeaderAccessService.setLeaderAccess(
           userId: _selectedLeaderId!,
           featureName: featureName,
@@ -217,9 +221,9 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
           children: [
             Text(
               _getFeatureDisplayName(featureName),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppDimensions.spacingMD),
             Row(
@@ -228,9 +232,15 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   child: CheckboxListTile(
                     title: const Text('View'),
                     value: canView,
-                    onChanged: _isSaving ? null : (value) {
-                      _updatePendingChange(featureName, 'can_view', value ?? false);
-                    },
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            _updatePendingChange(
+                              featureName,
+                              'can_view',
+                              value ?? false,
+                            );
+                          },
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -239,9 +249,15 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   child: CheckboxListTile(
                     title: const Text('Create'),
                     value: canCreate,
-                    onChanged: _isSaving ? null : (value) {
-                      _updatePendingChange(featureName, 'can_create', value ?? false);
-                    },
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            _updatePendingChange(
+                              featureName,
+                              'can_create',
+                              value ?? false,
+                            );
+                          },
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -254,9 +270,15 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   child: CheckboxListTile(
                     title: const Text('Edit'),
                     value: canEdit,
-                    onChanged: _isSaving ? null : (value) {
-                      _updatePendingChange(featureName, 'can_edit', value ?? false);
-                    },
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            _updatePendingChange(
+                              featureName,
+                              'can_edit',
+                              value ?? false,
+                            );
+                          },
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -265,9 +287,15 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   child: CheckboxListTile(
                     title: const Text('Delete'),
                     value: canDelete,
-                    onChanged: _isSaving ? null : (value) {
-                      _updatePendingChange(featureName, 'can_delete', value ?? false);
-                    },
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            _updatePendingChange(
+                              featureName,
+                              'can_delete',
+                              value ?? false,
+                            );
+                          },
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -296,161 +324,166 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _leaders.isEmpty
-              ? Center(
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.people_outline,
+                    size: 64,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+                  Text(
+                    'No leaders found',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppDimensions.spacingSM),
+                  const Text(
+                    'Leaders must have role "leader" in the users table',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                // Leader selector
+                Container(
+                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  color: Theme.of(context).cardColor,
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
                       Text(
-                        'No leaders found',
-                        style: Theme.of(context).textTheme.titleMedium,
+                        'Select Leader',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: AppDimensions.spacingSM),
-                      const Text(
-                        'Leaders must have role "leader" in the users table',
-                        style: TextStyle(color: AppColors.textSecondary),
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedLeaderId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.person),
+                        ),
+                        items: _leaders.map((leader) {
+                          final id = leader['id'].toString();
+                          final displayName = _getLeaderDisplayName(leader);
+                          return DropdownMenuItem(
+                            value: id,
+                            child: Text(
+                              displayName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) async {
+                          if (value != null) {
+                            setState(() => _selectedLeaderId = value);
+                            await _loadLeaderAccess(value);
+                          }
+                        },
                       ),
                     ],
                   ),
-                )
-              : Column(
-                  children: [
-                    // Leader selector
-                    Container(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                      color: Theme.of(context).cardColor,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+                // Access permissions list
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Select Leader',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            'Feature Access Permissions',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                          const SizedBox(height: AppDimensions.spacingSM),
-                          DropdownButtonFormField<String>(
-                            value: _selectedLeaderId,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.person),
-                            ),
-                            items: _leaders.map((leader) {
-                              final id = leader['id'].toString();
-                              final displayName = _getLeaderDisplayName(leader);
-                              return DropdownMenuItem(
-                                value: id,
-                                child: Text(
-                                  displayName,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: (value) async {
-                              if (value != null) {
-                                setState(() => _selectedLeaderId = value);
-                                await _loadLeaderAccess(value);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Access permissions list
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Feature Access Permissions',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
+                          if (_hasUnsavedChanges)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: AppDimensions.spacingSM,
+                                vertical: AppDimensions.spacingXS,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.warning.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(
+                                  AppDimensions.radiusSM,
                                 ),
                               ),
-                              if (_hasUnsavedChanges)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppDimensions.spacingSM,
-                                    vertical: AppDimensions.spacingXS,
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.edit,
+                                    size: 14,
+                                    color: AppColors.warning,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.warning.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
+                                  SizedBox(width: AppDimensions.spacingXS),
+                                  Text(
+                                    'Unsaved changes',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.warning,
+                                    ),
                                   ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.edit,
-                                        size: 14,
-                                        color: AppColors.warning,
-                                      ),
-                                      SizedBox(width: AppDimensions.spacingXS),
-                                      Text(
-                                        'Unsaved changes',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.warning,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: AppDimensions.spacingMD),
-                          ..._features.map((feature) => _buildFeatureAccessCard(feature)),
-                          const SizedBox(height: AppDimensions.spacingXL),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
-                    ),
-                    // Save button
-                    if (_hasUnsavedChanges)
-                      Container(
-                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, -2),
-                            ),
-                          ],
-                        ),
-                        child: SafeArea(
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _isSaving ? null : _saveAllChanges,
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size(
-                                  double.infinity,
-                                  AppDimensions.buttonHeightLG,
-                                ),
-                              ),
-                              child: _isSaving
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : const Text('Save All Changes'),
-                            ),
-                          ),
-                        ),
+                      const SizedBox(height: AppDimensions.spacingMD),
+                      ..._features.map(
+                        (feature) => _buildFeatureAccessCard(feature),
                       ),
-                  ],
+                      const SizedBox(height: AppDimensions.spacingXL),
+                    ],
+                  ),
                 ),
+                // Save button
+                if (_hasUnsavedChanges)
+                  Container(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
+                    ),
+                    child: SafeArea(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isSaving ? null : _saveAllChanges,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(
+                              double.infinity,
+                              AppDimensions.buttonHeightLG,
+                            ),
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Save All Changes'),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }

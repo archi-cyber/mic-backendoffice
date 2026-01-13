@@ -28,6 +28,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   bool _isSaving = false;
   bool _isViewMode = false;
   final TextEditingController _searchController = TextEditingController();
+  String? _selectedAttendanceFilter; // null = all, 'onsite', 'online', 'absent'
 
   @override
   void initState() {
@@ -110,17 +111,56 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         serviceType: _selectedServiceType,
       );
 
+      // Create a map of member IDs to attendance records
+      final attendanceMap = <String, Map<String, dynamic>>{};
+      for (var record in attendance) {
+        final memberId = record['member_id']?.toString();
+        if (memberId != null) {
+          attendanceMap[memberId] = record;
+        }
+      }
+
+      // Ensure all active members have attendance records
+      // If a member doesn't have a record, create an absent record for display
+      final allAttendanceRecords = <Map<String, dynamic>>[];
+      final memberAttendanceTypesMap = <String, String?>{};
+
+      for (var member in _members) {
+        final memberId = member['id']?.toString() ?? '';
+        if (memberId.isEmpty) continue;
+
+        if (attendanceMap.containsKey(memberId)) {
+          // Member has an attendance record
+          final record = attendanceMap[memberId]!;
+          allAttendanceRecords.add(record);
+          final attendanceType = record['attendance_type']?.toString();
+          // Store attendance type (null for absent in edit mode)
+          memberAttendanceTypesMap[memberId] =
+              attendanceType == 'absent' ? null : attendanceType;
+        } else {
+          // Member doesn't have a record - create absent record for display
+          final absentRecord = {
+            'id': null, // No database ID since it's not saved yet
+            'member_id': memberId,
+            'service_date': _selectedDate.toIso8601String().split('T')[0],
+            'service_type': _selectedServiceType,
+            'attendance_type': 'absent',
+            'member': {
+              'id': memberId,
+              'first_name': member['first_name'] ?? '',
+              'last_name': member['last_name'] ?? '',
+              'email': member['email'] ?? '',
+            },
+            'created_at': null,
+          };
+          allAttendanceRecords.add(absentRecord);
+          memberAttendanceTypesMap[memberId] = null; // null means absent in edit mode
+        }
+      }
+
       setState(() {
-        _attendanceRecords = attendance;
-        // Load attendance types for existing records
-        // Note: 'absent' records are stored as null since they're not selected in the dropdown
-        _memberAttendanceTypes = {
-          for (var record in attendance)
-            record['member_id']?.toString() ??
-                '': record['attendance_type']?.toString() == 'absent'
-                ? null
-                : (record['attendance_type']?.toString()),
-        };
+        _attendanceRecords = allAttendanceRecords;
+        _memberAttendanceTypes = memberAttendanceTypesMap;
       });
     } catch (e) {
       debugPrint('Error loading existing attendance: $e');
@@ -149,6 +189,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
     try {
       // If editing existing attendance, remove old records first
+      // Only remove records that have database IDs (were previously saved)
       if (_attendanceRecords.isNotEmpty) {
         for (var record in _attendanceRecords) {
           final attendanceId = record['id']?.toString();
@@ -168,9 +209,11 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       final onlineMembers = <String>[];
       final absentMembers = <String>[];
 
-      // Process all members - those with attendance selected and those without (marked as absent)
+      // Process ALL active members - ensure every member is accounted for
       for (var member in _members) {
         final memberId = member['id']?.toString() ?? '';
+        if (memberId.isEmpty) continue;
+
         final attendanceType = _memberAttendanceTypes[memberId];
 
         if (attendanceType == 'onsite') {
@@ -179,6 +222,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           onlineMembers.add(memberId);
         } else {
           // If null or not selected, mark as absent
+          // This ensures every member is marked (either present or absent)
           absentMembers.add(memberId);
         }
       }
@@ -557,7 +601,29 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     );
   }
 
+  List<Map<String, dynamic>> get _filteredMembers {
+    final searchQuery = _searchController.text.toLowerCase();
+    if (searchQuery.isEmpty) {
+      return _members;
+    }
+
+    return _members.where((member) {
+      final firstName = (member['first_name'] ?? '').toString().toLowerCase();
+      final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+      final email = (member['email'] ?? '').toString().toLowerCase();
+      final phone = (member['phone'] ?? '').toString().toLowerCase();
+
+      return firstName.contains(searchQuery) ||
+          lastName.contains(searchQuery) ||
+          '$firstName $lastName'.contains(searchQuery) ||
+          email.contains(searchQuery) ||
+          phone.contains(searchQuery);
+    }).toList();
+  }
+
   Widget _buildEditModeContent() {
+    final filteredMembers = _filteredMembers;
+
     if (_members.isEmpty) {
       return Center(
         child: Column(
@@ -578,9 +644,65 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       );
     }
 
-    return ListView.builder(
-      itemCount: _members.length,
-      itemBuilder: (context, index) {
+    return Column(
+      children: [
+        // Search Bar
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.spacingMD,
+            vertical: AppDimensions.spacingSM,
+          ),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search members...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+              ),
+              filled: true,
+              fillColor: Theme.of(context).cardColor,
+            ),
+          ),
+        ),
+        // Members List
+        Expanded(
+          child: filteredMembers.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search_off,
+                        size: 64,
+                        color: Theme.of(context).disabledColor,
+                      ),
+                      const SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        'No members found',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (_searchController.text.isNotEmpty) ...[
+                        const SizedBox(height: AppDimensions.spacingXS),
+                        Text(
+                          'Try adjusting your search',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: filteredMembers.length,
+                  itemBuilder: (context, index) {
         final member = _members[index];
         final memberId = member['id']?.toString() ?? '';
         final firstName = member['first_name'] ?? '';
@@ -667,36 +789,72 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ),
           ),
         );
-      },
+                  },
+                ),
+        ),
+      ],
     );
   }
 
   List<Map<String, dynamic>> get _filteredAttendanceRecords {
-    final searchQuery = _searchController.text.toLowerCase();
-    if (searchQuery.isEmpty) {
-      return _attendanceRecords;
+    var filtered = _attendanceRecords;
+
+    // Filter by attendance type
+    if (_selectedAttendanceFilter != null) {
+      filtered = filtered.where((record) {
+        final attendanceType = record['attendance_type']?.toString();
+        return attendanceType == _selectedAttendanceFilter;
+      }).toList();
     }
 
-    return _attendanceRecords.where((record) {
-      final member = record['member'] as Map<String, dynamic>?;
-      if (member == null) return false;
+    // Filter by search query
+    final searchQuery = _searchController.text.toLowerCase();
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((record) {
+        final member = record['member'] as Map<String, dynamic>?;
+        if (member == null) return false;
 
-      final firstName = (member['first_name'] ?? '').toString().toLowerCase();
-      final lastName = (member['last_name'] ?? '').toString().toLowerCase();
-      final email = (member['email'] ?? '').toString().toLowerCase();
-      final phone = (member['phone'] ?? '').toString().toLowerCase();
+        final firstName = (member['first_name'] ?? '').toString().toLowerCase();
+        final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+        final email = (member['email'] ?? '').toString().toLowerCase();
+        final phone = (member['phone'] ?? '').toString().toLowerCase();
 
-      return firstName.contains(searchQuery) ||
-          lastName.contains(searchQuery) ||
-          '$firstName $lastName'.contains(searchQuery) ||
-          email.contains(searchQuery) ||
-          phone.contains(searchQuery);
-    }).toList();
+        return firstName.contains(searchQuery) ||
+            lastName.contains(searchQuery) ||
+            '$firstName $lastName'.contains(searchQuery) ||
+            email.contains(searchQuery) ||
+            phone.contains(searchQuery);
+      }).toList();
+    }
+
+    return filtered;
   }
 
   Widget _buildViewModeContent() {
     final filteredRecords = _filteredAttendanceRecords;
 
+    // Show message only if there are no members at all
+    if (_members.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.people_outline,
+              size: 64,
+              color: Theme.of(context).disabledColor,
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            Text(
+              'No active members found',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // If no attendance records yet, show message but still allow viewing
     if (_attendanceRecords.isEmpty) {
       return Center(
         child: Column(
@@ -712,6 +870,11 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               'No attendance recorded for this service',
               style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: AppDimensions.spacingSM),
+            Text(
+              'Tap Edit to mark attendance for all members',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ],
         ),
       );
@@ -720,59 +883,142 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     return Column(
       children: [
         // Summary Card
-        Container(
-          margin: const EdgeInsets.all(AppDimensions.spacingMD),
-          padding: const EdgeInsets.all(AppDimensions.spacingMD),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem(
-                'Total Attended',
-                '${_attendanceRecords.length}',
-                Icons.people,
+        Builder(
+          builder: (context) {
+            // Count only actual attendance (onsite or online), exclude absent
+            final attendedRecords = _attendanceRecords
+                .where((record) {
+                  final attendanceType = record['attendance_type']?.toString();
+                  return attendanceType != null && attendanceType != 'absent';
+                })
+                .toList();
+            
+            // Count unique members who attended (onsite or online)
+            final uniqueAttendedMembers = attendedRecords
+                .map((record) => record['member_id']?.toString())
+                .where((id) => id != null)
+                .toSet()
+                .length;
+
+            // Count absent records
+            final absentRecords = _attendanceRecords
+                .where((record) {
+                  final attendanceType = record['attendance_type']?.toString();
+                  return attendanceType == 'absent';
+                })
+                .toList();
+            
+            // Count unique members who were absent
+            final uniqueAbsentMembers = absentRecords
+                .map((record) => record['member_id']?.toString())
+                .where((id) => id != null)
+                .toSet()
+                .length;
+
+            return Container(
+              margin: const EdgeInsets.all(AppDimensions.spacingMD),
+              padding: const EdgeInsets.all(AppDimensions.spacingMD),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: AppColors.textSecondary.withOpacity(0.3),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildStatItem(
+                    'Total Attended',
+                    '$uniqueAttendedMembers',
+                    Icons.people,
+                  ),
+                  Container(
+                    width: 1,
+                    height: 40,
+                    color: AppColors.textSecondary.withOpacity(0.3),
+                  ),
+                  _buildStatItem(
+                    'Total Absence',
+                    '$uniqueAbsentMembers',
+                    Icons.cancel_outlined,
+                  ),
+                ],
               ),
-              _buildStatItem(
-                'Active Members',
-                '${_members.length}',
-                Icons.group,
-              ),
-            ],
-          ),
+            );
+          },
         ),
-        // Search Bar
+        // Search Bar and Filter
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppDimensions.spacingMD,
             vertical: AppDimensions.spacingSM,
           ),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search members...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          child: Column(
+            children: [
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search members...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  filled: true,
+                  fillColor: Theme.of(context).cardColor,
+                ),
               ),
-              filled: true,
-              fillColor: Theme.of(context).cardColor,
-            ),
+              const SizedBox(height: AppDimensions.spacingSM),
+              // Attendance Type Filter
+              Row(
+                children: [
+                  Text(
+                    'Filter:',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.spacingSM),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildFilterChip(
+                            label: 'All',
+                            value: null,
+                            icon: Icons.filter_list,
+                          ),
+                          const SizedBox(width: AppDimensions.spacingXS),
+                          _buildFilterChip(
+                            label: 'Onsite',
+                            value: 'onsite',
+                            icon: Icons.church,
+                          ),
+                          const SizedBox(width: AppDimensions.spacingXS),
+                          _buildFilterChip(
+                            label: 'Online',
+                            value: 'online',
+                            icon: Icons.video_call,
+                          ),
+                          const SizedBox(width: AppDimensions.spacingXS),
+                          _buildFilterChip(
+                            label: 'Absent',
+                            value: 'absent',
+                            icon: Icons.cancel_outlined,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         // Attendance List
@@ -930,5 +1176,66 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     } catch (e) {
       return dateTime.toString();
     }
+  }
+
+  Widget _buildFilterChip({
+    required String label,
+    required String? value,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedAttendanceFilter == value;
+    final count = _getAttendanceTypeCount(value);
+
+    return FilterChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 4),
+          Text(label),
+          if (count > 0) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white
+                    : AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _selectedAttendanceFilter = selected ? value : null;
+        });
+      },
+      selectedColor: AppColors.primary.withOpacity(0.2),
+      checkmarkColor: AppColors.primary,
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.primary : AppColors.textPrimary,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+    );
+  }
+
+  int _getAttendanceTypeCount(String? attendanceType) {
+    if (attendanceType == null) {
+      return _attendanceRecords.length;
+    }
+    return _attendanceRecords
+        .where((record) => record['attendance_type']?.toString() == attendanceType)
+        .length;
   }
 }
