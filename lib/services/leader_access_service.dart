@@ -4,17 +4,66 @@ import 'supabase_service.dart';
 class LeaderAccessService {
   static final _client = SupabaseService.client;
 
-  /// Get all leaders (users with role 'leader')
+  /// Get all leaders (users with role 'leader' OR users who are leaders/subleaders in any department)
   static Future<List<Map<String, dynamic>>> getLeaders() async {
     try {
-      final response = await _client
+      // Get users with role='leader' in users table
+      final usersWithLeaderRole = await _client
           .from('users')
           .select('id, email, role, members(id, first_name, last_name)')
           .eq('role', 'leader')
-          .eq('is_active', true)
-          .order('email');
+          .eq('is_active', true);
 
-      final leaders = List<Map<String, dynamic>>.from(response);
+      // Get all member_ids who are leaders or subleaders in any department
+      final departmentLeadersResponse = await _client
+          .from('department_members')
+          .select('member_id')
+          .inFilter('role', ['leader', 'subleader']);
+
+      // Extract unique member_ids
+      final Set<String> leaderMemberIds = {};
+      for (var item in departmentLeadersResponse) {
+        final memberId = item['member_id']?.toString();
+        if (memberId != null) {
+          leaderMemberIds.add(memberId);
+        }
+      }
+
+      // Get users for these member_ids (where member_id matches)
+      List<Map<String, dynamic>> departmentLeaderUsers = [];
+      if (leaderMemberIds.isNotEmpty) {
+        final usersResponse = await _client
+            .from('users')
+            .select('id, email, role, members(id, first_name, last_name)')
+            .inFilter('member_id', leaderMemberIds.toList())
+            .eq('is_active', true);
+        
+        departmentLeaderUsers = List<Map<String, dynamic>>.from(usersResponse);
+      }
+
+      // Combine and deduplicate by user id
+      final Map<String, Map<String, dynamic>> leadersMap = {};
+      
+      // Add users with role='leader'
+      for (var user in usersWithLeaderRole) {
+        final id = user['id'].toString();
+        leadersMap[id] = user;
+      }
+      
+      // Add department leaders/subleaders (will overwrite if already exists, which is fine)
+      for (var user in departmentLeaderUsers) {
+        final id = user['id'].toString();
+        leadersMap[id] = user;
+      }
+      
+      final leaders = leadersMap.values.toList();
+      // Sort by email
+      leaders.sort((a, b) {
+        final emailA = a['email']?.toString() ?? '';
+        final emailB = b['email']?.toString() ?? '';
+        return emailA.compareTo(emailB);
+      });
+      
       return leaders;
     } catch (e) {
       throw Exception('Failed to get leaders: $e');

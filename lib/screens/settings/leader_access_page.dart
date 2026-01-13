@@ -336,6 +336,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                           const SizedBox(height: AppDimensions.spacingSM),
                           DropdownButtonFormField<String>(
                             value: _selectedLeaderId,
+                            isExpanded: true,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
                               prefixIcon: Icon(Icons.person),
@@ -345,7 +346,10 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                               final displayName = _getLeaderDisplayName(leader);
                               return DropdownMenuItem(
                                 value: id,
-                                child: Text(displayName),
+                                child: Text(
+                                  displayName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }).toList(),
                             onChanged: (value) async {
