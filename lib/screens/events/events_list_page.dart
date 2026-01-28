@@ -8,7 +8,9 @@ import '../../services/event_service.dart';
 
 /// Events list (visible to all members)
 class EventsListPage extends StatefulWidget {
-  const EventsListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const EventsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<EventsListPage> createState() => _EventsListPageState();
@@ -309,16 +311,18 @@ class _EventsListPageState extends State<EventsListPage> {
     final localizations = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(localizations?.events ?? 'Events'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadEvents,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(localizations?.events ?? 'Events'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadEvents,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar

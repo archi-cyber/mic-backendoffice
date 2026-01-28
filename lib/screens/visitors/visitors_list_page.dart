@@ -9,7 +9,9 @@ import '../../services/visitor_service.dart';
 
 /// Visitors list page
 class VisitorsListPage extends StatefulWidget {
-  const VisitorsListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const VisitorsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<VisitorsListPage> createState() => _VisitorsListPageState();
@@ -59,7 +61,8 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              localizations?.errorLoadingVisitor ?? 'Error loading visitors: $e',
+              localizations?.errorLoadingVisitor ??
+                  'Error loading visitors: $e',
             ),
           ),
         );
@@ -77,9 +80,9 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
           .toLowerCase();
       final email = (visitor['email'] ?? '').toLowerCase();
       final phone = (visitor['phone'] ?? '').toLowerCase();
-      return name.contains(query) || 
-             email.contains(query) || 
-             phone.contains(query);
+      return name.contains(query) ||
+          email.contains(query) ||
+          phone.contains(query);
     }).toList();
   }
 
@@ -130,7 +133,8 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.errorDeletingVisitor ?? 'Error deleting visitor: $e',
+                localizations?.errorDeletingVisitor ??
+                    'Error deleting visitor: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -263,7 +267,8 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                 ],
               ),
             ],
-            if (visitor['notes'] != null && visitor['notes'].toString().isNotEmpty) ...[
+            if (visitor['notes'] != null &&
+                visitor['notes'].toString().isNotEmpty) ...[
               const SizedBox(height: AppDimensions.spacingXS),
               Text(
                 visitor['notes'].toString(),
@@ -282,16 +287,20 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${localizations?.visitors ?? 'Visitors'} (${_filteredVisitors.length})'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadVisitors,
-            tooltip: localizations?.refresh ?? 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(
+                '${localizations?.visitors ?? 'Visitors'} (${_filteredVisitors.length})',
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadVisitors,
+                  tooltip: localizations?.refresh ?? 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar
@@ -358,9 +367,9 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
           if (!canCreate) return const SizedBox.shrink();
           return FloatingActionButton.extended(
             onPressed: () async {
-              final result = await Navigator.of(context).pushNamed(
-                RouteNames.addVisitor,
-              );
+              final result = await Navigator.of(
+                context,
+              ).pushNamed(RouteNames.addVisitor);
               if (result == true) {
                 _loadVisitors();
               }

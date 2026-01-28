@@ -8,7 +8,12 @@ import '../../services/attendance_report_pdf_service.dart';
 
 /// Page showing list of Sunday school sessions with details
 class SundaySchoolAttendanceListPage extends StatefulWidget {
-  const SundaySchoolAttendanceListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const SundaySchoolAttendanceListPage({
+    super.key,
+    this.hideAppBarAndBottomNav = false,
+  });
 
   @override
   State<SundaySchoolAttendanceListPage> createState() =>
@@ -148,31 +153,33 @@ class _SundaySchoolAttendanceListPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sunday School Attendance'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.description),
-            onPressed: _generateReport,
-            tooltip: 'Generate Report',
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-            tooltip: 'Filter Sessions',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _markNewAttendance,
-            tooltip: 'Mark New Attendance',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadSessions,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Sunday School Attendance'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.description),
+                  onPressed: _generateReport,
+                  tooltip: 'Generate Report',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilterDialog,
+                  tooltip: 'Filter Sessions',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _markNewAttendance,
+                  tooltip: 'Mark New Attendance',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadSessions,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Filter Summary Bar
@@ -323,7 +330,8 @@ class _SundaySchoolAttendanceListPageState
                                           Icons.delete_outline,
                                           color: AppColors.error,
                                         ),
-                                        onPressed: () => _deleteSession(sessionDate),
+                                        onPressed: () =>
+                                            _deleteSession(sessionDate),
                                         tooltip: 'Delete Session',
                                       ),
                                       const Icon(Icons.chevron_right),

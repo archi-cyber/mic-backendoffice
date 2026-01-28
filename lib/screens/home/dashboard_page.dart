@@ -8,7 +8,10 @@ import '../../services/finance_service.dart';
 
 /// Dashboard with summary cards
 class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+  /// When true (e.g. desktop layout), no app bar or bottom nav is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const DashboardPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -123,17 +126,19 @@ class _DashboardPageState extends State<DashboardPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(localizations?.dashboard ?? 'Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-              Navigator.of(context).pushNamed(RouteNames.notifications);
-            },
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(localizations?.dashboard ?? 'Dashboard'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined),
+                  onPressed: () {
+                    Navigator.of(context).pushNamed(RouteNames.notifications);
+                  },
+                ),
+              ],
+            ),
       body: RefreshIndicator(
         onRefresh: _loadDashboardData,
         child: SingleChildScrollView(
@@ -195,7 +200,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       color: AppColors.accent,
                       onTap: () {
                         // Navigate to upcoming birthdays page
-                        Navigator.of(context).pushNamed(RouteNames.upcomingBirthdays);
+                        Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.upcomingBirthdays);
                       },
                     ),
                   ),
@@ -246,7 +253,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     },
                   ),
                   _QuickActionCard(
-                    title: localizations?.churchAttendance ?? 'Church Attendance',
+                    title:
+                        localizations?.churchAttendance ?? 'Church Attendance',
                     icon: Icons.church,
                     onTap: () {
                       Navigator.of(
@@ -283,7 +291,9 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
       ),
-      bottomNavigationBar: _BottomNavigationBar(),
+      bottomNavigationBar: widget.hideAppBarAndBottomNav
+          ? null
+          : _BottomNavigationBar(),
     );
   }
 }
@@ -402,9 +412,9 @@ class _QuickActionCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontSize: 13,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(fontSize: 13),
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

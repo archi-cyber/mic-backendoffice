@@ -7,7 +7,9 @@ import '../../services/member_service.dart';
 
 /// Page displaying members with upcoming birthdays (current month and next month)
 class UpcomingBirthdaysPage extends StatefulWidget {
-  const UpcomingBirthdaysPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const UpcomingBirthdaysPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<UpcomingBirthdaysPage> createState() => _UpcomingBirthdaysPageState();
@@ -35,7 +37,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
     try {
       // Load all members with birthdays
       final allMembers = await MemberService.getMembers();
-      
+
       // Filter for upcoming birthdays (current month from today, and next month)
       final now = DateTime.now();
       final currentMonth = now.month;
@@ -82,7 +84,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
           final lastNameA = (a['last_name'] ?? '').toString().toLowerCase();
           final firstNameB = (b['first_name'] ?? '').toString().toLowerCase();
           final lastNameB = (b['last_name'] ?? '').toString().toLowerCase();
-          
+
           final firstNameComparison = firstNameA.compareTo(firstNameB);
           if (firstNameComparison != 0) {
             return firstNameComparison;
@@ -117,8 +119,8 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
 
     final query = _searchController.text.toLowerCase();
     return _members.where((member) {
-      final name =
-          '${member['first_name']} ${member['last_name']}'.toLowerCase();
+      final name = '${member['first_name']} ${member['last_name']}'
+          .toLowerCase();
       final email = (member['email'] ?? '').toLowerCase();
       return name.contains(query) || email.contains(query);
     }).toList();
@@ -139,7 +141,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       'September',
       'October',
       'November',
-      'December'
+      'December',
     ];
 
     // If birthday is today
@@ -191,13 +193,15 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       'September',
       'October',
       'November',
-      'December'
+      'December',
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(localizations?.birthdays ?? 'Upcoming Birthdays'),
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(localizations?.birthdays ?? 'Upcoming Birthdays'),
+            ),
       body: RefreshIndicator(
         onRefresh: _loadUpcomingBirthdays,
         child: Column(
@@ -211,9 +215,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                   labelText: localizations?.search ?? 'Search',
                   prefixIcon: const Icon(Icons.search),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(
-                      AppDimensions.radiusMD,
-                    ),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                   ),
                 ),
                 onChanged: (_) => setState(() {}),
@@ -238,8 +240,8 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                     child: Text(
                       'Showing birthdays from ${monthNames[currentMonth - 1]} ${now.day} to ${monthNames[nextMonth - 1]}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.primary,
-                          ),
+                        color: AppColors.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -251,146 +253,143 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _filteredMembers.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cake_outlined,
-                                size: 64,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(height: AppDimensions.spacingMD),
-                              Text(
-                                'No upcoming birthdays found',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleMedium
-                                    ?.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                              ),
-                            ],
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.cake_outlined,
+                            size: 64,
+                            color: AppColors.textSecondary,
                           ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppDimensions.paddingMD,
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          Text(
+                            'No upcoming birthdays found',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: AppColors.textSecondary),
                           ),
-                          itemCount: _filteredMembers.length,
-                          itemBuilder: (context, index) {
-                            final member = _filteredMembers[index];
-                            final name =
-                                '${member['first_name']} ${member['last_name']}';
-                            final email = member['email']?.toString() ?? '';
-                            final birthdayStr = member['birthday']?.toString();
-                            DateTime? birthday;
-                            if (birthdayStr != null) {
-                              try {
-                                birthday = DateTime.parse(birthdayStr);
-                              } catch (e) {
-                                birthday = null;
-                              }
-                            }
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppDimensions.paddingMD,
+                      ),
+                      itemCount: _filteredMembers.length,
+                      itemBuilder: (context, index) {
+                        final member = _filteredMembers[index];
+                        final name =
+                            '${member['first_name']} ${member['last_name']}';
+                        final email = member['email']?.toString() ?? '';
+                        final birthdayStr = member['birthday']?.toString();
+                        DateTime? birthday;
+                        if (birthdayStr != null) {
+                          try {
+                            birthday = DateTime.parse(birthdayStr);
+                          } catch (e) {
+                            birthday = null;
+                          }
+                        }
 
-                            return Card(
-                              margin: const EdgeInsets.only(
-                                bottom: AppDimensions.spacingSM,
+                        return Card(
+                          margin: const EdgeInsets.only(
+                            bottom: AppDimensions.spacingSM,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              Navigator.of(context).pushNamed(
+                                RouteNames.memberDetail.replaceAll(
+                                  ':id',
+                                  member['id'].toString(),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(
+                                AppDimensions.paddingMD,
                               ),
-                              child: InkWell(
-                                onTap: () {
-                                  Navigator.of(context).pushNamed(
-                                    RouteNames.memberDetail.replaceAll(
-                                      ':id',
-                                      member['id'].toString(),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: AppColors.primary,
+                                    child: Text(
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
                                     ),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.all(
-                                    AppDimensions.paddingMD,
                                   ),
-                                  child: Row(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor: AppColors.primary,
-                                        child: Text(
-                                          name.isNotEmpty
-                                              ? name[0].toUpperCase()
-                                              : '?',
+                                  const SizedBox(
+                                    width: AppDimensions.spacingMD,
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(
-                                        width: AppDimensions.spacingMD,
-                                      ),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              name,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                              ),
+                                        if (email.isNotEmpty) ...[
+                                          const SizedBox(
+                                            height: AppDimensions.spacingXS,
+                                          ),
+                                          Text(
+                                            email,
+                                            style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 14,
                                             ),
-                                            if (email.isNotEmpty) ...[
+                                          ),
+                                        ],
+                                        if (birthday != null) ...[
+                                          const SizedBox(
+                                            height: AppDimensions.spacingXS,
+                                          ),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.cake,
+                                                size: 16,
+                                                color: AppColors.accent,
+                                              ),
                                               const SizedBox(
-                                                height: AppDimensions.spacingXS,
+                                                width: AppDimensions.spacingXS,
                                               ),
                                               Text(
-                                                email,
+                                                _formatBirthday(birthday, now),
                                                 style: TextStyle(
-                                                  color: AppColors.textSecondary,
-                                                  fontSize: 14,
+                                                  color: AppColors.accent,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(
+                                                width: AppDimensions.spacingSM,
+                                              ),
+                                              Text(
+                                                '(${_getDaysUntilBirthday(birthday, now)})',
+                                                style: TextStyle(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontSize: 12,
                                                 ),
                                               ),
                                             ],
-                                            if (birthday != null) ...[
-                                              const SizedBox(
-                                                height: AppDimensions.spacingXS,
-                                              ),
-                                              Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.cake,
-                                                    size: 16,
-                                                    color: AppColors.accent,
-                                                  ),
-                                                  const SizedBox(
-                                                    width: AppDimensions.spacingXS,
-                                                  ),
-                                                  Text(
-                                                    _formatBirthday(birthday, now),
-                                                    style: TextStyle(
-                                                      color: AppColors.accent,
-                                                      fontWeight: FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(
-                                                    width: AppDimensions.spacingSM,
-                                                  ),
-                                                  Text(
-                                                    '(${_getDaysUntilBirthday(birthday, now)})',
-                                                    style: TextStyle(
-                                                      color: AppColors.textSecondary,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -398,4 +397,3 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
     );
   }
 }
-

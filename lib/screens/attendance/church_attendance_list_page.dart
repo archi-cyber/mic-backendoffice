@@ -8,7 +8,12 @@ import '../../services/attendance_report_pdf_service.dart';
 
 /// Page showing list of church services with details
 class ChurchAttendanceListPage extends StatefulWidget {
-  const ChurchAttendanceListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const ChurchAttendanceListPage({
+    super.key,
+    this.hideAppBarAndBottomNav = false,
+  });
 
   @override
   State<ChurchAttendanceListPage> createState() =>
@@ -116,31 +121,33 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Church Attendance'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.description),
-            onPressed: _generateReport,
-            tooltip: 'Generate Report',
-          ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-            tooltip: 'Filter Services',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _markNewAttendance,
-            tooltip: 'Mark New Attendance',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadServices,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Church Attendance'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.description),
+                  onPressed: _generateReport,
+                  tooltip: 'Generate Report',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilterDialog,
+                  tooltip: 'Filter Services',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _markNewAttendance,
+                  tooltip: 'Mark New Attendance',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadServices,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Filter Summary Bar

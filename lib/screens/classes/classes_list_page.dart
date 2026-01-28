@@ -7,7 +7,9 @@ import '../../services/class_service.dart';
 
 /// Trainings list page
 class ClassesListPage extends StatefulWidget {
-  const ClassesListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const ClassesListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<ClassesListPage> createState() => _ClassesListPageState();
@@ -67,16 +69,18 @@ class _ClassesListPageState extends State<ClassesListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Trainings'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadClasses,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Trainings'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadClasses,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar

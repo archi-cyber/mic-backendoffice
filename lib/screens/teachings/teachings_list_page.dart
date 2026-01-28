@@ -9,7 +9,9 @@ import '../../services/teaching_service.dart';
 
 /// Teachings list page
 class TeachingsListPage extends StatefulWidget {
-  const TeachingsListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const TeachingsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<TeachingsListPage> createState() => _TeachingsListPageState();
@@ -59,7 +61,8 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              localizations?.errorLoadingTeaching ?? 'Error loading teaching: $e',
+              localizations?.errorLoadingTeaching ??
+                  'Error loading teaching: $e',
             ),
           ),
         );
@@ -74,11 +77,13 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     }
     return _teachings.where((teaching) {
       final title = (teaching['title'] ?? '').toString().toLowerCase();
-      final description = (teaching['description'] ?? '').toString().toLowerCase();
+      final description = (teaching['description'] ?? '')
+          .toString()
+          .toLowerCase();
       final speaker = (teaching['speaker'] ?? '').toString().toLowerCase();
-      return title.contains(query) || 
-             description.contains(query) || 
-             speaker.contains(query);
+      return title.contains(query) ||
+          description.contains(query) ||
+          speaker.contains(query);
     }).toList();
   }
 
@@ -117,7 +122,8 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.teachingDeleted ?? 'Teaching deleted successfully',
+                localizations?.teachingDeleted ??
+                    'Teaching deleted successfully',
               ),
               backgroundColor: AppColors.success,
             ),
@@ -129,7 +135,8 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.errorDeletingTeaching ?? 'Error deleting teaching: $e',
+                localizations?.errorDeletingTeaching ??
+                    'Error deleting teaching: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -159,9 +166,9 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
       ),
       child: InkWell(
         onTap: () {
-          Navigator.of(context).pushNamed(
-            RouteNames.teachingDetail.replaceAll(':id', teachingId),
-          );
+          Navigator.of(
+            context,
+          ).pushNamed(RouteNames.teachingDetail.replaceAll(':id', teachingId));
         },
         child: Padding(
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
@@ -185,7 +192,10 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                         color: AppColors.primary,
                         onPressed: () async {
                           final result = await Navigator.of(context).pushNamed(
-                            RouteNames.editTeaching.replaceAll(':id', teachingId),
+                            RouteNames.editTeaching.replaceAll(
+                              ':id',
+                              teachingId,
+                            ),
                           );
                           if (result == true) {
                             _loadTeachings();
@@ -265,16 +275,20 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${localizations?.teachings ?? 'Teachings'} (${_filteredTeachings.length})'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTeachings,
-            tooltip: localizations?.refresh ?? 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(
+                '${localizations?.teachings ?? 'Teachings'} (${_filteredTeachings.length})',
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadTeachings,
+                  tooltip: localizations?.refresh ?? 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar
@@ -283,7 +297,8 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: localizations?.searchTeachings ?? 'Search teachings...',
+                hintText:
+                    localizations?.searchTeachings ?? 'Search teachings...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -303,35 +318,36 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredTeachings.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.menu_book_outlined,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            Text(
-                              _searchController.text.isNotEmpty
-                                  ? (localizations?.noTeachingsFound ??
-                                      'No teachings found matching your search')
-                                  : (localizations?.noTeachings ?? 'No teachings yet'),
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.menu_book_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary,
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadTeachings,
-                        child: ListView.builder(
-                          itemCount: _filteredTeachings.length,
-                          itemBuilder: (context, index) {
-                            return _buildTeachingCard(_filteredTeachings[index]);
-                          },
+                        const SizedBox(height: AppDimensions.spacingMD),
+                        Text(
+                          _searchController.text.isNotEmpty
+                              ? (localizations?.noTeachingsFound ??
+                                    'No teachings found matching your search')
+                              : (localizations?.noTeachings ??
+                                    'No teachings yet'),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadTeachings,
+                    child: ListView.builder(
+                      itemCount: _filteredTeachings.length,
+                      itemBuilder: (context, index) {
+                        return _buildTeachingCard(_filteredTeachings[index]);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -342,9 +358,9 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
           if (!canCreate) return const SizedBox.shrink();
           return FloatingActionButton.extended(
             onPressed: () async {
-              final result = await Navigator.of(context).pushNamed(
-                RouteNames.addTeaching,
-              );
+              final result = await Navigator.of(
+                context,
+              ).pushNamed(RouteNames.addTeaching);
               if (result == true) {
                 _loadTeachings();
               }

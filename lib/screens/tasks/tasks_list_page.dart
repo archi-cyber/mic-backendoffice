@@ -8,8 +8,13 @@ import '../../services/task_service.dart';
 /// Tasks list (department-scoped)
 class TasksListPage extends StatefulWidget {
   final String? departmentId;
+  final bool hideAppBarAndBottomNav;
 
-  const TasksListPage({super.key, this.departmentId});
+  const TasksListPage({
+    super.key,
+    this.departmentId,
+    this.hideAppBarAndBottomNav = false,
+  });
 
   @override
   State<TasksListPage> createState() => _TasksListPageState();
@@ -74,10 +79,9 @@ class _TasksListPageState extends State<TasksListPage> {
             (task) =>
                 (task['title']?.toString().toLowerCase().contains(query) ??
                     false) ||
-                (task['description']
-                        ?.toString()
-                        .toLowerCase()
-                        .contains(query) ??
+                (task['description']?.toString().toLowerCase().contains(
+                      query,
+                    ) ??
                     false),
           )
           .toList();
@@ -120,8 +124,14 @@ class _TasksListPageState extends State<TasksListPage> {
                     value: 'in_progress',
                     child: Text('In Progress'),
                   ),
-                  DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                  DropdownMenuItem(value: 'cancelled', child: Text('Cancelled')),
+                  DropdownMenuItem(
+                    value: 'completed',
+                    child: Text('Completed'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'cancelled',
+                    child: Text('Cancelled'),
+                  ),
                 ],
                 onChanged: (value) {
                   setDialogState(() {
@@ -204,21 +214,23 @@ class _TasksListPageState extends State<TasksListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tasks'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilters,
-            tooltip: 'Filter',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadTasks,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Tasks'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilters,
+                  tooltip: 'Filter',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadTasks,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar
@@ -250,37 +262,37 @@ class _TasksListPageState extends State<TasksListPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredTasks.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.task_outlined,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            Text(
-                              _searchController.text.isNotEmpty ||
-                                      _selectedStatus != null ||
-                                      _selectedPriority != null
-                                  ? 'No tasks found'
-                                  : 'No tasks yet',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.task_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary,
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: _loadTasks,
-                        child: ListView.builder(
-                          itemCount: _filteredTasks.length,
-                          itemBuilder: (context, index) {
-                            final task = _filteredTasks[index];
-                            return _buildTaskCard(task);
-                          },
+                        const SizedBox(height: AppDimensions.spacingMD),
+                        Text(
+                          _searchController.text.isNotEmpty ||
+                                  _selectedStatus != null ||
+                                  _selectedPriority != null
+                              ? 'No tasks found'
+                              : 'No tasks yet',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                      ),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _loadTasks,
+                    child: ListView.builder(
+                      itemCount: _filteredTasks.length,
+                      itemBuilder: (context, index) {
+                        final task = _filteredTasks[index];
+                        return _buildTaskCard(task);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -291,10 +303,9 @@ class _TasksListPageState extends State<TasksListPage> {
           if (!canCreate) return const SizedBox.shrink();
           return FloatingActionButton(
             onPressed: () async {
-              final result = await Navigator.of(context).pushNamed(
-                RouteNames.addTask,
-                arguments: widget.departmentId,
-              );
+              final result = await Navigator.of(
+                context,
+              ).pushNamed(RouteNames.addTask, arguments: widget.departmentId);
               if (result == true) {
                 _loadTasks();
               }
@@ -349,8 +360,8 @@ class _TasksListPageState extends State<TasksListPage> {
                     child: Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -383,8 +394,8 @@ class _TasksListPageState extends State<TasksListPage> {
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                    color: AppColors.textSecondary,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

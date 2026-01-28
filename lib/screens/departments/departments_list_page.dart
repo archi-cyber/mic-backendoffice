@@ -10,7 +10,10 @@ import '../../core/utils/permission_helper.dart';
 
 /// Departments list page
 class DepartmentsListPage extends StatefulWidget {
-  const DepartmentsListPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const DepartmentsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<DepartmentsListPage> createState() => _DepartmentsListPageState();
@@ -107,22 +110,24 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(localizations?.departments ?? 'Departments'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadDepartments,
-              tooltip: localizations?.refresh ?? 'Refresh',
-            ),
-          ],
-          bottom: TabBar(
-            tabs: [
-              Tab(text: localizations?.departments ?? 'Departments'),
-              Tab(text: localizations?.workers ?? 'Workers'),
-            ],
-          ),
-        ),
+        appBar: widget.hideAppBarAndBottomNav
+            ? null
+            : AppBar(
+                title: Text(localizations?.departments ?? 'Departments'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadDepartments,
+                    tooltip: localizations?.refresh ?? 'Refresh',
+                  ),
+                ],
+                bottom: TabBar(
+                  tabs: [
+                    Tab(text: localizations?.departments ?? 'Departments'),
+                    Tab(text: localizations?.workers ?? 'Workers'),
+                  ],
+                ),
+              ),
         body: TabBarView(
           children: [
             // Departments tab
@@ -134,7 +139,8 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: localizations?.searchDepartments ??
+                      hintText:
+                          localizations?.searchDepartments ??
                           'Search departments...',
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _searchController.text.isNotEmpty
@@ -147,8 +153,9 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                             )
                           : null,
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusMD),
+                        borderRadius: BorderRadius.circular(
+                          AppDimensions.radiusMD,
+                        ),
                       ),
                     ),
                     onChanged: (_) => setState(() {}),
@@ -159,40 +166,37 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _filteredDepartments.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.group_work_outlined,
-                                    size: 64,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(
-                                      height: AppDimensions.spacingMD),
-                                  Text(
-                                    _searchController.text.isNotEmpty
-                                        ? (localizations?.noDepartmentsFound ??
-                                            'No departments found')
-                                        : (localizations?.noDepartments ??
-                                            'No departments yet'),
-                                    style:
-                                        Theme.of(context).textTheme.titleMedium,
-                                  ),
-                                ],
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.group_work_outlined,
+                                size: 64,
+                                color: AppColors.textSecondary,
                               ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadDepartments,
-                              child: ListView.builder(
-                                itemCount: _filteredDepartments.length,
-                                itemBuilder: (context, index) {
-                                  final department =
-                                      _filteredDepartments[index];
-                                  return _buildDepartmentCard(department);
-                                },
+                              const SizedBox(height: AppDimensions.spacingMD),
+                              Text(
+                                _searchController.text.isNotEmpty
+                                    ? (localizations?.noDepartmentsFound ??
+                                          'No departments found')
+                                    : (localizations?.noDepartments ??
+                                          'No departments yet'),
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
-                            ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadDepartments,
+                          child: ListView.builder(
+                            itemCount: _filteredDepartments.length,
+                            itemBuilder: (context, index) {
+                              final department = _filteredDepartments[index];
+                              return _buildDepartmentCard(department);
+                            },
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -370,9 +374,9 @@ class _WorkersTabState extends State<_WorkersTab> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading workers: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading workers: $e')));
       }
     }
   }
@@ -386,8 +390,7 @@ class _WorkersTabState extends State<_WorkersTab> {
       final member = worker['member'] as Map<String, dynamic>?;
       if (member == null) return false;
 
-      final firstName =
-          (member['first_name'] ?? '').toString().toLowerCase();
+      final firstName = (member['first_name'] ?? '').toString().toLowerCase();
       final lastName = (member['last_name'] ?? '').toString().toLowerCase();
       final email = (member['email'] ?? '').toString().toLowerCase();
       final fullName = '$firstName $lastName';
@@ -396,11 +399,7 @@ class _WorkersTabState extends State<_WorkersTab> {
     }).toList();
   }
 
-  Widget _buildDepartmentChip(
-    String deptName,
-    String role,
-    bool isMain,
-  ) {
+  Widget _buildDepartmentChip(String deptName, String role, bool isMain) {
     Color color;
     IconData icon;
 
@@ -427,9 +426,7 @@ class _WorkersTabState extends State<_WorkersTab> {
             : color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isMain
-              ? AppColors.primary
-              : color.withOpacity(0.3),
+          color: isMain ? AppColors.primary : color.withOpacity(0.3),
           width: isMain ? 2 : 1,
         ),
       ),
@@ -501,7 +498,7 @@ class _WorkersTabState extends State<_WorkersTab> {
                       Text(
                         _searchController.text.isNotEmpty
                             ? (localizations?.noWorkersFound ??
-                                'No workers found matching your search')
+                                  'No workers found matching your search')
                             : (localizations?.noWorkers ?? 'No workers found'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
@@ -517,10 +514,11 @@ class _WorkersTabState extends State<_WorkersTab> {
                     itemCount: _filteredWorkers.length,
                     itemBuilder: (context, index) {
                       final worker = _filteredWorkers[index];
-                      final member =
-                          worker['member'] as Map<String, dynamic>?;
-                      final departments = worker['departments']
-                          as List<Map<String, dynamic>>? ?? [];
+                      final member = worker['member'] as Map<String, dynamic>?;
+                      final departments =
+                          worker['departments']
+                              as List<Map<String, dynamic>>? ??
+                          [];
 
                       if (member == null) return const SizedBox.shrink();
 
@@ -529,8 +527,8 @@ class _WorkersTabState extends State<_WorkersTab> {
                       final fullName = '$firstName $lastName'.trim();
                       final email = member['email']?.toString() ?? '';
                       final memberId = member['id']?.toString() ?? '';
-                      final mainDepartmentId =
-                          worker['main_department_id']?.toString();
+                      final mainDepartmentId = worker['main_department_id']
+                          ?.toString();
 
                       return Card(
                         margin: const EdgeInsets.only(
@@ -557,14 +555,13 @@ class _WorkersTabState extends State<_WorkersTab> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(
-                                    height: AppDimensions.spacingXS),
+                                const SizedBox(height: AppDimensions.spacingXS),
                               ],
                               if (departments.isNotEmpty) ...[
                                 Wrap(
                                   children: departments.map((dept) {
-                                    final deptId =
-                                        dept['department_id']?.toString();
+                                    final deptId = dept['department_id']
+                                        ?.toString();
                                     final isMain = deptId == mainDepartmentId;
                                     return _buildDepartmentChip(
                                       dept['department_name']?.toString() ??
@@ -612,8 +609,10 @@ class _WorkersTabState extends State<_WorkersTab> {
                           ),
                           onTap: () {
                             Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail
-                                  .replaceAll(':id', memberId),
+                              RouteNames.memberDetail.replaceAll(
+                                ':id',
+                                memberId,
+                              ),
                             );
                           },
                         ),
@@ -676,7 +675,7 @@ class _WorkersTabState extends State<_WorkersTab> {
                   if (value != null && value != currentMainDeptId) {
                     // Close dialog first
                     Navigator.pop(context);
-                    
+
                     // Show loading indicator
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -686,7 +685,9 @@ class _WorkersTabState extends State<_WorkersTab> {
                               const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               ),
                               const SizedBox(width: 16),
                               Text(
@@ -699,17 +700,17 @@ class _WorkersTabState extends State<_WorkersTab> {
                         ),
                       );
                     }
-                    
+
                     try {
                       await DepartmentService.setMainDepartment(
                         memberId: memberId,
                         departmentId: value,
                       );
-                      
+
                       if (mounted) {
                         // Reload workers to reflect the change
                         await _loadWorkers();
-                        
+
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text(
@@ -736,10 +737,7 @@ class _WorkersTabState extends State<_WorkersTab> {
                   }
                 },
                 secondary: isCurrentMain
-                    ? const Icon(
-                        Icons.home,
-                        color: AppColors.primary,
-                      )
+                    ? const Icon(Icons.home, color: AppColors.primary)
                     : null,
               );
             },

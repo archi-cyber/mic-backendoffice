@@ -7,7 +7,10 @@ import '../../services/supabase_service.dart';
 
 /// Notifications list page
 class NotificationsListPage extends StatefulWidget {
-  const NotificationsListPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const NotificationsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<NotificationsListPage> createState() => _NotificationsListPageState();
@@ -388,17 +391,19 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        actions: [
-          if (_unreadCount > 0)
-            TextButton.icon(
-              onPressed: _markAllAsRead,
-              icon: const Icon(Icons.done_all),
-              label: const Text('Mark all read'),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Notifications'),
+              actions: [
+                if (_unreadCount > 0)
+                  TextButton.icon(
+                    onPressed: _markAllAsRead,
+                    icon: const Icon(Icons.done_all),
+                    label: const Text('Mark all read'),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _notifications.isEmpty

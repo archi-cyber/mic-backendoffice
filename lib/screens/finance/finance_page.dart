@@ -9,7 +9,10 @@ import '../../services/finance_pdf_service.dart';
 /// Finance page for managing giving/tithes/offerings
 /// Only accessible to finance department leaders and admins
 class FinancePage extends StatefulWidget {
-  const FinancePage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const FinancePage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<FinancePage> createState() => _FinancePageState();
@@ -145,29 +148,31 @@ class _FinancePageState extends State<FinancePage> {
     final localizations = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(localizations?.finance ?? 'Finance'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            onPressed: _generatePdfReport,
-            tooltip: 'Generate PDF Report',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final result = await Navigator.of(
-                context,
-              ).pushNamed(RouteNames.addGiving);
-              // Refresh the list if a new record was created
-              if (result == true) {
-                _loadGivingRecords();
-              }
-            },
-            tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(localizations?.finance ?? 'Finance'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf),
+                  onPressed: _generatePdfReport,
+                  tooltip: 'Generate PDF Report',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () async {
+                    final result = await Navigator.of(
+                      context,
+                    ).pushNamed(RouteNames.addGiving);
+                    if (result == true) {
+                      _loadGivingRecords();
+                    }
+                  },
+                  tooltip:
+                      localizations?.addGivingRecord ?? 'Add Giving Record',
+                ),
+              ],
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

@@ -9,7 +9,10 @@ import 'edit_announcement_page.dart';
 
 /// Chat/Announcements page
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const ChatPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -357,21 +360,23 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Announcements'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () => _showFilterDialog(),
-            tooltip: 'Filter',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAnnouncements,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Announcements'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: () => _showFilterDialog(),
+                  tooltip: 'Filter',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadAnnouncements,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _announcements.isEmpty

@@ -5,6 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
+import '../desktop/desktop_shell.dart';
 
 /// Splash screen shown when the app first launches
 class SplashScreen extends StatefulWidget {
@@ -68,16 +69,26 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
-    // Navigate based on auth status
+    final width = MediaQuery.of(context).size.width;
+    final useDesktop = width >= kDesktopBreakpoint;
+
+    // Navigate based on auth status and screen size (desktop when width >= 500px)
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      // User is authenticated - check if password change is required
       if (authProvider.mustChangePassword) {
         Navigator.of(context).pushReplacementNamed(RouteNames.changePassword);
       } else {
-        Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+        if (useDesktop) {
+          Navigator.of(context).pushReplacementNamed(RouteNames.desktopMain);
+        } else {
+          Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+        }
       }
     } else {
-      Navigator.of(context).pushReplacementNamed(RouteNames.login);
+      if (useDesktop) {
+        Navigator.of(context).pushReplacementNamed(RouteNames.desktopLogin);
+      } else {
+        Navigator.of(context).pushReplacementNamed(RouteNames.login);
+      }
     }
   }
 

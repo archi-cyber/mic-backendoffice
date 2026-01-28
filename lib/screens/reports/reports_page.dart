@@ -8,14 +8,18 @@ import 'member_report_page.dart';
 
 /// Reports page with member and training reports
 class ReportsPage extends StatelessWidget {
-  const ReportsPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const ReportsPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(localizations?.statistics ?? 'Reports')),
+      appBar: hideAppBarAndBottomNav
+          ? null
+          : AppBar(title: Text(localizations?.statistics ?? 'Reports')),
       body: ListView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         children: [

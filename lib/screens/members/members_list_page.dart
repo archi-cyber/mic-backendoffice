@@ -8,7 +8,10 @@ import '../../services/member_service.dart';
 
 /// Members list with search and filters
 class MembersListPage extends StatefulWidget {
-  const MembersListPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const MembersListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<MembersListPage> createState() => _MembersListPageState();
@@ -363,15 +366,19 @@ class _MembersListPageState extends State<MembersListPage> {
     final memberCount = _filteredMembers.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${localizations?.members ?? 'Members'} ($memberCount)'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-          ),
-        ],
-      ),
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(
+                '${localizations?.members ?? 'Members'} ($memberCount)',
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilterDialog,
+                ),
+              ],
+            ),
       body: Column(
         children: [
           // Search bar

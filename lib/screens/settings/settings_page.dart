@@ -15,7 +15,10 @@ import '../../providers/settings_provider.dart';
 
 /// Settings page
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const SettingsPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -453,7 +456,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
         final localizations = AppLocalizations.of(context);
         return Scaffold(
-          appBar: AppBar(title: Text(localizations?.settings ?? 'Settings')),
+          appBar: widget.hideAppBarAndBottomNav
+              ? null
+              : AppBar(title: Text(localizations?.settings ?? 'Settings')),
           body: ListView(
             padding: const EdgeInsets.all(AppDimensions.paddingMD),
             children: [
