@@ -266,6 +266,95 @@ class UserMemberSyncService {
     }
   }
 
+  /// Ensure every active user in the `users` table has a corresponding auth account.
+  /// For each active user with an email:
+  /// - Try to sign them up with the default password.
+  /// - If the auth user already exists, Supabase will return an \"already registered\" error, which we ignore.
+  /// - If signUp succeeds, we have created an auth user that can log in.
+  static Future<Map<String, dynamic>> ensureAuthAccountsForActiveUsers() async {
+    try {
+      debugPrint('[UserMemberSync] Ensuring auth accounts for active users...');
+
+      final users = await _client
+          .from('users')
+          .select('id, email, is_active, role')
+          .eq('is_active', true);
+
+      int created = 0;
+      int skipped = 0;
+      int errors = 0;
+      final errorsList = <String>[];
+
+      for (final user in users as List) {
+        final email = user['email']?.toString();
+        final role = user['role']?.toString() ?? 'member';
+
+        // We can only create auth accounts for users with an email
+        if (email == null || email.isEmpty) {
+          skipped++;
+          continue;
+        }
+
+        try {
+          // Attempt to sign up the user with the default password.
+          // If the auth user already exists, Supabase will throw an error we can safely ignore.
+          final authResponse = await _client.auth.signUp(
+            email: email,
+            password: defaultPassword,
+            data: {'must_change_password': true, 'role': role},
+          );
+
+          if (authResponse.user != null) {
+            debugPrint(
+              '[UserMemberSync] Created auth user for existing user with email $email',
+            );
+            created++;
+          } else {
+            // No user returned (e.g. email confirmation required) – still consider this a success for now
+            debugPrint(
+              '[UserMemberSync] signUp did not return user for $email (email confirmation may be required)',
+            );
+            skipped++;
+          }
+        } catch (e) {
+          final msg = e.toString().toLowerCase();
+          if (msg.contains('already registered') ||
+              msg.contains('already exists')) {
+            // Auth user already exists – nothing to do
+            debugPrint(
+              '[UserMemberSync] Auth user already exists for $email, skipping',
+            );
+            skipped++;
+            continue;
+          }
+
+          debugPrint(
+            '[UserMemberSync] Error ensuring auth account for $email: $e',
+          );
+          errors++;
+          errorsList.add('$email: $e');
+        }
+      }
+
+      debugPrint(
+        '[UserMemberSync] ensureAuthAccountsForActiveUsers completed: $created created, $skipped skipped, $errors errors',
+      );
+
+      return {
+        'created': created,
+        'skipped': skipped,
+        'errors': errors,
+        'error_details': errorsList,
+      };
+    } catch (e, stackTrace) {
+      debugPrint(
+        '[UserMemberSync] ERROR in ensureAuthAccountsForActiveUsers: $e',
+      );
+      debugPrint('[UserMemberSync] Stack trace: $stackTrace');
+      throw Exception('Failed to ensure auth accounts for active users: $e');
+    }
+  }
+
   /// Run both syncs
   static Future<Map<String, dynamic>> syncAll() async {
     try {
@@ -273,12 +362,14 @@ class UserMemberSyncService {
 
       final usersToMembers = await syncUsersToMembers();
       final leadersToUsers = await syncLeadersToUsers();
+      final ensuredAuthAccounts = await ensureAuthAccountsForActiveUsers();
 
       debugPrint('[UserMemberSync] Full sync completed');
 
       return {
         'users_to_members': usersToMembers,
         'leaders_to_users': leadersToUsers,
+        'auth_accounts': ensuredAuthAccounts,
       };
     } catch (e, stackTrace) {
       debugPrint('[UserMemberSync] ERROR in syncAll: $e');

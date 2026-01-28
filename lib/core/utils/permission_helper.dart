@@ -42,20 +42,38 @@ class PermissionHelper {
     }
   }
 
+  /// Check if current user has role='member' (member account - view-only by default)
+  static Future<bool> _isMember() async {
+    final currentUser = SupabaseService.currentUser;
+    if (currentUser == null) return false;
+    final role = await RoleService.getUserRole(userId: currentUser.id);
+    return role == 'member';
+  }
+
   /// Check if current user can view a feature
   static Future<bool> canView(String featureName) async {
     // Admins and pastors have full access
     final isAdmin = await RoleService.isCurrentUserAdmin();
     if (isAdmin) return true;
 
-    // Check if user is a leader (has role='leader' OR is department leader/subleader)
     final currentUser = SupabaseService.currentUser;
     if (currentUser == null) return false;
 
+    // Members (role='member'): check leader_access; default view-only
+    final isMember = await _isMember();
+    if (isMember) {
+      final hasView = await LeaderAccessService.hasPermission(
+        userId: currentUser.id,
+        featureName: featureName,
+        permission: 'view',
+      );
+      return hasView;
+    }
+
+    // Leaders: check leader access
     final isLeader = await _isLeader();
     if (!isLeader) return false;
 
-    // Check leader access
     return await LeaderAccessService.hasPermission(
       userId: currentUser.id,
       featureName: featureName,
@@ -65,18 +83,25 @@ class PermissionHelper {
 
   /// Check if current user can create in a feature
   static Future<bool> canCreate(String featureName) async {
-    // Admins and pastors have full access
     final isAdmin = await RoleService.isCurrentUserAdmin();
     if (isAdmin) return true;
 
-    // Check if user is a leader (has role='leader' OR is department leader/subleader)
     final currentUser = SupabaseService.currentUser;
     if (currentUser == null) return false;
+
+    // Members: only if leader_access grants create (default view-only)
+    final isMember = await _isMember();
+    if (isMember) {
+      return await LeaderAccessService.hasPermission(
+        userId: currentUser.id,
+        featureName: featureName,
+        permission: 'create',
+      );
+    }
 
     final isLeader = await _isLeader();
     if (!isLeader) return false;
 
-    // Check leader access
     return await LeaderAccessService.hasPermission(
       userId: currentUser.id,
       featureName: featureName,
@@ -86,18 +111,24 @@ class PermissionHelper {
 
   /// Check if current user can edit in a feature
   static Future<bool> canEdit(String featureName) async {
-    // Admins and pastors have full access
     final isAdmin = await RoleService.isCurrentUserAdmin();
     if (isAdmin) return true;
 
-    // Check if user is a leader (has role='leader' OR is department leader/subleader)
     final currentUser = SupabaseService.currentUser;
     if (currentUser == null) return false;
+
+    final isMember = await _isMember();
+    if (isMember) {
+      return await LeaderAccessService.hasPermission(
+        userId: currentUser.id,
+        featureName: featureName,
+        permission: 'edit',
+      );
+    }
 
     final isLeader = await _isLeader();
     if (!isLeader) return false;
 
-    // Check leader access
     return await LeaderAccessService.hasPermission(
       userId: currentUser.id,
       featureName: featureName,
@@ -107,18 +138,24 @@ class PermissionHelper {
 
   /// Check if current user can delete in a feature
   static Future<bool> canDelete(String featureName) async {
-    // Admins and pastors have full access
     final isAdmin = await RoleService.isCurrentUserAdmin();
     if (isAdmin) return true;
 
-    // Check if user is a leader (has role='leader' OR is department leader/subleader)
     final currentUser = SupabaseService.currentUser;
     if (currentUser == null) return false;
+
+    final isMember = await _isMember();
+    if (isMember) {
+      return await LeaderAccessService.hasPermission(
+        userId: currentUser.id,
+        featureName: featureName,
+        permission: 'delete',
+      );
+    }
 
     final isLeader = await _isLeader();
     if (!isLeader) return false;
 
-    // Check leader access
     return await LeaderAccessService.hasPermission(
       userId: currentUser.id,
       featureName: featureName,

@@ -665,6 +665,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
+                const SizedBox(height: AppDimensions.spacingSM),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.person_add,
+                      color: AppColors.primary,
+                    ),
+                    title: const Text('Member Accounts'),
+                    subtitle: const Text(
+                      'Create login accounts for members and manage their access',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(
+                        context,
+                      ).pushNamed(RouteNames.memberAccounts);
+                    },
+                  ),
+                ),
                 const SizedBox(height: AppDimensions.spacingMD),
               ],
 

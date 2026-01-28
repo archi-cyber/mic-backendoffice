@@ -29,6 +29,96 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     _loadLeaders();
   }
 
+  Future<void> _openLeaderPicker() async {
+    if (_leaders.isEmpty) return;
+
+    final selectedId = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        String query = '';
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            final lower = query.trim().toLowerCase();
+            final filtered = lower.isEmpty
+                ? _leaders
+                : _leaders.where((leader) {
+                    final name = _getLeaderDisplayName(leader).toLowerCase();
+                    final email = (leader['email']?.toString() ?? '')
+                        .toLowerCase();
+                    final id = (leader['id']?.toString() ?? '').toLowerCase();
+                    return name.contains(lower) ||
+                        email.contains(lower) ||
+                        id.contains(lower);
+                  }).toList();
+
+            return AlertDialog(
+              title: const Text('Select Leader or Member'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Search by name, email, or ID',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onChanged: (value) {
+                      setStateDialog(() => query = value);
+                    },
+                  ),
+                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(
+                    width: double.maxFinite,
+                    height: 300,
+                    child: filtered.isEmpty
+                        ? const Center(
+                            child: Text('No matching leaders or members'),
+                          )
+                        : ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final leader = filtered[index];
+                              final id = leader['id'].toString();
+                              final displayName = _getLeaderDisplayName(leader);
+                              final isSelected = id == _selectedLeaderId;
+                              return ListTile(
+                                leading: const Icon(Icons.person),
+                                title: Text(
+                                  displayName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  leader['email']?.toString() ?? '',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: isSelected
+                                    ? const Icon(
+                                        Icons.check,
+                                        color: AppColors.primary,
+                                      )
+                                    : null,
+                                onTap: () {
+                                  Navigator.of(dialogContext).pop(id);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedId != null) {
+      setState(() => _selectedLeaderId = selectedId);
+      await _loadLeaderAccess(selectedId);
+    }
+  }
+
   Future<void> _loadLeaders() async {
     setState(() => _isLoading = true);
     try {
@@ -356,36 +446,34 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Select Leader',
+                        'Select Leader or Member',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(height: AppDimensions.spacingSM),
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedLeaderId,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.person),
+                      InkWell(
+                        onTap: _openLeaderPicker,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.person),
+                            suffixIcon: Icon(Icons.arrow_drop_down),
+                          ),
+                          child: Text(
+                            _selectedLeaderId == null
+                                ? 'Tap to select'
+                                : _getLeaderDisplayName(
+                                    _leaders.firstWhere(
+                                      (l) =>
+                                          l['id'].toString() ==
+                                          _selectedLeaderId,
+                                      orElse: () => const {'email': 'Unknown'},
+                                    ),
+                                  ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        items: _leaders.map((leader) {
-                          final id = leader['id'].toString();
-                          final displayName = _getLeaderDisplayName(leader);
-                          return DropdownMenuItem(
-                            value: id,
-                            child: Text(
-                              displayName,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) async {
-                          if (value != null) {
-                            setState(() => _selectedLeaderId = value);
-                            await _loadLeaderAccess(value);
-                          }
-                        },
                       ),
                     ],
                   ),

@@ -38,6 +38,7 @@ import '../../screens/notifications/notifications_list_page.dart';
 import '../../screens/settings/birthday_notifications_settings_page.dart';
 import '../../screens/settings/settings_page.dart';
 import '../../screens/settings/leader_access_page.dart';
+import '../../screens/settings/member_accounts_page.dart';
 import '../../screens/finance/finance_page.dart';
 import '../../screens/finance/add_giving_page.dart';
 import '../../screens/finance/edit_giving_page.dart';
@@ -81,9 +82,7 @@ class AppRouter {
       case RouteNames.resetPassword:
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => ResetPasswordPage(
-            email: args?['email'] as String?,
-          ),
+          builder: (_) => ResetPasswordPage(email: args?['email'] as String?),
           settings: settings,
         );
 
@@ -285,6 +284,12 @@ class AppRouter {
       case RouteNames.leaderAccess:
         return MaterialPageRoute(
           builder: (_) => const LeaderAccessPage(),
+          settings: settings,
+        );
+
+      case RouteNames.memberAccounts:
+        return MaterialPageRoute(
+          builder: (_) => const MemberAccountsPage(),
           settings: settings,
         );
 

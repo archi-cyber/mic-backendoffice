@@ -160,11 +160,10 @@ class AuthService {
   }
 
   /// Send password reset OTP token via email
-  /// Business Rule: Any active leader can reset password via "Forgot password" flow
+  /// Business Rule: Active leaders and members with accounts can reset password
   static Future<void> forgotPassword({required String email}) async {
     try {
-      // Check if user is active leader before allowing password reset
-      // Note: This validation should ideally be done server-side
+      // Check if user is active (leader or member) before allowing password reset
       final user = await _client
           .from('users')
           .select('is_active, role')
@@ -175,9 +174,11 @@ class AuthService {
         final isActive = user['is_active'] == true;
         final role = user['role'] as String?;
 
-        // Business Rule: Only active leaders can reset password
-        if (!isActive || role != 'leader') {
-          throw Exception('Password reset only available for active leaders');
+        // Allow active leaders and members with accounts to reset password
+        if (!isActive || (role != 'leader' && role != 'member')) {
+          throw Exception(
+            'Password reset only available for active leaders and members with accounts',
+          );
         }
       }
 
@@ -214,15 +215,15 @@ class AuthService {
       );
 
       if (response.session == null) {
-        throw Exception('Invalid or expired token. Please request a new reset token.');
+        throw Exception(
+          'Invalid or expired token. Please request a new reset token.',
+        );
       }
 
       debugPrint('[AuthService] Token verified successfully');
 
       // Now update the password using the temporary session
-      await _client.auth.updateUser(
-        UserAttributes(password: newPassword),
-      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
 
       // Also update users table to clear must_change_password flag
       try {
@@ -250,7 +251,9 @@ class AuthService {
       if (e.message.toLowerCase().contains('invalid') ||
           e.message.toLowerCase().contains('expired') ||
           e.message.toLowerCase().contains('token')) {
-        throw Exception('Invalid or expired token. Please request a new reset token.');
+        throw Exception(
+          'Invalid or expired token. Please request a new reset token.',
+        );
       }
       throw Exception('Password reset failed: ${e.message}');
     } catch (e) {
@@ -258,7 +261,9 @@ class AuthService {
       if (e.toString().toLowerCase().contains('invalid') ||
           e.toString().toLowerCase().contains('expired') ||
           e.toString().toLowerCase().contains('token')) {
-        throw Exception('Invalid or expired token. Please request a new reset token.');
+        throw Exception(
+          'Invalid or expired token. Please request a new reset token.',
+        );
       }
       throw Exception('Password reset failed');
     }

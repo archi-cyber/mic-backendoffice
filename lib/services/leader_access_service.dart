@@ -4,7 +4,8 @@ import 'supabase_service.dart';
 class LeaderAccessService {
   static final _client = SupabaseService.client;
 
-  /// Get all leaders (users with role 'leader' OR users who are leaders/subleaders in any department)
+  /// Get all leaders and members with accounts (for access management)
+  /// Includes: role='leader', department leaders/subleaders, and role='member'
   static Future<List<Map<String, dynamic>>> getLeaders() async {
     try {
       // Get users with role='leader' in users table
@@ -12,6 +13,13 @@ class LeaderAccessService {
           .from('users')
           .select('id, email, role, members(id, first_name, last_name)')
           .eq('role', 'leader')
+          .eq('is_active', true);
+
+      // Get users with role='member' (member accounts - view-only by default)
+      final memberUsers = await _client
+          .from('users')
+          .select('id, email, role, members(id, first_name, last_name)')
+          .eq('role', 'member')
           .eq('is_active', true);
 
       // Get all member_ids who are leaders or subleaders in any department
@@ -37,33 +45,43 @@ class LeaderAccessService {
             .select('id, email, role, members(id, first_name, last_name)')
             .inFilter('member_id', leaderMemberIds.toList())
             .eq('is_active', true);
-        
+
         departmentLeaderUsers = List<Map<String, dynamic>>.from(usersResponse);
       }
 
       // Combine and deduplicate by user id
       final Map<String, Map<String, dynamic>> leadersMap = {};
-      
+
       // Add users with role='leader'
       for (var user in usersWithLeaderRole) {
         final id = user['id'].toString();
         leadersMap[id] = user;
       }
-      
+
       // Add department leaders/subleaders (will overwrite if already exists, which is fine)
       for (var user in departmentLeaderUsers) {
         final id = user['id'].toString();
         leadersMap[id] = user;
       }
-      
+
+      // Add member-role users (so admins can manage their access)
+      for (var user in memberUsers as List) {
+        final id = user['id'].toString();
+        leadersMap[id] = Map<String, dynamic>.from(user);
+      }
+
       final leaders = leadersMap.values.toList();
-      // Sort by email
+      // Sort by role (leaders first) then email
       leaders.sort((a, b) {
+        final roleA = a['role']?.toString() ?? '';
+        final roleB = b['role']?.toString() ?? '';
+        final roleCompare = roleB.compareTo(roleA); // leader before member
+        if (roleCompare != 0) return roleCompare;
         final emailA = a['email']?.toString() ?? '';
         final emailB = b['email']?.toString() ?? '';
         return emailA.compareTo(emailB);
       });
-      
+
       return leaders;
     } catch (e) {
       throw Exception('Failed to get leaders: $e');
@@ -71,7 +89,9 @@ class LeaderAccessService {
   }
 
   /// Get access permissions for a specific leader
-  static Future<List<Map<String, dynamic>>> getLeaderAccess(String userId) async {
+  static Future<List<Map<String, dynamic>>> getLeaderAccess(
+    String userId,
+  ) async {
     try {
       final response = await _client
           .from('leader_access')
@@ -103,7 +123,7 @@ class LeaderAccessService {
       if (response == null) return null;
       // Filter out deleted records
       if (response['deleted_at'] != null) return null;
-      
+
       return response;
     } catch (e) {
       throw Exception('Failed to get leader feature access: $e');
@@ -193,7 +213,7 @@ class LeaderAccessService {
           .eq('user_id', userId)
           .eq('feature_name', featureName)
           .maybeSingle();
-      
+
       if (checkResponse != null && checkResponse['deleted_at'] == null) {
         await _client
             .from('leader_access')
