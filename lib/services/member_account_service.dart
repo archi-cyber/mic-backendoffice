@@ -51,11 +51,16 @@ class MemberAccountService {
   /// Create login account for a member (admin only).
   /// Member must have email. Creates Supabase auth user + users row with role='member'.
   /// Seeds leader_access with view-only for all features; admin can then grant more.
+  /// Does not switch the current session: the admin (caller) stays logged in.
   static Future<void> createAccountForMember({
     required String memberId,
     required String email,
     String? password,
   }) async {
+    // Save current user's session so we can restore it after signUp (which may switch session to the new user).
+    final previousSession = _client.auth.currentSession;
+    final previousRefreshToken = previousSession?.refreshToken;
+
     try {
       final pwd = password ?? defaultPassword;
       final emailTrimmed = email.trim();
@@ -197,6 +202,17 @@ class MemberAccountService {
       debugPrint('[MemberAccountService] Created account for member $memberId');
     } catch (e) {
       throw Exception('Failed to create account: $e');
+    } finally {
+      // Restore the admin's session so the current user stays logged in (signUp may have switched session to the new member).
+      if (previousRefreshToken != null && previousRefreshToken.isNotEmpty) {
+        try {
+          await _client.auth.setSession(previousRefreshToken);
+        } catch (e) {
+          debugPrint(
+            '[MemberAccountService] Could not restore previous session: $e',
+          );
+        }
+      }
     }
   }
 
