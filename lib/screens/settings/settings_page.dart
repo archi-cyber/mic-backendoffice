@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
+import '../desktop/desktop_shell_scope.dart';
 import '../../services/data_export_service.dart';
 import '../../services/data_import_service.dart';
 import '../../services/user_member_sync_service.dart';
@@ -666,7 +667,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (widget.hideAppBarAndBottomNav && scope != null) {
+                        scope.pushDetail(RouteNames.leaderAccess, '');
+                      } else {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.leaderAccess);
+                      }
                     },
                   ),
                 ),
@@ -683,9 +691,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      Navigator.of(
-                        context,
-                      ).pushNamed(RouteNames.memberAccounts);
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (widget.hideAppBarAndBottomNav && scope != null) {
+                        scope.pushDetail(RouteNames.memberAccounts, '');
+                      } else {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.memberAccounts);
+                      }
                     },
                   ),
                 ),

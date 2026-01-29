@@ -9,6 +9,11 @@ import '../../screens/events/event_detail_page.dart';
 import '../../screens/teachings/teaching_detail_page.dart';
 import '../../screens/classes/class_detail_page.dart';
 import '../../screens/members/member_profile_page.dart';
+import '../../screens/departments/department_detail_page.dart';
+import '../../screens/departments/add_department_page.dart';
+import '../../screens/departments/edit_department_page.dart';
+import '../../screens/settings/leader_access_page.dart';
+import '../../screens/settings/member_accounts_page.dart';
 import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
@@ -141,6 +146,11 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.teachingDetail) return 'Teaching';
     if (entry.route == RouteNames.classDetail) return 'Training';
     if (entry.route == RouteNames.memberDetail) return 'Member';
+    if (entry.route == RouteNames.departmentDetail) return 'Department';
+    if (entry.route == RouteNames.addDepartment) return 'Add Department';
+    if (entry.route == RouteNames.editDepartment) return 'Edit Department';
+    if (entry.route == RouteNames.leaderAccess) return 'Leader Access';
+    if (entry.route == RouteNames.memberAccounts) return 'Member Accounts';
     return 'Details';
   }
 
@@ -199,6 +209,21 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.memberDetail) {
       return MemberProfilePage(memberId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.departmentDetail && id.isNotEmpty) {
+      return DepartmentDetailPage(departmentId: id, onClose: () => onClose());
+    }
+    if (entry.route == RouteNames.addDepartment) {
+      return AddDepartmentPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editDepartment && id.isNotEmpty) {
+      return EditDepartmentPage(departmentId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.leaderAccess) {
+      return LeaderAccessPage(onClose: onClose);
+    }
+    if (entry.route == RouteNames.memberAccounts) {
+      return MemberAccountsPage(onClose: onClose);
     }
     return const SizedBox.shrink();
   }

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../desktop/desktop_shell_scope.dart';
 import '../../services/department_service.dart';
 import '../../services/task_service.dart';
 import '../../services/member_service.dart';
@@ -17,7 +18,14 @@ import '../../services/storage_service.dart';
 class DepartmentDetailPage extends StatefulWidget {
   final String departmentId;
 
-  const DepartmentDetailPage({super.key, required this.departmentId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const DepartmentDetailPage({
+    super.key,
+    required this.departmentId,
+    this.onClose,
+  });
 
   @override
   State<DepartmentDetailPage> createState() => _DepartmentDetailPageState();
@@ -39,6 +47,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
   }
 
   Future<void> _loadDepartmentData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final department = await DepartmentService.getDepartmentById(
@@ -73,6 +82,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         widget.departmentId,
       );
 
+      if (!mounted) return;
       setState(() {
         _department = department;
         // Store full department_members data (includes role)
@@ -84,6 +94,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -107,24 +118,41 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
       );
     }
 
+    final scope = DesktopShellScope.maybeOf(context);
+
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(_department!['name'] ?? 'Department'),
           actions: [
             if (_canEdit)
               IconButton(
                 icon: const Icon(Icons.edit),
                 onPressed: () async {
-                  final result = await Navigator.of(context).pushNamed(
-                    RouteNames.editDepartment.replaceAll(
-                      ':id',
+                  if (scope != null) {
+                    scope.pushDetail(
+                      RouteNames.editDepartment,
                       widget.departmentId,
-                    ),
-                  );
-                  if (result == true) {
+                    );
+                    // Reload when we pop back (user will see updated data on return)
                     _loadDepartmentData();
+                  } else {
+                    final result = await Navigator.of(context).pushNamed(
+                      RouteNames.editDepartment.replaceAll(
+                        ':id',
+                        widget.departmentId,
+                      ),
+                    );
+                    if (result == true) {
+                      _loadDepartmentData();
+                    }
                   }
                 },
                 tooltip: 'Edit Department',
@@ -437,6 +465,7 @@ class _MembersTabState extends State<_MembersTab> {
   }
 
   Future<void> _loadMembers() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final members = await DepartmentService.getDepartmentMembers(
@@ -465,11 +494,13 @@ class _MembersTabState extends State<_MembersTab> {
         }
         return lastNameA.compareTo(lastNameB);
       });
+      if (!mounted) return;
       setState(() {
         _members = members;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -929,6 +960,7 @@ class _TasksTabState extends State<_TasksTab> {
       final stats = await TaskReportService.getDepartmentTaskCompletion(
         departmentId: widget.departmentId,
       );
+      if (!mounted) return;
       setState(() {
         _completionStats = stats;
       });
@@ -1210,6 +1242,7 @@ class _ReportsTabState extends State<_ReportsTab> {
       final reports = await DepartmentReportService.getDepartmentReports(
         departmentId: widget.departmentId,
       );
+      if (!mounted) return;
       setState(() {
         _reports = reports;
       });

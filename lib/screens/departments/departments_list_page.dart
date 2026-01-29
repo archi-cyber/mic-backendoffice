@@ -7,6 +7,7 @@ import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/utils/permission_helper.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Departments list page
 class DepartmentsListPage extends StatefulWidget {
@@ -23,11 +24,17 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _departments = [];
   bool _isLoading = true;
+  int _deptPage = 0;
+  static const int _deptRowsPerPage = 10;
+  bool _canCreate = false;
 
   @override
   void initState() {
     super.initState();
     _loadDepartments();
+    _canCreateDepartment().then((v) {
+      if (mounted) setState(() => _canCreate = v);
+    });
   }
 
   @override
@@ -104,6 +111,297 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
         .toList();
   }
 
+  int get _totalDeptPages {
+    if (_filteredDepartments.isEmpty) return 1;
+    return (_filteredDepartments.length / _deptRowsPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _paginatedDepartments {
+    final start = _deptPage * _deptRowsPerPage;
+    final end = (start + _deptRowsPerPage).clamp(
+      0,
+      _filteredDepartments.length,
+    );
+    if (start >= _filteredDepartments.length) return [];
+    return _filteredDepartments.sublist(start, end);
+  }
+
+  Widget _buildDesktopDepartmentsContent(
+    BuildContext context,
+    AppLocalizations? localizations,
+  ) {
+    final scope = DesktopShellScope.maybeOf(context);
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Search + Add row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText:
+                        localizations?.searchDepartments ??
+                        'Search departments...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _deptPage = 0);
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusMD,
+                      ),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() => _deptPage = 0),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.spacingMD),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadDepartments,
+                tooltip: localizations?.refresh ?? 'Refresh',
+              ),
+              const Spacer(),
+              if (_canCreate)
+                FilledButton.icon(
+                  onPressed: () {
+                    if (scope != null) {
+                      scope.pushDetail(RouteNames.addDepartment, '');
+                    } else {
+                      Navigator.of(
+                        context,
+                      ).pushNamed(RouteNames.addDepartment).then((_) {
+                        if (mounted) _loadDepartments();
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 20),
+                  label: Text(localizations?.addDepartment ?? 'Add Department'),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.spacingMD),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredDepartments.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.group_work_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(height: AppDimensions.spacingMD),
+                        Text(
+                          _searchController.text.isNotEmpty
+                              ? (localizations?.noDepartmentsFound ??
+                                    'No departments found')
+                              : (localizations?.noDepartments ??
+                                    'No departments yet'),
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                  )
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(
+                        theme.colorScheme.surfaceContainerHighest,
+                      ),
+                      columns: const [
+                        DataColumn(label: Text('Name')),
+                        DataColumn(label: Text('Description')),
+                        DataColumn(label: Text('Status')),
+                        DataColumn(label: Text('Action')),
+                      ],
+                      rows: _paginatedDepartments.map((dept) {
+                        final id = dept['id']?.toString() ?? '';
+                        final name = dept['name']?.toString() ?? 'Unnamed';
+                        final desc = dept['description']?.toString() ?? '—';
+                        final isActive = dept['is_active'] == true;
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Text(name, overflow: TextOverflow.ellipsis),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 280,
+                                ),
+                                child: Text(
+                                  desc,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                isActive
+                                    ? (localizations?.active ?? 'Active')
+                                    : (localizations?.inactive ?? 'Inactive'),
+                                style: TextStyle(
+                                  color: isActive
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              TextButton(
+                                onPressed: () {
+                                  if (id.isEmpty) return;
+                                  if (scope != null) {
+                                    scope.pushDetail(
+                                      RouteNames.departmentDetail,
+                                      id,
+                                    );
+                                  } else {
+                                    Navigator.of(context).pushNamed(
+                                      RouteNames.departmentDetail.replaceAll(
+                                        ':id',
+                                        id,
+                                      ),
+                                    );
+                                  }
+                                },
+                                child: const Text('View'),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+          ),
+          if (!_filteredDepartments.isEmpty) ...[
+            const SizedBox(height: AppDimensions.spacingSM),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Rows per page: $_deptRowsPerPage',
+                  style: theme.textTheme.bodySmall,
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Page ${_deptPage + 1} of $_totalDeptPages',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    const SizedBox(width: AppDimensions.spacingMD),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_left),
+                      onPressed: _deptPage > 0
+                          ? () => setState(() => _deptPage--)
+                          : null,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.chevron_right),
+                      onPressed: _deptPage < _totalDeptPages - 1
+                          ? () => setState(() => _deptPage++)
+                          : null,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileDepartmentsContent(
+    BuildContext context,
+    AppLocalizations? localizations,
+  ) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText:
+                  localizations?.searchDepartments ?? 'Search departments...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+              ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredDepartments.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.group_work_outlined,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        _searchController.text.isNotEmpty
+                            ? (localizations?.noDepartmentsFound ??
+                                  'No departments found')
+                            : (localizations?.noDepartments ??
+                                  'No departments yet'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadDepartments,
+                  child: ListView.builder(
+                    itemCount: _filteredDepartments.length,
+                    itemBuilder: (context, index) {
+                      final department = _filteredDepartments[index];
+                      return _buildDepartmentCard(department);
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
@@ -131,100 +429,32 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
         body: TabBarView(
           children: [
             // Departments tab
-            Column(
-              children: [
-                // Search bar
-                Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText:
-                          localizations?.searchDepartments ??
-                          'Search departments...',
-                      prefixIcon: const Icon(Icons.search),
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusMD,
-                        ),
-                      ),
-                    ),
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                // Departments list
-                Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _filteredDepartments.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.group_work_outlined,
-                                size: 64,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(height: AppDimensions.spacingMD),
-                              Text(
-                                _searchController.text.isNotEmpty
-                                    ? (localizations?.noDepartmentsFound ??
-                                          'No departments found')
-                                    : (localizations?.noDepartments ??
-                                          'No departments yet'),
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadDepartments,
-                          child: ListView.builder(
-                            itemCount: _filteredDepartments.length,
-                            itemBuilder: (context, index) {
-                              final department = _filteredDepartments[index];
-                              return _buildDepartmentCard(department);
-                            },
-                          ),
-                        ),
-                ),
-              ],
-            ),
+            widget.hideAppBarAndBottomNav
+                ? _buildDesktopDepartmentsContent(context, localizations)
+                : _buildMobileDepartmentsContent(context, localizations),
             // Workers tab
             _WorkersTab(),
           ],
         ),
-        floatingActionButton: FutureBuilder<bool>(
-          future: _canCreateDepartment(),
-          builder: (context, snapshot) {
-            if (snapshot.data == true) {
-              return FloatingActionButton(
-                onPressed: () async {
-                  // Navigate to add department page and wait for result
-                  final result = await Navigator.of(
-                    context,
-                  ).pushNamed(RouteNames.addDepartment);
-                  // If department was created (result is true), reload the list
-                  if (result == true) {
-                    _loadDepartments();
+        floatingActionButton: widget.hideAppBarAndBottomNav
+            ? null
+            : FutureBuilder<bool>(
+                future: _canCreateDepartment(),
+                builder: (context, snapshot) {
+                  if (snapshot.data == true) {
+                    return FloatingActionButton(
+                      onPressed: () async {
+                        final result = await Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.addDepartment);
+                        if (result == true) _loadDepartments();
+                      },
+                      child: const Icon(Icons.add),
+                    );
                   }
+                  return const SizedBox.shrink();
                 },
-                child: const Icon(Icons.add),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+              ),
       ),
     );
   }
