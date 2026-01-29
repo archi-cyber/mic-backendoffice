@@ -10,7 +10,10 @@ import 'attendance_page.dart';
 class ClassDetailPage extends StatefulWidget {
   final String classId;
 
-  const ClassDetailPage({super.key, required this.classId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const ClassDetailPage({super.key, required this.classId, this.onClose});
 
   @override
   State<ClassDetailPage> createState() => _ClassDetailPageState();
@@ -52,7 +55,15 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
     if (_classData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Training')),
+        appBar: AppBar(
+          title: const Text('Training'),
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
+        ),
         body: const Center(child: Text('Training not found')),
       );
     }
@@ -61,6 +72,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(_classData!['name'] ?? 'Training'),
           actions: [
             IconButton(
@@ -807,8 +824,9 @@ class _MembersTabState extends State<_MembersTab> {
                               } else {
                                 selectedMemberIds.clear();
                                 selectedMemberIds.addAll(
-                                  availableMembers
-                                      .map((m) => m['id'].toString()),
+                                  availableMembers.map(
+                                    (m) => m['id'].toString(),
+                                  ),
                                 );
                               }
                             });

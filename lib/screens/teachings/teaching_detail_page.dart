@@ -11,7 +11,10 @@ import '../../services/teaching_service.dart';
 class TeachingDetailPage extends StatefulWidget {
   final String teachingId;
 
-  const TeachingDetailPage({super.key, required this.teachingId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const TeachingDetailPage({super.key, required this.teachingId, this.onClose});
 
   @override
   State<TeachingDetailPage> createState() => _TeachingDetailPageState();
@@ -66,12 +69,17 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              localizations?.errorLoadingTeaching ?? 'Error loading teaching: $e',
+              localizations?.errorLoadingTeaching ??
+                  'Error loading teaching: $e',
             ),
             backgroundColor: AppColors.error,
           ),
         );
-        Navigator.of(context).pop();
+        if (widget.onClose != null) {
+          widget.onClose!();
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -79,7 +87,9 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
   Future<void> _loadListeners() async {
     setState(() => _isLoadingListeners = true);
     try {
-      final listeners = await TeachingService.getTeachingListeners(widget.teachingId);
+      final listeners = await TeachingService.getTeachingListeners(
+        widget.teachingId,
+      );
       setState(() {
         _listeners = listeners;
         _isLoadingListeners = false;
@@ -91,7 +101,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              localizations?.errorLoadingTeaching ?? 'Error loading listeners: $e',
+              localizations?.errorLoadingTeaching ??
+                  'Error loading listeners: $e',
             ),
             backgroundColor: AppColors.error,
           ),
@@ -113,7 +124,9 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
 
   Future<void> _syncFromAttendance() async {
     try {
-      final count = await TeachingService.syncListenersFromAttendance(widget.teachingId);
+      final count = await TeachingService.syncListenersFromAttendance(
+        widget.teachingId,
+      );
       if (mounted) {
         final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -206,7 +219,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.listenerRemoved ?? 'Listener removed successfully',
+                localizations?.listenerRemoved ??
+                    'Listener removed successfully',
               ),
               backgroundColor: AppColors.success,
             ),
@@ -218,7 +232,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.errorRemovingListener ?? 'Error removing listener: $e',
+                localizations?.errorRemovingListener ??
+                    'Error removing listener: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -265,7 +280,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                localizations?.errorDeletingTeaching ?? 'Error deleting teaching: $e',
+                localizations?.errorDeletingTeaching ??
+                    'Error deleting teaching: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -331,6 +347,12 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     if (_isLoading || _teaching == null) {
       return Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(localizations?.teachingDetails ?? 'Teaching Details'),
         ),
         body: const Center(child: CircularProgressIndicator()),
@@ -348,6 +370,12 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(title),
           actions: [
             if (_canEdit) ...[
@@ -355,7 +383,10 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                 icon: const Icon(Icons.edit),
                 onPressed: () async {
                   final result = await Navigator.of(context).pushNamed(
-                    RouteNames.editTeaching.replaceAll(':id', widget.teachingId),
+                    RouteNames.editTeaching.replaceAll(
+                      ':id',
+                      widget.teachingId,
+                    ),
                   );
                   if (result == true) {
                     _loadTeachingData();
@@ -437,11 +468,13 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                             ),
                           ),
                         ),
-                      if (_canEdit) const SizedBox(height: AppDimensions.spacingMD),
+                      if (_canEdit)
+                        const SizedBox(height: AppDimensions.spacingMD),
                       TextField(
                         controller: _searchController,
                         decoration: InputDecoration(
-                          hintText: localizations?.searchPotentialListeners ??
+                          hintText:
+                              localizations?.searchPotentialListeners ??
                               'Search potential listeners...',
                           prefixIcon: const Icon(Icons.search),
                           suffixIcon: _searchController.text.isNotEmpty
@@ -470,19 +503,23 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                                 horizontal: AppDimensions.paddingMD,
                               ),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     '${localizations?.listeners ?? 'Listeners'} (${_listeners.length})',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   if (_canEdit)
                                     TextButton.icon(
                                       onPressed: () => _showAddListenerDialog(),
                                       icon: const Icon(Icons.add),
-                                      label: Text(localizations?.addListener ?? 'Add'),
+                                      label: Text(
+                                        localizations?.addListener ?? 'Add',
+                                      ),
                                     ),
                                 ],
                               ),
@@ -491,34 +528,48 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                               child: _listeners.isEmpty
                                   ? Center(
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
                                           const Icon(
                                             Icons.people_outline,
                                             size: 64,
                                             color: AppColors.textSecondary,
                                           ),
-                                          const SizedBox(height: AppDimensions.spacingMD),
+                                          const SizedBox(
+                                            height: AppDimensions.spacingMD,
+                                          ),
                                           Text(
-                                            localizations?.noListeners ?? 'No listeners yet',
-                                            style: Theme.of(context).textTheme.titleMedium,
+                                            localizations?.noListeners ??
+                                                'No listeners yet',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium,
                                           ),
                                           if (_canEdit) ...[
-                                            const SizedBox(height: AppDimensions.spacingSM),
+                                            const SizedBox(
+                                              height: AppDimensions.spacingSM,
+                                            ),
                                             Text(
                                               localizations?.useSyncOrAdd ??
                                                   'Use "Sync from Church Attendance" or "Add" to add listeners',
-                                              style: const TextStyle(color: AppColors.textSecondary),
+                                              style: const TextStyle(
+                                                color: AppColors.textSecondary,
+                                              ),
                                             ),
                                           ],
                                         ],
                                       ),
                                     )
                                   : ListView.builder(
-                                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                                      padding: const EdgeInsets.all(
+                                        AppDimensions.paddingMD,
+                                      ),
                                       itemCount: _listeners.length,
                                       itemBuilder: (context, index) {
-                                        return _buildListenerCard(_listeners[index]);
+                                        return _buildListenerCard(
+                                          _listeners[index],
+                                        );
                                       },
                                     ),
                             ),
@@ -549,14 +600,11 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
+              Text(value, style: Theme.of(context).textTheme.bodyLarge),
             ],
           ),
         ),

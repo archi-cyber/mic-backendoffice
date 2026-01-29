@@ -5,6 +5,11 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
+import '../../screens/events/event_detail_page.dart';
+import '../../screens/teachings/teaching_detail_page.dart';
+import '../../screens/classes/class_detail_page.dart';
+import '../../screens/members/member_profile_page.dart';
+import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
 import 'finance/desktop_finance_page.dart';
@@ -26,10 +31,19 @@ import 'sessions/desktop_sessions_page.dart';
 /// Minimum width to show desktop layout (sidebar + content).
 const double kDesktopBreakpoint = 500;
 
+/// Entry in the desktop content stack (list page or detail overlay).
+class _DesktopViewEntry {
+  final bool isList;
+  final String route;
+  final String? id;
+
+  const _DesktopViewEntry({required this.isList, required this.route, this.id});
+}
+
 /// Desktop shell: sidebar + content area. Shown when screen width >= [kDesktopBreakpoint].
-/// Uses a nested Navigator for content (home, members, finance, chat, settings, notifications).
+/// Uses a stack of views (no routes); sidebar always visible.
 class DesktopShell extends StatefulWidget {
-  /// Initial nested route (e.g. [RouteNames.desktopHome]).
+  /// Initial list route (e.g. [RouteNames.desktopHome]).
   final String initialRoute;
 
   const DesktopShell({super.key, this.initialRoute = RouteNames.desktopHome});
@@ -39,24 +53,44 @@ class DesktopShell extends StatefulWidget {
 }
 
 class _DesktopShellState extends State<DesktopShell> {
-  late final GlobalKey<NavigatorState> _nestedKey;
-  String _currentRoute = RouteNames.desktopHome;
+  List<_DesktopViewEntry> _stack = [];
 
   @override
   void initState() {
     super.initState();
-    _nestedKey = GlobalKey<NavigatorState>();
-    _currentRoute = widget.initialRoute;
+    _stack = [
+      _DesktopViewEntry(isList: true, route: widget.initialRoute, id: null),
+    ];
   }
 
-  void _onNavigate(String route) {
-    setState(() => _currentRoute = route);
-    _nestedKey.currentState?.pushReplacementNamed(route);
+  void _pushList(String route) {
+    setState(() {
+      _stack.add(_DesktopViewEntry(isList: true, route: route, id: null));
+    });
+  }
+
+  void _pushDetail(String route, String id) {
+    setState(() {
+      _stack.add(_DesktopViewEntry(isList: false, route: route, id: id));
+    });
+  }
+
+  void _pop() {
+    if (_stack.length <= 1) return;
+    setState(() => _stack.removeLast());
+  }
+
+  void _navigate(String route) {
+    setState(() {
+      _stack = [_DesktopViewEntry(isList: true, route: route, id: null)];
+    });
   }
 
   bool _isActive(String route) {
-    return _currentRoute == route ||
-        (route != RouteNames.desktopHome && _currentRoute.startsWith(route));
+    if (_stack.isEmpty) return false;
+    final top = _stack.last;
+    return top.route == route ||
+        (route != RouteNames.desktopHome && top.route.startsWith(route));
   }
 
   String _getTitleForRoute(String route) {
@@ -98,6 +132,80 @@ class _DesktopShellState extends State<DesktopShell> {
       default:
         return 'Backoffice';
     }
+  }
+
+  String _getTitleForEntry(_DesktopViewEntry entry) {
+    if (entry.isList) return _getTitleForRoute(entry.route);
+    // Detail titles
+    if (entry.route == RouteNames.eventDetail) return 'Event';
+    if (entry.route == RouteNames.teachingDetail) return 'Teaching';
+    if (entry.route == RouteNames.classDetail) return 'Training';
+    if (entry.route == RouteNames.memberDetail) return 'Member';
+    return 'Details';
+  }
+
+  Widget _buildListPage(String route) {
+    switch (route) {
+      case RouteNames.desktopHome:
+        return const DesktopHomePage();
+      case RouteNames.desktopMembers:
+        return const DesktopMembersPage();
+      case RouteNames.desktopFinance:
+        return const DesktopFinancePage();
+      case RouteNames.desktopChat:
+        return const DesktopChatPage();
+      case RouteNames.desktopSettings:
+        return const DesktopSettingsPage();
+      case RouteNames.desktopNotifications:
+        return const DesktopNotificationsPage();
+      case RouteNames.desktopBirthdays:
+        return const DesktopBirthdaysPage();
+      case RouteNames.desktopEvents:
+        return const DesktopEventsPage();
+      case RouteNames.desktopTasks:
+        return const DesktopTasksPage();
+      case RouteNames.desktopTrainings:
+        return const DesktopTrainingsPage();
+      case RouteNames.desktopDepartments:
+        return const DesktopDepartmentsPage();
+      case RouteNames.desktopReports:
+        return const DesktopReportsPage();
+      case RouteNames.desktopChurchAttendance:
+        return const DesktopChurchAttendancePage();
+      case RouteNames.desktopSundaySchool:
+        return const DesktopSundaySchoolPage();
+      case RouteNames.desktopVisitors:
+        return const DesktopVisitorsPage();
+      case RouteNames.desktopTeachings:
+        return const DesktopTeachingsPage();
+      case RouteNames.desktopSessions:
+        return const DesktopSessionsPage();
+      default:
+        return const DesktopHomePage();
+    }
+  }
+
+  Widget _buildDetailPage(_DesktopViewEntry entry) {
+    final id = entry.id ?? '';
+    final onClose = _pop;
+    if (entry.route == RouteNames.eventDetail) {
+      return EventDetailPage(eventId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.teachingDetail) {
+      return TeachingDetailPage(teachingId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.classDetail) {
+      return ClassDetailPage(classId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.memberDetail) {
+      return MemberProfilePage(memberId: id, onClose: (_) => onClose());
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildContent(_DesktopViewEntry entry) {
+    if (entry.isList) return _buildListPage(entry.route);
+    return _buildDetailPage(entry);
   }
 
   Future<void> _handleLogout(BuildContext context) async {
@@ -176,43 +284,42 @@ class _DesktopShellState extends State<DesktopShell> {
                           activeIcon: Icons.dashboard,
                           label: 'Home',
                           isActive: _isActive(RouteNames.desktopHome),
-                          onTap: () => _onNavigate(RouteNames.desktopHome),
+                          onTap: () => _navigate(RouteNames.desktopHome),
                         ),
                         _NavTile(
                           icon: Icons.people_outline,
                           activeIcon: Icons.people,
                           label: 'Members',
                           isActive: _isActive(RouteNames.desktopMembers),
-                          onTap: () => _onNavigate(RouteNames.desktopMembers),
+                          onTap: () => _navigate(RouteNames.desktopMembers),
                         ),
                         _NavTile(
                           icon: Icons.business_outlined,
                           activeIcon: Icons.business,
                           label: 'Departments',
                           isActive: _isActive(RouteNames.desktopDepartments),
-                          onTap: () =>
-                              _onNavigate(RouteNames.desktopDepartments),
+                          onTap: () => _navigate(RouteNames.desktopDepartments),
                         ),
                         _NavTile(
                           icon: Icons.attach_money_outlined,
                           activeIcon: Icons.attach_money,
                           label: 'Finance',
                           isActive: _isActive(RouteNames.desktopFinance),
-                          onTap: () => _onNavigate(RouteNames.desktopFinance),
+                          onTap: () => _navigate(RouteNames.desktopFinance),
                         ),
                         _NavTile(
                           icon: Icons.chat_bubble_outline,
                           activeIcon: Icons.chat_bubble,
                           label: 'Chat',
                           isActive: _isActive(RouteNames.desktopChat),
-                          onTap: () => _onNavigate(RouteNames.desktopChat),
+                          onTap: () => _navigate(RouteNames.desktopChat),
                         ),
                         _NavTile(
                           icon: Icons.settings_outlined,
                           activeIcon: Icons.settings,
                           label: 'Settings',
                           isActive: _isActive(RouteNames.desktopSettings),
-                          onTap: () => _onNavigate(RouteNames.desktopSettings),
+                          onTap: () => _navigate(RouteNames.desktopSettings),
                         ),
                         _NavTile(
                           icon: Icons.notifications_outlined,
@@ -220,42 +327,42 @@ class _DesktopShellState extends State<DesktopShell> {
                           label: 'Notifications',
                           isActive: _isActive(RouteNames.desktopNotifications),
                           onTap: () =>
-                              _onNavigate(RouteNames.desktopNotifications),
+                              _navigate(RouteNames.desktopNotifications),
                         ),
                         _NavTile(
                           icon: Icons.cake_outlined,
                           activeIcon: Icons.cake,
                           label: 'Birthdays',
                           isActive: _isActive(RouteNames.desktopBirthdays),
-                          onTap: () => _onNavigate(RouteNames.desktopBirthdays),
+                          onTap: () => _navigate(RouteNames.desktopBirthdays),
                         ),
                         _NavTile(
                           icon: Icons.event_outlined,
                           activeIcon: Icons.event,
                           label: 'Events',
                           isActive: _isActive(RouteNames.desktopEvents),
-                          onTap: () => _onNavigate(RouteNames.desktopEvents),
+                          onTap: () => _navigate(RouteNames.desktopEvents),
                         ),
                         _NavTile(
                           icon: Icons.task_alt_outlined,
                           activeIcon: Icons.task_alt,
                           label: 'Tasks',
                           isActive: _isActive(RouteNames.desktopTasks),
-                          onTap: () => _onNavigate(RouteNames.desktopTasks),
+                          onTap: () => _navigate(RouteNames.desktopTasks),
                         ),
                         _NavTile(
                           icon: Icons.school_outlined,
                           activeIcon: Icons.school,
                           label: 'Trainings',
                           isActive: _isActive(RouteNames.desktopTrainings),
-                          onTap: () => _onNavigate(RouteNames.desktopTrainings),
+                          onTap: () => _navigate(RouteNames.desktopTrainings),
                         ),
                         _NavTile(
                           icon: Icons.assessment_outlined,
                           activeIcon: Icons.assessment,
                           label: 'Reports',
                           isActive: _isActive(RouteNames.desktopReports),
-                          onTap: () => _onNavigate(RouteNames.desktopReports),
+                          onTap: () => _navigate(RouteNames.desktopReports),
                         ),
                         _NavTile(
                           icon: Icons.church_outlined,
@@ -265,7 +372,7 @@ class _DesktopShellState extends State<DesktopShell> {
                             RouteNames.desktopChurchAttendance,
                           ),
                           onTap: () =>
-                              _onNavigate(RouteNames.desktopChurchAttendance),
+                              _navigate(RouteNames.desktopChurchAttendance),
                         ),
                         _NavTile(
                           icon: Icons.menu_book_outlined,
@@ -273,28 +380,28 @@ class _DesktopShellState extends State<DesktopShell> {
                           label: 'Sunday School',
                           isActive: _isActive(RouteNames.desktopSundaySchool),
                           onTap: () =>
-                              _onNavigate(RouteNames.desktopSundaySchool),
+                              _navigate(RouteNames.desktopSundaySchool),
                         ),
                         _NavTile(
                           icon: Icons.person_add_outlined,
                           activeIcon: Icons.person_add,
                           label: 'Visitors',
                           isActive: _isActive(RouteNames.desktopVisitors),
-                          onTap: () => _onNavigate(RouteNames.desktopVisitors),
+                          onTap: () => _navigate(RouteNames.desktopVisitors),
                         ),
                         _NavTile(
                           icon: Icons.menu_book_outlined,
                           activeIcon: Icons.menu_book,
                           label: 'Teachings',
                           isActive: _isActive(RouteNames.desktopTeachings),
-                          onTap: () => _onNavigate(RouteNames.desktopTeachings),
+                          onTap: () => _navigate(RouteNames.desktopTeachings),
                         ),
                         _NavTile(
                           icon: Icons.event_note_outlined,
                           activeIcon: Icons.event_note,
                           label: 'Sessions',
                           isActive: _isActive(RouteNames.desktopSessions),
-                          onTap: () => _onNavigate(RouteNames.desktopSessions),
+                          onTap: () => _navigate(RouteNames.desktopSessions),
                         ),
                       ],
                     ),
@@ -338,95 +445,58 @@ class _DesktopShellState extends State<DesktopShell> {
               ],
             ),
           ),
-          // Content with page header
+          // Content with page header (stack-based; sidebar always visible)
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    _getTitleForRoute(_currentRoute),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+            child: DesktopShellScope(
+              pushList: _pushList,
+              pushDetail: _pushDetail,
+              pop: _pop,
+              canPop: _stack.length > 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      children: [
+                        if (_stack.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              right: AppDimensions.spacingMD,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              onPressed: _pop,
+                              tooltip: 'Back',
+                            ),
+                          ),
+                        Expanded(
+                          child: Text(
+                            _stack.isNotEmpty
+                                ? _getTitleForEntry(_stack.last)
+                                : 'Backoffice',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: Navigator(
-                    key: _nestedKey,
-                    initialRoute: widget.initialRoute,
-                    onGenerateRoute: _desktopOnGenerateRoute,
+                  const Divider(height: 1),
+                  Expanded(
+                    child: _stack.isEmpty
+                        ? const SizedBox.shrink()
+                        : _buildContent(_stack.last),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  static Route<dynamic>? _desktopOnGenerateRoute(RouteSettings settings) {
-    Widget page;
-    switch (settings.name) {
-      case RouteNames.desktopHome:
-        page = const DesktopHomePage();
-        break;
-      case RouteNames.desktopMembers:
-        page = const DesktopMembersPage();
-        break;
-      case RouteNames.desktopFinance:
-        page = const DesktopFinancePage();
-        break;
-      case RouteNames.desktopChat:
-        page = const DesktopChatPage();
-        break;
-      case RouteNames.desktopSettings:
-        page = const DesktopSettingsPage();
-        break;
-      case RouteNames.desktopNotifications:
-        page = const DesktopNotificationsPage();
-        break;
-      case RouteNames.desktopBirthdays:
-        page = const DesktopBirthdaysPage();
-        break;
-      case RouteNames.desktopEvents:
-        page = const DesktopEventsPage();
-        break;
-      case RouteNames.desktopTasks:
-        page = const DesktopTasksPage();
-        break;
-      case RouteNames.desktopTrainings:
-        page = const DesktopTrainingsPage();
-        break;
-      case RouteNames.desktopDepartments:
-        page = const DesktopDepartmentsPage();
-        break;
-      case RouteNames.desktopReports:
-        page = const DesktopReportsPage();
-        break;
-      case RouteNames.desktopChurchAttendance:
-        page = const DesktopChurchAttendancePage();
-        break;
-      case RouteNames.desktopSundaySchool:
-        page = const DesktopSundaySchoolPage();
-        break;
-      case RouteNames.desktopVisitors:
-        page = const DesktopVisitorsPage();
-        break;
-      case RouteNames.desktopTeachings:
-        page = const DesktopTeachingsPage();
-        break;
-      case RouteNames.desktopSessions:
-        page = const DesktopSessionsPage();
-        break;
-      default:
-        page = const DesktopHomePage();
-    }
-    return MaterialPageRoute(builder: (_) => page, settings: settings);
   }
 }
 

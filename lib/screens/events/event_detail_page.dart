@@ -11,7 +11,10 @@ import '../../core/utils/permission_helper.dart';
 class EventDetailPage extends StatefulWidget {
   final String eventId;
 
-  const EventDetailPage({super.key, required this.eventId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const EventDetailPage({super.key, required this.eventId, this.onClose});
 
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
@@ -110,7 +113,15 @@ class _EventDetailPageState extends State<EventDetailPage> {
 
     if (_event == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Event')),
+        appBar: AppBar(
+          title: const Text('Event'),
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
+        ),
         body: const Center(child: Text('Event not found')),
       );
     }
@@ -119,6 +130,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(_event!['title'] ?? 'Event'),
           actions: [
             if (_canEdit) ...[
