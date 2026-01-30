@@ -67,6 +67,7 @@ class RouteNames {
   static const String editClass = '/trainings/:id/edit';
   static const String sessions = '/trainings/:id/sessions';
   static const String sessionDetail = '/sessions/:id';
+  static const String takeAttendance = '/trainings/session/:id/attendance';
 
   // Task Routes
   static const String tasks = '/tasks';

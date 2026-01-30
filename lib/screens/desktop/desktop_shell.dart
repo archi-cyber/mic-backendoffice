@@ -14,6 +14,7 @@ import '../../screens/teachings/edit_teaching_page.dart';
 import '../../screens/classes/class_detail_page.dart';
 import '../../screens/classes/add_class_page.dart';
 import '../../screens/classes/edit_class_page.dart';
+import '../../screens/classes/attendance_page.dart';
 import '../../screens/attendance/church_attendance_page.dart';
 import '../../screens/attendance/sunday_school_attendance_page.dart';
 import '../../screens/visitors/add_visitor_page.dart';
@@ -190,6 +191,7 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.editGiving) return 'Edit Giving Record';
     if (entry.route == RouteNames.memberReport) return 'Member Report';
     if (entry.route == RouteNames.classReport) return 'Training Report';
+    if (entry.route == RouteNames.takeAttendance) return 'Take Attendance';
     return 'Details';
   }
 
@@ -325,6 +327,9 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.classReport && id.isNotEmpty) {
       return ClassReportPage(classId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.takeAttendance && id.isNotEmpty) {
+      return AttendancePage(sessionId: id, members: null, onClose: onClose);
     }
     return const SizedBox.shrink();
   }

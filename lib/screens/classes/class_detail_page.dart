@@ -95,12 +95,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 } else {
                   Navigator.of(context)
                       .pushNamed(
-                        RouteNames.editClass
-                            .replaceAll(':id', widget.classId),
+                        RouteNames.editClass.replaceAll(':id', widget.classId),
                       )
                       .then((result) {
-                    if (result == true) _loadClassData();
-                  });
+                        if (result == true) _loadClassData();
+                      });
                 }
               },
               tooltip: 'Edit Training',
@@ -131,7 +130,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
             ? Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                      maxWidth: _kClassDetailDesktopMaxWidth),
+                    maxWidth: _kClassDetailDesktopMaxWidth,
+                  ),
                   child: TabBarView(
                     children: [
                       _SessionsTab(
@@ -406,6 +406,12 @@ class _SessionsTabState extends State<_SessionsTab> {
           .toList();
 
       if (!mounted) return;
+
+      final scope = DesktopShellScope.maybeOf(context);
+      if (scope != null) {
+        scope.pushDetail(RouteNames.takeAttendance, sessionId);
+        return;
+      }
 
       await Navigator.of(context).push(
         MaterialPageRoute(
