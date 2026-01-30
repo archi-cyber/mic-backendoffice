@@ -6,7 +6,10 @@ import '../../services/finance_service.dart';
 
 /// Add giving page for creating new giving/expense records
 class AddGivingPage extends StatefulWidget {
-  const AddGivingPage({super.key});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final void Function([dynamic result])? onClose;
+
+  const AddGivingPage({super.key, this.onClose});
 
   @override
   State<AddGivingPage> createState() => _AddGivingPageState();
@@ -156,7 +159,11 @@ class _AddGivingPageState extends State<AddGivingPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true); // Return true to indicate success
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -177,276 +184,294 @@ class _AddGivingPageState extends State<AddGivingPage> {
     final localizations = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: Text(localizations.addGivingRecord)),
+      appBar: AppBar(
+        title: Text(localizations.addGivingRecord),
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(),
+              )
+            : null,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Transaction Type Toggle
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${localizations.transactionType} *',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      Row(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: widget.onClose != null ? 600 : double.infinity,
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Transaction Type Toggle
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: ChoiceChip(
-                              label: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.arrow_downward, size: 18),
-                                  const SizedBox(width: 4),
-                                  Text(localizations.receiving),
-                                ],
-                              ),
-                              selected: !_isExpense,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _isExpense = !selected;
-                                });
-                              },
-                            ),
+                          Text(
+                            '${localizations.transactionType} *',
+                            style: theme.textTheme.titleMedium,
                           ),
-                          const SizedBox(width: AppDimensions.spacingMD),
-                          Expanded(
-                            child: ChoiceChip(
-                              label: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.arrow_upward, size: 18),
-                                  const SizedBox(width: 4),
-                                  Text(localizations.expense),
-                                ],
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(
+                                        Icons.arrow_downward,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(localizations.receiving),
+                                    ],
+                                  ),
+                                  selected: !_isExpense,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _isExpense = !selected;
+                                    });
+                                  },
+                                ),
                               ),
-                              selected: _isExpense,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _isExpense = selected;
-                                });
-                              },
-                            ),
+                              const SizedBox(width: AppDimensions.spacingMD),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.arrow_upward, size: 18),
+                                      const SizedBox(width: 4),
+                                      Text(localizations.expense),
+                                    ],
+                                  ),
+                                  selected: _isExpense,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _isExpense = selected;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
+                  const SizedBox(height: AppDimensions.spacingMD),
 
-              // Giver Type Toggle
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        localizations.giverType,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      Row(
+                  // Giver Type Toggle
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: ChoiceChip(
-                              label: Text(localizations.member),
-                              selected: !_isExternalGiver,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _isExternalGiver = !selected;
-                                  if (!_isExternalGiver) {
-                                    _giverNameController.clear();
-                                  } else {
-                                    _selectedMemberId = null;
-                                  }
-                                });
-                              },
-                            ),
+                          Text(
+                            localizations.giverType,
+                            style: theme.textTheme.titleMedium,
                           ),
-                          const SizedBox(width: AppDimensions.spacingMD),
-                          Expanded(
-                            child: ChoiceChip(
-                              label: Text(localizations.externalPerson),
-                              selected: _isExternalGiver,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _isExternalGiver = selected;
-                                  if (_isExternalGiver) {
-                                    _selectedMemberId = null;
-                                  } else {
-                                    _giverNameController.clear();
-                                  }
-                                });
-                              },
-                            ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: Text(localizations.member),
+                                  selected: !_isExternalGiver,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _isExternalGiver = !selected;
+                                      if (!_isExternalGiver) {
+                                        _giverNameController.clear();
+                                      } else {
+                                        _selectedMemberId = null;
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: AppDimensions.spacingMD),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: Text(localizations.externalPerson),
+                                  selected: _isExternalGiver,
+                                  onSelected: (selected) {
+                                    setState(() {
+                                      _isExternalGiver = selected;
+                                      if (_isExternalGiver) {
+                                        _selectedMemberId = null;
+                                      } else {
+                                        _giverNameController.clear();
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
+                  const SizedBox(height: AppDimensions.spacingMD),
 
-              // Member Selection or Giver Name
-              if (!_isExternalGiver)
-                _isLoadingMembers
-                    ? const Card(
-                        child: Padding(
-                          padding: EdgeInsets.all(AppDimensions.paddingMD),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      )
-                    : DropdownButtonFormField<String>(
-                        initialValue: _selectedMemberId,
-                        decoration: InputDecoration(
-                          labelText: '${localizations.selectMember} *',
-                          prefixIcon: const Icon(Icons.person),
-                          helperText: localizations.selectMember,
-                        ),
-                        items: _members.map((member) {
-                          final fullName =
-                              '${member['first_name']} ${member['last_name']}';
-                          return DropdownMenuItem<String>(
-                            value: member['id'].toString(),
-                            child: Text(fullName),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedMemberId = value;
-                            if (value != null) {
-                              final member = _members.firstWhere(
-                                (m) => m['id'].toString() == value,
-                              );
-                              _giverNameController.text =
+                  // Member Selection or Giver Name
+                  if (!_isExternalGiver)
+                    _isLoadingMembers
+                        ? const Card(
+                            child: Padding(
+                              padding: EdgeInsets.all(AppDimensions.paddingMD),
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                          )
+                        : DropdownButtonFormField<String>(
+                            initialValue: _selectedMemberId,
+                            decoration: InputDecoration(
+                              labelText: '${localizations.selectMember} *',
+                              prefixIcon: const Icon(Icons.person),
+                              helperText: localizations.selectMember,
+                            ),
+                            items: _members.map((member) {
+                              final fullName =
                                   '${member['first_name']} ${member['last_name']}';
-                            }
-                          });
-                        },
-                        validator: (value) {
-                          if (!_isExternalGiver &&
-                              (value == null || value.isEmpty)) {
-                            return localizations.selectMember;
-                          }
-                          return null;
-                        },
-                      )
-              else
-                TextFormField(
-                  controller: _giverNameController,
-                  decoration: InputDecoration(
-                    labelText: '${localizations.giverName} *',
-                    prefixIcon: const Icon(Icons.person_outline),
-                    helperText: localizations.externalPerson,
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return localizations.giverNameRequired;
-                    }
-                    return null;
-                  },
-                ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Amount
-              TextFormField(
-                controller: _amountController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: InputDecoration(
-                  labelText: '${localizations.amount} *',
-                  prefixIcon: const Icon(Icons.attach_money),
-                  helperText: localizations.amount,
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return localizations.amountRequired;
-                  }
-                  final amount = double.tryParse(value);
-                  if (amount == null || amount <= 0) {
-                    return localizations.validAmountRequired;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Tag Selection
-              DropdownButtonFormField<String>(
-                initialValue: _selectedTag,
-                decoration: InputDecoration(
-                  labelText: '${localizations.tag} *',
-                  prefixIcon: const Icon(Icons.label),
-                  helperText: localizations.category,
-                ),
-                items: _getTagOptions(localizations).map((tag) {
-                  return DropdownMenuItem<String>(
-                    value: tag['value'],
-                    child: Text(tag['label']!),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedTag = value;
-                  });
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return localizations.pleaseSelectTag;
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Description
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: localizations.notes,
-                  prefixIcon: const Icon(Icons.description),
-                  helperText: localizations.description,
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingXL),
-
-              // Save Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        _isExpense
-                            ? localizations.createExpense
-                            : localizations.createReceivingRecord,
+                              return DropdownMenuItem<String>(
+                                value: member['id'].toString(),
+                                child: Text(fullName),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedMemberId = value;
+                                if (value != null) {
+                                  final member = _members.firstWhere(
+                                    (m) => m['id'].toString() == value,
+                                  );
+                                  _giverNameController.text =
+                                      '${member['first_name']} ${member['last_name']}';
+                                }
+                              });
+                            },
+                            validator: (value) {
+                              if (!_isExternalGiver &&
+                                  (value == null || value.isEmpty)) {
+                                return localizations.selectMember;
+                              }
+                              return null;
+                            },
+                          )
+                  else
+                    TextFormField(
+                      controller: _giverNameController,
+                      decoration: InputDecoration(
+                        labelText: '${localizations.giverName} *',
+                        prefixIcon: const Icon(Icons.person_outline),
+                        helperText: localizations.externalPerson,
                       ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return localizations.giverNameRequired;
+                        }
+                        return null;
+                      },
+                    ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+
+                  // Amount
+                  TextFormField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: '${localizations.amount} *',
+                      prefixIcon: const Icon(Icons.attach_money),
+                      helperText: localizations.amount,
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return localizations.amountRequired;
+                      }
+                      final amount = double.tryParse(value);
+                      if (amount == null || amount <= 0) {
+                        return localizations.validAmountRequired;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+
+                  // Tag Selection
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedTag,
+                    decoration: InputDecoration(
+                      labelText: '${localizations.tag} *',
+                      prefixIcon: const Icon(Icons.label),
+                      helperText: localizations.category,
+                    ),
+                    items: _getTagOptions(localizations).map((tag) {
+                      return DropdownMenuItem<String>(
+                        value: tag['value'],
+                        child: Text(tag['label']!),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedTag = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return localizations.pleaseSelectTag;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+
+                  // Description
+                  TextFormField(
+                    controller: _descriptionController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: localizations.notes,
+                      prefixIcon: const Icon(Icons.description),
+                      helperText: localizations.description,
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.spacingXL),
+
+                  // Save Button
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _handleSave,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(
+                        double.infinity,
+                        AppDimensions.buttonHeightLG,
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(
+                            _isExpense
+                                ? localizations.createExpense
+                                : localizations.createReceivingRecord,
+                          ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

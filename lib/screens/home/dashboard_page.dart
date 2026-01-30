@@ -34,8 +34,8 @@ class _DashboardPageState extends State<DashboardPage> {
   /// Recent teachings (max 3) for desktop.
   List<Map<String, dynamic>> _recentTeachingsList = [];
 
-  /// Upcoming trainings/sessions (max 5) for desktop. Each: id, session_date, class_id, class name.
-  List<Map<String, dynamic>> _upcomingTrainingsList = [];
+  /// Upcoming birthdays (max 5) for desktop. Each: id, first_name, last_name, birthday.
+  List<Map<String, dynamic>> _upcomingBirthdaysList = [];
 
   /// Newcomers (members with is_new_comer=true) for desktop table.
   List<Map<String, dynamic>> _newcomersList = [];
@@ -43,7 +43,7 @@ class _DashboardPageState extends State<DashboardPage> {
   static const double _kDesktopMaxWidth = 1200;
   static const int _kUpcomingEventsLimit = 10;
   static const int _kRecentTeachingsLimit = 3;
-  static const int _kUpcomingTrainingsLimit = 5;
+  static const int _kUpcomingBirthdaysLimit = 5;
   static const int _kNewcomersLimit = 5;
 
   @override
@@ -157,33 +157,51 @@ class _DashboardPageState extends State<DashboardPage> {
         _recentTeachingsList = [];
       }
 
-      // Load upcoming trainings/sessions (max 5) with class name
+      // Load upcoming birthdays for desktop (max 5): current month from today + next month
       try {
-        final sessionsResponse = await SupabaseService.client
-            .from('sessions')
-            .select('id, session_date, class_id, classes(name)')
-            .not('class_id', 'is', null)
-            .gte('session_date', now.toIso8601String().split('T')[0])
-            .order('session_date', ascending: true)
-            .limit(_kUpcomingTrainingsLimit);
-        final sessionsList = sessionsResponse as List;
-        _upcomingTrainingsList = sessionsList
-            .take(_kUpcomingTrainingsLimit)
-            .map((s) {
-              final m = Map<String, dynamic>.from(s as Map);
-              // Flatten classes(name) -> class_name for display
-              final classes = m['classes'];
-              if (classes is Map) {
-                m['class_name'] = classes['name']?.toString() ?? '';
-              } else {
-                m['class_name'] = '';
-              }
-              return m;
-            })
+        final membersResponse = await SupabaseService.client
+            .from('members')
+            .select('id, first_name, last_name, birthday')
+            .not('birthday', 'is', null)
+            .eq('is_active', true);
+        final list = membersResponse as List;
+        final currentMonth = now.month;
+        final nextMonth = (now.month % 12) + 1;
+        final currentDay = now.day;
+        final upcoming = list.where((m) {
+          if (m is! Map || m['birthday'] == null) return false;
+          try {
+            final date = DateTime.parse(m['birthday'].toString());
+            if (date.month == currentMonth) return date.day >= currentDay;
+            if (date.month == nextMonth) return true;
+            return false;
+          } catch (_) {
+            return false;
+          }
+        }).toList();
+        upcoming.sort((a, b) {
+          try {
+            final dateA = DateTime.parse((a as Map)['birthday'].toString());
+            final dateB = DateTime.parse((b as Map)['birthday'].toString());
+            if (dateA.month != dateB.month) {
+              return dateA.month.compareTo(dateB.month);
+            }
+            final dayCmp = dateA.day.compareTo(dateB.day);
+            if (dayCmp != 0) return dayCmp;
+            final nameA = '${(a['first_name'] ?? '')} ${a['last_name'] ?? ''}';
+            final nameB = '${(b['first_name'] ?? '')} ${b['last_name'] ?? ''}';
+            return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+          } catch (_) {
+            return 0;
+          }
+        });
+        _upcomingBirthdaysList = upcoming
+            .take(_kUpcomingBirthdaysLimit)
+            .map((m) => Map<String, dynamic>.from(m as Map))
             .toList();
       } catch (e) {
-        errors.add('Trainings: $e');
-        _upcomingTrainingsList = [];
+        errors.add('Birthdays list: $e');
+        _upcomingBirthdaysList = [];
       }
 
       // Load newcomers (members with is_new_comer = true)
@@ -267,6 +285,17 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  static String _formatBirthdayShort(DateTime birthday, DateTime now) {
+    if (birthday.month == now.month && birthday.day == now.day) {
+      return 'Today';
+    }
+    final tomorrow = now.add(const Duration(days: 1));
+    if (birthday.month == tomorrow.month && birthday.day == tomorrow.day) {
+      return 'Tomorrow';
+    }
+    return DateFormat('MMM d').format(birthday);
+  }
+
   Widget _buildDesktopBody(
     BuildContext context,
     AppLocalizations? localizations,
@@ -275,6 +304,7 @@ class _DashboardPageState extends State<DashboardPage> {
     final l = localizations;
     final dateFormat = DateFormat('MMM d, yyyy');
     final scope = DesktopShellScope.maybeOf(context);
+    final now = DateTime.now();
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -546,46 +576,76 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               )
                             else
-                              ..._recentTeachingsList.map((teaching) {
-                                final id = teaching['id']?.toString() ?? '';
-                                final title =
-                                    teaching['title']?.toString() ?? 'Untitled';
-                                final dateStr = teaching['teaching_date'];
-                                final dateFormatted = dateStr != null
-                                    ? dateFormat.format(DateTime.parse(dateStr))
-                                    : '—';
-                                return ListTile(
-                                  title: Text(
-                                    title,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: DataTable(
+                                  headingRowColor: WidgetStateProperty.all(
+                                    theme.colorScheme.surfaceContainerHighest,
                                   ),
-                                  subtitle: Text(dateFormatted),
-                                  trailing: TextButton(
-                                    onPressed: () {
-                                      if (scope != null) {
-                                        scope.pushDetail(
-                                          RouteNames.teachingDetail,
-                                          id,
-                                        );
-                                      } else {
-                                        Navigator.of(
-                                          context,
-                                          rootNavigator: true,
-                                        ).pushNamed(
-                                          RouteNames.teachingDetail.replaceAll(
-                                            ':id',
-                                            id,
+                                  columns: const [
+                                    DataColumn(label: Text('Title')),
+                                    DataColumn(label: Text('Date')),
+                                    DataColumn(label: Text('Speaker')),
+                                    DataColumn(label: Text('Action')),
+                                  ],
+                                  rows: _recentTeachingsList.map((teaching) {
+                                    final id = teaching['id']?.toString() ?? '';
+                                    final title =
+                                        teaching['title']?.toString() ??
+                                        'Untitled';
+                                    final dateStr = teaching['teaching_date'];
+                                    final dateFormatted = dateStr != null
+                                        ? dateFormat.format(
+                                            DateTime.parse(dateStr),
+                                          )
+                                        : '—';
+                                    final speaker =
+                                        teaching['speaker']?.toString() ?? '—';
+                                    return DataRow(
+                                      cells: [
+                                        DataCell(
+                                          Text(
+                                            title,
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
                                           ),
-                                        );
-                                      }
-                                    },
-                                    child: const Text('View'),
-                                  ),
-                                  contentPadding: EdgeInsets.zero,
-                                  visualDensity: VisualDensity.compact,
-                                );
-                              }),
+                                        ),
+                                        DataCell(Text(dateFormatted)),
+                                        DataCell(
+                                          Text(
+                                            speaker,
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
+                                          ),
+                                        ),
+                                        DataCell(
+                                          TextButton(
+                                            onPressed: () {
+                                              if (id.isNotEmpty) {
+                                                if (scope != null) {
+                                                  scope.pushDetail(
+                                                    RouteNames.teachingDetail,
+                                                    id,
+                                                  );
+                                                } else {
+                                                  Navigator.of(
+                                                    context,
+                                                    rootNavigator: true,
+                                                  ).pushNamed(
+                                                    RouteNames.teachingDetail
+                                                        .replaceAll(':id', id),
+                                                  );
+                                                }
+                                              }
+                                            },
+                                            child: const Text('View'),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -594,7 +654,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               const SizedBox(height: AppDimensions.spacingXL),
-              // Row: Upcoming Trainings (max 5) + Newcomers table
+              // Row: Upcoming Birthdays (max 5) + Newcomers table
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -609,7 +669,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  l?.classes ?? 'Upcoming Trainings',
+                                  l?.birthdays ?? 'Upcoming Birthdays',
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -618,13 +678,13 @@ class _DashboardPageState extends State<DashboardPage> {
                                   onPressed: () {
                                     if (scope != null) {
                                       scope.pushList(
-                                        RouteNames.desktopTrainings,
+                                        RouteNames.desktopBirthdays,
                                       );
                                     } else {
                                       Navigator.of(
                                         context,
                                       ).pushReplacementNamed(
-                                        RouteNames.desktopTrainings,
+                                        RouteNames.desktopBirthdays,
                                       );
                                     }
                                   },
@@ -643,14 +703,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                   child: CircularProgressIndicator(),
                                 ),
                               )
-                            else if (_upcomingTrainingsList.isEmpty)
+                            else if (_upcomingBirthdaysList.isEmpty)
                               Padding(
                                 padding: const EdgeInsets.all(
                                   AppDimensions.spacingLG,
                                 ),
                                 child: Center(
                                   child: Text(
-                                    l?.noData ?? 'No upcoming trainings',
+                                    l?.noData ?? 'No upcoming birthdays',
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       color: AppColors.textSecondary,
                                     ),
@@ -665,44 +725,50 @@ class _DashboardPageState extends State<DashboardPage> {
                                     theme.colorScheme.surfaceContainerHighest,
                                   ),
                                   columns: const [
-                                    DataColumn(label: Text('Training')),
-                                    DataColumn(label: Text('Date')),
+                                    DataColumn(label: Text('Name')),
+                                    DataColumn(label: Text('Birthday')),
                                     DataColumn(label: Text('Action')),
                                   ],
-                                  rows: _upcomingTrainingsList.map((session) {
-                                    final classId =
-                                        session['class_id']?.toString() ?? '';
-                                    final className =
-                                        session['class_name']?.toString() ??
-                                        '—';
-                                    final dateStr = session['session_date'];
-                                    final dateFormatted = dateStr != null
-                                        ? dateFormat.format(
-                                            DateTime.parse(dateStr),
+                                  rows: _upcomingBirthdaysList.map((member) {
+                                    final memberId =
+                                        member['id']?.toString() ?? '';
+                                    final name =
+                                        '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
+                                            .trim();
+                                    final displayName = name.isEmpty
+                                        ? '—'
+                                        : name;
+                                    final birthdayStr = member['birthday']
+                                        ?.toString();
+                                    final birthdayFormatted =
+                                        birthdayStr != null
+                                        ? _formatBirthdayShort(
+                                            DateTime.parse(birthdayStr),
+                                            now,
                                           )
                                         : '—';
                                     return DataRow(
                                       cells: [
-                                        DataCell(Text(className)),
-                                        DataCell(Text(dateFormatted)),
+                                        DataCell(Text(displayName)),
+                                        DataCell(Text(birthdayFormatted)),
                                         DataCell(
                                           TextButton(
                                             onPressed: () {
-                                              if (classId.isNotEmpty) {
+                                              if (memberId.isNotEmpty) {
                                                 if (scope != null) {
                                                   scope.pushDetail(
-                                                    RouteNames.classDetail,
-                                                    classId,
+                                                    RouteNames.memberDetail,
+                                                    memberId,
                                                   );
                                                 } else {
                                                   Navigator.of(
                                                     context,
                                                     rootNavigator: true,
                                                   ).pushNamed(
-                                                    RouteNames.classDetail
+                                                    RouteNames.memberDetail
                                                         .replaceAll(
                                                           ':id',
-                                                          classId,
+                                                          memberId,
                                                         ),
                                                   );
                                                 }

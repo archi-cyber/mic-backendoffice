@@ -4,6 +4,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/class_service.dart';
 import '../../services/member_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 import 'attendance_page.dart';
 
 /// Training detail page with sessions and attendance
@@ -19,6 +20,9 @@ class ClassDetailPage extends StatefulWidget {
   State<ClassDetailPage> createState() => _ClassDetailPageState();
 }
 
+const double _kClassDetailDesktopBreakpoint = 700;
+const double _kClassDetailDesktopMaxWidth = 900;
+
 class _ClassDetailPageState extends State<ClassDetailPage> {
   Map<String, dynamic>? _classData;
   bool _isLoading = true;
@@ -33,11 +37,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     setState(() => _isLoading = true);
     try {
       final classData = await ClassService.getClassById(widget.classId);
+      if (!mounted) return;
       setState(() {
         _classData = classData;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -82,12 +88,19 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           actions: [
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: () async {
-                final result = await Navigator.of(context).pushNamed(
-                  RouteNames.editClass.replaceAll(':id', widget.classId),
-                );
-                if (result == true) {
-                  _loadClassData();
+              onPressed: () {
+                final scope = DesktopShellScope.maybeOf(context);
+                if (scope != null) {
+                  scope.pushDetail(RouteNames.editClass, widget.classId);
+                } else {
+                  Navigator.of(context)
+                      .pushNamed(
+                        RouteNames.editClass
+                            .replaceAll(':id', widget.classId),
+                      )
+                      .then((result) {
+                    if (result == true) _loadClassData();
+                  });
                 }
               },
               tooltip: 'Edit Training',
@@ -114,15 +127,31 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _SessionsTab(
-              classId: widget.classId,
-              onSessionsUpdated: _loadClassData,
-            ),
-            _MembersTab(classId: widget.classId),
-          ],
-        ),
+        body: MediaQuery.sizeOf(context).width >= _kClassDetailDesktopBreakpoint
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                      maxWidth: _kClassDetailDesktopMaxWidth),
+                  child: TabBarView(
+                    children: [
+                      _SessionsTab(
+                        classId: widget.classId,
+                        onSessionsUpdated: _loadClassData,
+                      ),
+                      _MembersTab(classId: widget.classId),
+                    ],
+                  ),
+                ),
+              )
+            : TabBarView(
+                children: [
+                  _SessionsTab(
+                    classId: widget.classId,
+                    onSessionsUpdated: _loadClassData,
+                  ),
+                  _MembersTab(classId: widget.classId),
+                ],
+              ),
       ),
     );
   }
@@ -159,7 +188,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
               backgroundColor: AppColors.success,
             ),
           );
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {

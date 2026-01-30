@@ -11,7 +11,10 @@ import '../../utils/export_utils.dart';
 class MemberReportPage extends StatefulWidget {
   final String memberId;
 
-  const MemberReportPage({super.key, required this.memberId});
+  /// When set (e.g. desktop stack), back uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const MemberReportPage({super.key, required this.memberId, this.onClose});
 
   @override
   State<MemberReportPage> createState() => _MemberReportPageState();
@@ -154,6 +157,12 @@ class _MemberReportPageState extends State<MemberReportPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: Text(
           '${_member?['first_name']} ${_member?['last_name']} - Report',
         ),
@@ -252,9 +261,9 @@ class _MemberReportPageState extends State<MemberReportPage> {
                 const SizedBox(width: AppDimensions.spacingSM),
                 Text(
                   'Attendance Details',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ],
             ),
@@ -311,7 +320,11 @@ class _MemberReportPageState extends State<MemberReportPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.calendar_today, size: 14, color: AppColors.textSecondary),
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: AppColors.textSecondary,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           _formatDate(displayDate),

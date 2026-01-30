@@ -6,6 +6,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/teaching_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Teachings list page
 class TeachingsListPage extends StatefulWidget {
@@ -17,12 +18,18 @@ class TeachingsListPage extends StatefulWidget {
   State<TeachingsListPage> createState() => _TeachingsListPageState();
 }
 
+const double _kTeachingsDesktopBreakpoint = 700;
+const double _kTeachingsDesktopMaxWidth = 1000;
+const int _kTeachingsRowsPerPage = 10;
+
 class _TeachingsListPageState extends State<TeachingsListPage> {
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _teachings = [];
   bool _isLoading = true;
   bool _canEdit = false;
   bool _canDelete = false;
+  int _teachingsPage = 0;
+  bool _canCreate = false;
 
   @override
   void initState() {
@@ -34,9 +41,12 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
   Future<void> _checkPermissions() async {
     final canEdit = await PermissionHelper.canEdit('teachings');
     final canDelete = await PermissionHelper.canDelete('teachings');
+    final canCreate = await PermissionHelper.canCreate('teachings');
+    if (!mounted) return;
     setState(() {
       _canEdit = canEdit;
       _canDelete = canDelete;
+      _canCreate = canCreate;
     });
   }
 
@@ -50,11 +60,14 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     setState(() => _isLoading = true);
     try {
       final teachings = await TeachingService.getTeachings(limit: 200);
+      if (!mounted) return;
       setState(() {
         _teachings = teachings;
         _isLoading = false;
+        _teachingsPage = 0;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         final localizations = AppLocalizations.of(context);
@@ -89,6 +102,32 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
 
   String _formatDate(DateTime date) {
     return DateFormat('MMM d, yyyy').format(date);
+  }
+
+  int get _totalTeachingsPages {
+    if (_filteredTeachings.isEmpty) return 1;
+    return (_filteredTeachings.length / _kTeachingsRowsPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _paginatedTeachings {
+    final start = _teachingsPage * _kTeachingsRowsPerPage;
+    final end = (start + _kTeachingsRowsPerPage).clamp(
+      0,
+      _filteredTeachings.length,
+    );
+    if (start >= _filteredTeachings.length) return [];
+    return _filteredTeachings.sublist(start, end);
+  }
+
+  void _openTeachingDetail(String teachingId) {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.teachingDetail, teachingId);
+    } else {
+      Navigator.of(
+        context,
+      ).pushNamed(RouteNames.teachingDetail.replaceAll(':id', teachingId));
+    }
   }
 
   Future<void> _deleteTeaching(String teachingId, String teachingTitle) async {
@@ -165,11 +204,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
         borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
       ),
       child: InkWell(
-        onTap: () {
-          Navigator.of(
-            context,
-          ).pushNamed(RouteNames.teachingDetail.replaceAll(':id', teachingId));
-        },
+        onTap: () => _openTeachingDetail(teachingId),
         child: Padding(
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
@@ -191,14 +226,23 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                         icon: const Icon(Icons.edit, size: 20),
                         color: AppColors.primary,
                         onPressed: () async {
-                          final result = await Navigator.of(context).pushNamed(
-                            RouteNames.editTeaching.replaceAll(
-                              ':id',
+                          final scope = DesktopShellScope.maybeOf(context);
+                          if (scope != null) {
+                            scope.pushDetail(
+                              RouteNames.editTeaching,
                               teachingId,
-                            ),
-                          );
-                          if (result == true) {
-                            _loadTeachings();
+                            );
+                          } else {
+                            final result = await Navigator.of(context)
+                                .pushNamed(
+                                  RouteNames.editTeaching.replaceAll(
+                                    ':id',
+                                    teachingId,
+                                  ),
+                                );
+                            if (result == true) {
+                              _loadTeachings();
+                            }
                           }
                         },
                         tooltip: 'Edit Teaching',
@@ -274,6 +318,10 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop =
+        widget.hideAppBarAndBottomNav &&
+        MediaQuery.sizeOf(context).width >= _kTeachingsDesktopBreakpoint;
+
     return Scaffold(
       appBar: widget.hideAppBarAndBottomNav
           ? null
@@ -289,87 +337,344 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                 ),
               ],
             ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText:
-                    localizations?.searchTeachings ?? 'Search teachings...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
-              ),
-              onChanged: (_) => setState(() {}),
+      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
+      floatingActionButton: isDesktop
+          ? null
+          : FutureBuilder<bool>(
+              future: PermissionHelper.canCreate('teachings'),
+              builder: (context, snapshot) {
+                final canCreate = snapshot.data ?? false;
+                if (!canCreate) return const SizedBox.shrink();
+                return FloatingActionButton.extended(
+                  onPressed: () async {
+                    final result = await Navigator.of(
+                      context,
+                    ).pushNamed(RouteNames.addTeaching);
+                    if (result == true) {
+                      _loadTeachings();
+                    }
+                  },
+                  icon: const Icon(Icons.add),
+                  label: Text(localizations?.addTeaching ?? 'Add Teaching'),
+                );
+              },
             ),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: _kTeachingsDesktopMaxWidth,
           ),
-          // Teachings list
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredTeachings.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.menu_book_outlined,
-                          size: 64,
-                          color: AppColors.textSecondary,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText:
+                            localizations?.searchTeachings ??
+                            'Search teachings...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
                         ),
-                        const SizedBox(height: AppDimensions.spacingMD),
+                      ),
+                      onChanged: (_) => setState(() {
+                        _teachingsPage = 0;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.spacingMD),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _isLoading ? null : _loadTeachings,
+                    tooltip: localizations?.refresh ?? 'Refresh',
+                  ),
+                  const Spacer(),
+                  if (_canCreate)
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final scope = DesktopShellScope.maybeOf(context);
+                        if (scope != null) {
+                          scope.pushDetail(RouteNames.addTeaching, '');
+                        } else {
+                          final result = await Navigator.of(
+                            context,
+                          ).pushNamed(RouteNames.addTeaching);
+                          if (result == true) {
+                            _loadTeachings();
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.add, size: 20),
+                      label: Text(localizations?.addTeaching ?? 'Add Teaching'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredTeachings.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.menu_book_outlined,
+                              size: 64,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? (localizations?.noTeachingsFound ??
+                                        'No teachings found matching your search')
+                                  : (localizations?.noTeachings ??
+                                        'No teachings yet'),
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadTeachings,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.vertical,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                theme.colorScheme.surfaceContainerHighest,
+                              ),
+                              columns: const [
+                                DataColumn(label: Text('Title')),
+                                DataColumn(label: Text('Date')),
+                                DataColumn(label: Text('Speaker')),
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: _paginatedTeachings.map((teaching) {
+                                final id = teaching['id']?.toString() ?? '';
+                                final title =
+                                    teaching['title']?.toString() ?? 'Untitled';
+                                final dateStr = teaching['teaching_date'];
+                                final dateFormatted = dateStr != null
+                                    ? _formatDate(DateTime.parse(dateStr))
+                                    : '—';
+                                final speaker =
+                                    teaching['speaker']?.toString() ?? '—';
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                      InkWell(
+                                        onTap: () => _openTeachingDetail(id),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 8,
+                                          ),
+                                          child: Text(
+                                            title,
+                                            overflow: TextOverflow.ellipsis,
+                                            maxLines: 1,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(Text(dateFormatted)),
+                                    DataCell(
+                                      Text(
+                                        speaker,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                _openTeachingDetail(id),
+                                            child: const Text('View'),
+                                          ),
+                                          if (_canEdit) ...[
+                                            const SizedBox(width: 4),
+                                            TextButton(
+                                              onPressed: () async {
+                                                final scope =
+                                                    DesktopShellScope.maybeOf(
+                                                      context,
+                                                    );
+                                                if (scope != null) {
+                                                  scope.pushDetail(
+                                                    RouteNames.editTeaching,
+                                                    id,
+                                                  );
+                                                } else {
+                                                  final result =
+                                                      await Navigator.of(
+                                                        context,
+                                                      ).pushNamed(
+                                                        RouteNames.editTeaching
+                                                            .replaceAll(
+                                                              ':id',
+                                                              id,
+                                                            ),
+                                                      );
+                                                  if (result == true) {
+                                                    _loadTeachings();
+                                                  }
+                                                }
+                                              },
+                                              child: const Text('Edit'),
+                                            ),
+                                          ],
+                                          if (_canDelete) ...[
+                                            const SizedBox(width: 4),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  _deleteTeaching(id, title),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor:
+                                                    AppColors.error,
+                                              ),
+                                              child: const Text('Delete'),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+              if (_filteredTeachings.isNotEmpty) ...[
+                const SizedBox(height: AppDimensions.spacingSM),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Rows per page: $_kTeachingsRowsPerPage',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                    Row(
+                      children: [
                         Text(
-                          _searchController.text.isNotEmpty
-                              ? (localizations?.noTeachingsFound ??
-                                    'No teachings found matching your search')
-                              : (localizations?.noTeachings ??
-                                    'No teachings yet'),
-                          style: Theme.of(context).textTheme.titleMedium,
+                          'Page ${_teachingsPage + 1} of $_totalTeachingsPages',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        const SizedBox(width: AppDimensions.spacingSM),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: _teachingsPage > 0
+                              ? () => setState(
+                                  () => _teachingsPage = _teachingsPage - 1,
+                                )
+                              : null,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: _teachingsPage < _totalTeachingsPages - 1
+                              ? () => setState(
+                                  () => _teachingsPage = _teachingsPage + 1,
+                                )
+                              : null,
                         ),
                       ],
                     ),
-                  )
-                : RefreshIndicator(
-                    onRefresh: _loadTeachings,
-                    child: ListView.builder(
-                      itemCount: _filteredTeachings.length,
-                      itemBuilder: (context, index) {
-                        return _buildTeachingCard(_filteredTeachings[index]);
-                      },
-                    ),
-                  ),
+                  ],
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
       ),
-      floatingActionButton: FutureBuilder<bool>(
-        future: PermissionHelper.canCreate('teachings'),
-        builder: (context, snapshot) {
-          final canCreate = snapshot.data ?? false;
-          if (!canCreate) return const SizedBox.shrink();
-          return FloatingActionButton.extended(
-            onPressed: () async {
-              final result = await Navigator.of(
-                context,
-              ).pushNamed(RouteNames.addTeaching);
-              if (result == true) {
-                _loadTeachings();
-              }
-            },
-            icon: const Icon(Icons.add),
-            label: Text(localizations?.addTeaching ?? 'Add Teaching'),
-          );
-        },
-      ),
+    );
+  }
+
+  Widget _buildMobileBody(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: localizations?.searchTeachings ?? 'Search teachings...',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {});
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredTeachings.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.menu_book_outlined,
+                        size: 64,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        _searchController.text.isNotEmpty
+                            ? (localizations?.noTeachingsFound ??
+                                  'No teachings found matching your search')
+                            : (localizations?.noTeachings ??
+                                  'No teachings yet'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadTeachings,
+                  child: ListView.builder(
+                    itemCount: _filteredTeachings.length,
+                    itemBuilder: (context, index) {
+                      return _buildTeachingCard(_filteredTeachings[index]);
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

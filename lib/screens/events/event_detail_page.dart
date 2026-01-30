@@ -6,6 +6,7 @@ import '../../services/event_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/member_service.dart';
 import '../../core/utils/permission_helper.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Event detail page with registration and leader management
 class EventDetailPage extends StatefulWidget {
@@ -19,6 +20,9 @@ class EventDetailPage extends StatefulWidget {
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
 }
+
+const double _kEventDetailDesktopBreakpoint = 700;
+const double _kEventDetailDesktopMaxWidth = 900;
 
 class _EventDetailPageState extends State<EventDetailPage> {
   Map<String, dynamic>? _event;
@@ -36,6 +40,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Future<void> _checkPermissions() async {
     final canEdit = await PermissionHelper.canEdit('events');
     final canDelete = await PermissionHelper.canDelete('events');
+    if (!mounted) return;
     setState(() {
       _canEdit = canEdit;
       _canDelete = canDelete;
@@ -46,11 +51,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() => _isLoading = true);
     try {
       final event = await EventService.getEventById(widget.eventId);
+      if (!mounted) return;
       setState(() {
         _event = event;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -90,7 +97,11 @@ class _EventDetailPageState extends State<EventDetailPage> {
               backgroundColor: AppColors.success,
             ),
           );
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -126,6 +137,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
       );
     }
 
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= _kEventDetailDesktopBreakpoint;
+    final desktopMaxWidth = isDesktop ? _kEventDetailDesktopMaxWidth : null;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -141,12 +156,21 @@ class _EventDetailPageState extends State<EventDetailPage> {
             if (_canEdit) ...[
               IconButton(
                 icon: const Icon(Icons.edit),
-                onPressed: () async {
-                  final result = await Navigator.of(context).pushNamed(
-                    RouteNames.editEvent.replaceAll(':id', widget.eventId),
-                  );
-                  if (result == true) {
-                    _loadEventData();
+                onPressed: () {
+                  final scope = DesktopShellScope.maybeOf(context);
+                  if (scope != null) {
+                    scope.pushDetail(RouteNames.editEvent, widget.eventId);
+                  } else {
+                    Navigator.of(context)
+                        .pushNamed(
+                          RouteNames.editEvent.replaceAll(
+                            ':id',
+                            widget.eventId,
+                          ),
+                        )
+                        .then((result) {
+                          if (result == true) _loadEventData();
+                        });
                   }
                 },
               ),
@@ -167,11 +191,12 @@ class _EventDetailPageState extends State<EventDetailPage> {
         ),
         body: TabBarView(
           children: [
-            _OverviewTab(event: _event!),
+            _OverviewTab(event: _event!, desktopMaxWidth: desktopMaxWidth),
             _RegistrationsTab(
               eventId: widget.eventId,
               isLeader: _canEdit || _canDelete,
               onRegistrationsUpdated: _loadEventData,
+              desktopMaxWidth: desktopMaxWidth,
             ),
           ],
         ),
@@ -183,8 +208,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
 /// Overview tab
 class _OverviewTab extends StatelessWidget {
   final Map<String, dynamic> event;
+  final double? desktopMaxWidth;
 
-  const _OverviewTab({required this.event});
+  const _OverviewTab({required this.event, this.desktopMaxWidth});
 
   String _formatDate(DateTime date) {
     const months = [
@@ -204,8 +230,7 @@ class _OverviewTab extends StatelessWidget {
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildContent(BuildContext context) {
     final eventDate = event['event_date'] != null
         ? DateTime.parse(event['event_date'])
         : null;
@@ -309,6 +334,19 @@ class _OverviewTab extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    if (desktopMaxWidth != null) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: desktopMaxWidth!),
+          child: _buildContent(context),
+        ),
+      );
+    }
+    return _buildContent(context);
+  }
 }
 
 /// Registrations tab
@@ -316,11 +354,13 @@ class _RegistrationsTab extends StatefulWidget {
   final String eventId;
   final bool isLeader;
   final VoidCallback onRegistrationsUpdated;
+  final double? desktopMaxWidth;
 
   const _RegistrationsTab({
     required this.eventId,
     required this.isLeader,
     required this.onRegistrationsUpdated,
+    this.desktopMaxWidth,
   });
 
   @override
@@ -347,12 +387,14 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         _checkRegistrationStatus(),
       ]);
 
+      if (!mounted) return;
       setState(() {
         _registrations = results[0] as List<Map<String, dynamic>>;
         _isRegistered = results[1] as bool;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -571,12 +613,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
+  Widget _buildRegistrationsContent(BuildContext context) {
     return Column(
       children: [
         // Action buttons
@@ -735,6 +772,23 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         ),
       ],
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final content = _buildRegistrationsContent(context);
+    if (widget.desktopMaxWidth != null) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: widget.desktopMaxWidth!),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 }
 

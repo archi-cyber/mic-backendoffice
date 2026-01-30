@@ -6,6 +6,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/visitor_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Visitors list page
 class VisitorsListPage extends StatefulWidget {
@@ -153,17 +154,23 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                         ),
                         onTap: () async {
                           if (!_canEdit) return;
-                          final result =
-                              await Navigator.of(
-                                context,
-                                rootNavigator: widget.hideAppBarAndBottomNav,
-                              ).pushNamed(
-                                RouteNames.editVisitor.replaceAll(
-                                  ':id',
-                                  visitorId,
-                                ),
-                              );
-                          if (result == true) _loadVisitors();
+                          final scope = DesktopShellScope.maybeOf(context);
+                          if (scope != null) {
+                            scope.pushDetail(
+                                RouteNames.editVisitor, visitorId);
+                          } else {
+                            final result =
+                                await Navigator.of(
+                                  context,
+                                  rootNavigator: widget.hideAppBarAndBottomNav,
+                                ).pushNamed(
+                                  RouteNames.editVisitor.replaceAll(
+                                    ':id',
+                                    visitorId,
+                                  ),
+                                );
+                            if (result == true) _loadVisitors();
+                          }
                         },
                       ),
                       DataCell(
@@ -190,18 +197,25 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                                 icon: const Icon(Icons.edit, size: 20),
                                 color: AppColors.primary,
                                 onPressed: () async {
-                                  final result =
-                                      await Navigator.of(
-                                        context,
-                                        rootNavigator:
-                                            widget.hideAppBarAndBottomNav,
-                                      ).pushNamed(
-                                        RouteNames.editVisitor.replaceAll(
-                                          ':id',
-                                          visitorId,
-                                        ),
-                                      );
-                                  if (result == true) _loadVisitors();
+                                  final scope =
+                                      DesktopShellScope.maybeOf(context);
+                                  if (scope != null) {
+                                    scope.pushDetail(
+                                        RouteNames.editVisitor, visitorId);
+                                  } else {
+                                    final result =
+                                        await Navigator.of(
+                                          context,
+                                          rootNavigator:
+                                              widget.hideAppBarAndBottomNav,
+                                        ).pushNamed(
+                                          RouteNames.editVisitor.replaceAll(
+                                            ':id',
+                                            visitorId,
+                                          ),
+                                        );
+                                    if (result == true) _loadVisitors();
+                                  }
                                 },
                                 tooltip: 'Edit',
                               ),
@@ -355,11 +369,16 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                     icon: const Icon(Icons.edit, size: 20),
                     color: AppColors.primary,
                     onPressed: () async {
-                      final result = await Navigator.of(context).pushNamed(
-                        RouteNames.editVisitor.replaceAll(':id', visitorId),
-                      );
-                      if (result == true) {
-                        _loadVisitors();
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (scope != null) {
+                        scope.pushDetail(
+                            RouteNames.editVisitor, visitorId);
+                      } else {
+                        final result = await Navigator.of(context).pushNamed(
+                          RouteNames.editVisitor.replaceAll(
+                              ':id', visitorId),
+                        );
+                        if (result == true) _loadVisitors();
                       }
                     },
                     tooltip: 'Edit Visitor',
@@ -526,12 +545,16 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                           if (!canCreate) return const SizedBox.shrink();
                           return ElevatedButton.icon(
                             onPressed: () async {
-                              final result = await Navigator.of(
-                                context,
-                                rootNavigator: true,
-                              ).pushNamed(RouteNames.addVisitor);
-                              if (result == true) {
-                                _loadVisitors();
+                              final scope =
+                                  DesktopShellScope.maybeOf(context);
+                              if (scope != null) {
+                                scope.pushDetail(RouteNames.addVisitor, '');
+                              } else {
+                                final result = await Navigator.of(
+                                  context,
+                                  rootNavigator: true,
+                                ).pushNamed(RouteNames.addVisitor);
+                                if (result == true) _loadVisitors();
                               }
                             },
                             icon: const Icon(Icons.add),

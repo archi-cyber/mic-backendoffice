@@ -5,6 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/sunday_school_attendance_service.dart';
 import '../../services/attendance_report_pdf_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Page showing list of Sunday school sessions with details
 class SundaySchoolAttendanceListPage extends StatefulWidget {
@@ -81,21 +82,27 @@ class _SundaySchoolAttendanceListPageState
   }
 
   Future<void> _viewSessionDetails(String sessionDate) async {
-    final result = await Navigator.of(context).pushNamed(
-      RouteNames.sundaySchoolAttendance,
-      arguments: {'sessionDate': sessionDate},
-    );
-    if (result == true) {
-      _loadSessions();
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.sundaySchoolAttendance, sessionDate);
+    } else {
+      final result = await Navigator.of(context).pushNamed(
+        RouteNames.sundaySchoolAttendance,
+        arguments: {'sessionDate': sessionDate},
+      );
+      if (result == true) _loadSessions();
     }
   }
 
   Future<void> _markNewAttendance() async {
-    final result = await Navigator.of(
-      context,
-    ).pushNamed(RouteNames.sundaySchoolAttendance);
-    if (result == true) {
-      _loadSessions();
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.sundaySchoolAttendance, '');
+    } else {
+      final result = await Navigator.of(
+        context,
+      ).pushNamed(RouteNames.sundaySchoolAttendance);
+      if (result == true) _loadSessions();
     }
   }
 

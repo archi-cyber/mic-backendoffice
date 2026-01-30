@@ -8,7 +8,10 @@ import '../../services/teaching_service.dart';
 class EditTeachingPage extends StatefulWidget {
   final String teachingId;
 
-  const EditTeachingPage({super.key, required this.teachingId});
+  /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
+  final void Function(bool? result)? onClose;
+
+  const EditTeachingPage({super.key, required this.teachingId, this.onClose});
 
   @override
   State<EditTeachingPage> createState() => _EditTeachingPageState();
@@ -41,6 +44,7 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
     setState(() => _isLoadingData = true);
     try {
       final teaching = await TeachingService.getTeachingById(widget.teachingId);
+      if (!mounted) return;
       setState(() {
         _titleController.text = teaching['title']?.toString() ?? '';
         _descriptionController.text = teaching['description']?.toString() ?? '';
@@ -53,6 +57,7 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
         _isLoadingData = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoadingData = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -61,7 +66,11 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
             backgroundColor: AppColors.error,
           ),
         );
-        Navigator.of(context).pop();
+        if (widget.onClose != null) {
+          widget.onClose!(null);
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -108,7 +117,11 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -123,12 +136,55 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
     }
   }
 
+  static const double _kDesktopBreakpoint = 700;
+  static const double _kDesktopMaxWidth = 800;
+
+  Widget _desktopSectionCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<Widget> children,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: AppColors.primary),
+                const SizedBox(width: AppDimensions.spacingSM),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+
     if (_isLoadingData) {
       return Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => widget.onClose!(null),
+                )
+              : null,
           title: Text(localizations?.editTeaching ?? 'Edit Teaching'),
         ),
         body: const Center(child: CircularProgressIndicator()),
@@ -137,102 +193,224 @@ class _EditTeachingPageState extends State<EditTeachingPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(null),
+              )
+            : null,
         title: Text(localizations?.editTeaching ?? 'Edit Teaching'),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title
-              TextFormField(
-                controller: _titleController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.teachingTitle ?? 'Title'} *',
-                  prefixIcon: const Icon(Icons.title),
-                  border: const OutlineInputBorder(),
+        actions: useDesktop
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: Text(localizations?.cancel ?? 'Cancel'),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return localizations?.teachingTitleRequired ?? 'Please enter a title';
-                  }
-                  return null;
-                },
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Teaching Date
-              InkWell(
-                onTap: _selectTeachingDate,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: '${localizations?.teachingDate ?? 'Teaching Date'} *',
-                    prefixIcon: const Icon(Icons.calendar_today),
-                    border: const OutlineInputBorder(),
+                const SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save, size: 20),
+                  label: Text(
+                    localizations?.updateTeaching ?? 'Update Teaching',
                   ),
-                  child: Text(
-                    _teachingDate != null
-                        ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
-                        : (localizations?.teachingDateRequired ?? 'Select date'),
-                    style: TextStyle(
-                      color: _teachingDate != null
-                          ? Theme.of(context).textTheme.bodyLarge?.color
-                          : Theme.of(context).hintColor,
+                ),
+                const SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
+      ),
+      body: useDesktop
+          ? Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopMaxWidth,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _desktopSectionCard(
+                          context,
+                          localizations?.teachingDetails ?? 'Teaching details',
+                          Icons.menu_book,
+                          [
+                            TextFormField(
+                              controller: _titleController,
+                              decoration: InputDecoration(
+                                labelText:
+                                    '${localizations?.teachingTitle ?? 'Title'} *',
+                                prefixIcon: const Icon(Icons.title),
+                                border: const OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return localizations?.teachingTitleRequired ??
+                                      'Please enter a title';
+                                }
+                                return null;
+                              },
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            InkWell(
+                              onTap: _selectTeachingDate,
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText:
+                                      '${localizations?.teachingDate ?? 'Teaching Date'} *',
+                                  prefixIcon: const Icon(Icons.calendar_today),
+                                  border: const OutlineInputBorder(),
+                                ),
+                                child: Text(
+                                  _teachingDate != null
+                                      ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
+                                      : (localizations?.teachingDateRequired ??
+                                            'Select date'),
+                                  style: TextStyle(
+                                    color: _teachingDate != null
+                                        ? Theme.of(
+                                            context,
+                                          ).textTheme.bodyLarge?.color
+                                        : Theme.of(context).hintColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            TextFormField(
+                              controller: _speakerController,
+                              decoration: InputDecoration(
+                                labelText:
+                                    '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
+                                prefixIcon: const Icon(Icons.person),
+                                border: const OutlineInputBorder(),
+                              ),
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            TextFormField(
+                              controller: _descriptionController,
+                              decoration: InputDecoration(
+                                labelText:
+                                    '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
+                                prefixIcon: const Icon(Icons.description),
+                                border: const OutlineInputBorder(),
+                              ),
+                              maxLines: 4,
+                              textCapitalization: TextCapitalization.sentences,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Speaker
-              TextFormField(
-                controller: _speakerController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.person),
-                  border: const OutlineInputBorder(),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        labelText:
+                            '${localizations?.teachingTitle ?? 'Title'} *',
+                        prefixIcon: const Icon(Icons.title),
+                        border: const OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return localizations?.teachingTitleRequired ??
+                              'Please enter a title';
+                        }
+                        return null;
+                      },
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    InkWell(
+                      onTap: _selectTeachingDate,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText:
+                              '${localizations?.teachingDate ?? 'Teaching Date'} *',
+                          prefixIcon: const Icon(Icons.calendar_today),
+                          border: const OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          _teachingDate != null
+                              ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
+                              : (localizations?.teachingDateRequired ??
+                                    'Select date'),
+                          style: TextStyle(
+                            color: _teachingDate != null
+                                ? Theme.of(context).textTheme.bodyLarge?.color
+                                : Theme.of(context).hintColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextFormField(
+                      controller: _speakerController,
+                      decoration: InputDecoration(
+                        labelText:
+                            '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
+                        prefixIcon: const Icon(Icons.person),
+                        border: const OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: InputDecoration(
+                        labelText:
+                            '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
+                        prefixIcon: const Icon(Icons.description),
+                        border: const OutlineInputBorder(),
+                      ),
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingXL),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          double.infinity,
+                          AppDimensions.buttonHeightLG,
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(
+                              localizations?.updateTeaching ??
+                                  'Update Teaching',
+                            ),
+                    ),
+                  ],
                 ),
-                textCapitalization: TextCapitalization.words,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Description
-              TextFormField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.description),
-                  border: const OutlineInputBorder(),
-                ),
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: AppDimensions.spacingXL),
-
-              // Save Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(localizations?.updateTeaching ?? 'Update Teaching'),
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 }

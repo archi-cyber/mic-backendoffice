@@ -6,14 +6,31 @@ import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../screens/events/event_detail_page.dart';
+import '../../screens/events/add_event_page.dart';
+import '../../screens/events/edit_event_page.dart';
 import '../../screens/teachings/teaching_detail_page.dart';
+import '../../screens/teachings/add_teaching_page.dart';
+import '../../screens/teachings/edit_teaching_page.dart';
 import '../../screens/classes/class_detail_page.dart';
+import '../../screens/classes/add_class_page.dart';
+import '../../screens/classes/edit_class_page.dart';
+import '../../screens/attendance/church_attendance_page.dart';
+import '../../screens/attendance/sunday_school_attendance_page.dart';
+import '../../screens/visitors/add_visitor_page.dart';
+import '../../screens/visitors/edit_visitor_page.dart';
+import '../../screens/finance/add_giving_page.dart';
+import '../../screens/finance/edit_giving_page.dart';
+import '../../screens/reports/member_report_page.dart';
+import '../../screens/reports/class_report_page.dart';
 import '../../screens/members/member_profile_page.dart';
 import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
 import '../../screens/departments/edit_department_page.dart';
 import '../../screens/settings/leader_access_page.dart';
 import '../../screens/settings/member_accounts_page.dart';
+import '../../screens/tasks/task_detail_page.dart';
+import '../../screens/tasks/add_task_page.dart';
+import '../../screens/tasks/edit_task_page.dart';
 import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
@@ -59,6 +76,7 @@ class DesktopShell extends StatefulWidget {
 
 class _DesktopShellState extends State<DesktopShell> {
   List<_DesktopViewEntry> _stack = [];
+  int _refreshSeed = 0;
 
   @override
   void initState() {
@@ -82,7 +100,10 @@ class _DesktopShellState extends State<DesktopShell> {
 
   void _pop() {
     if (_stack.length <= 1) return;
-    setState(() => _stack.removeLast());
+    setState(() {
+      _stack.removeLast();
+      _refreshSeed++;
+    });
   }
 
   void _navigate(String route) {
@@ -143,6 +164,8 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.isList) return _getTitleForRoute(entry.route);
     // Detail titles
     if (entry.route == RouteNames.eventDetail) return 'Event';
+    if (entry.route == RouteNames.addEvent) return 'Add Event';
+    if (entry.route == RouteNames.editEvent) return 'Edit Event';
     if (entry.route == RouteNames.teachingDetail) return 'Teaching';
     if (entry.route == RouteNames.classDetail) return 'Training';
     if (entry.route == RouteNames.memberDetail) return 'Member';
@@ -151,6 +174,22 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.editDepartment) return 'Edit Department';
     if (entry.route == RouteNames.leaderAccess) return 'Leader Access';
     if (entry.route == RouteNames.memberAccounts) return 'Member Accounts';
+    if (entry.route == RouteNames.addTeaching) return 'Add Teaching';
+    if (entry.route == RouteNames.editTeaching) return 'Edit Teaching';
+    if (entry.route == RouteNames.taskDetail) return 'Task';
+    if (entry.route == RouteNames.addTask) return 'Add Task';
+    if (entry.route == RouteNames.editTask) return 'Edit Task';
+    if (entry.route == RouteNames.addClass) return 'Add Training';
+    if (entry.route == RouteNames.editClass) return 'Edit Training';
+    if (entry.route == RouteNames.churchAttendance) return 'Church Attendance';
+    if (entry.route == RouteNames.sundaySchoolAttendance)
+      return 'Sunday School';
+    if (entry.route == RouteNames.addVisitor) return 'Add Visitor';
+    if (entry.route == RouteNames.editVisitor) return 'Edit Visitor';
+    if (entry.route == RouteNames.addGiving) return 'Add Giving Record';
+    if (entry.route == RouteNames.editGiving) return 'Edit Giving Record';
+    if (entry.route == RouteNames.memberReport) return 'Member Report';
+    if (entry.route == RouteNames.classReport) return 'Training Report';
     return 'Details';
   }
 
@@ -198,8 +237,14 @@ class _DesktopShellState extends State<DesktopShell> {
   Widget _buildDetailPage(_DesktopViewEntry entry) {
     final id = entry.id ?? '';
     final onClose = _pop;
-    if (entry.route == RouteNames.eventDetail) {
+    if (entry.route == RouteNames.eventDetail && id.isNotEmpty) {
       return EventDetailPage(eventId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.addEvent) {
+      return AddEventPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editEvent && id.isNotEmpty) {
+      return EditEventPage(eventId: id, onClose: (_) => onClose());
     }
     if (entry.route == RouteNames.teachingDetail) {
       return TeachingDetailPage(teachingId: id, onClose: onClose);
@@ -224,6 +269,62 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.memberAccounts) {
       return MemberAccountsPage(onClose: onClose);
+    }
+    if (entry.route == RouteNames.addTeaching) {
+      return AddTeachingPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editTeaching && id.isNotEmpty) {
+      return EditTeachingPage(teachingId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.taskDetail && id.isNotEmpty) {
+      return TaskDetailPage(taskId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.addTask) {
+      return AddTaskPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editTask && id.isNotEmpty) {
+      return EditTaskPage(taskId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.addClass) {
+      return AddClassPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editClass && id.isNotEmpty) {
+      return EditClassPage(classId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.churchAttendance) {
+      final serviceDate = id.contains('|') ? id.split('|').first : null;
+      final serviceType = id.contains('|') && id.split('|').length > 1
+          ? id.split('|')[1]
+          : null;
+      return ChurchAttendancePage(
+        serviceDate: serviceDate,
+        serviceType: serviceType,
+        onClose: onClose,
+      );
+    }
+    if (entry.route == RouteNames.sundaySchoolAttendance) {
+      return SundaySchoolAttendancePage(
+        sessionDate: id.isNotEmpty ? id : null,
+        onClose: onClose,
+      );
+    }
+    if (entry.route == RouteNames.addVisitor) {
+      return AddVisitorPage(onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.editVisitor && id.isNotEmpty) {
+      return EditVisitorPage(visitorId: id, onClose: (_) => onClose());
+    }
+    if (entry.route == RouteNames.addGiving) {
+      return AddGivingPage(onClose: ([_]) => onClose());
+    }
+    if (entry.route == RouteNames.editGiving && id.isNotEmpty) {
+      return EditGivingPage(givingId: id, onClose: ([_]) => onClose());
+    }
+    if (entry.route == RouteNames.memberReport && id.isNotEmpty) {
+      return MemberReportPage(memberId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.classReport && id.isNotEmpty) {
+      return ClassReportPage(classId: id, onClose: onClose);
     }
     return const SizedBox.shrink();
   }
@@ -513,7 +614,12 @@ class _DesktopShellState extends State<DesktopShell> {
                   Expanded(
                     child: _stack.isEmpty
                         ? const SizedBox.shrink()
-                        : _buildContent(_stack.last),
+                        : KeyedSubtree(
+                            key: ValueKey<String>(
+                              '${_stack.last.route}_${_stack.last.id}_$_refreshSeed',
+                            ),
+                            child: _buildContent(_stack.last),
+                          ),
                   ),
                 ],
               ),

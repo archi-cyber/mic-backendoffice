@@ -8,7 +8,10 @@ import '../../services/finance_service.dart';
 class EditGivingPage extends StatefulWidget {
   final String givingId;
 
-  const EditGivingPage({super.key, required this.givingId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final void Function([dynamic result])? onClose;
+
+  const EditGivingPage({super.key, required this.givingId, this.onClose});
 
   @override
   State<EditGivingPage> createState() => _EditGivingPageState();
@@ -226,8 +229,11 @@ class _EditGivingPageState extends State<EditGivingPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        // Navigate back and return true to indicate success
-        Navigator.of(context).pop(true);
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -346,6 +352,12 @@ class _EditGivingPageState extends State<EditGivingPage> {
       appBar: AppBar(
         title: const Text('Giving Record'),
         elevation: 0,
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(),
+              )
+            : null,
         actions: _canEdit
             ? [
                 IconButton(
@@ -356,16 +368,32 @@ class _EditGivingPageState extends State<EditGivingPage> {
               ]
             : null,
       ),
-      body: _canEdit
-          ? _buildEditableView(theme, localizations)
-          : _buildReadOnlyView(
-              theme,
-              localizations,
-              record,
-              isExpense,
-              absoluteAmount,
-              tag,
-            ),
+      body: widget.onClose != null
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: _canEdit
+                    ? _buildEditableView(theme, localizations)
+                    : _buildReadOnlyView(
+                        theme,
+                        localizations,
+                        record,
+                        isExpense,
+                        absoluteAmount,
+                        tag,
+                      ),
+              ),
+            )
+          : (_canEdit
+                ? _buildEditableView(theme, localizations)
+                : _buildReadOnlyView(
+                    theme,
+                    localizations,
+                    record,
+                    isExpense,
+                    absoluteAmount,
+                    tag,
+                  )),
     );
   }
 

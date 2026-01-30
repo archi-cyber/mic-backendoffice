@@ -6,7 +6,10 @@ import '../../services/visitor_service.dart';
 
 /// Add visitor page
 class AddVisitorPage extends StatefulWidget {
-  const AddVisitorPage({super.key});
+  /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
+  final void Function(bool? result)? onClose;
+
+  const AddVisitorPage({super.key, this.onClose});
 
   @override
   State<AddVisitorPage> createState() => _AddVisitorPageState();
@@ -88,7 +91,11 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -103,152 +110,211 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
     }
   }
 
+  static const double _kDesktopBreakpoint = 700;
+  static const double _kDesktopMaxWidth = 800;
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(null),
+              )
+            : null,
         title: Text(localizations?.addVisitor ?? 'Add Visitor'),
+        actions: useDesktop
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add, size: 20),
+                  label: Text(localizations?.addVisitor ?? 'Add Visitor'),
+                ),
+                const SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // First Name
-              TextFormField(
-                controller: _firstNameController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.visitorFirstName ?? 'First Name'} *',
-                  prefixIcon: const Icon(Icons.person),
-                  border: const OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return localizations?.visitorFirstNameRequired ??
-                        'Please enter first name';
-                  }
-                  return null;
-                },
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Last Name
-              TextFormField(
-                controller: _lastNameController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.visitorLastName ?? 'Last Name'} *',
-                  prefixIcon: const Icon(Icons.person_outline),
-                  border: const OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return localizations?.visitorLastNameRequired ??
-                        'Please enter last name';
-                  }
-                  return null;
-                },
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Email
-              TextFormField(
-                controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.email ?? 'Email'} ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.email),
-                  border: const OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Phone
-              TextFormField(
-                controller: _phoneController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.phone ?? 'Phone'} ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.phone),
-                  border: const OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Address
-              TextFormField(
-                controller: _addressController,
-                decoration: InputDecoration(
-                  labelText: 'Address ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.location_on),
-                  border: const OutlineInputBorder(),
-                ),
-                maxLines: 2,
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Visit Date
-              InkWell(
-                onTap: _selectVisitDate,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: '${localizations?.visitDate ?? 'Visit Date'} *',
-                    prefixIcon: const Icon(Icons.calendar_today),
-                    border: const OutlineInputBorder(),
+      body: useDesktop
+          ? Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopMaxWidth,
                   ),
-                  child: Text(
-                    _visitDate != null
-                        ? '${_visitDate!.year}-${_visitDate!.month.toString().padLeft(2, '0')}-${_visitDate!.day.toString().padLeft(2, '0')}'
-                        : (localizations?.visitDateRequired ?? 'Select date'),
-                    style: TextStyle(
-                      color: _visitDate != null
-                          ? Theme.of(context).textTheme.bodyLarge?.color
-                          : Theme.of(context).hintColor,
+                  child: Form(
+                    key: _formKey,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        child: _buildForm(context, localizations),
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Notes
-              TextFormField(
-                controller: _notesController,
-                decoration: InputDecoration(
-                  labelText: '${localizations?.notes ?? 'Notes'} ${localizations?.optional ?? '(Optional)'}',
-                  prefixIcon: const Icon(Icons.note),
-                  border: const OutlineInputBorder(),
-                ),
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Form(
+                key: _formKey,
+                child: _buildForm(context, localizations),
               ),
-              const SizedBox(height: AppDimensions.spacingXL),
+            ),
+    );
+  }
 
-              // Save Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(localizations?.addVisitor ?? 'Add Visitor'),
+  Widget _buildForm(BuildContext context, AppLocalizations? localizations) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          controller: _firstNameController,
+          decoration: InputDecoration(
+            labelText: '${localizations?.visitorFirstName ?? 'First Name'} *',
+            prefixIcon: const Icon(Icons.person),
+            border: const OutlineInputBorder(),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return localizations?.visitorFirstNameRequired ??
+                  'Please enter first name';
+            }
+            return null;
+          },
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Last Name
+        TextFormField(
+          controller: _lastNameController,
+          decoration: InputDecoration(
+            labelText: '${localizations?.visitorLastName ?? 'Last Name'} *',
+            prefixIcon: const Icon(Icons.person_outline),
+            border: const OutlineInputBorder(),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return localizations?.visitorLastNameRequired ??
+                  'Please enter last name';
+            }
+            return null;
+          },
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Email
+        TextFormField(
+          controller: _emailController,
+          decoration: InputDecoration(
+            labelText:
+                '${localizations?.email ?? 'Email'} ${localizations?.optional ?? '(Optional)'}',
+            prefixIcon: const Icon(Icons.email),
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Phone
+        TextFormField(
+          controller: _phoneController,
+          decoration: InputDecoration(
+            labelText:
+                '${localizations?.phone ?? 'Phone'} ${localizations?.optional ?? '(Optional)'}',
+            prefixIcon: const Icon(Icons.phone),
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.phone,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Address
+        TextFormField(
+          controller: _addressController,
+          decoration: InputDecoration(
+            labelText: 'Address ${localizations?.optional ?? '(Optional)'}',
+            prefixIcon: const Icon(Icons.location_on),
+            border: const OutlineInputBorder(),
+          ),
+          maxLines: 2,
+          textCapitalization: TextCapitalization.words,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Visit Date
+        InkWell(
+          onTap: _selectVisitDate,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: '${localizations?.visitDate ?? 'Visit Date'} *',
+              prefixIcon: const Icon(Icons.calendar_today),
+              border: const OutlineInputBorder(),
+            ),
+            child: Text(
+              _visitDate != null
+                  ? '${_visitDate!.year}-${_visitDate!.month.toString().padLeft(2, '0')}-${_visitDate!.day.toString().padLeft(2, '0')}'
+                  : (localizations?.visitDateRequired ?? 'Select date'),
+              style: TextStyle(
+                color: _visitDate != null
+                    ? Theme.of(context).textTheme.bodyLarge?.color
+                    : Theme.of(context).hintColor,
               ),
-            ],
+            ),
           ),
         ),
-      ),
+        const SizedBox(height: AppDimensions.spacingMD),
+
+        // Notes
+        TextFormField(
+          controller: _notesController,
+          decoration: InputDecoration(
+            labelText:
+                '${localizations?.notes ?? 'Notes'} ${localizations?.optional ?? '(Optional)'}',
+            prefixIcon: const Icon(Icons.note),
+            border: const OutlineInputBorder(),
+          ),
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        const SizedBox(height: AppDimensions.spacingXL),
+
+        if (MediaQuery.sizeOf(context).width < _kDesktopBreakpoint)
+          ElevatedButton(
+            onPressed: _isLoading ? null : _handleSave,
+            style: ElevatedButton.styleFrom(
+              minimumSize: const Size(
+                double.infinity,
+                AppDimensions.buttonHeightLG,
+              ),
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(localizations?.addVisitor ?? 'Add Visitor'),
+          ),
+      ],
     );
   }
 }

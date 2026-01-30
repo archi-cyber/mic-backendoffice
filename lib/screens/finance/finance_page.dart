@@ -5,6 +5,7 @@ import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/supabase_service.dart';
 import '../../services/finance_pdf_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Finance page for managing giving/tithes/offerings
 /// Only accessible to finance department leaders and admins
@@ -142,10 +143,35 @@ class _FinancePageState extends State<FinancePage> {
     }
   }
 
+  void _openAddGiving(BuildContext context) {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null && widget.hideAppBarAndBottomNav) {
+      scope.pushDetail(RouteNames.addGiving, '');
+    } else {
+      Navigator.of(context).pushNamed(RouteNames.addGiving).then((result) {
+        if (result == true) _loadGivingRecords();
+      });
+    }
+  }
+
+  void _openEditGiving(BuildContext context, String id) {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null && widget.hideAppBarAndBottomNav) {
+      scope.pushDetail(RouteNames.editGiving, id);
+    } else {
+      Navigator.of(
+        context,
+      ).pushNamed(RouteNames.editGiving.replaceAll(':id', id)).then((result) {
+        if (result == true) _loadGivingRecords();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final localizations = AppLocalizations.of(context);
+    final isDesktop = widget.hideAppBarAndBottomNav;
 
     return Scaffold(
       appBar: widget.hideAppBarAndBottomNav
@@ -160,14 +186,7 @@ class _FinancePageState extends State<FinancePage> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.add),
-                  onPressed: () async {
-                    final result = await Navigator.of(
-                      context,
-                    ).pushNamed(RouteNames.addGiving);
-                    if (result == true) {
-                      _loadGivingRecords();
-                    }
-                  },
+                  onPressed: () => _openAddGiving(context),
                   tooltip:
                       localizations?.addGivingRecord ?? 'Add Giving Record',
                 ),
@@ -197,15 +216,7 @@ class _FinancePageState extends State<FinancePage> {
                           ),
                           const SizedBox(height: AppDimensions.spacingSM),
                           ElevatedButton.icon(
-                            onPressed: () async {
-                              final result = await Navigator.of(
-                                context,
-                              ).pushNamed(RouteNames.addGiving);
-                              // Refresh the list if a new record was created
-                              if (result == true) {
-                                _loadGivingRecords();
-                              }
-                            },
+                            onPressed: () => _openAddGiving(context),
                             icon: const Icon(Icons.add),
                             label: Text(
                               localizations?.addFirstRecord ??
@@ -215,140 +226,220 @@ class _FinancePageState extends State<FinancePage> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                      itemCount: _givingRecords.length,
-                      itemBuilder: (context, index) {
-                        final record = _givingRecords[index];
-
-                        // Check if record can be edited (created within 2 days)
-                        bool canEdit = false;
-                        if (record['created_at'] != null) {
-                          try {
-                            final createdAt = DateTime.parse(
-                              record['created_at'],
-                            );
-                            final now = DateTime.now();
-                            final difference = now.difference(createdAt);
-                            canEdit = difference.inDays < 2;
-                          } catch (e) {
-                            // If parsing fails, cannot edit
-                            canEdit = false;
-                          }
-                        }
-
-                        return Card(
-                          margin: const EdgeInsets.only(
-                            bottom: AppDimensions.spacingMD,
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
-                              child: Icon(
-                                Icons.account_balance_wallet,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            title: Text(
-                              record['giver_name'] ??
-                                  record['member_name'] ??
-                                  'Unknown',
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${localizations?.transactionType ?? 'Type'}: ${record['type'] ?? 'N/A'}',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                if (record['tag'] != null)
-                                  Text(
-                                    '${localizations?.tag ?? 'Tag'}: ${_getTagLabel(record['tag']?.toString(), localizations!)}',
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                                if (record['date'] != null)
-                                  Text(
-                                    '${localizations?.date ?? 'Date'}: ${record['date']}',
-                                    style: theme.textTheme.bodySmall,
-                                  ),
-                              ],
-                            ),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '\$${(record['amount'] as num?)?.abs().toStringAsFixed(2) ?? '0.00'}',
-                                  style: theme.textTheme.titleLarge?.copyWith(
-                                    color:
-                                        ((record['amount'] as num?)
-                                                    ?.toDouble() ??
-                                                0.0) <
-                                            0.0
-                                        ? AppColors.error
-                                        : AppColors.success,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (canEdit) ...[
-                                  const SizedBox(
-                                    width: AppDimensions.spacingSM,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit),
-                                    onPressed: () async {
-                                      final result = await Navigator.of(context)
-                                          .pushNamed(
-                                            RouteNames.editGiving.replaceAll(
-                                              ':id',
-                                              record['id'].toString(),
-                                            ),
-                                          );
-                                      // Refresh the list if record was updated
-                                      if (result == true) {
-                                        _loadGivingRecords();
-                                      }
-                                    },
-                                    tooltip:
-                                        localizations?.edit ?? 'Edit Record',
-                                    iconSize: 20,
-                                  ),
-                                ],
-                              ],
-                            ),
-                            onTap: () async {
-                              final result = await Navigator.of(context)
-                                  .pushNamed(
-                                    RouteNames.editGiving.replaceAll(
-                                      ':id',
-                                      record['id'].toString(),
-                                    ),
-                                  );
-                              // Refresh the list if record was updated
-                              if (result == true) {
-                                _loadGivingRecords();
-                              }
-                            },
-                          ),
-                        );
-                      },
-                    ),
+                  : isDesktop
+                  ? _buildDesktopList(context, theme, localizations)
+                  : _buildMobileList(context, theme, localizations),
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.of(
-            context,
-          ).pushNamed(RouteNames.addGiving);
-          // Refresh the list if a new record was created
-          if (result == true) {
-            _loadGivingRecords();
-          }
-        },
-        tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.hideAppBarAndBottomNav
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openAddGiving(context),
+              tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
+              child: const Icon(Icons.add),
+            ),
+    );
+  }
+
+  Widget _buildDesktopList(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations? localizations,
+  ) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: _generatePdfReport,
+                      icon: const Icon(Icons.picture_as_pdf),
+                      label: const Text('Generate PDF Report'),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          0,
+                          AppDimensions.buttonHeightMD,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: AppDimensions.spacingMD),
+                    ElevatedButton.icon(
+                      onPressed: () => _openAddGiving(context),
+                      icon: const Icon(Icons.add),
+                      label: Text(
+                        localizations?.addGivingRecord ?? 'Add Giving Record',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          0,
+                          AppDimensions.buttonHeightMD,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DataTable(
+                  columns: [
+                    const DataColumn(label: Text('Giver')),
+                    DataColumn(
+                      label: Text(localizations?.transactionType ?? 'Type'),
+                    ),
+                    DataColumn(label: Text(localizations?.tag ?? 'Tag')),
+                    DataColumn(label: Text(localizations?.date ?? 'Date')),
+                    const DataColumn(label: Text('Amount')),
+                    const DataColumn(label: Text('')),
+                  ],
+                  rows: _givingRecords.map((record) {
+                    final canEdit = _canEditRecord(record);
+                    final amount =
+                        (record['amount'] as num?)?.toDouble() ?? 0.0;
+                    return DataRow(
+                      cells: [
+                        DataCell(
+                          Text(
+                            record['giver_name'] ??
+                                record['member_name'] ??
+                                'Unknown',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          onTap: () =>
+                              _openEditGiving(context, record['id'].toString()),
+                        ),
+                        DataCell(Text(record['type'] ?? 'N/A')),
+                        DataCell(
+                          Text(
+                            _getTagLabel(
+                              record['tag']?.toString(),
+                              localizations ?? AppLocalizations.of(context)!,
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(record['date']?.toString() ?? '')),
+                        DataCell(
+                          Text(
+                            '\$${amount.abs().toStringAsFixed(2)}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: amount < 0
+                                  ? AppColors.error
+                                  : AppColors.success,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        DataCell(
+                          canEdit
+                              ? IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () => _openEditGiving(
+                                    context,
+                                    record['id'].toString(),
+                                  ),
+                                  tooltip: localizations?.edit ?? 'Edit Record',
+                                  iconSize: 20,
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  bool _canEditRecord(Map<String, dynamic> record) {
+    if (record['created_at'] == null) return false;
+    try {
+      final createdAt = DateTime.parse(record['created_at']);
+      return DateTime.now().difference(createdAt).inDays < 2;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Widget _buildMobileList(
+    BuildContext context,
+    ThemeData theme,
+    AppLocalizations? localizations,
+  ) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      itemCount: _givingRecords.length,
+      itemBuilder: (context, index) {
+        final record = _givingRecords[index];
+        final canEdit = _canEditRecord(record);
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: AppColors.primary.withOpacity(0.1),
+              child: Icon(
+                Icons.account_balance_wallet,
+                color: AppColors.primary,
+              ),
+            ),
+            title: Text(
+              record['giver_name'] ?? record['member_name'] ?? 'Unknown',
+              style: theme.textTheme.titleMedium,
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${localizations?.transactionType ?? 'Type'}: ${record['type'] ?? 'N/A'}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (record['tag'] != null)
+                  Text(
+                    '${localizations?.tag ?? 'Tag'}: ${_getTagLabel(record['tag']?.toString(), localizations!)}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                if (record['date'] != null)
+                  Text(
+                    '${localizations?.date ?? 'Date'}: ${record['date']}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '\$${(record['amount'] as num?)?.abs().toStringAsFixed(2) ?? '0.00'}',
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    color: ((record['amount'] as num?)?.toDouble() ?? 0.0) < 0.0
+                        ? AppColors.error
+                        : AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (canEdit) ...[
+                  const SizedBox(width: AppDimensions.spacingSM),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () =>
+                        _openEditGiving(context, record['id'].toString()),
+                    tooltip: localizations?.edit ?? 'Edit Record',
+                    iconSize: 20,
+                  ),
+                ],
+              ],
+            ),
+            onTap: () => _openEditGiving(context, record['id'].toString()),
+          ),
+        );
+      },
     );
   }
 }

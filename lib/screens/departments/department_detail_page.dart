@@ -119,6 +119,8 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
     }
 
     final scope = DesktopShellScope.maybeOf(context);
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= 700 && widget.onClose != null;
 
     return DefaultTabController(
       length: 4,
@@ -173,39 +175,105 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                 ],
               ),
           ],
-          bottom: TabBar(
-            tabs: [
-              Tab(text: localizations?.overview ?? 'Overview'),
-              Tab(text: localizations?.members ?? 'Members'),
-              Tab(text: localizations?.tasks ?? 'Tasks'),
-              Tab(text: localizations?.reports ?? 'Reports'),
-            ],
-          ),
+          bottom: isDesktop
+              ? null
+              : TabBar(
+                  tabs: [
+                    Tab(text: localizations?.overview ?? 'Overview'),
+                    Tab(text: localizations?.members ?? 'Members'),
+                    Tab(text: localizations?.tasks ?? 'Tasks'),
+                    Tab(text: localizations?.reports ?? 'Reports'),
+                  ],
+                ),
         ),
-        body: TabBarView(
-          children: [
-            _OverviewTab(
-              department: _department!,
-              memberCount: _members.length,
-              taskCount: _tasks.length,
-              onDepartmentUpdated: _loadDepartmentData,
-            ),
-            _MembersTab(
-              departmentId: widget.departmentId,
-              onMembersUpdated: _loadDepartmentData,
-            ),
-            _TasksTab(
-              departmentId: widget.departmentId,
-              tasks: _tasks,
-              onTasksUpdated: _loadDepartmentData,
-            ),
-            _ReportsTab(
-              departmentId: widget.departmentId,
-              reports: _reports,
-              onReportsUpdated: _loadDepartmentData,
-            ),
-          ],
-        ),
+        body: isDesktop
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Material(
+                    color: Theme.of(context).colorScheme.surface,
+                    child: TabBar(
+                      tabs: [
+                        Tab(
+                          text: localizations?.overview ?? 'Overview',
+                          icon: const Icon(Icons.info_outline),
+                        ),
+                        Tab(
+                          text: localizations?.members ?? 'Members',
+                          icon: const Icon(Icons.people_outline),
+                        ),
+                        Tab(
+                          text: localizations?.tasks ?? 'Tasks',
+                          icon: const Icon(Icons.task_alt_outlined),
+                        ),
+                        Tab(
+                          text: localizations?.reports ?? 'Reports',
+                          icon: const Icon(Icons.description_outlined),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _OverviewTab(
+                          department: _department!,
+                          memberCount: _members.length,
+                          taskCount: _tasks.length,
+                          onDepartmentUpdated: _loadDepartmentData,
+                          isDesktop: true,
+                        ),
+                        _MembersTab(
+                          departmentId: widget.departmentId,
+                          onMembersUpdated: _loadDepartmentData,
+                          isDesktop: true,
+                        ),
+                        _TasksTab(
+                          departmentId: widget.departmentId,
+                          tasks: _tasks,
+                          onTasksUpdated: _loadDepartmentData,
+                          isDesktop: true,
+                        ),
+                        _ReportsTab(
+                          departmentId: widget.departmentId,
+                          reports: _reports,
+                          onReportsUpdated: _loadDepartmentData,
+                          isDesktop: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : TabBarView(
+                children: [
+                  _OverviewTab(
+                    department: _department!,
+                    memberCount: _members.length,
+                    taskCount: _tasks.length,
+                    onDepartmentUpdated: _loadDepartmentData,
+                    isDesktop: false,
+                  ),
+                  _MembersTab(
+                    departmentId: widget.departmentId,
+                    onMembersUpdated: _loadDepartmentData,
+                    isDesktop: false,
+                  ),
+                  _TasksTab(
+                    departmentId: widget.departmentId,
+                    tasks: _tasks,
+                    onTasksUpdated: _loadDepartmentData,
+                    isDesktop: false,
+                  ),
+                  _ReportsTab(
+                    departmentId: widget.departmentId,
+                    reports: _reports,
+                    onReportsUpdated: _loadDepartmentData,
+                    isDesktop: false,
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -264,17 +332,19 @@ class _OverviewTab extends StatelessWidget {
   final int memberCount;
   final int taskCount;
   final VoidCallback onDepartmentUpdated;
+  final bool isDesktop;
 
   const _OverviewTab({
     required this.department,
     required this.memberCount,
     required this.taskCount,
     required this.onDepartmentUpdated,
+    this.isDesktop = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    final content = ListView(
       padding: const EdgeInsets.all(AppDimensions.paddingMD),
       children: [
         Card(
@@ -371,6 +441,15 @@ class _OverviewTab extends StatelessWidget {
         ),
       ],
     );
+    if (isDesktop) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 
   bool _hasDocuments(Map<String, dynamic> department) {
@@ -444,10 +523,12 @@ class _OverviewTab extends StatelessWidget {
 class _MembersTab extends StatefulWidget {
   final String departmentId;
   final VoidCallback onMembersUpdated;
+  final bool isDesktop;
 
   const _MembersTab({
     required this.departmentId,
     required this.onMembersUpdated,
+    this.isDesktop = false,
   });
 
   @override
@@ -551,10 +632,14 @@ class _MembersTabState extends State<_MembersTab> {
         return;
       }
 
+      final isDesktopDialog =
+          MediaQuery.sizeOf(context).width >= 700 && widget.isDesktop;
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) =>
-            _MultiSelectMemberDialog(availableMembers: availableMembers),
+        builder: (context) => _MultiSelectMemberDialog(
+          availableMembers: availableMembers,
+          narrowForDesktop: isDesktopDialog,
+        ),
       );
 
       if (result != null) {
@@ -801,130 +886,225 @@ class _MembersTabState extends State<_MembersTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Column(
-      children: [
-        // Add member button
-        Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: ElevatedButton.icon(
-            onPressed: _showAddMemberDialog,
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add Member'),
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(
-                double.infinity,
-                AppDimensions.buttonHeightMD,
+    final addButton = Padding(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: widget.isDesktop
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: ElevatedButton.icon(
+                onPressed: _showAddMemberDialog,
+                icon: const Icon(Icons.person_add),
+                label: const Text('Add Member'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+                ),
+              ),
+            )
+          : ElevatedButton.icon(
+              onPressed: _showAddMemberDialog,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add Member'),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(
+                  double.infinity,
+                  AppDimensions.buttonHeightMD,
+                ),
               ),
             ),
-          ),
+    );
+
+    Widget listContent;
+    if (_members.isEmpty) {
+      listContent = Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.people_outline,
+              size: 64,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            const Text('No members in this department'),
+          ],
         ),
-        // Members list
-        Expanded(
-          child: _members.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Text('No members in this department'),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadMembers,
-                  child: ListView.builder(
-                    itemCount: _members.length,
-                    itemBuilder: (context, index) {
-                      final departmentMember = _members[index];
-                      final member =
-                          departmentMember['members'] as Map<String, dynamic>?;
-                      if (member == null) return const SizedBox.shrink();
-
-                      final role =
-                          departmentMember['role']?.toString() ?? 'member';
-                      final memberId =
-                          departmentMember['member_id']?.toString() ?? '';
-                      final memberName =
-                          '${member['first_name']} ${member['last_name']}';
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: AppDimensions.paddingMD,
-                          vertical: AppDimensions.spacingXS,
+      );
+    } else if (widget.isDesktop) {
+      listContent = RefreshIndicator(
+        onRefresh: _loadMembers,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+          ),
+          child: DataTable(
+            columns: const [
+              DataColumn(label: Text('Member')),
+              DataColumn(label: Text('Email')),
+              DataColumn(label: Text('Role')),
+              DataColumn(label: Text('Actions')),
+            ],
+            rows: _members.map((dm) {
+              final member = dm['members'] as Map<String, dynamic>?;
+              if (member == null) {
+                return const DataRow(
+                  cells: [
+                    DataCell(Text('—')),
+                    DataCell(Text('—')),
+                    DataCell(Text('—')),
+                    DataCell(SizedBox.shrink()),
+                  ],
+                );
+              }
+              final role = dm['role']?.toString() ?? 'member';
+              final memberId = dm['member_id']?.toString() ?? '';
+              final memberName =
+                  '${member['first_name']} ${member['last_name']}';
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          child: Text(
+                            member['first_name']?[0]
+                                    ?.toString()
+                                    .toUpperCase() ??
+                                'M',
+                          ),
                         ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            child: Text(
-                              member['first_name']?[0]
-                                      ?.toString()
-                                      .toUpperCase() ??
-                                  'M',
-                            ),
-                          ),
-                          title: Text(
-                            memberName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            member['email']?.toString() ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildRoleChip(role),
-                              PopupMenuButton(
-                                itemBuilder: (context) => [
-                                  PopupMenuItem(
-                                    child: const Row(
-                                      children: [
-                                        Icon(Icons.badge, size: 20),
-                                        SizedBox(width: 8),
-                                        Text('Change Role'),
-                                      ],
-                                    ),
-                                    onTap: () =>
-                                        _changeMemberRole(memberId, role),
-                                  ),
-                                  PopupMenuItem(
-                                    child: const Row(
-                                      children: [
-                                        Icon(
-                                          Icons.remove_circle,
-                                          color: AppColors.error,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text('Remove'),
-                                      ],
-                                    ),
-                                    onTap: () =>
-                                        _removeMember(memberId, memberName),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail.replaceAll(
-                                ':id',
-                                member['id'].toString(),
-                              ),
-                            );
-                          },
+                        const SizedBox(width: 8),
+                        Text(memberName),
+                      ],
+                    ),
+                    onTap: () {
+                      Navigator.of(context).pushNamed(
+                        RouteNames.memberDetail.replaceAll(
+                          ':id',
+                          member['id'].toString(),
                         ),
                       );
                     },
                   ),
-                ),
+                  DataCell(Text(member['email']?.toString() ?? '')),
+                  DataCell(_buildRoleChip(role)),
+                  DataCell(
+                    PopupMenuButton(
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.badge, size: 20),
+                              SizedBox(width: 8),
+                              Text('Change Role'),
+                            ],
+                          ),
+                          onTap: () => _changeMemberRole(memberId, role),
+                        ),
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.remove_circle, color: AppColors.error),
+                              SizedBox(width: 8),
+                              Text('Remove'),
+                            ],
+                          ),
+                          onTap: () => _removeMember(memberId, memberName),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
         ),
+      );
+    } else {
+      listContent = RefreshIndicator(
+        onRefresh: _loadMembers,
+        child: ListView.builder(
+          itemCount: _members.length,
+          itemBuilder: (context, index) {
+            final departmentMember = _members[index];
+            final member = departmentMember['members'] as Map<String, dynamic>?;
+            if (member == null) return const SizedBox.shrink();
+
+            final role = departmentMember['role']?.toString() ?? 'member';
+            final memberId = departmentMember['member_id']?.toString() ?? '';
+            final memberName = '${member['first_name']} ${member['last_name']}';
+
+            return Card(
+              margin: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingMD,
+                vertical: AppDimensions.spacingXS,
+              ),
+              child: ListTile(
+                leading: CircleAvatar(
+                  child: Text(
+                    member['first_name']?[0]?.toString().toUpperCase() ?? 'M',
+                  ),
+                ),
+                title: Text(
+                  memberName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  member['email']?.toString() ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildRoleChip(role),
+                    PopupMenuButton(
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.badge, size: 20),
+                              SizedBox(width: 8),
+                              Text('Change Role'),
+                            ],
+                          ),
+                          onTap: () => _changeMemberRole(memberId, role),
+                        ),
+                        PopupMenuItem(
+                          child: const Row(
+                            children: [
+                              Icon(Icons.remove_circle, color: AppColors.error),
+                              SizedBox(width: 8),
+                              Text('Remove'),
+                            ],
+                          ),
+                          onTap: () => _removeMember(memberId, memberName),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                onTap: () {
+                  Navigator.of(context).pushNamed(
+                    RouteNames.memberDetail.replaceAll(
+                      ':id',
+                      member['id'].toString(),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        addButton,
+        Expanded(child: listContent),
       ],
     );
   }
@@ -935,11 +1115,13 @@ class _TasksTab extends StatefulWidget {
   final String departmentId;
   final List<Map<String, dynamic>> tasks;
   final VoidCallback? onTasksUpdated;
+  final bool isDesktop;
 
   const _TasksTab({
     required this.departmentId,
     required this.tasks,
     this.onTasksUpdated,
+    this.isDesktop = false,
   });
 
   @override
@@ -1155,6 +1337,62 @@ class _TasksTabState extends State<_TasksTab> {
                     ],
                   ),
                 )
+              : widget.isDesktop
+              ? SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.paddingMD,
+                  ),
+                  child: DataTable(
+                    columns: const [
+                      DataColumn(label: Text('Task')),
+                      DataColumn(label: Text('Description')),
+                      DataColumn(label: Text('Actions')),
+                    ],
+                    rows: widget.tasks.map((task) {
+                      return DataRow(
+                        cells: [
+                          DataCell(Text(task['title'] ?? 'Task')),
+                          DataCell(
+                            Text(
+                              task['description'] ?? '',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          DataCell(
+                            IconButton(
+                              icon: const Icon(Icons.open_in_new),
+                              onPressed: () async {
+                                final result = await Navigator.of(context)
+                                    .pushNamed(
+                                      RouteNames.taskDetail.replaceAll(
+                                        ':id',
+                                        task['id'].toString(),
+                                      ),
+                                    );
+                                if (result == true &&
+                                    widget.onTasksUpdated != null) {
+                                  widget.onTasksUpdated!();
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                        onSelectChanged: (_) async {
+                          final result = await Navigator.of(context).pushNamed(
+                            RouteNames.taskDetail.replaceAll(
+                              ':id',
+                              task['id'].toString(),
+                            ),
+                          );
+                          if (result == true && widget.onTasksUpdated != null) {
+                            widget.onTasksUpdated!();
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+                )
               : ListView.builder(
                   itemCount: widget.tasks.length,
                   itemBuilder: (context, index) {
@@ -1176,7 +1414,6 @@ class _TasksTabState extends State<_TasksTab> {
                               task['id'].toString(),
                             ),
                           );
-                          // If task was deleted (result is true), reload tasks
                           if (result == true && widget.onTasksUpdated != null) {
                             widget.onTasksUpdated!();
                           }
@@ -1209,11 +1446,13 @@ class _ReportsTab extends StatefulWidget {
   final String departmentId;
   final List<Map<String, dynamic>> reports;
   final VoidCallback onReportsUpdated;
+  final bool isDesktop;
 
   const _ReportsTab({
     required this.departmentId,
     required this.reports,
     required this.onReportsUpdated,
+    this.isDesktop = false,
   });
 
   @override
@@ -1429,6 +1668,102 @@ class _ReportsTabState extends State<_ReportsTab> {
                     ],
                   ),
                 )
+              : widget.isDesktop
+              ? RefreshIndicator(
+                  onRefresh: _loadReports,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Report')),
+                        DataColumn(label: Text('Created')),
+                        DataColumn(label: Text('Actions')),
+                      ],
+                      rows: _reports.map((report) {
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.description,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    report['title'] ?? 'Untitled Report',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => _editReport(report['id']),
+                            ),
+                            DataCell(
+                              Text(
+                                DateFormat(
+                                  'MMM d, yyyy',
+                                ).format(DateTime.parse(report['created_at'])),
+                              ),
+                            ),
+                            DataCell(
+                              PopupMenuButton(
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'pdf',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.picture_as_pdf, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('Generate PDF'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, size: 20),
+                                        SizedBox(width: 8),
+                                        Text('Edit'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete,
+                                          size: 20,
+                                          color: AppColors.error,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Delete'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onSelected: (value) async {
+                                  if (value == 'pdf') {
+                                    await _generateReportPdf(report['id']);
+                                  } else if (value == 'edit') {
+                                    await _editReport(report['id']);
+                                  } else if (value == 'delete') {
+                                    _deleteReport(report);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                )
               : RefreshIndicator(
                   onRefresh: _loadReports,
                   child: ListView.builder(
@@ -1557,7 +1892,13 @@ class _StatCard extends StatelessWidget {
 class _MultiSelectMemberDialog extends StatefulWidget {
   final List<Map<String, dynamic>> availableMembers;
 
-  const _MultiSelectMemberDialog({required this.availableMembers});
+  /// When true (desktop), dialog width is constrained to 480px.
+  final bool narrowForDesktop;
+
+  const _MultiSelectMemberDialog({
+    required this.availableMembers,
+    this.narrowForDesktop = false,
+  });
 
   @override
   State<_MultiSelectMemberDialog> createState() =>
@@ -1619,8 +1960,11 @@ class _MultiSelectMemberDialogState extends State<_MultiSelectMemberDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
-        width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 600),
+        width: widget.narrowForDesktop ? 480 : double.maxFinite,
+        constraints: BoxConstraints(
+          maxWidth: widget.narrowForDesktop ? 480 : double.infinity,
+          maxHeight: 600,
+        ),
         child: Column(
           children: [
             // Header
