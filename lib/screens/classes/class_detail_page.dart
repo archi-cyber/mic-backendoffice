@@ -4,17 +4,24 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/class_service.dart';
 import '../../services/member_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 import 'attendance_page.dart';
 
 /// Training detail page with sessions and attendance
 class ClassDetailPage extends StatefulWidget {
   final String classId;
 
-  const ClassDetailPage({super.key, required this.classId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const ClassDetailPage({super.key, required this.classId, this.onClose});
 
   @override
   State<ClassDetailPage> createState() => _ClassDetailPageState();
 }
+
+const double _kClassDetailDesktopBreakpoint = 700;
+const double _kClassDetailDesktopMaxWidth = 900;
 
 class _ClassDetailPageState extends State<ClassDetailPage> {
   Map<String, dynamic>? _classData;
@@ -30,11 +37,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     setState(() => _isLoading = true);
     try {
       final classData = await ClassService.getClassById(widget.classId);
+      if (!mounted) return;
       setState(() {
         _classData = classData;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -52,7 +61,15 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
     if (_classData == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Training')),
+        appBar: AppBar(
+          title: const Text('Training'),
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
+        ),
         body: const Center(child: Text('Training not found')),
       );
     }
@@ -61,16 +78,28 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
           title: Text(_classData!['name'] ?? 'Training'),
           actions: [
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: () async {
-                final result = await Navigator.of(context).pushNamed(
-                  RouteNames.editClass.replaceAll(':id', widget.classId),
-                );
-                if (result == true) {
-                  _loadClassData();
+              onPressed: () {
+                final scope = DesktopShellScope.maybeOf(context);
+                if (scope != null) {
+                  scope.pushDetail(RouteNames.editClass, widget.classId);
+                } else {
+                  Navigator.of(context)
+                      .pushNamed(
+                        RouteNames.editClass.replaceAll(':id', widget.classId),
+                      )
+                      .then((result) {
+                        if (result == true) _loadClassData();
+                      });
                 }
               },
               tooltip: 'Edit Training',
@@ -97,15 +126,32 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _SessionsTab(
-              classId: widget.classId,
-              onSessionsUpdated: _loadClassData,
-            ),
-            _MembersTab(classId: widget.classId),
-          ],
-        ),
+        body: MediaQuery.sizeOf(context).width >= _kClassDetailDesktopBreakpoint
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _kClassDetailDesktopMaxWidth,
+                  ),
+                  child: TabBarView(
+                    children: [
+                      _SessionsTab(
+                        classId: widget.classId,
+                        onSessionsUpdated: _loadClassData,
+                      ),
+                      _MembersTab(classId: widget.classId),
+                    ],
+                  ),
+                ),
+              )
+            : TabBarView(
+                children: [
+                  _SessionsTab(
+                    classId: widget.classId,
+                    onSessionsUpdated: _loadClassData,
+                  ),
+                  _MembersTab(classId: widget.classId),
+                ],
+              ),
       ),
     );
   }
@@ -142,7 +188,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
               backgroundColor: AppColors.success,
             ),
           );
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -356,6 +406,12 @@ class _SessionsTabState extends State<_SessionsTab> {
           .toList();
 
       if (!mounted) return;
+
+      final scope = DesktopShellScope.maybeOf(context);
+      if (scope != null) {
+        scope.pushDetail(RouteNames.takeAttendance, sessionId);
+        return;
+      }
 
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -807,8 +863,9 @@ class _MembersTabState extends State<_MembersTab> {
                               } else {
                                 selectedMemberIds.clear();
                                 selectedMemberIds.addAll(
-                                  availableMembers
-                                      .map((m) => m['id'].toString()),
+                                  availableMembers.map(
+                                    (m) => m['id'].toString(),
+                                  ),
                                 );
                               }
                             });

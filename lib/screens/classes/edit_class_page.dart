@@ -7,8 +7,14 @@ import '../../services/department_service.dart';
 /// Edit training page
 class EditClassPage extends StatefulWidget {
   final String classId;
+  /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
+  final void Function(bool? result)? onClose;
 
-  const EditClassPage({super.key, required this.classId});
+  const EditClassPage({
+    super.key,
+    required this.classId,
+    this.onClose,
+  });
 
   @override
   State<EditClassPage> createState() => _EditClassPageState();
@@ -39,7 +45,6 @@ class _EditClassPageState extends State<EditClassPage> {
 
   Future<void> _loadData() async {
     try {
-      // Load class data and departments in parallel
       final results = await Future.wait([
         ClassService.getClassById(widget.classId),
         DepartmentService.getDepartments(limit: 100),
@@ -48,6 +53,7 @@ class _EditClassPageState extends State<EditClassPage> {
       final classData = results[0] as Map<String, dynamic>;
       final departments = results[1] as List<Map<String, dynamic>>;
 
+      if (!mounted) return;
       setState(() {
         _nameController.text = classData['name']?.toString() ?? '';
         _descriptionController.text =
@@ -58,6 +64,7 @@ class _EditClassPageState extends State<EditClassPage> {
         _isLoadingDepartments = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoadingData = false;
         _isLoadingDepartments = false;
@@ -66,6 +73,11 @@ class _EditClassPageState extends State<EditClassPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        if (widget.onClose != null) {
+          widget.onClose!(null);
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -94,7 +106,11 @@ class _EditClassPageState extends State<EditClassPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -109,92 +125,227 @@ class _EditClassPageState extends State<EditClassPage> {
     }
   }
 
+  static const double _kDesktopBreakpoint = 700;
+  static const double _kDesktopMaxWidth = 800;
+
   @override
   Widget build(BuildContext context) {
+    final useDesktop =
+        MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+
     if (_isLoadingData) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => widget.onClose!(null),
+                )
+              : null,
+          title: const Text('Edit Training'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Training')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Training Name *',
-                  prefixIcon: Icon(Icons.class_),
+      appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(null),
+              )
+            : null,
+        title: const Text('Edit Training'),
+        actions: useDesktop
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Training name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  prefixIcon: Icon(Icons.description),
+                const SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save, size: 20),
+                  label: const Text('Update Training'),
                 ),
-                maxLines: 4,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              if (_isLoadingDepartments)
-                const Center(child: CircularProgressIndicator())
-              else
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedDepartmentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Department',
-                    prefixIcon: Icon(Icons.group_work),
-                  ),
-                  items: [
-                    const DropdownMenuItem<String>(
-                      value: null,
-                      child: Text('No Department'),
-                    ),
-                    ..._departments.map((dept) {
-                      return DropdownMenuItem<String>(
-                        value: dept['id'].toString(),
-                        child: Text(dept['name']?.toString() ?? 'Unnamed'),
-                      );
-                    }),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedDepartmentId = value;
-                    });
-                  },
-                ),
-              const SizedBox(height: AppDimensions.spacingXL),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Update Class'),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
       ),
+      body: useDesktop
+          ? Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints:
+                      const BoxConstraints(maxWidth: _kDesktopMaxWidth),
+                  child: Form(
+                    key: _formKey,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Training details',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Training Name *',
+                                prefixIcon: Icon(Icons.class_),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Training name is required';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            TextFormField(
+                              controller: _descriptionController,
+                              decoration: const InputDecoration(
+                                labelText: 'Description',
+                                prefixIcon: Icon(Icons.description),
+                                border: OutlineInputBorder(),
+                              ),
+                              maxLines: 4,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            if (_isLoadingDepartments)
+                              const Center(child: CircularProgressIndicator())
+                            else
+                              DropdownButtonFormField<String>(
+                                value: _selectedDepartmentId,
+                                decoration: const InputDecoration(
+                                  labelText: 'Department',
+                                  prefixIcon: Icon(Icons.group_work),
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: [
+                                  const DropdownMenuItem<String>(
+                                    value: null,
+                                    child: Text('No Department'),
+                                  ),
+                                  ..._departments.map((dept) {
+                                    return DropdownMenuItem<String>(
+                                      value: dept['id'].toString(),
+                                      child: Text(
+                                          dept['name']?.toString() ?? 'Unnamed'),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedDepartmentId = value;
+                                  });
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Training Name *',
+                        prefixIcon: Icon(Icons.class_),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Training name is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        prefixIcon: Icon(Icons.description),
+                      ),
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    if (_isLoadingDepartments)
+                      const Center(child: CircularProgressIndicator())
+                    else
+                      DropdownButtonFormField<String>(
+                        value: _selectedDepartmentId,
+                        decoration: const InputDecoration(
+                          labelText: 'Department',
+                          prefixIcon: Icon(Icons.group_work),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('No Department'),
+                          ),
+                          ..._departments.map((dept) {
+                            return DropdownMenuItem<String>(
+                              value: dept['id'].toString(),
+                              child: Text(dept['name']?.toString() ?? 'Unnamed'),
+                            );
+                          }),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedDepartmentId = value;
+                          });
+                        },
+                      ),
+                    const SizedBox(height: AppDimensions.spacingXL),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          double.infinity,
+                          AppDimensions.buttonHeightLG,
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Update Class'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }

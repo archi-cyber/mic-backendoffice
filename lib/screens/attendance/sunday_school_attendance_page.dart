@@ -9,8 +9,14 @@ import '../../utils/member_utils.dart';
 /// Page for marking Sunday school attendance (for children only)
 class SundaySchoolAttendancePage extends StatefulWidget {
   final String? sessionDate;
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
 
-  const SundaySchoolAttendancePage({super.key, this.sessionDate});
+  const SundaySchoolAttendancePage({
+    super.key,
+    this.sessionDate,
+    this.onClose,
+  });
 
   @override
   State<SundaySchoolAttendancePage> createState() =>
@@ -185,7 +191,11 @@ class _SundaySchoolAttendancePageState
         );
         // Only pop if this was a new session (not editing existing)
         if (!hasExistingAttendance) {
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       }
     } catch (e) {
@@ -238,7 +248,11 @@ class _SundaySchoolAttendancePageState
               backgroundColor: AppColors.success,
             ),
           );
-          Navigator.of(context).pop(true); // Return to list page
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -255,8 +269,15 @@ class _SundaySchoolAttendancePageState
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: Text(_isViewMode ? 'Session Details' : 'Mark Attendance'),
         actions: [
           if (_isViewMode) ...[
@@ -308,7 +329,19 @@ class _SundaySchoolAttendancePageState
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
+          : isDesktop
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _buildBodyColumn(context),
+              ),
+            )
+          : _buildBodyColumn(context),
+    );
+  }
+
+  Widget _buildBodyColumn(BuildContext context) {
+    return Column(
               children: [
                 // Date Selector
                 Container(
@@ -366,8 +399,7 @@ class _SundaySchoolAttendancePageState
                       : _buildEditModeContent(),
                 ),
               ],
-            ),
-    );
+            );
   }
 
   Widget _buildEditModeContent() {

@@ -5,15 +5,24 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/church_attendance_service.dart';
 import '../../services/attendance_report_pdf_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Page showing list of church services with details
 class ChurchAttendanceListPage extends StatefulWidget {
-  const ChurchAttendanceListPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const ChurchAttendanceListPage({
+    super.key,
+    this.hideAppBarAndBottomNav = false,
+  });
 
   @override
   State<ChurchAttendanceListPage> createState() =>
       _ChurchAttendanceListPageState();
 }
+
+const double _kChurchAttendanceDesktopBreakpoint = 700;
+const double _kChurchAttendanceDesktopMaxWidth = 1000;
 
 class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   List<Map<String, dynamic>> _services = [];
@@ -95,66 +104,88 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     String serviceDate,
     String serviceType,
   ) async {
-    final result = await Navigator.of(context).pushNamed(
-      RouteNames.churchAttendance,
-      arguments: {'serviceDate': serviceDate, 'serviceType': serviceType},
-    );
-    if (result == true) {
-      _loadServices();
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(
+        RouteNames.churchAttendance,
+        '$serviceDate|$serviceType',
+      );
+    } else {
+      final result = await Navigator.of(context).pushNamed(
+        RouteNames.churchAttendance,
+        arguments: {'serviceDate': serviceDate, 'serviceType': serviceType},
+      );
+      if (result == true) _loadServices();
     }
   }
 
   Future<void> _markNewAttendance() async {
-    final result = await Navigator.of(
-      context,
-    ).pushNamed(RouteNames.churchAttendance);
-    if (result == true) {
-      _loadServices();
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.churchAttendance, '');
+    } else {
+      final result = await Navigator.of(
+        context,
+      ).pushNamed(RouteNames.churchAttendance);
+      if (result == true) _loadServices();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        widget.hideAppBarAndBottomNav &&
+        MediaQuery.sizeOf(context).width >= _kChurchAttendanceDesktopBreakpoint;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Church Attendance'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.description),
-            onPressed: _generateReport,
-            tooltip: 'Generate Report',
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: const Text('Church Attendance'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.description),
+                  onPressed: _generateReport,
+                  tooltip: 'Generate Report',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilterDialog,
+                  tooltip: 'Filter Services',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _markNewAttendance,
+                  tooltip: 'Mark New Attendance',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadServices,
+                  tooltip: 'Refresh',
+                ),
+              ],
+            ),
+      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: _kChurchAttendanceDesktopMaxWidth,
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-            tooltip: 'Filter Services',
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _markNewAttendance,
-            tooltip: 'Mark New Attendance',
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadServices,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filter Summary Bar
-          if (_hasActiveFilters)
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppDimensions.spacingMD,
-                vertical: AppDimensions.spacingSM,
-              ),
-              color: AppColors.primary.withOpacity(0.1),
-              child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(
-                    child: Wrap(
+                  if (_hasActiveFilters) ...[
+                    Wrap(
                       spacing: AppDimensions.spacingSM,
                       runSpacing: AppDimensions.spacingXS,
                       children: [
@@ -196,124 +227,326 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                           ),
                       ],
                     ),
+                    TextButton.icon(
+                      onPressed: _clearFilters,
+                      icon: const Icon(Icons.clear, size: 18),
+                      label: const Text('Clear All'),
+                    ),
+                    const SizedBox(width: AppDimensions.spacingMD),
+                  ],
+                  IconButton(
+                    icon: const Icon(Icons.filter_list),
+                    onPressed: _showFilterDialog,
+                    tooltip: 'Filter Services',
                   ),
-                  TextButton.icon(
-                    onPressed: _clearFilters,
-                    icon: const Icon(Icons.clear, size: 18),
-                    label: const Text('Clear All'),
+                  IconButton(
+                    icon: const Icon(Icons.description),
+                    onPressed: _generateReport,
+                    tooltip: 'Generate Report',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _isLoading ? null : _loadServices,
+                    tooltip: 'Refresh',
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _markNewAttendance,
+                    icon: const Icon(Icons.add, size: 20),
+                    label: const Text('Create'),
                   ),
                 ],
               ),
-            ),
-          // Services List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : (_services.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.church,
-                                size: 64,
-                                color: Theme.of(context).disabledColor,
-                              ),
-                              const SizedBox(height: AppDimensions.spacingMD),
-                              Text(
-                                'No services found',
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: AppDimensions.spacingSM),
-                              Text(
-                                'Tap the + button to mark attendance for a new service',
-                                style: Theme.of(context).textTheme.bodySmall,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadServices,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(
-                              AppDimensions.spacingMD,
+              const SizedBox(height: AppDimensions.spacingMD),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _services.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.church,
+                              size: 64,
+                              color: theme.colorScheme.outline,
                             ),
-                            itemCount: _services.length,
-                            itemBuilder: (context, index) {
-                              final service = _services[index];
-                              final serviceDate =
-                                  service['service_date'] as String;
-                              final serviceType =
-                                  service['service_type'] as String;
-                              final attendanceCount =
-                                  service['attendance_count'] as int? ?? 0;
-
-                              return Card(
-                                margin: const EdgeInsets.only(
-                                  bottom: AppDimensions.spacingMD,
-                                ),
-                                child: ListTile(
-                                  leading: CircleAvatar(
-                                    backgroundColor: serviceType == 'sunday'
-                                        ? AppColors.primary
-                                        : AppColors.secondary,
-                                    child: Icon(
-                                      serviceType == 'sunday'
-                                          ? Icons.wb_sunny
-                                          : Icons.calendar_today,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    _getServiceTypeLabel(serviceType),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 4),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            Text(
+                              'No services found',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              'Create a new service attendance to get started.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingLG),
+                            FilledButton.icon(
+                              onPressed: _markNewAttendance,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadServices,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.vertical,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowColor: WidgetStateProperty.all(
+                                theme.colorScheme.surfaceContainerHighest,
+                              ),
+                              columns: const [
+                                DataColumn(label: Text('Date')),
+                                DataColumn(label: Text('Service Type')),
+                                DataColumn(label: Text('Attended')),
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: _services.map((service) {
+                                final serviceDate =
+                                    service['service_date'] as String;
+                                final serviceType =
+                                    service['service_type'] as String;
+                                final attendanceCount =
+                                    service['attendance_count'] as int? ?? 0;
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
                                       Text(
                                         _formatDate(serviceDate),
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
+                                        style: theme.textTheme.bodyMedium,
                                       ),
-                                      const SizedBox(height: 4),
+                                    ),
+                                    DataCell(
                                       Row(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            Icons.people,
-                                            size: 16,
-                                            color: AppColors.textSecondary,
+                                            serviceType == 'sunday'
+                                                ? Icons.wb_sunny
+                                                : Icons.calendar_today,
+                                            size: 18,
+                                            color: serviceType == 'sunday'
+                                                ? AppColors.primary
+                                                : AppColors.secondary,
                                           ),
-                                          const SizedBox(width: 4),
+                                          const SizedBox(width: 8),
                                           Text(
-                                            '$attendanceCount ${attendanceCount == 1 ? 'member' : 'members'} attended',
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
+                                            _getServiceTypeLabel(serviceType),
+                                            style: theme.textTheme.bodyMedium,
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  onTap: () => _viewServiceDetails(
-                                    serviceDate,
-                                    serviceType,
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        '$attendanceCount ${attendanceCount == 1 ? 'member' : 'members'}',
+                                        style: theme.textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                    DataCell(
+                                      TextButton(
+                                        onPressed: () => _viewServiceDetails(
+                                          serviceDate,
+                                          serviceType,
+                                        ),
+                                        child: const Text('View'),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileBody(BuildContext context) {
+    return Column(
+      children: [
+        // Filter Summary Bar
+        if (_hasActiveFilters)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppDimensions.spacingMD,
+              vertical: AppDimensions.spacingSM,
+            ),
+            color: AppColors.primary.withOpacity(0.1),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: AppDimensions.spacingSM,
+                    runSpacing: AppDimensions.spacingXS,
+                    children: [
+                      if (_filterStartDate != null)
+                        Chip(
+                          label: Text(
+                            'From: ${_formatDate(_filterStartDate!.toIso8601String().split('T')[0])}',
+                          ),
+                          onDeleted: () {
+                            setState(() {
+                              _filterStartDate = null;
+                            });
+                            _loadServices();
+                          },
+                        ),
+                      if (_filterEndDate != null)
+                        Chip(
+                          label: Text(
+                            'To: ${_formatDate(_filterEndDate!.toIso8601String().split('T')[0])}',
+                          ),
+                          onDeleted: () {
+                            setState(() {
+                              _filterEndDate = null;
+                            });
+                            _loadServices();
+                          },
+                        ),
+                      if (_filterServiceType != null)
+                        Chip(
+                          label: Text(
+                            _getServiceTypeLabel(_filterServiceType!),
+                          ),
+                          onDeleted: () {
+                            setState(() {
+                              _filterServiceType = null;
+                            });
+                            _loadServices();
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _clearFilters,
+                  icon: const Icon(Icons.clear, size: 18),
+                  label: const Text('Clear All'),
+                ),
+              ],
+            ),
+          ),
+        // Services List
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : (_services.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.church,
+                              size: 64,
+                              color: Theme.of(context).disabledColor,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            Text(
+                              'No services found',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              'Tap the + button to mark attendance for a new service',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadServices,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(
+                            AppDimensions.spacingMD,
+                          ),
+                          itemCount: _services.length,
+                          itemBuilder: (context, index) {
+                            final service = _services[index];
+                            final serviceDate =
+                                service['service_date'] as String;
+                            final serviceType =
+                                service['service_type'] as String;
+                            final attendanceCount =
+                                service['attendance_count'] as int? ?? 0;
+
+                            return Card(
+                              margin: const EdgeInsets.only(
+                                bottom: AppDimensions.spacingMD,
+                              ),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: serviceType == 'sunday'
+                                      ? AppColors.primary
+                                      : AppColors.secondary,
+                                  child: Icon(
+                                    serviceType == 'sunday'
+                                        ? Icons.wb_sunny
+                                        : Icons.calendar_today,
+                                    color: Colors.white,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        )),
-          ),
-        ],
-      ),
+                                title: Text(
+                                  _getServiceTypeLabel(serviceType),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _formatDate(serviceDate),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodyMedium,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.people,
+                                          size: 16,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '$attendanceCount ${attendanceCount == 1 ? 'member' : 'members'} attended',
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.bodySmall,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => _viewServiceDetails(
+                                  serviceDate,
+                                  serviceType,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )),
+        ),
+      ],
     );
   }
 

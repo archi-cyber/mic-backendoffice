@@ -7,12 +7,16 @@ import '../../services/task_service.dart';
 import '../../services/member_service.dart';
 import '../../services/department_service.dart';
 import '../../services/role_service.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Task detail page with assign and remind functionality
 class TaskDetailPage extends StatefulWidget {
   final String taskId;
 
-  const TaskDetailPage({super.key, required this.taskId});
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const TaskDetailPage({super.key, required this.taskId, this.onClose});
 
   @override
   State<TaskDetailPage> createState() => _TaskDetailPageState();
@@ -48,6 +52,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         );
       }
 
+      if (!mounted) return;
       setState(() {
         _task = task;
         _assignments = assignments;
@@ -55,6 +60,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(
@@ -182,23 +188,43 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
     if (_task == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Task')),
+        appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
+          title: const Text('Task'),
+        ),
         body: const Center(child: Text('Task not found')),
       );
     }
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: Text(_task!['title'] ?? 'Task'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final result = await Navigator.of(
-                context,
-              ).pushNamed(RouteNames.editTask.replaceAll(':id', widget.taskId));
-              if (result == true) {
-                _loadTaskData();
+            onPressed: () {
+              final scope = DesktopShellScope.maybeOf(context);
+              if (scope != null) {
+                scope.pushDetail(RouteNames.editTask, widget.taskId);
+              } else {
+                Navigator.of(context)
+                    .pushNamed(
+                      RouteNames.editTask.replaceAll(':id', widget.taskId),
+                    )
+                    .then((result) {
+                      if (result == true) _loadTaskData();
+                    });
               }
             },
             tooltip: 'Edit Task',
@@ -224,301 +250,319 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Task details
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _task!['title'] ?? 'Task',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    Text(
-                      'Description',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+      body: _buildBody(context),
+    );
+  }
+
+  static const double _kTaskDetailDesktopBreakpoint = 700;
+  static const double _kTaskDetailDesktopMaxWidth = 900;
+
+  Widget _buildBody(BuildContext context) {
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= _kTaskDetailDesktopBreakpoint;
+    final content = SingleChildScrollView(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Task details
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _task!['title'] ?? 'Task',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+                  Text(
+                    'Description',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppDimensions.spacingSM),
+                  Text(
+                    _task!['description'] ?? 'No description',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const Divider(height: AppDimensions.spacingXL),
+                  Row(
+                    children: [
+                      Text(
+                        'Status: ',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppDimensions.paddingSM,
+                          vertical: AppDimensions.paddingXS,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(_task!['status']),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusSM,
+                          ),
+                        ),
+                        child: Text(
+                          (_task!['status'] ?? 'pending')
+                              .replaceAll('_', ' ')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.spacingMD),
+                      Text(
+                        'Priority: ',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppDimensions.paddingSM,
+                          vertical: AppDimensions.paddingXS,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getPriorityColor(_task!['priority']),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusSM,
+                          ),
+                        ),
+                        child: Text(
+                          (_task!['priority'] ?? 'medium').toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_task!['department_id'] != null) ...[
                     const SizedBox(height: AppDimensions.spacingSM),
-                    Text(
-                      _task!['description'] ?? 'No description',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const Divider(height: AppDimensions.spacingXL),
                     Row(
                       children: [
+                        const Icon(Icons.group_work, size: 16),
+                        const SizedBox(width: AppDimensions.spacingSM),
                         Text(
-                          'Status: ',
+                          'Department: ',
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppDimensions.paddingSM,
-                            vertical: AppDimensions.paddingXS,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(_task!['status']),
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.radiusSM,
-                            ),
-                          ),
+                        Expanded(
                           child: Text(
-                            (_task!['status'] ?? 'pending')
-                                .replaceAll('_', ' ')
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppDimensions.spacingMD),
-                        Text(
-                          'Priority: ',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppDimensions.paddingSM,
-                            vertical: AppDimensions.paddingXS,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getPriorityColor(_task!['priority']),
-                            borderRadius: BorderRadius.circular(
-                              AppDimensions.radiusSM,
-                            ),
-                          ),
-                          child: Text(
-                            (_task!['priority'] ?? 'medium').toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            _getDepartmentName(),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
-                    if (_task!['department_id'] != null) ...[
-                      const SizedBox(height: AppDimensions.spacingSM),
-                      Row(
-                        children: [
-                          const Icon(Icons.group_work, size: 16),
-                          const SizedBox(width: AppDimensions.spacingSM),
-                          Text(
-                            'Department: ',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Expanded(
-                            child: Text(
-                              _getDepartmentName(),
-                              style: Theme.of(context).textTheme.bodyMedium,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    if (_task!['due_date'] != null) ...[
-                      const SizedBox(height: AppDimensions.spacingSM),
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 16),
-                          const SizedBox(width: AppDimensions.spacingSM),
-                          Text(
-                            'Due Date: ${_formatDate(DateTime.parse(_task!['due_date']))}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ],
                   ],
+                  if (_task!['due_date'] != null) ...[
+                    const SizedBox(height: AppDimensions.spacingSM),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 16),
+                        const SizedBox(width: AppDimensions.spacingSM),
+                        Text(
+                          'Due Date: ${_formatDate(DateTime.parse(_task!['due_date']))}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimensions.spacingMD),
+          // Assignments
+          Text('Assigned To', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppDimensions.spacingSM),
+          _assignments.isEmpty
+              ? Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    child: Center(
+                      child: Text(
+                        'No assignments yet',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _assignments.length,
+                  itemBuilder: (context, index) {
+                    final assignment = _assignments[index];
+                    final member =
+                        assignment['members'] as Map<String, dynamic>?;
+                    final memberName = member != null
+                        ? '${member['first_name']} ${member['last_name']}'
+                        : 'Member';
+                    final assignmentStatus =
+                        assignment['status']?.toString() ?? 'pending';
+                    final memberId = assignment['member_id']?.toString() ?? '';
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        vertical: AppDimensions.spacingXS,
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            member?['first_name']?[0]
+                                    ?.toString()
+                                    .toUpperCase() ??
+                                'M',
+                          ),
+                        ),
+                        title: Text(memberName),
+                        subtitle: Text(member?['email']?.toString() ?? ''),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            PopupMenuButton<String>(
+                              onSelected: (newStatus) async {
+                                try {
+                                  await TaskService.updateAssignmentStatus(
+                                    taskId: widget.taskId,
+                                    memberId: memberId,
+                                    status: newStatus,
+                                  );
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Status updated'),
+                                        backgroundColor: AppColors.success,
+                                      ),
+                                    );
+                                    _loadTaskData();
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                const PopupMenuItem(
+                                  value: 'pending',
+                                  child: Text('Pending'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'in_progress',
+                                  child: Text('In Progress'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'completed',
+                                  child: Text('Completed'),
+                                ),
+                                const PopupMenuItem(
+                                  value: 'cancelled',
+                                  child: Text('Cancelled'),
+                                ),
+                              ],
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getStatusColor(
+                                    assignmentStatus,
+                                  ).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  assignmentStatus.replaceAll('_', ' '),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getStatusColor(assignmentStatus),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.message, size: 18),
+                              onPressed: () => _showReminderDialog(
+                                member: member,
+                                memberId: memberId,
+                                memberName: memberName,
+                              ),
+                              tooltip: 'Send Reminder',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () =>
+                                  _removeAssignment(memberId, memberName),
+                              tooltip: 'Remove',
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.of(context).pushNamed(
+                            RouteNames.memberDetail.replaceAll(
+                              ':id',
+                              member?['id']?.toString() ?? '',
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+          const SizedBox(height: AppDimensions.spacingXL),
+          // Action buttons - only show if user can assign members
+          if (_canAssignMembers)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _showAssignDialog,
+                icon: const Icon(Icons.person_add),
+                label: const Text('Assign to Member'),
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(
+                    double.infinity,
+                    AppDimensions.buttonHeightLG,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            // Assignments
-            Text('Assigned To', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppDimensions.spacingSM),
-            _assignments.isEmpty
-                ? Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                      child: Center(
-                        child: Text(
-                          'No assignments yet',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _assignments.length,
-                    itemBuilder: (context, index) {
-                      final assignment = _assignments[index];
-                      final member =
-                          assignment['members'] as Map<String, dynamic>?;
-                      final memberName = member != null
-                          ? '${member['first_name']} ${member['last_name']}'
-                          : 'Member';
-                      final assignmentStatus =
-                          assignment['status']?.toString() ?? 'pending';
-                      final memberId =
-                          assignment['member_id']?.toString() ?? '';
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          vertical: AppDimensions.spacingXS,
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            child: Text(
-                              member?['first_name']?[0]
-                                      ?.toString()
-                                      .toUpperCase() ??
-                                  'M',
-                            ),
-                          ),
-                          title: Text(memberName),
-                          subtitle: Text(member?['email']?.toString() ?? ''),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              PopupMenuButton<String>(
-                                onSelected: (newStatus) async {
-                                  try {
-                                    await TaskService.updateAssignmentStatus(
-                                      taskId: widget.taskId,
-                                      memberId: memberId,
-                                      status: newStatus,
-                                    );
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Status updated'),
-                                          backgroundColor: AppColors.success,
-                                        ),
-                                      );
-                                      _loadTaskData();
-                                    }
-                                  } catch (e) {
-                                    if (mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Error: $e'),
-                                          backgroundColor: AppColors.error,
-                                        ),
-                                      );
-                                    }
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'pending',
-                                    child: Text('Pending'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'in_progress',
-                                    child: Text('In Progress'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'completed',
-                                    child: Text('Completed'),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'cancelled',
-                                    child: Text('Cancelled'),
-                                  ),
-                                ],
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _getStatusColor(
-                                      assignmentStatus,
-                                    ).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    assignmentStatus.replaceAll('_', ' '),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: _getStatusColor(assignmentStatus),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.message, size: 18),
-                                onPressed: () => _showReminderDialog(
-                                  member: member,
-                                  memberId: memberId,
-                                  memberName: memberName,
-                                ),
-                                tooltip: 'Send Reminder',
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close, size: 18),
-                                onPressed: () =>
-                                    _removeAssignment(memberId, memberName),
-                                tooltip: 'Remove',
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail.replaceAll(
-                                ':id',
-                                member?['id']?.toString() ?? '',
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-            const SizedBox(height: AppDimensions.spacingXL),
-            // Action buttons - only show if user can assign members
-            if (_canAssignMembers)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _showAssignDialog,
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Assign to Member'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(
-                      double.infinity,
-                      AppDimensions.buttonHeightLG,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
+    if (isDesktop) {
+      return Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: _kTaskDetailDesktopMaxWidth,
+          ),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 
   Future<void> _deleteTask() async {
@@ -553,7 +597,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               backgroundColor: AppColors.success,
             ),
           );
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -671,9 +719,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }) async {
     // Get assigned member's phone - try from member object first
     String? assignedMemberPhone = member?['phone']?.toString();
-    
+
     // If phone not in member object, try to fetch it directly
-    if ((assignedMemberPhone == null || assignedMemberPhone.isEmpty) && memberId.isNotEmpty) {
+    if ((assignedMemberPhone == null || assignedMemberPhone.isEmpty) &&
+        memberId.isNotEmpty) {
       try {
         final memberProfile = await MemberService.getMemberById(memberId);
         assignedMemberPhone = memberProfile['phone']?.toString();
@@ -697,7 +746,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       final receiverPhone = result['receiver'];
       final platform = result['platform'];
 
-      if (receiverPhone != null && receiverPhone.isNotEmpty && platform != null) {
+      if (receiverPhone != null &&
+          receiverPhone.isNotEmpty &&
+          platform != null) {
         await _sendReminder(
           receiverPhone: receiverPhone,
           platform: platform,
@@ -729,15 +780,15 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         if (phone.isEmpty) {
           throw Exception('Invalid phone number format');
         }
-        
+
         // Extract all digits from the phone number (this preserves ALL digits)
         final digitsOnly = phone.replaceAll(RegExp(r'[^\d]'), '');
-        
+
         // Ensure we have digits
         if (digitsOnly.isEmpty) {
           throw Exception('Invalid phone number format');
         }
-        
+
         // Always return with + prefix for international format
         return '+$digitsOnly';
       }
@@ -774,10 +825,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
       if (canLaunch) {
         try {
-          await launchUrl(
-            uri,
-            mode: LaunchMode.externalApplication,
-          );
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -789,10 +837,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         } catch (e) {
           // If launchUrl fails, try with platformDefault mode
           try {
-            await launchUrl(
-              uri,
-              mode: LaunchMode.platformDefault,
-            );
+            await launchUrl(uri, mode: LaunchMode.platformDefault);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -810,10 +855,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       } else {
         // If canLaunchUrl returns false, still try to launch
         try {
-          await launchUrl(
-            uri,
-            mode: LaunchMode.externalApplication,
-          );
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

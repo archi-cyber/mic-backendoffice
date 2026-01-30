@@ -10,7 +10,10 @@ import '../../utils/export_utils.dart';
 class ClassReportPage extends StatefulWidget {
   final String classId;
 
-  const ClassReportPage({super.key, required this.classId});
+  /// When set (e.g. desktop stack), back uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const ClassReportPage({super.key, required this.classId, this.onClose});
 
   @override
   State<ClassReportPage> createState() => _ClassReportPageState();
@@ -54,11 +57,24 @@ class _ClassReportPageState extends State<ClassReportPage> {
   }
 
   Future<void> _selectDateRange() async {
+    final isDesktop = widget.onClose != null;
     final dates = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: DateTimeRange(start: _fromDate, end: _toDate),
+      helpText: 'Select Date Range',
+      builder: isDesktop
+          ? (context, child) => Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: 600,
+                ),
+                child: child,
+              ),
+            )
+          : null,
     );
     if (dates != null) {
       setState(() {
@@ -126,6 +142,12 @@ class _ClassReportPageState extends State<ClassReportPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: Text('${_class?['name'] ?? 'Training'} - Report'),
         actions: [
           IconButton(

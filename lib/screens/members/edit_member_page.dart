@@ -8,7 +8,10 @@ import '../../services/member_service.dart';
 class EditMemberPage extends StatefulWidget {
   final String memberId;
 
-  const EditMemberPage({super.key, required this.memberId});
+  /// When set (e.g. desktop stack overlay), close and result use this instead of Navigator.pop.
+  final void Function(bool? result)? onClose;
+
+  const EditMemberPage({super.key, required this.memberId, this.onClose});
 
   @override
   State<EditMemberPage> createState() => _EditMemberPageState();
@@ -166,7 +169,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
             backgroundColor: AppColors.error,
           ),
         );
-        Navigator.of(context).pop();
+        if (widget.onClose != null) {
+          widget.onClose!(null);
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -256,7 +263,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true); // Return true to indicate success
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true); // Return true to indicate success
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -271,519 +282,1072 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
   }
 
+  static const double _kDesktopFormMaxWidth = 1000;
+  static const double _kDesktopBreakpoint = 700;
+
   @override
   Widget build(BuildContext context) {
     if (_isLoadingData) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Edit Member')),
+        appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => widget.onClose!(null),
+                )
+              : null,
+          title: const Text('Edit Member'),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
+    final width = MediaQuery.sizeOf(context).width;
+    final useDesktopLayout = width >= _kDesktopBreakpoint;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Member')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _firstNameController,
-                decoration: const InputDecoration(
-                  labelText: 'First Name *',
-                  prefixIcon: Icon(Icons.person),
+      appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => widget.onClose!(null),
+              )
+            : null,
+        title: const Text('Edit Member'),
+        actions: useDesktopLayout
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'First name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _lastNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Last Name *',
-                  prefixIcon: Icon(Icons.person),
+                const SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save, size: 20),
+                  label: const Text('Update Member'),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Last name is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'Email (recommended)',
-                  prefixIcon: Icon(Icons.email),
-                  helperText: 'At least email or phone is required',
-                ),
-                validator: (value) {
-                  if (value != null &&
-                      value.isNotEmpty &&
-                      !value.contains('@')) {
-                    return 'Invalid email format';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Phone',
-                  prefixIcon: Icon(Icons.phone),
-                  helperText: 'At least email or phone is required',
+                const SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
+      ),
+      body: useDesktopLayout
+          ? Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopFormMaxWidth,
+                  ),
+                  child: Form(key: _formKey, child: _buildDesktopForm(context)),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              InkWell(
-                onTap: _selectBirthday,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: 'Birthday',
-                    prefixIcon: const Icon(Icons.cake),
-                    suffixIcon: const Icon(Icons.calendar_today),
-                    helperText: 'Tap to select date',
-                  ),
-                  child: Text(
-                    _selectedBirthday != null
-                        ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
-                        : 'Select birthday',
-                    style: TextStyle(
-                      color: _selectedBirthday != null
-                          ? Theme.of(context).textTheme.bodyLarge?.color
-                          : Theme.of(context).hintColor,
-                    ),
-                  ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _buildFormChildren(),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _addressController,
-                decoration: const InputDecoration(
-                  labelText: 'Address',
-                  prefixIcon: Icon(Icons.home),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _cityController,
-                      decoration: const InputDecoration(
-                        labelText: 'City',
-                        prefixIcon: Icon(Icons.location_city),
-                      ),
-                    ),
+            ),
+    );
+  }
+
+  Widget _desktopSectionCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<Widget> children,
+  ) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.only(bottom: AppDimensions.spacingLG),
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.paddingLG),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 22, color: theme.colorScheme.primary),
+                const SizedBox(width: AppDimensions.spacingSM),
+                Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(width: AppDimensions.spacingMD),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _stateController,
-                      decoration: const InputDecoration(
-                        labelText: 'State',
-                        prefixIcon: Icon(Icons.map),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _zipCodeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Zip Code',
-                        prefixIcon: Icon(Icons.pin),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.spacingMD),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _countryController,
-                      decoration: const InputDecoration(
-                        labelText: 'Country',
-                        prefixIcon: Icon(Icons.public),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              TextFormField(
-                controller: _quarterController,
-                decoration: const InputDecoration(
-                  labelText: 'Quarter',
-                  prefixIcon: Icon(Icons.calendar_view_month),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedProfession,
-                decoration: const InputDecoration(
-                  labelText: 'Profession',
-                  prefixIcon: Icon(Icons.work),
-                  helperText: 'Select your current profession/status',
-                ),
-                items: [
-                  const DropdownMenuItem<String>(
-                    value: null,
-                    child: Text('Not specified'),
-                  ),
-                  ...MemberConstants.getProfessionOptions().map((option) {
-                    return DropdownMenuItem<String>(
-                      value: option['value'],
-                      child: Text(option['label']!),
-                    );
-                  }),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedProfession = value;
-                    // Clear dependent fields when profession changes or is set to null
-                    if (value == null ||
-                        !MemberConstants.requiresLevelOfStudy(value)) {
-                      _selectedLevelOfStudy = null;
-                    } else {
-                      // Reset level of study when profession changes
-                      // Only reset if current level is not valid for new profession
-                      final availableLevels = MemberConstants.getLevelsOfStudy(
-                        value,
-                      );
-                      if (_selectedLevelOfStudy != null &&
-                          !availableLevels.contains(_selectedLevelOfStudy)) {
-                        _selectedLevelOfStudy = null;
-                      }
-                    }
-                    if (value == null ||
-                        !MemberConstants.requiresLastDiplomas(value)) {
-                      _selectedLastDiploma = null;
-                    }
-                    if (value == null ||
-                        !MemberConstants.requiresSectorOfStudies(value)) {
-                      _sectorOfStudiesController.clear();
-                    }
-                    if (value == null ||
-                        !MemberConstants.requiresDomainOfActivity(value)) {
-                      _domainOfActivityController.clear();
-                    }
-                  });
-                },
-              ),
-              // Conditionally show level_of_study
-              if (MemberConstants.requiresLevelOfStudy(
-                _selectedProfession,
-              )) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedLevelOfStudy,
-                  decoration: const InputDecoration(
-                    labelText: 'Level of Study *',
-                    prefixIcon: Icon(Icons.school),
-                    helperText:
-                        'Required for students, job seeking, and workers',
-                  ),
-                  items: MemberConstants.getLevelsOfStudy(_selectedProfession)
-                      .map((level) {
-                        return DropdownMenuItem<String>(
-                          value: level,
-                          child: Text(level),
-                        );
-                      })
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedLevelOfStudy = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (MemberConstants.requiresLevelOfStudy(
-                          _selectedProfession,
-                        ) &&
-                        (value == null || value.isEmpty)) {
-                      return 'Level of study is required';
-                    }
-                    return null;
-                  },
                 ),
               ],
-              // Conditionally show sector_of_studies
-              if (MemberConstants.requiresSectorOfStudies(
-                _selectedProfession,
-              )) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
-                TextFormField(
-                  controller: _sectorOfStudiesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Sector of Studies *',
-                    prefixIcon: Icon(Icons.category),
-                    helperText:
-                        'Required for secondary and university students, job seeking, and workers',
-                  ),
-                  validator: (value) {
-                    if (MemberConstants.requiresSectorOfStudies(
-                          _selectedProfession,
-                        ) &&
-                        (value == null || value.trim().isEmpty)) {
-                      return 'Sector of studies is required';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-              // Conditionally show domain_of_activity
-              if (MemberConstants.requiresDomainOfActivity(
-                _selectedProfession,
-              )) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
-                TextFormField(
-                  controller: _domainOfActivityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Domain of Activity *',
-                    prefixIcon: Icon(Icons.business),
-                    helperText: 'Required for job seeking and workers',
-                  ),
-                  validator: (value) {
-                    if (MemberConstants.requiresDomainOfActivity(
-                          _selectedProfession,
-                        ) &&
-                        (value == null || value.trim().isEmpty)) {
-                      return 'Domain of activity is required';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-              // Conditionally show last_diplomas
-              if (MemberConstants.requiresLastDiplomas(
-                _selectedProfession,
-              )) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedLastDiploma,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Diplomas *',
-                    prefixIcon: Icon(Icons.workspace_premium),
-                    helperText:
-                        'Required for secondary and university students, job seeking, and workers',
-                  ),
-                  items: MemberConstants.getDiplomaOptions().map((diploma) {
-                    return DropdownMenuItem<String>(
-                      value: diploma,
-                      child: Text(diploma),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedLastDiploma = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (MemberConstants.requiresLastDiplomas(
-                          _selectedProfession,
-                        ) &&
-                        (value == null || value.isEmpty)) {
-                      return 'Last diplomas is required';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-              const SizedBox(height: AppDimensions.spacingMD),
-              _buildKeySkillsField(),
-              const SizedBox(height: AppDimensions.spacingMD),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Role *',
-                  prefixIcon: Icon(Icons.person_outline),
-                  helperText: 'Select member role',
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'member', child: Text('Member')),
-                  DropdownMenuItem(value: 'leader', child: Text('Leader')),
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                  DropdownMenuItem(value: 'worker', child: Text('Worker')),
-                  DropdownMenuItem(
-                    value: 'sympathiser',
-                    child: Text('Sympathiser'),
-                  ),
-                ],
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedRole = value;
-                    });
-                  }
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedGender,
-                decoration: const InputDecoration(
-                  labelText: 'Gender',
-                  prefixIcon: Icon(Icons.person),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'male', child: Text('Male')),
-                  DropdownMenuItem(value: 'female', child: Text('Female')),
-                  DropdownMenuItem(value: 'other', child: Text('Other')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedGender = value;
-                  });
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedMaritalStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Marital Status',
-                  prefixIcon: Icon(Icons.favorite),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'single', child: Text('Single')),
-                  DropdownMenuItem(value: 'married', child: Text('Married')),
-                  DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
-                  DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
-                ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedMaritalStatus = value;
-                  });
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              SwitchListTile(
-                title: const Text('Active'),
-                subtitle: const Text('Is this member active?'),
-                value: _isActive ?? true,
-                onChanged: (value) {
-                  setState(() {
-                    _isActive = value;
-                  });
-                },
-              ),
-              SwitchListTile(
-                title: const Text('Opt out of birthday notifications'),
-                subtitle: const Text(
-                  'Disable birthday notifications for this member',
-                ),
-                value: _birthdayNotificationsOptOut ?? false,
-                onChanged: (value) {
-                  setState(() {
-                    _birthdayNotificationsOptOut = value;
-                  });
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              CheckboxListTile(
-                title: const Text('New Comer'),
-                subtitle: const Text(
-                  'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
-                ),
-                value: _isNewComer,
-                onChanged: (value) {
-                  setState(() {
-                    _isNewComer = value ?? false;
-                    // Clear join date and intention if unchecked
-                    if (!(value ?? false)) {
-                      _newcomerJoinDate = null;
-                      _newcomerIntention = null;
-                    }
-                  });
-                },
-                controlAffinity: ListTileControlAffinity.leading,
-              ),
-              // Show join date field only when new comer is checked
-              if (_isNewComer) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
-                InkWell(
-                  onTap: _selectNewcomerJoinDate,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: 'Newcomer Join Date',
-                      prefixIcon: const Icon(Icons.event_available),
-                      suffixIcon: const Icon(Icons.calendar_today),
-                      helperText: 'Select the date when the newcomer joined',
-                    ),
-                    child: Text(
-                      _newcomerJoinDate != null
-                          ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
-                          : 'Select join date',
-                      style: TextStyle(
-                        color: _newcomerJoinDate != null
-                            ? Theme.of(context).textTheme.bodyLarge?.color
-                            : Theme.of(context).hintColor,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppDimensions.spacingMD),
-                DropdownButtonFormField<String>(
-                  initialValue: _newcomerIntention,
-                  decoration: const InputDecoration(
-                    labelText: 'Newcomer Intention',
-                    prefixIcon: Icon(Icons.help_outline),
-                    helperText: 'Select the newcomer\'s intention',
-                  ),
-                  items: const [
-                    DropdownMenuItem<String>(
-                      value: 'wants_to_stay',
-                      child: Text('Wants to stay'),
-                    ),
-                    DropdownMenuItem<String>(
-                      value: 'does_not_know_yet',
-                      child: Text('Does not know yet'),
-                    ),
-                    DropdownMenuItem<String>(
-                      value: 'just_passing',
-                      child: Text('Just passing'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _newcomerIntention = value;
-                    });
-                  },
-                ),
-              ],
-              const SizedBox(height: AppDimensions.spacingXL),
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Update Member'),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            ...children,
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildDesktopForm(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _desktopSectionCard(
+          context,
+          'Personal information',
+          Icons.person,
+          _buildPersonalSection(context),
+        ),
+        _desktopSectionCard(
+          context,
+          'Contact',
+          Icons.contact_phone,
+          _buildContactSection(context),
+        ),
+        _desktopSectionCard(
+          context,
+          'Address',
+          Icons.home,
+          _buildAddressSection(context),
+        ),
+        _desktopSectionCard(
+          context,
+          'Professional details',
+          Icons.work,
+          _buildProfessionalSection(context),
+        ),
+        _desktopSectionCard(
+          context,
+          'Role & status',
+          Icons.badge,
+          _buildRoleStatusSection(context),
+        ),
+        _desktopSectionCard(
+          context,
+          'Newcomer',
+          Icons.person_add,
+          _buildNewcomerSection(context),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildPersonalSection(BuildContext context) {
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _firstNameController,
+              decoration: const InputDecoration(
+                labelText: 'First Name *',
+                prefixIcon: Icon(Icons.person),
+              ),
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'First name is required' : null,
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: TextFormField(
+              controller: _lastNameController,
+              decoration: const InputDecoration(
+                labelText: 'Last Name *',
+                prefixIcon: Icon(Icons.person),
+              ),
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Last name is required' : null,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      InkWell(
+        onTap: _selectBirthday,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'Birthday',
+            prefixIcon: const Icon(Icons.cake),
+            suffixIcon: const Icon(Icons.calendar_today),
+            helperText: 'Tap to select date',
+          ),
+          child: Text(
+            _selectedBirthday != null
+                ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
+                : 'Select birthday',
+            style: TextStyle(
+              color: _selectedBirthday != null
+                  ? Theme.of(context).textTheme.bodyLarge?.color
+                  : Theme.of(context).hintColor,
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildContactSection(BuildContext context) {
+    return [
+      TextFormField(
+        controller: _emailController,
+        keyboardType: TextInputType.emailAddress,
+        decoration: const InputDecoration(
+          labelText: 'Email (recommended)',
+          prefixIcon: Icon(Icons.email),
+          helperText: 'At least email or phone is required',
+        ),
+        validator: (v) {
+          if (v != null && v.isNotEmpty && !v.contains('@')) {
+            return 'Invalid email format';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _phoneController,
+        keyboardType: TextInputType.phone,
+        decoration: const InputDecoration(
+          labelText: 'Phone',
+          prefixIcon: Icon(Icons.phone),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildAddressSection(BuildContext context) {
+    return [
+      TextFormField(
+        controller: _addressController,
+        decoration: const InputDecoration(
+          labelText: 'Address',
+          prefixIcon: Icon(Icons.home),
+        ),
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _cityController,
+              decoration: const InputDecoration(
+                labelText: 'City',
+                prefixIcon: Icon(Icons.location_city),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: TextFormField(
+              controller: _stateController,
+              decoration: const InputDecoration(
+                labelText: 'State',
+                prefixIcon: Icon(Icons.map),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _zipCodeController,
+              decoration: const InputDecoration(
+                labelText: 'Zip Code',
+                prefixIcon: Icon(Icons.pin),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: TextFormField(
+              controller: _countryController,
+              decoration: const InputDecoration(
+                labelText: 'Country',
+                prefixIcon: Icon(Icons.public),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _quarterController,
+        decoration: const InputDecoration(
+          labelText: 'Quarter',
+          prefixIcon: Icon(Icons.calendar_view_month),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildProfessionalSection(BuildContext context) {
+    final list = <Widget>[
+      DropdownButtonFormField<String>(
+        initialValue: _selectedProfession,
+        decoration: const InputDecoration(
+          labelText: 'Profession',
+          prefixIcon: Icon(Icons.work),
+          helperText: 'Select your current profession/status',
+        ),
+        items: [
+          const DropdownMenuItem<String>(
+            value: null,
+            child: Text('Not specified'),
+          ),
+          ...MemberConstants.getProfessionOptions().map((option) {
+            return DropdownMenuItem<String>(
+              value: option['value'],
+              child: Text(option['label']!),
+            );
+          }),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedProfession = value;
+            if (value == null || !MemberConstants.requiresLevelOfStudy(value)) {
+              _selectedLevelOfStudy = null;
+            } else {
+              final availableLevels = MemberConstants.getLevelsOfStudy(value);
+              if (_selectedLevelOfStudy != null &&
+                  !availableLevels.contains(_selectedLevelOfStudy)) {
+                _selectedLevelOfStudy = null;
+              }
+            }
+            if (value == null || !MemberConstants.requiresLastDiplomas(value)) {
+              _selectedLastDiploma = null;
+            }
+            if (value == null ||
+                !MemberConstants.requiresSectorOfStudies(value)) {
+              _sectorOfStudiesController.clear();
+            }
+            if (value == null ||
+                !MemberConstants.requiresDomainOfActivity(value)) {
+              _domainOfActivityController.clear();
+            }
+          });
+        },
+      ),
+    ];
+    if (MemberConstants.requiresLevelOfStudy(_selectedProfession)) {
+      list.addAll([
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedLevelOfStudy,
+          decoration: const InputDecoration(
+            labelText: 'Level of Study *',
+            prefixIcon: Icon(Icons.school),
+          ),
+          items: MemberConstants.getLevelsOfStudy(_selectedProfession)
+              .map(
+                (level) =>
+                    DropdownMenuItem<String>(value: level, child: Text(level)),
+              )
+              .toList(),
+          onChanged: (value) => setState(() => _selectedLevelOfStudy = value),
+          validator: (value) {
+            if (MemberConstants.requiresLevelOfStudy(_selectedProfession) &&
+                (value == null || value.isEmpty)) {
+              return 'Level of study is required';
+            }
+            return null;
+          },
+        ),
+      ]);
+    }
+    if (MemberConstants.requiresSectorOfStudies(_selectedProfession)) {
+      list.addAll([
+        const SizedBox(height: AppDimensions.spacingMD),
+        TextFormField(
+          controller: _sectorOfStudiesController,
+          decoration: const InputDecoration(
+            labelText: 'Sector of Studies *',
+            prefixIcon: Icon(Icons.category),
+          ),
+          validator: (value) {
+            if (MemberConstants.requiresSectorOfStudies(_selectedProfession) &&
+                (value == null || value.trim().isEmpty)) {
+              return 'Sector of studies is required';
+            }
+            return null;
+          },
+        ),
+      ]);
+    }
+    if (MemberConstants.requiresDomainOfActivity(_selectedProfession)) {
+      list.addAll([
+        const SizedBox(height: AppDimensions.spacingMD),
+        TextFormField(
+          controller: _domainOfActivityController,
+          decoration: const InputDecoration(
+            labelText: 'Domain of Activity *',
+            prefixIcon: Icon(Icons.business),
+          ),
+          validator: (value) {
+            if (MemberConstants.requiresDomainOfActivity(_selectedProfession) &&
+                (value == null || value.trim().isEmpty)) {
+              return 'Domain of activity is required';
+            }
+            return null;
+          },
+        ),
+      ]);
+    }
+    if (MemberConstants.requiresLastDiplomas(_selectedProfession)) {
+      list.addAll([
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedLastDiploma,
+          decoration: const InputDecoration(
+            labelText: 'Last Diplomas *',
+            prefixIcon: Icon(Icons.workspace_premium),
+          ),
+          items: MemberConstants.getDiplomaOptions()
+              .map((d) => DropdownMenuItem<String>(value: d, child: Text(d)))
+              .toList(),
+          onChanged: (value) => setState(() => _selectedLastDiploma = value),
+          validator: (value) {
+            if (MemberConstants.requiresLastDiplomas(_selectedProfession) &&
+                (value == null || value.isEmpty)) {
+              return 'Last diplomas is required';
+            }
+            return null;
+          },
+        ),
+      ]);
+    }
+    list.addAll([
+      const SizedBox(height: AppDimensions.spacingMD),
+      _buildKeySkillsField(),
+    ]);
+    return list;
+  }
+
+  List<Widget> _buildRoleStatusSection(BuildContext context) {
+    return [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _selectedRole,
+              decoration: const InputDecoration(
+                labelText: 'Role *',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'member', child: Text('Member')),
+                DropdownMenuItem(value: 'leader', child: Text('Leader')),
+                DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                DropdownMenuItem(value: 'worker', child: Text('Worker')),
+                DropdownMenuItem(
+                  value: 'sympathiser',
+                  child: Text('Sympathiser'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _selectedRole = value);
+              },
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _selectedGender,
+              decoration: const InputDecoration(
+                labelText: 'Gender',
+                prefixIcon: Icon(Icons.person),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'male', child: Text('Male')),
+                DropdownMenuItem(value: 'female', child: Text('Female')),
+                DropdownMenuItem(value: 'other', child: Text('Other')),
+              ],
+              onChanged: (value) => setState(() => _selectedGender = value),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue: _selectedMaritalStatus,
+              decoration: const InputDecoration(
+                labelText: 'Marital Status',
+                prefixIcon: Icon(Icons.favorite),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'single', child: Text('Single')),
+                DropdownMenuItem(value: 'married', child: Text('Married')),
+                DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
+                DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _selectedMaritalStatus = value),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      SwitchListTile(
+        title: const Text('Active'),
+        subtitle: const Text('Is this member active?'),
+        value: _isActive ?? true,
+        onChanged: (value) => setState(() => _isActive = value),
+      ),
+      SwitchListTile(
+        title: const Text('Opt out of birthday notifications'),
+        subtitle: const Text('Disable birthday notifications for this member'),
+        value: _birthdayNotificationsOptOut ?? false,
+        onChanged: (value) =>
+            setState(() => _birthdayNotificationsOptOut = value),
+      ),
+    ];
+  }
+
+  List<Widget> _buildNewcomerSection(BuildContext context) {
+    final list = <Widget>[
+      CheckboxListTile(
+        title: const Text('New Comer'),
+        subtitle: const Text(
+          'Status will change to member after 9+ service attendances in 3 months.',
+        ),
+        value: _isNewComer,
+        onChanged: (value) {
+          setState(() {
+            _isNewComer = value ?? false;
+            if (!(value ?? false)) {
+              _newcomerJoinDate = null;
+              _newcomerIntention = null;
+            }
+          });
+        },
+        controlAffinity: ListTileControlAffinity.leading,
+      ),
+    ];
+    if (_isNewComer) {
+      list.addAll([
+        const SizedBox(height: AppDimensions.spacingMD),
+        InkWell(
+          onTap: _selectNewcomerJoinDate,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Newcomer Join Date',
+              prefixIcon: const Icon(Icons.event_available),
+              suffixIcon: const Icon(Icons.calendar_today),
+            ),
+            child: Text(
+              _newcomerJoinDate != null
+                  ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
+                  : 'Select join date',
+              style: TextStyle(
+                color: _newcomerJoinDate != null
+                    ? Theme.of(context).textTheme.bodyLarge?.color
+                    : Theme.of(context).hintColor,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _newcomerIntention,
+          decoration: const InputDecoration(
+            labelText: 'Newcomer Intention',
+            prefixIcon: Icon(Icons.help_outline),
+          ),
+          items: const [
+            DropdownMenuItem<String>(
+              value: 'wants_to_stay',
+              child: Text('Wants to stay'),
+            ),
+            DropdownMenuItem<String>(
+              value: 'does_not_know_yet',
+              child: Text('Does not know yet'),
+            ),
+            DropdownMenuItem<String>(
+              value: 'just_passing',
+              child: Text('Just passing'),
+            ),
+          ],
+          onChanged: (value) => setState(() => _newcomerIntention = value),
+        ),
+      ]);
+    }
+    return list;
+  }
+
+  List<Widget> _buildFormChildren() {
+    return [
+      TextFormField(
+        controller: _firstNameController,
+        decoration: const InputDecoration(
+          labelText: 'First Name *',
+          prefixIcon: Icon(Icons.person),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'First name is required';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _lastNameController,
+        decoration: const InputDecoration(
+          labelText: 'Last Name *',
+          prefixIcon: Icon(Icons.person),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Last name is required';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _emailController,
+        keyboardType: TextInputType.emailAddress,
+        decoration: const InputDecoration(
+          labelText: 'Email (recommended)',
+          prefixIcon: Icon(Icons.email),
+          helperText: 'At least email or phone is required',
+        ),
+        validator: (value) {
+          if (value != null && value.isNotEmpty && !value.contains('@')) {
+            return 'Invalid email format';
+          }
+          return null;
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _phoneController,
+        keyboardType: TextInputType.phone,
+        decoration: const InputDecoration(
+          labelText: 'Phone',
+          prefixIcon: Icon(Icons.phone),
+          helperText: 'At least email or phone is required',
+        ),
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      InkWell(
+        onTap: _selectBirthday,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'Birthday',
+            prefixIcon: const Icon(Icons.cake),
+            suffixIcon: const Icon(Icons.calendar_today),
+            helperText: 'Tap to select date',
+          ),
+          child: Text(
+            _selectedBirthday != null
+                ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
+                : 'Select birthday',
+            style: TextStyle(
+              color: _selectedBirthday != null
+                  ? Theme.of(context).textTheme.bodyLarge?.color
+                  : Theme.of(context).hintColor,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _addressController,
+        decoration: const InputDecoration(
+          labelText: 'Address',
+          prefixIcon: Icon(Icons.home),
+        ),
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _cityController,
+              decoration: const InputDecoration(
+                labelText: 'City',
+                prefixIcon: Icon(Icons.location_city),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: TextFormField(
+              controller: _stateController,
+              decoration: const InputDecoration(
+                labelText: 'State',
+                prefixIcon: Icon(Icons.map),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _zipCodeController,
+              decoration: const InputDecoration(
+                labelText: 'Zip Code',
+                prefixIcon: Icon(Icons.pin),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: TextFormField(
+              controller: _countryController,
+              decoration: const InputDecoration(
+                labelText: 'Country',
+                prefixIcon: Icon(Icons.public),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _quarterController,
+        decoration: const InputDecoration(
+          labelText: 'Quarter',
+          prefixIcon: Icon(Icons.calendar_view_month),
+        ),
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      DropdownButtonFormField<String>(
+        initialValue: _selectedProfession,
+        decoration: const InputDecoration(
+          labelText: 'Profession',
+          prefixIcon: Icon(Icons.work),
+          helperText: 'Select your current profession/status',
+        ),
+        items: [
+          const DropdownMenuItem<String>(
+            value: null,
+            child: Text('Not specified'),
+          ),
+          ...MemberConstants.getProfessionOptions().map((option) {
+            return DropdownMenuItem<String>(
+              value: option['value'],
+              child: Text(option['label']!),
+            );
+          }),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedProfession = value;
+            // Clear dependent fields when profession changes or is set to null
+            if (value == null || !MemberConstants.requiresLevelOfStudy(value)) {
+              _selectedLevelOfStudy = null;
+            } else {
+              // Reset level of study when profession changes
+              // Only reset if current level is not valid for new profession
+              final availableLevels = MemberConstants.getLevelsOfStudy(value);
+              if (_selectedLevelOfStudy != null &&
+                  !availableLevels.contains(_selectedLevelOfStudy)) {
+                _selectedLevelOfStudy = null;
+              }
+            }
+            if (value == null || !MemberConstants.requiresLastDiplomas(value)) {
+              _selectedLastDiploma = null;
+            }
+            if (value == null ||
+                !MemberConstants.requiresSectorOfStudies(value)) {
+              _sectorOfStudiesController.clear();
+            }
+            if (value == null ||
+                !MemberConstants.requiresDomainOfActivity(value)) {
+              _domainOfActivityController.clear();
+            }
+          });
+        },
+      ),
+      // Conditionally show level_of_study
+      if (MemberConstants.requiresLevelOfStudy(_selectedProfession)) ...[
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedLevelOfStudy,
+          decoration: const InputDecoration(
+            labelText: 'Level of Study *',
+            prefixIcon: Icon(Icons.school),
+            helperText: 'Required for students, job seeking, and workers',
+          ),
+          items: MemberConstants.getLevelsOfStudy(_selectedProfession).map((
+            level,
+          ) {
+            return DropdownMenuItem<String>(value: level, child: Text(level));
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedLevelOfStudy = value;
+            });
+          },
+          validator: (value) {
+            if (MemberConstants.requiresLevelOfStudy(_selectedProfession) &&
+                (value == null || value.isEmpty)) {
+              return 'Level of study is required';
+            }
+            return null;
+          },
+        ),
+      ],
+      // Conditionally show sector_of_studies
+      if (MemberConstants.requiresSectorOfStudies(_selectedProfession)) ...[
+        const SizedBox(height: AppDimensions.spacingMD),
+        TextFormField(
+          controller: _sectorOfStudiesController,
+          decoration: const InputDecoration(
+            labelText: 'Sector of Studies *',
+            prefixIcon: Icon(Icons.category),
+            helperText:
+                'Required for secondary and university students, job seeking, and workers',
+          ),
+          validator: (value) {
+            if (MemberConstants.requiresSectorOfStudies(_selectedProfession) &&
+                (value == null || value.trim().isEmpty)) {
+              return 'Sector of studies is required';
+            }
+            return null;
+          },
+        ),
+      ],
+      // Conditionally show domain_of_activity
+      if (MemberConstants.requiresDomainOfActivity(_selectedProfession)) ...[
+        const SizedBox(height: AppDimensions.spacingMD),
+        TextFormField(
+          controller: _domainOfActivityController,
+          decoration: const InputDecoration(
+            labelText: 'Domain of Activity *',
+            prefixIcon: Icon(Icons.business),
+            helperText: 'Required for job seeking and workers',
+          ),
+          validator: (value) {
+            if (MemberConstants.requiresDomainOfActivity(_selectedProfession) &&
+                (value == null || value.trim().isEmpty)) {
+              return 'Domain of activity is required';
+            }
+            return null;
+          },
+        ),
+      ],
+      // Conditionally show last_diplomas
+      if (MemberConstants.requiresLastDiplomas(_selectedProfession)) ...[
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _selectedLastDiploma,
+          decoration: const InputDecoration(
+            labelText: 'Last Diplomas *',
+            prefixIcon: Icon(Icons.workspace_premium),
+            helperText:
+                'Required for secondary and university students, job seeking, and workers',
+          ),
+          items: MemberConstants.getDiplomaOptions().map((diploma) {
+            return DropdownMenuItem<String>(
+              value: diploma,
+              child: Text(diploma),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedLastDiploma = value;
+            });
+          },
+          validator: (value) {
+            if (MemberConstants.requiresLastDiplomas(_selectedProfession) &&
+                (value == null || value.isEmpty)) {
+              return 'Last diplomas is required';
+            }
+            return null;
+          },
+        ),
+      ],
+      const SizedBox(height: AppDimensions.spacingMD),
+      _buildKeySkillsField(),
+      const SizedBox(height: AppDimensions.spacingMD),
+      DropdownButtonFormField<String>(
+        initialValue: _selectedRole,
+        decoration: const InputDecoration(
+          labelText: 'Role *',
+          prefixIcon: Icon(Icons.person_outline),
+          helperText: 'Select member role',
+        ),
+        items: const [
+          DropdownMenuItem(value: 'member', child: Text('Member')),
+          DropdownMenuItem(value: 'leader', child: Text('Leader')),
+          DropdownMenuItem(value: 'admin', child: Text('Admin')),
+          DropdownMenuItem(value: 'worker', child: Text('Worker')),
+          DropdownMenuItem(value: 'sympathiser', child: Text('Sympathiser')),
+        ],
+        onChanged: (value) {
+          if (value != null) {
+            setState(() {
+              _selectedRole = value;
+            });
+          }
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      DropdownButtonFormField<String>(
+        initialValue: _selectedGender,
+        decoration: const InputDecoration(
+          labelText: 'Gender',
+          prefixIcon: Icon(Icons.person),
+        ),
+        items: const [
+          DropdownMenuItem(value: 'male', child: Text('Male')),
+          DropdownMenuItem(value: 'female', child: Text('Female')),
+          DropdownMenuItem(value: 'other', child: Text('Other')),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedGender = value;
+          });
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      DropdownButtonFormField<String>(
+        initialValue: _selectedMaritalStatus,
+        decoration: const InputDecoration(
+          labelText: 'Marital Status',
+          prefixIcon: Icon(Icons.favorite),
+        ),
+        items: const [
+          DropdownMenuItem(value: 'single', child: Text('Single')),
+          DropdownMenuItem(value: 'married', child: Text('Married')),
+          DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
+          DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedMaritalStatus = value;
+          });
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      SwitchListTile(
+        title: const Text('Active'),
+        subtitle: const Text('Is this member active?'),
+        value: _isActive ?? true,
+        onChanged: (value) {
+          setState(() {
+            _isActive = value;
+          });
+        },
+      ),
+      SwitchListTile(
+        title: const Text('Opt out of birthday notifications'),
+        subtitle: const Text('Disable birthday notifications for this member'),
+        value: _birthdayNotificationsOptOut ?? false,
+        onChanged: (value) {
+          setState(() {
+            _birthdayNotificationsOptOut = value;
+          });
+        },
+      ),
+      const SizedBox(height: AppDimensions.spacingMD),
+      CheckboxListTile(
+        title: const Text('New Comer'),
+        subtitle: const Text(
+          'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
+        ),
+        value: _isNewComer,
+        onChanged: (value) {
+          setState(() {
+            _isNewComer = value ?? false;
+            // Clear join date and intention if unchecked
+            if (!(value ?? false)) {
+              _newcomerJoinDate = null;
+              _newcomerIntention = null;
+            }
+          });
+        },
+        controlAffinity: ListTileControlAffinity.leading,
+      ),
+      // Show join date field only when new comer is checked
+      if (_isNewComer) ...[
+        const SizedBox(height: AppDimensions.spacingMD),
+        InkWell(
+          onTap: _selectNewcomerJoinDate,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: 'Newcomer Join Date',
+              prefixIcon: const Icon(Icons.event_available),
+              suffixIcon: const Icon(Icons.calendar_today),
+              helperText: 'Select the date when the newcomer joined',
+            ),
+            child: Text(
+              _newcomerJoinDate != null
+                  ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
+                  : 'Select join date',
+              style: TextStyle(
+                color: _newcomerJoinDate != null
+                    ? Theme.of(context).textTheme.bodyLarge?.color
+                    : Theme.of(context).hintColor,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        DropdownButtonFormField<String>(
+          initialValue: _newcomerIntention,
+          decoration: const InputDecoration(
+            labelText: 'Newcomer Intention',
+            prefixIcon: Icon(Icons.help_outline),
+            helperText: 'Select the newcomer\'s intention',
+          ),
+          items: const [
+            DropdownMenuItem<String>(
+              value: 'wants_to_stay',
+              child: Text('Wants to stay'),
+            ),
+            DropdownMenuItem<String>(
+              value: 'does_not_know_yet',
+              child: Text('Does not know yet'),
+            ),
+            DropdownMenuItem<String>(
+              value: 'just_passing',
+              child: Text('Just passing'),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() {
+              _newcomerIntention = value;
+            });
+          },
+        ),
+      ],
+      const SizedBox(height: AppDimensions.spacingXL),
+      ElevatedButton(
+        onPressed: _isLoading ? null : _handleSave,
+        style: ElevatedButton.styleFrom(
+          minimumSize: const Size(
+            double.infinity,
+            AppDimensions.buttonHeightLG,
+          ),
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Update Member'),
+      ),
+    ];
   }
 
   Widget _buildKeySkillsField() {

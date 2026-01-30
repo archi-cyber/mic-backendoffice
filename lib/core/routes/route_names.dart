@@ -67,6 +67,7 @@ class RouteNames {
   static const String editClass = '/trainings/:id/edit';
   static const String sessions = '/trainings/:id/sessions';
   static const String sessionDetail = '/sessions/:id';
+  static const String takeAttendance = '/trainings/session/:id/attendance';
 
   // Task Routes
   static const String tasks = '/tasks';
@@ -100,4 +101,29 @@ class RouteNames {
 
   // Common Routes
   static const String fileViewer = '/file-viewer';
+
+  // Desktop/Web (width >= 500px) - app-on-its-own with sidebar
+  static const String desktopLogin = '/desktop/login';
+  static const String desktopSignup = '/desktop/signup';
+  static const String desktopForgotPassword = '/desktop/forgot-password';
+  static const String desktopResetPassword = '/desktop/reset-password';
+  static const String desktopMain = '/desktop';
+  // Nested routes inside desktop shell (sidebar + content)
+  static const String desktopHome = '/desktop/home';
+  static const String desktopMembers = '/desktop/members';
+  static const String desktopFinance = '/desktop/finance';
+  static const String desktopChat = '/desktop/chat';
+  static const String desktopSettings = '/desktop/settings';
+  static const String desktopNotifications = '/desktop/notifications';
+  static const String desktopBirthdays = '/desktop/birthdays';
+  static const String desktopEvents = '/desktop/events';
+  static const String desktopTasks = '/desktop/tasks';
+  static const String desktopTrainings = '/desktop/trainings';
+  static const String desktopDepartments = '/desktop/departments';
+  static const String desktopReports = '/desktop/reports';
+  static const String desktopChurchAttendance = '/desktop/church-attendance';
+  static const String desktopSundaySchool = '/desktop/sunday-school';
+  static const String desktopVisitors = '/desktop/visitors';
+  static const String desktopTeachings = '/desktop/teachings';
+  static const String desktopSessions = '/desktop/sessions';
 }

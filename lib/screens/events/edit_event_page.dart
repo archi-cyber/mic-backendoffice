@@ -7,7 +7,10 @@ import '../../services/event_service.dart';
 class EditEventPage extends StatefulWidget {
   final String eventId;
 
-  const EditEventPage({super.key, required this.eventId});
+  /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
+  final void Function(bool? result)? onClose;
+
+  const EditEventPage({super.key, required this.eventId, this.onClose});
 
   @override
   State<EditEventPage> createState() => _EditEventPageState();
@@ -41,7 +44,7 @@ class _EditEventPageState extends State<EditEventPage> {
   Future<void> _loadData() async {
     try {
       final event = await EventService.getEventById(widget.eventId);
-
+      if (!mounted) return;
       setState(() {
         _titleController.text = event['title']?.toString() ?? '';
         _descriptionController.text = event['description']?.toString() ?? '';
@@ -66,11 +69,17 @@ class _EditEventPageState extends State<EditEventPage> {
         _isLoadingData = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoadingData = false);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading event: $e')));
+        if (widget.onClose != null) {
+          widget.onClose!(null);
+        } else {
+          Navigator.of(context).pop();
+        }
       }
     }
   }
@@ -137,7 +146,11 @@ class _EditEventPageState extends State<EditEventPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        if (widget.onClose != null) {
+          widget.onClose!(true);
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -152,147 +165,328 @@ class _EditEventPageState extends State<EditEventPage> {
     }
   }
 
+  static const double _kDesktopBreakpoint = 700;
+  static const double _kDesktopMaxWidth = 800;
+
+  Widget _desktopSectionCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<Widget> children,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: AppColors.primary),
+                const SizedBox(width: AppDimensions.spacingSM),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimensions.spacingMD),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+
     if (_isLoadingData) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () => widget.onClose!(null),
+                )
+              : null,
+          title: const Text('Edit Event'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Event')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Event Title *',
-                  prefixIcon: Icon(Icons.event),
-                  border: OutlineInputBorder(),
+      appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => widget.onClose!(null),
+              )
+            : null,
+        title: const Text('Edit Event'),
+        actions: useDesktop
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter event title';
-                  }
-                  return null;
-                },
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Description
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  prefixIcon: Icon(Icons.description),
-                  border: OutlineInputBorder(),
+                const SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save, size: 20),
+                  label: const Text('Update Event'),
                 ),
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Event Date
-              InkWell(
-                onTap: _selectDate,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Event Date *',
-                    prefixIcon: Icon(Icons.calendar_today),
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Text(
-                    _selectedDate != null
-                        ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
-                        : 'Select date',
-                    style: TextStyle(
-                      color: _selectedDate != null
-                          ? Theme.of(context).textTheme.bodyLarge?.color
-                          : Theme.of(context).hintColor,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Event Time
-              InkWell(
-                onTap: _selectTime,
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Event Time (Optional)',
-                    prefixIcon: Icon(Icons.access_time),
-                    border: OutlineInputBorder(),
-                  ),
-                  child: Text(
-                    _selectedTime != null
-                        ? _selectedTime!.format(context)
-                        : 'Select time (optional)',
-                    style: TextStyle(
-                      color: _selectedTime != null
-                          ? Theme.of(context).textTheme.bodyLarge?.color
-                          : Theme.of(context).hintColor,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Location
-              TextFormField(
-                controller: _locationController,
-                decoration: const InputDecoration(
-                  labelText: 'Location (Optional)',
-                  prefixIcon: Icon(Icons.location_on),
-                  border: OutlineInputBorder(),
-                ),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-
-              // Is Repeated
-              Card(
-                child: SwitchListTile(
-                  title: const Text('Repeated Event'),
-                  subtitle: const Text(
-                    'Enable if this event repeats (e.g., weekly meetings)',
-                  ),
-                  value: _isRepeated,
-                  onChanged: (value) {
-                    setState(() => _isRepeated = value);
-                  },
-                  secondary: const Icon(Icons.repeat),
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingXL),
-
-              // Save Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _handleSave,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Update Event'),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
       ),
+      body: useDesktop
+          ? Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopMaxWidth,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _desktopSectionCard(context, 'Event details', Icons.event, [
+                          TextFormField(
+                            controller: _titleController,
+                            decoration: const InputDecoration(
+                              labelText: 'Event Title *',
+                              prefixIcon: Icon(Icons.event),
+                              border: OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter event title';
+                              }
+                              return null;
+                            },
+                            textCapitalization: TextCapitalization.words,
+                          ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          TextFormField(
+                            controller: _descriptionController,
+                            decoration: const InputDecoration(
+                              labelText: 'Description',
+                              prefixIcon: Icon(Icons.description),
+                              border: OutlineInputBorder(),
+                            ),
+                            maxLines: 4,
+                            textCapitalization: TextCapitalization.sentences,
+                          ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          InkWell(
+                            onTap: _selectDate,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Event Date *',
+                                prefixIcon: Icon(Icons.calendar_today),
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(
+                                _selectedDate != null
+                                    ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                                    : 'Select date',
+                                style: TextStyle(
+                                  color: _selectedDate != null
+                                      ? Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge?.color
+                                      : Theme.of(context).hintColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          InkWell(
+                            onTap: _selectTime,
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Event Time (Optional)',
+                                prefixIcon: Icon(Icons.access_time),
+                                border: OutlineInputBorder(),
+                              ),
+                              child: Text(
+                                _selectedTime != null
+                                    ? _selectedTime!.format(context)
+                                    : 'Select time (optional)',
+                                style: TextStyle(
+                                  color: _selectedTime != null
+                                      ? Theme.of(
+                                          context,
+                                        ).textTheme.bodyLarge?.color
+                                      : Theme.of(context).hintColor,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          TextFormField(
+                            controller: _locationController,
+                            decoration: const InputDecoration(
+                              labelText: 'Location (Optional)',
+                              prefixIcon: Icon(Icons.location_on),
+                              border: OutlineInputBorder(),
+                            ),
+                            textCapitalization: TextCapitalization.words,
+                          ),
+                          const SizedBox(height: AppDimensions.spacingMD),
+                          SwitchListTile(
+                            title: const Text('Repeated Event'),
+                            subtitle: const Text(
+                              'Enable if this event repeats (e.g., weekly meetings)',
+                            ),
+                            value: _isRepeated,
+                            onChanged: (value) {
+                              setState(() => _isRepeated = value);
+                            },
+                            secondary: const Icon(Icons.repeat),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Event Title *',
+                        prefixIcon: Icon(Icons.event),
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter event title';
+                        }
+                        return null;
+                      },
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                        prefixIcon: Icon(Icons.description),
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 4,
+                      textCapitalization: TextCapitalization.sentences,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    InkWell(
+                      onTap: _selectDate,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Event Date *',
+                          prefixIcon: Icon(Icons.calendar_today),
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          _selectedDate != null
+                              ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'
+                              : 'Select date',
+                          style: TextStyle(
+                            color: _selectedDate != null
+                                ? Theme.of(context).textTheme.bodyLarge?.color
+                                : Theme.of(context).hintColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    InkWell(
+                      onTap: _selectTime,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(
+                          labelText: 'Event Time (Optional)',
+                          prefixIcon: Icon(Icons.access_time),
+                          border: OutlineInputBorder(),
+                        ),
+                        child: Text(
+                          _selectedTime != null
+                              ? _selectedTime!.format(context)
+                              : 'Select time (optional)',
+                          style: TextStyle(
+                            color: _selectedTime != null
+                                ? Theme.of(context).textTheme.bodyLarge?.color
+                                : Theme.of(context).hintColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    TextFormField(
+                      controller: _locationController,
+                      decoration: const InputDecoration(
+                        labelText: 'Location (Optional)',
+                        prefixIcon: Icon(Icons.location_on),
+                        border: OutlineInputBorder(),
+                      ),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    Card(
+                      child: SwitchListTile(
+                        title: const Text('Repeated Event'),
+                        subtitle: const Text(
+                          'Enable if this event repeats (e.g., weekly meetings)',
+                        ),
+                        value: _isRepeated,
+                        onChanged: (value) {
+                          setState(() => _isRepeated = value);
+                        },
+                        secondary: const Icon(Icons.repeat),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.spacingXL),
+                    ElevatedButton(
+                      onPressed: _isLoading ? null : _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(
+                          double.infinity,
+                          AppDimensions.buttonHeightLG,
+                        ),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Update Event'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 }

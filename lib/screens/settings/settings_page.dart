@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
+import '../desktop/desktop_shell_scope.dart';
 import '../../services/data_export_service.dart';
 import '../../services/data_import_service.dart';
 import '../../services/user_member_sync_service.dart';
@@ -15,7 +16,10 @@ import '../../providers/settings_provider.dart';
 
 /// Settings page
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const SettingsPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -453,7 +457,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
         final localizations = AppLocalizations.of(context);
         return Scaffold(
-          appBar: AppBar(title: Text(localizations?.settings ?? 'Settings')),
+          appBar: widget.hideAppBarAndBottomNav
+              ? null
+              : AppBar(title: Text(localizations?.settings ?? 'Settings')),
           body: ListView(
             padding: const EdgeInsets.all(AppDimensions.paddingMD),
             children: [
@@ -661,7 +667,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (widget.hideAppBarAndBottomNav && scope != null) {
+                        scope.pushDetail(RouteNames.leaderAccess, '');
+                      } else {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.leaderAccess);
+                      }
                     },
                   ),
                 ),
@@ -678,9 +691,14 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
-                      Navigator.of(
-                        context,
-                      ).pushNamed(RouteNames.memberAccounts);
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (widget.hideAppBarAndBottomNav && scope != null) {
+                        scope.pushDetail(RouteNames.memberAccounts, '');
+                      } else {
+                        Navigator.of(
+                          context,
+                        ).pushNamed(RouteNames.memberAccounts);
+                      }
                     },
                   ),
                 ),

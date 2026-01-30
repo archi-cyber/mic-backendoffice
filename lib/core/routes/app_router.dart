@@ -54,6 +54,11 @@ import '../../screens/teachings/add_teaching_page.dart';
 import '../../screens/teachings/edit_teaching_page.dart';
 import '../../screens/teachings/teaching_detail_page.dart';
 import '../../screens/common/file_viewer_page.dart';
+import '../../screens/desktop/desktop_shell.dart';
+import '../../screens/desktop/auth/desktop_login_page.dart';
+import '../../screens/desktop/auth/desktop_signup_page.dart';
+import '../../screens/desktop/auth/desktop_forgot_password_page.dart';
+import '../../screens/desktop/auth/desktop_reset_password_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
 
@@ -89,6 +94,36 @@ class AppRouter {
       case RouteNames.changePassword:
         return MaterialPageRoute(
           builder: (_) => const ChangePasswordPage(),
+          settings: settings,
+        );
+
+      // Desktop/Web (width >= 500px) - auth
+      case RouteNames.desktopLogin:
+        return MaterialPageRoute(
+          builder: (_) => const DesktopLoginPage(),
+          settings: settings,
+        );
+      case RouteNames.desktopSignup:
+        return MaterialPageRoute(
+          builder: (_) => const DesktopSignupPage(),
+          settings: settings,
+        );
+      case RouteNames.desktopForgotPassword:
+        return MaterialPageRoute(
+          builder: (_) => const DesktopForgotPasswordPage(),
+          settings: settings,
+        );
+      case RouteNames.desktopResetPassword:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) =>
+              DesktopResetPasswordPage(email: args?['email'] as String?),
+          settings: settings,
+        );
+      case RouteNames.desktopMain:
+        return MaterialPageRoute(
+          builder: (_) =>
+              const DesktopShell(initialRoute: RouteNames.desktopHome),
           settings: settings,
         );
 

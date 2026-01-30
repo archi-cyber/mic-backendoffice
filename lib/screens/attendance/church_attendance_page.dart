@@ -10,8 +10,15 @@ import '../../utils/member_utils.dart';
 class ChurchAttendancePage extends StatefulWidget {
   final String? serviceDate;
   final String? serviceType;
+  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
+  final VoidCallback? onClose;
 
-  const ChurchAttendancePage({super.key, this.serviceDate, this.serviceType});
+  const ChurchAttendancePage({
+    super.key,
+    this.serviceDate,
+    this.serviceType,
+    this.onClose,
+  });
 
   @override
   State<ChurchAttendancePage> createState() => _ChurchAttendancePageState();
@@ -253,14 +260,18 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         );
       }
 
-      if (mounted) {
+        if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Attendance saved successfully'),
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        if (widget.onClose != null) {
+          widget.onClose!();
+        } else {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -418,8 +429,16 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= 700;
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: Text(_isViewMode ? 'Service Details' : 'Mark Attendance'),
         actions: [
           if (_isViewMode) ...[
@@ -464,7 +483,19 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
+          : isDesktop
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _buildBodyColumn(),
+              ),
+            )
+          : _buildBodyColumn(),
+    );
+  }
+
+  Widget _buildBodyColumn() {
+    return Column(
               children: [
                 // Date and Service Type Selector
                 Container(
@@ -597,8 +628,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       : _buildEditModeContent(),
                 ),
               ],
-            ),
-    );
+            );
   }
 
   List<Map<String, dynamic>> get _filteredMembers {

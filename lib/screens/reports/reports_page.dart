@@ -2,44 +2,101 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/routes/route_names.dart';
+import '../desktop/desktop_shell_scope.dart';
 import '../../services/member_service.dart';
 import '../../services/class_service.dart';
 import 'member_report_page.dart';
+import 'class_report_page.dart';
 
 /// Reports page with member and training reports
-class ReportsPage extends StatelessWidget {
-  const ReportsPage({super.key});
+class ReportsPage extends StatefulWidget {
+  final bool hideAppBarAndBottomNav;
 
+  const ReportsPage({super.key, this.hideAppBarAndBottomNav = false});
+
+  @override
+  State<ReportsPage> createState() => _ReportsPageState();
+}
+
+class _ReportsPageState extends State<ReportsPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop = widget.hideAppBarAndBottomNav;
 
     return Scaffold(
-      appBar: AppBar(title: Text(localizations?.statistics ?? 'Reports')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        children: [
-          _ReportCard(
-            title: 'Member Report',
-            description: 'View attendance and giving for a member',
-            icon: Icons.person_outline,
-            onTap: () {
-              // Show member selection dialog
-              _showMemberSelectionDialog(context);
-            },
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(title: Text(localizations?.statistics ?? 'Reports')),
+      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                AppLocalizations.of(context)?.statistics ?? 'Reports',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: AppDimensions.spacingXL),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: _ReportCard(
+                      title: 'Member Report',
+                      description: 'View attendance and giving for a member',
+                      icon: Icons.person_outline,
+                      onTap: () => _showMemberSelectionDialog(context),
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.spacingLG),
+                  Expanded(
+                    child: _ReportCard(
+                      title: 'Training Report',
+                      description: 'View attendance statistics for a training',
+                      icon: Icons.class_outlined,
+                      onTap: () => _showClassSelectionDialog(context),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
-          _ReportCard(
-            title: 'Training Report',
-            description: 'View attendance statistics for a training',
-            icon: Icons.class_outlined,
-            onTap: () {
-              // Show training selection dialog
-              _showClassSelectionDialog(context);
-            },
-          ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildMobileBody(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      children: [
+        _ReportCard(
+          title: 'Member Report',
+          description: 'View attendance and giving for a member',
+          icon: Icons.person_outline,
+          onTap: () => _showMemberSelectionDialog(context),
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _ReportCard(
+          title: 'Training Report',
+          description: 'View attendance statistics for a training',
+          icon: Icons.class_outlined,
+          onTap: () => _showClassSelectionDialog(context),
+        ),
+      ],
     );
   }
 
@@ -48,9 +105,29 @@ class ReportsPage extends StatelessWidget {
       final members = await MemberService.getMembers(limit: 100);
       if (!context.mounted) return;
 
+      final scope = DesktopShellScope.maybeOf(context);
+      final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
+      final narrowDialog = openAsStack;
+
       showDialog(
         context: context,
-        builder: (context) => _MemberSelectionDialog(members: members),
+        builder: (context) => _MemberSelectionDialog(
+          members: members,
+          narrowForDesktop: narrowDialog,
+          onSelect: (memberId) {
+            Navigator.pop(context);
+            if (openAsStack) {
+              scope.pushDetail(RouteNames.memberReport, memberId);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MemberReportPage(memberId: memberId),
+                ),
+              );
+            }
+          },
+        ),
       );
     } catch (e) {
       if (context.mounted) {
@@ -66,9 +143,29 @@ class ReportsPage extends StatelessWidget {
       final classes = await ClassService.getClasses(limit: 100);
       if (!context.mounted) return;
 
+      final scope = DesktopShellScope.maybeOf(context);
+      final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
+      final narrowDialog = openAsStack;
+
       showDialog(
         context: context,
-        builder: (context) => _ClassSelectionDialog(classes: classes),
+        builder: (context) => _ClassSelectionDialog(
+          classes: classes,
+          narrowForDesktop: narrowDialog,
+          onSelect: (classId) {
+            Navigator.pop(context);
+            if (openAsStack) {
+              scope.pushDetail(RouteNames.classReport, classId);
+            } else {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ClassReportPage(classId: classId),
+                ),
+              );
+            }
+          },
+        ),
       );
     } catch (e) {
       if (context.mounted) {
@@ -131,8 +228,14 @@ class _ReportCard extends StatelessWidget {
 
 class _MemberSelectionDialog extends StatefulWidget {
   final List<Map<String, dynamic>> members;
+  final bool narrowForDesktop;
+  final void Function(String memberId) onSelect;
 
-  const _MemberSelectionDialog({required this.members});
+  const _MemberSelectionDialog({
+    required this.members,
+    this.narrowForDesktop = false,
+    required this.onSelect,
+  });
 
   @override
   State<_MemberSelectionDialog> createState() => _MemberSelectionDialogState();
@@ -180,10 +283,16 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Select Member'),
+      contentPadding: widget.narrowForDesktop
+          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
+          : null,
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 500),
+        constraints: BoxConstraints(
+          maxHeight: 500,
+          maxWidth: widget.narrowForDesktop ? 480 : double.infinity,
+        ),
         child: SizedBox(
-          width: double.maxFinite,
+          width: widget.narrowForDesktop ? 480 : double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -260,15 +369,7 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                                 ? Text(member['email'].toString())
                                 : null,
                             onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => MemberReportPage(
-                                    memberId: member['id'].toString(),
-                                  ),
-                                ),
-                              );
+                              widget.onSelect(member['id'].toString());
                             },
                           );
                         },
@@ -290,8 +391,14 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
 
 class _ClassSelectionDialog extends StatefulWidget {
   final List<Map<String, dynamic>> classes;
+  final bool narrowForDesktop;
+  final void Function(String classId) onSelect;
 
-  const _ClassSelectionDialog({required this.classes});
+  const _ClassSelectionDialog({
+    required this.classes,
+    this.narrowForDesktop = false,
+    required this.onSelect,
+  });
 
   @override
   State<_ClassSelectionDialog> createState() => _ClassSelectionDialogState();
@@ -335,10 +442,16 @@ class _ClassSelectionDialogState extends State<_ClassSelectionDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Select Training'),
+      contentPadding: widget.narrowForDesktop
+          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
+          : null,
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 500),
+        constraints: BoxConstraints(
+          maxHeight: 500,
+          maxWidth: widget.narrowForDesktop ? 480 : double.infinity,
+        ),
         child: SizedBox(
-          width: double.maxFinite,
+          width: widget.narrowForDesktop ? 480 : double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -433,11 +546,7 @@ class _ClassSelectionDialogState extends State<_ClassSelectionDialog> {
                                 ? Text(classItem['description'].toString())
                                 : null,
                             onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushNamed(
-                                context,
-                                '/reports/training/${classItem['id']}',
-                              );
+                              widget.onSelect(classItem['id'].toString());
                             },
                           );
                         },

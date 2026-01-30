@@ -5,6 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
+import '../desktop/desktop_shell.dart';
 
 /// First-time password change screen (blocks other actions)
 class ChangePasswordPage extends StatefulWidget {
@@ -44,7 +45,11 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     setState(() => _isLoading = false);
 
     if (success) {
-      Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+      final useDesktop =
+          MediaQuery.of(context).size.width >= kDesktopBreakpoint;
+      Navigator.of(context).pushReplacementNamed(
+        useDesktop ? RouteNames.desktopMain : RouteNames.dashboard,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password changed successfully'),

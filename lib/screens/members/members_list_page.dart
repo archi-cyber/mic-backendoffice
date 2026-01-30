@@ -5,10 +5,16 @@ import '../../core/constants/member_constants.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
+import 'add_member_page.dart';
+import 'edit_member_page.dart';
+import 'member_profile_page.dart';
 
 /// Members list with search and filters
 class MembersListPage extends StatefulWidget {
-  const MembersListPage({super.key});
+  /// When true (e.g. desktop layout), no app bar is shown.
+  final bool hideAppBarAndBottomNav;
+
+  const MembersListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<MembersListPage> createState() => _MembersListPageState();
@@ -24,6 +30,17 @@ class _MembersListPageState extends State<MembersListPage> {
   String? _selectedRole;
   String? _selectedProfession;
   bool? _isNewcomerFilter;
+  int _membersRowsPerPage = 10;
+  int _membersPage = 0;
+
+  /// When set (desktop), member profile is shown as stack overlay instead of route.
+  String? _selectedMemberId;
+
+  /// When true (desktop), add member form is shown as stack overlay.
+  bool _showAddMember = false;
+
+  /// When set (desktop), edit member form is shown as stack overlay.
+  String? _editMemberId;
 
   @override
   void initState() {
@@ -62,6 +79,7 @@ class _MembersListPageState extends State<MembersListPage> {
       setState(() {
         _members = members;
         _isLoading = false;
+        _membersPage = 0;
       });
     } catch (e) {
       setState(() => _isLoading = false);
@@ -356,6 +374,120 @@ class _MembersListPageState extends State<MembersListPage> {
     );
   }
 
+  Widget _buildMembersTable() {
+    final members = _filteredMembers;
+    final total = members.length;
+    final rowsPerPage = _membersRowsPerPage;
+
+    if (total == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final maxPage = (total - 1) ~/ rowsPerPage;
+    final currentPage = _membersPage.clamp(0, maxPage);
+    final startIndex = currentPage * rowsPerPage;
+    final endIndex = startIndex + rowsPerPage > total
+        ? total
+        : startIndex + rowsPerPage;
+    final pageItems = members.sublist(startIndex, endIndex);
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.vertical,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingMD,
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowColor: WidgetStateProperty.all(
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ),
+                columns: const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Email')),
+                  DataColumn(label: Text('Phone')),
+                  DataColumn(label: Text('Role')),
+                  DataColumn(label: Text('Status')),
+                ],
+                rows: pageItems.map((member) {
+                  final firstName = member['first_name']?.toString() ?? '';
+                  final lastName = member['last_name']?.toString() ?? '';
+                  final fullName = '$firstName $lastName'.trim();
+                  final email = member['email']?.toString() ?? '';
+                  final phone = member['phone']?.toString() ?? '';
+                  final role = member['role']?.toString() ?? 'member';
+                  final isActive = member['is_active'] == true;
+                  final memberId = member['id'].toString();
+
+                  return DataRow(
+                    onSelectChanged: (_) {
+                      if (widget.hideAppBarAndBottomNav) {
+                        setState(() => _selectedMemberId = memberId);
+                      } else {
+                        Navigator.of(context).pushNamed(
+                          RouteNames.memberDetail.replaceAll(':id', memberId),
+                        );
+                      }
+                    },
+                    cells: [
+                      DataCell(
+                        Text(
+                          fullName.isEmpty ? 'Unnamed Member' : fullName,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      DataCell(Text(email, overflow: TextOverflow.ellipsis)),
+                      DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
+                      DataCell(_buildRoleChip(role)),
+                      DataCell(Text(isActive ? 'Active' : 'Inactive')),
+                    ],
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+            vertical: AppDimensions.spacingSM,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text('Rows per page: $rowsPerPage'),
+              const SizedBox(width: AppDimensions.spacingMD),
+              Text('Page ${currentPage + 1} of ${maxPage + 1}'),
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: currentPage > 0
+                    ? () {
+                        setState(() {
+                          _membersPage = currentPage - 1;
+                        });
+                      }
+                    : null,
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: currentPage < maxPage
+                    ? () {
+                        setState(() {
+                          _membersPage = currentPage + 1;
+                        });
+                      }
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
@@ -363,69 +495,208 @@ class _MembersListPageState extends State<MembersListPage> {
     final memberCount = _filteredMembers.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${localizations?.members ?? 'Members'} ($memberCount)'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showFilterDialog,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: localizations?.search ?? 'Search members...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
+      appBar: widget.hideAppBarAndBottomNav
+          ? null
+          : AppBar(
+              title: Text(
+                '${localizations?.members ?? 'Members'} ($memberCount)',
               ),
-              onChanged: (_) => setState(() {}),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.filter_list),
+                  onPressed: _showFilterDialog,
+                ),
+              ],
             ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Top row: search, filter (desktop), Add (desktop) — same line, aligned to table
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.paddingMD,
+                  vertical: AppDimensions.paddingMD,
+                ),
+                child: widget.hideAppBarAndBottomNav
+                    ? Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 400,
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText:
+                                    localizations?.search ??
+                                    'Search members...',
+                                prefixIcon: const Icon(Icons.search),
+                                suffixIcon: _searchController.text.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(Icons.clear),
+                                        onPressed: () {
+                                          setState(() {
+                                            _searchController.clear();
+                                            _membersPage = 0;
+                                          });
+                                        },
+                                      )
+                                    : null,
+                              ),
+                              onChanged: (_) {
+                                setState(() {
+                                  _membersPage = 0;
+                                });
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppDimensions.spacingSM),
+                          IconButton(
+                            icon: const Icon(Icons.filter_list),
+                            onPressed: _showFilterDialog,
+                            tooltip: 'Filter',
+                          ),
+                          const Spacer(),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() => _showAddMember = true);
+                            },
+                            icon: const Icon(Icons.add),
+                            label: Text(
+                              localizations?.addMember ?? 'Add Member',
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 400,
+                                ),
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        localizations?.search ??
+                                        'Search members...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    suffixIcon:
+                                        _searchController.text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(Icons.clear),
+                                            onPressed: () {
+                                              setState(() {
+                                                _searchController.clear();
+                                                _membersPage = 0;
+                                              });
+                                            },
+                                          )
+                                        : null,
+                                  ),
+                                  onChanged: (_) {
+                                    setState(() {
+                                      _membersPage = 0;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.filter_list),
+                            onPressed: _showFilterDialog,
+                            tooltip: 'Filter',
+                          ),
+                        ],
+                      ),
+              ),
+              // Members list or table
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredMembers.isEmpty
+                    ? Center(
+                        child: Text(
+                          localizations?.noData ?? 'No members found',
+                        ),
+                      )
+                    : widget.hideAppBarAndBottomNav
+                    ? _buildMembersTable()
+                    : ListView.builder(
+                        itemCount: _filteredMembers.length,
+                        itemBuilder: (context, index) {
+                          final member = _filteredMembers[index];
+                          return _buildMemberCard(member);
+                        },
+                      ),
+              ),
+            ],
           ),
-          // Members list
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredMembers.isEmpty
-                ? Center(
-                    child: Text(localizations?.noData ?? 'No members found'),
-                  )
-                : ListView.builder(
-                    itemCount: _filteredMembers.length,
-                    itemBuilder: (context, index) {
-                      final member = _filteredMembers[index];
-                      return _buildMemberCard(member);
-                    },
-                  ),
-          ),
+          if (widget.hideAppBarAndBottomNav && _selectedMemberId != null)
+            Positioned.fill(
+              child: Material(
+                elevation: 8,
+                child: MemberProfilePage(
+                  memberId: _selectedMemberId!,
+                  onClose: (result) {
+                    setState(() => _selectedMemberId = null);
+                    if (result == true) _loadMembers();
+                  },
+                  onEditRequested: (memberId) {
+                    setState(() => _editMemberId = memberId);
+                  },
+                ),
+              ),
+            ),
+          if (widget.hideAppBarAndBottomNav && _showAddMember)
+            Positioned.fill(
+              child: Material(
+                elevation: 8,
+                child: AddMemberPage(
+                  onClose: (result) {
+                    setState(() => _showAddMember = false);
+                    if (result == true) _loadMembers();
+                  },
+                ),
+              ),
+            ),
+          if (widget.hideAppBarAndBottomNav && _editMemberId != null)
+            Positioned.fill(
+              child: Material(
+                elevation: 8,
+                child: EditMemberPage(
+                  memberId: _editMemberId!,
+                  onClose: (result) {
+                    setState(() {
+                      _editMemberId = null;
+                      if (result == true) _selectedMemberId = null;
+                    });
+                    if (result == true) _loadMembers();
+                  },
+                ),
+              ),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          // Navigate to add member page and wait for result
-          final result = await Navigator.of(
-            context,
-          ).pushNamed(RouteNames.addMember);
-          // If member was created (result is true), reload the list
-          if (result == true) {
-            _loadMembers();
-          }
-        },
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: widget.hideAppBarAndBottomNav
+          ? null
+          : FloatingActionButton(
+              onPressed: () async {
+                final result = await Navigator.of(
+                  context,
+                  rootNavigator: widget.hideAppBarAndBottomNav,
+                ).pushNamed(RouteNames.addMember);
+                // If member was created (result is true), reload the list
+                if (result == true) {
+                  _loadMembers();
+                }
+              },
+              child: const Icon(Icons.add),
+            ),
     );
   }
 

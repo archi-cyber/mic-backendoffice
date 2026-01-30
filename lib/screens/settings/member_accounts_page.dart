@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
+import '../desktop/desktop_shell_scope.dart';
 import '../../services/member_account_service.dart';
 import '../../services/role_service.dart';
 import '../../services/supabase_service.dart';
@@ -10,11 +11,17 @@ import '../../services/supabase_service.dart';
 /// Admins can create login accounts for members and manage their access.
 /// Members with accounts can log in; default is view-only unless admin grants access.
 class MemberAccountsPage extends StatefulWidget {
-  const MemberAccountsPage({super.key});
+  /// When provided (e.g. desktop stack), back button calls this instead of Navigator.pop.
+  final VoidCallback? onClose;
+
+  const MemberAccountsPage({super.key, this.onClose});
 
   @override
   State<MemberAccountsPage> createState() => _MemberAccountsPageState();
 }
+
+const double _kMemberAccountsDesktopBreakpoint = 700;
+const double _kMemberAccountsDesktopMaxWidth = 1000;
 
 class _MemberAccountsPageState extends State<MemberAccountsPage> {
   List<Map<String, dynamic>> _members = [];
@@ -233,22 +240,44 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
 
   void _manageAccess(Map<String, dynamic> member) {
     // Navigate to Leader Access page; user can select this member's user from the list
-    Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.leaderAccess, '');
+    } else {
+      Navigator.of(context).pushNamed(RouteNames.leaderAccess);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isAdmin) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Member Accounts')),
+        appBar: AppBar(
+          leading: widget.onClose != null
+              ? IconButton(
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: widget.onClose,
+                )
+              : null,
+          title: const Text('Member Accounts'),
+        ),
         body: const Center(
           child: Text('You do not have permission to access this page.'),
         ),
       );
     }
 
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= _kMemberAccountsDesktopBreakpoint;
+
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
         title: const Text('Member Accounts'),
         actions: [
           IconButton(
@@ -258,191 +287,348 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'all', label: Text('All')),
-                          ButtonSegment(
-                            value: 'with_account',
-                            label: Text('With account'),
-                          ),
-                          ButtonSegment(
-                            value: 'without_account',
-                            label: Text('No account'),
-                          ),
-                        ],
-                        selected: {_filter},
-                        onSelectionChanged: (Set<String> selected) {
-                          setState(() => _filter = selected.first);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimensions.spacingSM),
-                TextField(
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    hintText: 'Search members by name or email',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  onChanged: (value) {
-                    setState(() => _searchQuery = value);
-                  },
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredMembers.isEmpty
-                ? Center(
-                    child: Text(
-                      _filter == 'all'
-                          ? 'No members found.'
-                          : _filter == 'with_account'
-                          ? 'No members with accounts.'
-                          : 'No members without accounts.',
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppDimensions.paddingMD,
-                    ),
-                    itemCount: _filteredMembers.length,
-                    itemBuilder: (context, index) {
-                      final theme = Theme.of(context);
-                      final m = _filteredMembers[index];
-                      final hasAccount = m['has_account'] == true;
-                      final name =
-                          '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
-                              .trim();
-                      final displayName = name.isEmpty
-                          ? 'Unnamed member'
-                          : name;
-                      final email = m['email']?.toString() ?? '';
-                      final statusText = hasAccount
-                          ? 'Account: ${m['user_email'] ?? email}'
-                          : email.isEmpty
-                          ? 'No email – tap “Create account” to add email and enable login'
-                          : 'No account – tap “Create account” to enable login';
+      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
+    );
+  }
 
-                      return Card(
-                        margin: const EdgeInsets.only(
-                          bottom: AppDimensions.paddingSM,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(
-                            AppDimensions.paddingMD,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: hasAccount
-                                        ? AppColors.success.withValues(
-                                            alpha: 0.12,
-                                          )
-                                        : AppColors.textSecondary.withValues(
-                                            alpha: 0.08,
-                                          ),
-                                    child: Icon(
-                                      hasAccount
-                                          ? Icons.person
-                                          : Icons.person_outline,
-                                      color: hasAccount
-                                          ? AppColors.success
-                                          : AppColors.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(
-                                    width: AppDimensions.spacingMD,
-                                  ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          displayName,
-                                          style: theme.textTheme.titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                        ),
-                                        if (email.isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 2,
-                                            ),
-                                            child: Text(
-                                              email,
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color:
-                                                        AppColors.textSecondary,
-                                                  ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppDimensions.spacingSM),
-                              Text(
-                                statusText,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              const SizedBox(height: AppDimensions.spacingSM),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: hasAccount
-                                    ? TextButton.icon(
-                                        icon: const Icon(
-                                          Icons.settings,
-                                          size: 18,
-                                        ),
-                                        label: const Text('Manage access'),
-                                        onPressed: () => _manageAccess(m),
-                                      )
-                                    : FilledButton.icon(
-                                        icon: const Icon(
-                                          Icons.person_add_alt_1_outlined,
-                                          size: 18,
-                                        ),
-                                        label: const Text(
-                                          'Create member login',
-                                        ),
-                                        onPressed: () => _createAccount(m),
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
+  Widget _buildDesktopBody(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: _kMemberAccountsDesktopMaxWidth,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'all', label: Text('All')),
+                      ButtonSegment(
+                        value: 'with_account',
+                        label: Text('With account'),
+                      ),
+                      ButtonSegment(
+                        value: 'without_account',
+                        label: Text('No account'),
+                      ),
+                    ],
+                    selected: {_filter},
+                    onSelectionChanged: (Set<String> selected) {
+                      setState(() => _filter = selected.first);
                     },
                   ),
+                  const SizedBox(width: AppDimensions.spacingMD),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 400),
+                    child: TextField(
+                      decoration: const InputDecoration(
+                        hintText: 'Search by name or email',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _isLoading ? null : _loadMembers,
+                    tooltip: 'Refresh',
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.spacingMD),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _filteredMembers.isEmpty
+                    ? Center(
+                        child: Text(
+                          _filter == 'all'
+                              ? 'No members found.'
+                              : _filter == 'with_account'
+                              ? 'No members with accounts.'
+                              : 'No members without accounts.',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                      )
+                    : Card(
+                        clipBehavior: Clip.antiAlias,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.vertical,
+                            child: DataTable(
+                              columns: const [
+                                DataColumn(label: Text('Name')),
+                                DataColumn(label: Text('Email')),
+                                DataColumn(label: Text('Status')),
+                                DataColumn(label: Text('Actions')),
+                              ],
+                              rows: _filteredMembers.map((m) {
+                                final hasAccount = m['has_account'] == true;
+                                final name =
+                                    '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
+                                        .trim();
+                                final displayName = name.isEmpty
+                                    ? 'Unnamed member'
+                                    : name;
+                                final email = m['email']?.toString() ?? '';
+                                final statusText = hasAccount
+                                    ? 'Account'
+                                    : email.isEmpty
+                                    ? 'No email'
+                                    : 'No account';
+                                return DataRow(
+                                  cells: [
+                                    DataCell(Text(displayName)),
+                                    DataCell(Text(email)),
+                                    DataCell(
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            hasAccount
+                                                ? Icons.check_circle
+                                                : Icons.person_off_outlined,
+                                            size: 18,
+                                            color: hasAccount
+                                                ? AppColors.success
+                                                : AppColors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(statusText),
+                                        ],
+                                      ),
+                                    ),
+                                    DataCell(
+                                      hasAccount
+                                          ? TextButton.icon(
+                                              icon: const Icon(
+                                                Icons.settings,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Manage access',
+                                              ),
+                                              onPressed: () => _manageAccess(m),
+                                            )
+                                          : TextButton.icon(
+                                              icon: const Icon(
+                                                Icons.person_add_alt_1_outlined,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Create account',
+                                              ),
+                                              onPressed: () =>
+                                                  _createAccount(m),
+                                            ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildMobileBody(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'all', label: Text('All')),
+                        ButtonSegment(
+                          value: 'with_account',
+                          label: Text('With account'),
+                        ),
+                        ButtonSegment(
+                          value: 'without_account',
+                          label: Text('No account'),
+                        ),
+                      ],
+                      selected: {_filter},
+                      onSelectionChanged: (Set<String> selected) {
+                        setState(() => _filter = selected.first);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.spacingSM),
+              TextField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Search members by name or email',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredMembers.isEmpty
+              ? Center(
+                  child: Text(
+                    _filter == 'all'
+                        ? 'No members found.'
+                        : _filter == 'with_account'
+                        ? 'No members with accounts.'
+                        : 'No members without accounts.',
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.paddingMD,
+                  ),
+                  itemCount: _filteredMembers.length,
+                  itemBuilder: (context, index) {
+                    final theme = Theme.of(context);
+                    final m = _filteredMembers[index];
+                    final hasAccount = m['has_account'] == true;
+                    final name =
+                        '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
+                            .trim();
+                    final displayName = name.isEmpty ? 'Unnamed member' : name;
+                    final email = m['email']?.toString() ?? '';
+                    final statusText = hasAccount
+                        ? 'Account: ${m['user_email'] ?? email}'
+                        : email.isEmpty
+                        ? 'No email – tap “Create account” to add email and enable login'
+                        : 'No account – tap “Create account” to enable login';
+
+                    return Card(
+                      margin: const EdgeInsets.only(
+                        bottom: AppDimensions.paddingSM,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: hasAccount
+                                      ? AppColors.success.withValues(
+                                          alpha: 0.12,
+                                        )
+                                      : AppColors.textSecondary.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                  child: Icon(
+                                    hasAccount
+                                        ? Icons.person
+                                        : Icons.person_outline,
+                                    color: hasAccount
+                                        ? AppColors.success
+                                        : AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(width: AppDimensions.spacingMD),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        displayName,
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                      if (email.isNotEmpty)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                          ),
+                                          child: Text(
+                                            email,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Text(
+                              statusText,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(height: AppDimensions.spacingSM),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: hasAccount
+                                  ? TextButton.icon(
+                                      icon: const Icon(
+                                        Icons.settings,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Manage access'),
+                                      onPressed: () => _manageAccess(m),
+                                    )
+                                  : TextButton.icon(
+                                      icon: const Icon(
+                                        Icons.person_add_alt_1_outlined,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Create account'),
+                                      onPressed: () => _createAccount(m),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
