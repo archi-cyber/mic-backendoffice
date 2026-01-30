@@ -1,8 +1,6 @@
-name: Build Flutter Windows EXE
+name: Build Flutter Windows (Portable)
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -10,25 +8,20 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Enable Windows Desktop
-        run: flutter config --enable-windows-desktop
 
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build Windows
+      - name: Build Windows release
         run: flutter build windows --release
 
-      - name: Upload EXE
+      - name: Upload portable app
         uses: actions/upload-artifact@v4
         with:
-          name: windows-exe
+          name: windows-portable
           path: build/windows/x64/runner/Release/
