@@ -11,11 +11,7 @@ class EditProjectPage extends StatefulWidget {
 
   final void Function(bool? result)? onClose;
 
-  const EditProjectPage({
-    super.key,
-    required this.projectId,
-    this.onClose,
-  });
+  const EditProjectPage({super.key, required this.projectId, this.onClose});
 
   @override
   State<EditProjectPage> createState() => _EditProjectPageState();
@@ -55,7 +51,9 @@ class _EditProjectPageState extends State<EditProjectPage> {
     try {
       List<Map<String, dynamic>> members;
       if (departmentId != null && departmentId.isNotEmpty) {
-        final dmList = await DepartmentService.getDepartmentMembers(departmentId);
+        final dmList = await DepartmentService.getDepartmentMembers(
+          departmentId,
+        );
         members = dmList
             .map((dm) => dm['members'] as Map<String, dynamic>?)
             .whereType<Map<String, dynamic>>()
@@ -69,7 +67,8 @@ class _EditProjectPageState extends State<EditProjectPage> {
         _isLoadingMembers = false;
         if (_selectedPersonInChargeId != null) {
           final stillValid = members.any(
-              (m) => m['id'].toString() == _selectedPersonInChargeId);
+            (m) => m['id'].toString() == _selectedPersonInChargeId,
+          );
           if (!stillValid) _selectedPersonInChargeId = null;
         }
       });
@@ -82,9 +81,9 @@ class _EditProjectPageState extends State<EditProjectPage> {
   String _getPersonName(String? memberId) {
     if (memberId == null) return '';
     final m = _members.cast<Map<String, dynamic>?>().firstWhere(
-          (x) => x?['id'].toString() == memberId,
-          orElse: () => null,
-        );
+      (x) => x?['id'].toString() == memberId,
+      orElse: () => null,
+    );
     if (m == null) return 'Unknown';
     return '${m['first_name']} ${m['last_name']}';
   }
@@ -139,39 +138,39 @@ class _EditProjectPageState extends State<EditProjectPage> {
                     child: _members.isEmpty
                         ? const Center(child: Text('Select a department first'))
                         : filtered.isEmpty
-                            ? const Center(child: Text('No members found'))
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: filtered.length + 1,
-                                itemBuilder: (context, index) {
-                                  if (index == 0) {
-                                    return ListTile(
-                                      title: const Text('None'),
-                                      onTap: () {
-                                        setState(() =>
-                                            _selectedPersonInChargeId = null);
-                                        Navigator.pop(context);
-                                      },
+                        ? const Center(child: Text('No members found'))
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filtered.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return ListTile(
+                                  title: const Text('None'),
+                                  onTap: () {
+                                    setState(
+                                      () => _selectedPersonInChargeId = null,
                                     );
-                                  }
-                                  final m = filtered[index - 1];
-                                  final id = m['id'].toString();
-                                  final name =
-                                      '${m['first_name']} ${m['last_name']}';
-                                  final email = m['email']?.toString() ?? '';
-                                  return ListTile(
-                                    title: Text(name),
-                                    subtitle: email.isNotEmpty
-                                        ? Text(email)
-                                        : null,
-                                    onTap: () {
-                                      setState(() =>
-                                          _selectedPersonInChargeId = id);
-                                      Navigator.pop(context);
-                                    },
+                                    Navigator.pop(context);
+                                  },
+                                );
+                              }
+                              final m = filtered[index - 1];
+                              final id = m['id'].toString();
+                              final name =
+                                  '${m['first_name']} ${m['last_name']}';
+                              final email = m['email']?.toString() ?? '';
+                              return ListTile(
+                                title: Text(name),
+                                subtitle: email.isNotEmpty ? Text(email) : null,
+                                onTap: () {
+                                  setState(
+                                    () => _selectedPersonInChargeId = id,
                                   );
+                                  Navigator.pop(context);
                                 },
-                              ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -212,9 +211,9 @@ class _EditProjectPageState extends State<EditProjectPage> {
       if (!mounted) return;
       setState(() => _isLoadingData = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading project: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading project: $e')));
         if (widget.onClose != null) {
           widget.onClose!(null);
         } else {
@@ -329,13 +328,15 @@ class _EditProjectPageState extends State<EditProjectPage> {
                         border: const OutlineInputBorder(),
                       ),
                       items: _departments
-                          .map((d) => DropdownMenuItem<String>(
-                                value: d['id'].toString(),
-                                child: Text(
-                                  d['name']?.toString() ?? '',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ))
+                          .map(
+                            (d) => DropdownMenuItem<String>(
+                              value: d['id'].toString(),
+                              child: Text(
+                                d['name']?.toString() ?? '',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) async {
                         setState(() => _selectedDepartmentId = v);
@@ -397,10 +398,14 @@ class _EditProjectPageState extends State<EditProjectPage> {
                       items: const [
                         DropdownMenuItem(value: 'low', child: Text('Low')),
                         DropdownMenuItem(
-                            value: 'medium', child: Text('Medium')),
+                          value: 'medium',
+                          child: Text('Medium'),
+                        ),
                         DropdownMenuItem(value: 'high', child: Text('High')),
                         DropdownMenuItem(
-                            value: 'urgent', child: Text('Urgent')),
+                          value: 'urgent',
+                          child: Text('Urgent'),
+                        ),
                       ],
                       onChanged: (v) =>
                           setState(() => _priority = v ?? 'medium'),

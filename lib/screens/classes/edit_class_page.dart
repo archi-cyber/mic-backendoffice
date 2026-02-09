@@ -7,14 +7,11 @@ import '../../services/department_service.dart';
 /// Edit training page
 class EditClassPage extends StatefulWidget {
   final String classId;
+
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const EditClassPage({
-    super.key,
-    required this.classId,
-    this.onClose,
-  });
+  const EditClassPage({super.key, required this.classId, this.onClose});
 
   @override
   State<EditClassPage> createState() => _EditClassPageState();
@@ -130,8 +127,7 @@ class _EditClassPageState extends State<EditClassPage> {
 
   @override
   Widget build(BuildContext context) {
-    final useDesktop =
-        MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     if (_isLoadingData) {
       return Scaffold(
@@ -186,8 +182,9 @@ class _EditClassPageState extends State<EditClassPage> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: _kDesktopMaxWidth),
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopMaxWidth,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Card(
@@ -198,12 +195,8 @@ class _EditClassPageState extends State<EditClassPage> {
                           children: [
                             Text(
                               'Training details',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
@@ -250,7 +243,8 @@ class _EditClassPageState extends State<EditClassPage> {
                                     return DropdownMenuItem<String>(
                                       value: dept['id'].toString(),
                                       child: Text(
-                                          dept['name']?.toString() ?? 'Unnamed'),
+                                        dept['name']?.toString() ?? 'Unnamed',
+                                      ),
                                     );
                                   }),
                                 ],
@@ -315,7 +309,9 @@ class _EditClassPageState extends State<EditClassPage> {
                           ..._departments.map((dept) {
                             return DropdownMenuItem<String>(
                               value: dept['id'].toString(),
-                              child: Text(dept['name']?.toString() ?? 'Unnamed'),
+                              child: Text(
+                                dept['name']?.toString() ?? 'Unnamed',
+                              ),
                             );
                           }),
                         ],

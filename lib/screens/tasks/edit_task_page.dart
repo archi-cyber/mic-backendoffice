@@ -57,7 +57,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
     if (trimmed.isEmpty) return;
     Map<String, dynamic>? existing;
     for (final t in _tags) {
-      if ((t['name']?.toString().trim().toLowerCase() ?? '') == trimmed.toLowerCase()) {
+      if ((t['name']?.toString().trim().toLowerCase() ?? '') ==
+          trimmed.toLowerCase()) {
         existing = t;
         break;
       }
@@ -74,7 +75,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
     if (deptId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Task has no department; cannot add tags')),
+          const SnackBar(
+            content: Text('Task has no department; cannot add tags'),
+          ),
         );
       }
       return;
@@ -94,9 +97,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
       _newTagController.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not add tag: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not add tag: $e')));
       }
     }
   }
@@ -113,7 +116,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
       setState(() {
         _tags = tags;
         _selectedTagIds.removeWhere(
-            (id) => !tags.any((t) => t['id'].toString() == id));
+          (id) => !tags.any((t) => t['id'].toString() == id),
+        );
       });
     } catch (_) {
       if (mounted) setState(() => _tags = []);
@@ -139,10 +143,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
       }
 
       final taskTags = task['task_tags'] as List?;
-      final tagIds = taskTags
-          ?.map((e) => (e is Map && e['tags'] != null) ? (e['tags'] as Map)['id']?.toString() : null)
-          .whereType<String>()
-          .toList() ?? [];
+      final tagIds =
+          taskTags
+              ?.map(
+                (e) => (e is Map && e['tags'] != null)
+                    ? (e['tags'] as Map)['id']?.toString()
+                    : null,
+              )
+              .whereType<String>()
+              .toList() ??
+          [];
 
       if (!mounted) return;
       setState(() {
@@ -495,23 +505,28 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                   value: null,
                                   child: Text('None'),
                                 ),
-                                ..._projects.map((p) => DropdownMenuItem<String?>(
-                                      value: p['id'].toString(),
-                                      child: Text(
-                                        p['title']?.toString() ?? '',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    )),
+                                ..._projects.map(
+                                  (p) => DropdownMenuItem<String?>(
+                                    value: p['id'].toString(),
+                                    child: Text(
+                                      p['title']?.toString() ?? '',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
                               ],
                               onChanged: (value) {
                                 setState(() => _selectedProjectId = value);
                               },
                             ),
                             const SizedBox(height: AppDimensions.spacingMD),
-                            const Text('Tags (optional)',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12)),
+                            const Text(
+                              'Tags (optional)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -543,7 +558,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
                               children: _tags.map((tag) {
                                 final id = tag['id'].toString();
                                 final selected = _selectedTagIds.contains(id);
-                                final color = TagColors.colorFromHex(tag['color']?.toString());
+                                final color = TagColors.colorFromHex(
+                                  tag['color']?.toString(),
+                                );
                                 return FilterChip(
                                   label: Text(tag['name']?.toString() ?? ''),
                                   selected: selected,
@@ -708,22 +725,28 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           value: null,
                           child: Text('None'),
                         ),
-                        ..._projects.map((p) => DropdownMenuItem<String?>(
-                              value: p['id'].toString(),
-                              child: Text(
-                                p['title']?.toString() ?? '',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )),
+                        ..._projects.map(
+                          (p) => DropdownMenuItem<String?>(
+                            value: p['id'].toString(),
+                            child: Text(
+                              p['title']?.toString() ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() => _selectedProjectId = value);
                       },
                     ),
                     const SizedBox(height: AppDimensions.spacingMD),
-                    const Text('Tags (optional)',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 12)),
+                    const Text(
+                      'Tags (optional)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -755,7 +778,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
                       children: _tags.map((tag) {
                         final id = tag['id'].toString();
                         final selected = _selectedTagIds.contains(id);
-                        final color = TagColors.colorFromHex(tag['color']?.toString());
+                        final color = TagColors.colorFromHex(
+                          tag['color']?.toString(),
+                        );
                         return FilterChip(
                           label: Text(tag['name']?.toString() ?? ''),
                           selected: selected,
