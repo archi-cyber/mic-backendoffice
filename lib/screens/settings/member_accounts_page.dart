@@ -366,82 +366,96 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                       )
                     : Card(
                         clipBehavior: Clip.antiAlias,
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.vertical,
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('Name')),
-                                DataColumn(label: Text('Email')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _filteredMembers.map((m) {
-                                final hasAccount = m['has_account'] == true;
-                                final name =
-                                    '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
-                                        .trim();
-                                final displayName = name.isEmpty
-                                    ? 'Unnamed member'
-                                    : name;
-                                final email = m['email']?.toString() ?? '';
-                                final statusText = hasAccount
-                                    ? 'Account'
-                                    : email.isEmpty
-                                    ? 'No email'
-                                    : 'No account';
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(displayName)),
-                                    DataCell(Text(email)),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            hasAccount
-                                                ? Icons.check_circle
-                                                : Icons.person_off_outlined,
-                                            size: 18,
-                                            color: hasAccount
-                                                ? AppColors.success
-                                                : AppColors.textSecondary,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(statusText),
-                                        ],
-                                      ),
-                                    ),
-                                    DataCell(
-                                      hasAccount
-                                          ? TextButton.icon(
-                                              icon: const Icon(
-                                                Icons.settings,
-                                                size: 18,
-                                              ),
-                                              label: const Text(
-                                                'Manage access',
-                                              ),
-                                              onPressed: () => _manageAccess(m),
-                                            )
-                                          : TextButton.icon(
-                                              icon: const Icon(
-                                                Icons.person_add_alt_1_outlined,
-                                                size: 18,
-                                              ),
-                                              label: const Text(
-                                                'Create account',
-                                              ),
-                                              onPressed: () =>
-                                                  _createAccount(m),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.vertical,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
+                                  child: DataTable(
+                                    columns: const [
+                                      DataColumn(label: Text('Name')),
+                                      DataColumn(label: Text('Email')),
+                                      DataColumn(label: Text('Status')),
+                                      DataColumn(label: Text('Actions')),
+                                    ],
+                                    rows: _filteredMembers.map((m) {
+                                      final hasAccount =
+                                          m['has_account'] == true;
+                                      final name =
+                                          '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
+                                              .trim();
+                                      final displayName = name.isEmpty
+                                          ? 'Unnamed member'
+                                          : name;
+                                      final email =
+                                          m['email']?.toString() ?? '';
+                                      final statusText = hasAccount
+                                          ? 'Account'
+                                          : email.isEmpty
+                                          ? 'No email'
+                                          : 'No account';
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(Text(displayName)),
+                                          DataCell(Text(email)),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  hasAccount
+                                                      ? Icons.check_circle
+                                                      : Icons
+                                                            .person_off_outlined,
+                                                  size: 18,
+                                                  color: hasAccount
+                                                      ? AppColors.success
+                                                      : AppColors.textSecondary,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(statusText),
+                                              ],
                                             ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
-                          ),
+                                          ),
+                                          DataCell(
+                                            hasAccount
+                                                ? TextButton.icon(
+                                                    icon: const Icon(
+                                                      Icons.settings,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text(
+                                                      'Manage access',
+                                                    ),
+                                                    onPressed: () =>
+                                                        _manageAccess(m),
+                                                  )
+                                                : TextButton.icon(
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .person_add_alt_1_outlined,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text(
+                                                      'Create account',
+                                                    ),
+                                                    onPressed: () =>
+                                                        _createAccount(m),
+                                                  ),
+                                          ),
+                                        ],
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ),
               ),

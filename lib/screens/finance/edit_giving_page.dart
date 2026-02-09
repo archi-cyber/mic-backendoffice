@@ -410,9 +410,9 @@ class _EditGivingPageState extends State<EditGivingPage> {
               margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
               padding: const EdgeInsets.all(AppDimensions.paddingMD),
               decoration: BoxDecoration(
-                color: AppColors.success.withOpacity(0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -713,12 +713,12 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 end: Alignment.bottomRight,
                 colors: isExpense
                     ? [
-                        AppColors.error.withOpacity(0.8),
-                        AppColors.error.withOpacity(0.6),
+                        AppColors.error.withValues(alpha: 0.8),
+                        AppColors.error.withValues(alpha: 0.6),
                       ]
                     : [
-                        AppColors.success.withOpacity(0.8),
-                        AppColors.success.withOpacity(0.6),
+                        AppColors.success.withValues(alpha: 0.8),
+                        AppColors.success.withValues(alpha: 0.6),
                       ],
               ),
             ),
@@ -735,7 +735,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                         vertical: AppDimensions.spacingSM,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
@@ -776,7 +776,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                     Text(
                       record['giver_name']?.toString() ?? 'Unknown',
                       style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ],
@@ -796,9 +796,9 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
                 padding: const EdgeInsets.all(AppDimensions.paddingMD),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -968,7 +968,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 20, color: AppColors.primary),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 import 'user_management_service.dart';
 
@@ -49,7 +50,7 @@ class MemberService {
       } catch (e) {
         // Log error but don't fail member creation
         // In production, this could be handled by database trigger
-        print('Warning: Failed to create user account: $e');
+        debugPrint('Warning: Failed to create user account: $e');
       }
 
       return response;

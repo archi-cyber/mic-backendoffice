@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'class_service.dart';
@@ -7,7 +8,6 @@ import 'task_service.dart';
 /// Service for offline queueing of operations
 class OfflineQueueService {
   static const String _queueKey = 'offline_queue';
-  static const String _isOnlineKey = 'is_online';
 
   /// Check if device is online
   static Future<bool> isOnline() async {
@@ -76,7 +76,7 @@ class OfflineQueueService {
         await removeOperation(operation['id']);
       } catch (e) {
         // Log error but continue processing other operations
-        print('Error processing operation ${operation['id']}: $e');
+        debugPrint('Error processing operation ${operation['id']}: $e');
       }
     }
   }

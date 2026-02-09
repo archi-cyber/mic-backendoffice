@@ -354,9 +354,7 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                           final member = _filteredMembers[index];
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                               child: Icon(
                                 Icons.person,
                                 color: AppColors.primary,
@@ -531,9 +529,7 @@ class _ClassSelectionDialogState extends State<_ClassSelectionDialog> {
                           final classItem = _filteredClasses[index];
                           return ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                               child: Icon(
                                 Icons.class_outlined,
                                 color: AppColors.primary,

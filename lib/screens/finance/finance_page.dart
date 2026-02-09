@@ -383,7 +383,7 @@ class _FinancePageState extends State<FinancePage> {
           margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: AppColors.primary.withOpacity(0.1),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
               child: Icon(
                 Icons.account_balance_wallet,
                 color: AppColors.primary,

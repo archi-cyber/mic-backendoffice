@@ -25,6 +25,10 @@ import '../../screens/tasks/tasks_list_page.dart';
 import '../../screens/tasks/task_detail_page.dart';
 import '../../screens/tasks/add_task_page.dart';
 import '../../screens/tasks/edit_task_page.dart';
+import '../../screens/tasks/add_project_page.dart';
+import '../../screens/tasks/edit_project_page.dart';
+import '../../screens/tasks/manage_projects_page.dart';
+import '../../screens/tasks/manage_tags_page.dart';
 import '../../screens/classes/classes_list_page.dart';
 import '../../screens/classes/class_detail_page.dart';
 import '../../screens/classes/add_class_page.dart';
@@ -298,6 +302,26 @@ class AppRouter {
           settings: settings,
         );
 
+      case RouteNames.manageProjects:
+        final departmentId = settings.arguments as String?;
+        return MaterialPageRoute(
+          builder: (_) => ManageProjectsPage(departmentId: departmentId),
+          settings: settings,
+        );
+
+      case RouteNames.addProject:
+        return MaterialPageRoute(
+          builder: (_) => const AddProjectPage(),
+          settings: settings,
+        );
+
+      case RouteNames.manageTags:
+        final tagDepartmentId = settings.arguments as String?;
+        return MaterialPageRoute(
+          builder: (_) => ManageTagsPage(departmentId: tagDepartmentId),
+          settings: settings,
+        );
+
       case RouteNames.addEvent:
         return MaterialPageRoute(
           builder: (_) => const AddEventPage(),
@@ -462,6 +486,29 @@ class AppRouter {
             builder: (_) => EventDetailPage(eventId: eventId),
             settings: settings,
           );
+        }
+        if (settings.name?.startsWith('/tasks/projects') == true) {
+          final parts = settings.name!.split('/');
+          // /tasks/projects -> manage, /tasks/projects/add -> add, /tasks/projects/:id/edit -> edit
+          if (parts.length == 3) {
+            return MaterialPageRoute(
+              builder: (_) => const ManageProjectsPage(),
+              settings: settings,
+            );
+          }
+          if (parts.length == 4 && parts[3] == 'add') {
+            return MaterialPageRoute(
+              builder: (_) => const AddProjectPage(),
+              settings: settings,
+            );
+          }
+          if (parts.length >= 5 && parts.last == 'edit') {
+            final projectId = parts[parts.length - 2];
+            return MaterialPageRoute(
+              builder: (_) => EditProjectPage(projectId: projectId),
+              settings: settings,
+            );
+          }
         }
         if (settings.name?.startsWith('/tasks/') == true) {
           final parts = settings.name!.split('/');

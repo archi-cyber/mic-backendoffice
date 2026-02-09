@@ -452,7 +452,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                         decoration: BoxDecoration(
                           color: isRead
                               ? null
-                              : AppColors.primary.withOpacity(0.05),
+                              : AppColors.primary.withValues(alpha: 0.05),
                           border: Border(
                             left: BorderSide(
                               color: _getNotificationColor(type),
@@ -464,7 +464,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                           leading: CircleAvatar(
                             backgroundColor: _getNotificationColor(
                               type,
-                            ).withOpacity(0.1),
+                            ).withValues(alpha: 0.1),
                             child: Icon(
                               _getNotificationIcon(type),
                               color: _getNotificationColor(type),

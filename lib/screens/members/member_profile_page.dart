@@ -691,9 +691,9 @@ class _ProfileTab extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: chipColor.withOpacity(0.1),
+        color: chipColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chipColor.withOpacity(0.3)),
+        border: Border.all(color: chipColor.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
@@ -809,14 +809,18 @@ class _AttendanceTab extends StatelessWidget {
                     ),
                   )
                 else
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                      ),
-                      columns: const [
-                        DataColumn(label: Text('Session')),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              Theme.of(context).colorScheme.surfaceContainerHighest,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('Session')),
                         DataColumn(label: Text('Status')),
                         DataColumn(label: Text('Date')),
                       ],
@@ -836,8 +840,11 @@ class _AttendanceTab extends StatelessWidget {
                           ],
                         );
                       }).toList(),
-                    ),
-                  ),
+                          ),
+                        ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -952,18 +959,18 @@ class _ClassesTabState extends State<_ClassesTab> {
       return SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.paddingMD),
         child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: _kProfileDesktopMaxWidth,
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                columns: const [
-                  DataColumn(label: Text('Class')),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(
+                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                    ),
+                    columns: const [
+                      DataColumn(label: Text('Class')),
                   DataColumn(label: Text('Description')),
                   DataColumn(label: Text('Action')),
                 ],
@@ -995,11 +1002,13 @@ class _ClassesTabState extends State<_ClassesTab> {
                     ],
                   );
                 }).toList(),
-              ),
-            ),
-          ),
+                  ),
+                ),
+            );
+          },
         ),
-      );
+      ),
+    );
     }
 
     return ListView.builder(

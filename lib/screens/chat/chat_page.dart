@@ -247,7 +247,7 @@ class _ChatPageState extends State<ChatPage> {
                       vertical: AppDimensions.spacingXS,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSM,
                       ),
@@ -274,7 +274,7 @@ class _ChatPageState extends State<ChatPage> {
                       vertical: AppDimensions.spacingXS,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withOpacity(0.1),
+                      color: AppColors.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSM,
                       ),
@@ -305,7 +305,7 @@ class _ChatPageState extends State<ChatPage> {
                       vertical: AppDimensions.spacingXS,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.textSecondary.withOpacity(0.1),
+                      color: AppColors.textSecondary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSM,
                       ),

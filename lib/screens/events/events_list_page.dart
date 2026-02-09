@@ -237,7 +237,7 @@ class _EventsListPageState extends State<EventsListPage> {
                         vertical: AppDimensions.spacingXS,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(
                           AppDimensions.radiusSM,
                         ),
@@ -397,7 +397,6 @@ class _EventsListPageState extends State<EventsListPage> {
   }
 
   Widget _buildDesktopBody(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return Padding(
@@ -486,14 +485,18 @@ class _EventsListPageState extends State<EventsListPage> {
                         onRefresh: _loadEvents,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest,
-                              ),
-                              columns: const [
-                                DataColumn(label: Text('Title')),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme.surfaceContainerHighest,
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Title')),
                                 DataColumn(label: Text('Date')),
                                 DataColumn(label: Text('Location')),
                                 DataColumn(label: Text('Actions')),
@@ -593,7 +596,10 @@ class _EventsListPageState extends State<EventsListPage> {
                                   ],
                                 );
                               }).toList(),
-                            ),
+                                    ),
+                                  ),
+                                );
+                            },
                           ),
                         ),
                       ),
@@ -643,8 +649,6 @@ class _EventsListPageState extends State<EventsListPage> {
   }
 
   Widget _buildMobileBody(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
-
     return Column(
       children: [
         Padding(

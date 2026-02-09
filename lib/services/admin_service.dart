@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 
 /// Admin service for user management operations
@@ -84,7 +85,7 @@ class AdminService {
             // await AuthService.forgotPassword(email: user['email']);
           } catch (e) {
             // Log but don't fail
-            print('Warning: Failed to send password reset email: $e');
+            debugPrint('Warning: Failed to send password reset email: $e');
           }
         }
       }
@@ -121,11 +122,11 @@ class AdminService {
         if (user?['email'] != null) {
           // Note: Updating auth metadata requires admin privileges
           // This might need to be done through Supabase Dashboard or Admin API
-          print('Note: User role updated in users table. Auth metadata may need manual update.');
+          debugPrint('Note: User role updated in users table. Auth metadata may need manual update.');
         }
       } catch (e) {
         // Log but don't fail - role update in users table is the primary source
-        print('Warning: Could not update auth metadata: $e');
+        debugPrint('Warning: Could not update auth metadata: $e');
       }
     } catch (e) {
       throw Exception('Failed to update user role: $e');

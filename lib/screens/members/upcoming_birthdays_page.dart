@@ -322,18 +322,23 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                         )
                       : Card(
                           clipBehavior: Clip.antiAlias,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.vertical,
-                              child: DataTable(
-                                columns: const [
-                                  DataColumn(label: Text('Name')),
-                                  DataColumn(label: Text('Email')),
-                                  DataColumn(label: Text('Birthday')),
-                                  DataColumn(label: Text('Days')),
-                                ],
-                                rows: _filteredMembers.map((member) {
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.vertical,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                        minWidth: constraints.maxWidth),
+                                    child: DataTable(
+                                      columns: const [
+                                        DataColumn(label: Text('Name')),
+                                        DataColumn(label: Text('Email')),
+                                        DataColumn(label: Text('Birthday')),
+                                        DataColumn(label: Text('Days')),
+                                      ],
+                                      rows: _filteredMembers.map((member) {
                                   final name =
                                       '${member['first_name']} ${member['last_name']}';
                                   final email =
@@ -418,11 +423,14 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                     ],
                                   );
                                 }).toList(),
-                              ),
-                            ),
-                          ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                            },
                         ),
                 ),
+              ),
               ],
             ),
           ),

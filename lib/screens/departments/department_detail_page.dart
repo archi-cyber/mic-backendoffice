@@ -858,9 +858,9 @@ class _MembersTabState extends State<_MembersTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -936,9 +936,13 @@ class _MembersTabState extends State<_MembersTab> {
           padding: const EdgeInsets.symmetric(
             horizontal: AppDimensions.paddingMD,
           ),
-          child: DataTable(
-            columns: const [
-              DataColumn(label: Text('Member')),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Member')),
               DataColumn(label: Text('Email')),
               DataColumn(label: Text('Role')),
               DataColumn(label: Text('Actions')),
@@ -1018,9 +1022,12 @@ class _MembersTabState extends State<_MembersTab> {
                 ],
               );
             }).toList(),
-          ),
+                ),
+              );
+          },
         ),
-      );
+      ),
+    );
     } else {
       listContent = RefreshIndicator(
         onRefresh: _loadMembers,
@@ -1221,7 +1228,7 @@ class _TasksTabState extends State<_TasksTab> {
             margin: const EdgeInsets.all(AppDimensions.paddingMD),
             padding: const EdgeInsets.all(AppDimensions.paddingMD),
             decoration: BoxDecoration(
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
             ),
             child: Column(
@@ -1282,42 +1289,122 @@ class _TasksTabState extends State<_TasksTab> {
               ],
             ),
           ),
-        // Buttons row
+        // Quick actions: Manage Tasks, Manage Projects, Generate Report
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final result = await Navigator.of(context).pushNamed(
-                      RouteNames.tasks,
-                      arguments: widget.departmentId,
-                    );
-                    // If any changes were made (result is true), reload tasks
-                    if (result == true && widget.onTasksUpdated != null) {
-                      widget.onTasksUpdated!();
-                    }
-                  },
-                  icon: const Icon(Icons.manage_search),
-                  label: const Text('Manage Tasks'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, AppDimensions.buttonHeightMD),
-                  ),
-                ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+            vertical: AppDimensions.paddingSM,
+          ),
+          child: Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+              side: BorderSide(
+                color: Theme.of(context).dividerColor.withValues(alpha: 0.5),
               ),
-              const SizedBox(width: AppDimensions.spacingMD),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _generateReport,
-                  icon: const Icon(Icons.description),
-                  label: const Text('Generate Report'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Quick actions',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                   ),
-                ),
+                  const SizedBox(height: AppDimensions.spacingMD),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      final useCompact = width < 400;
+                      return Wrap(
+                        spacing: AppDimensions.spacingSM,
+                        runSpacing: AppDimensions.spacingSM,
+                        children: [
+                          _TaskActionTile(
+                            icon: Icons.task_alt_outlined,
+                            label: 'Manage Tasks',
+                            onTap: () async {
+                              final scope = DesktopShellScope.maybeOf(context);
+                              if (scope != null) {
+                                scope.pushDetail(
+                                    RouteNames.tasks, widget.departmentId);
+                              } else {
+                                final result = await Navigator.of(context)
+                                    .pushNamed(
+                                  RouteNames.tasks,
+                                  arguments: widget.departmentId,
+                                );
+                                if (result == true &&
+                                    widget.onTasksUpdated != null) {
+                                  widget.onTasksUpdated!();
+                                }
+                              }
+                            },
+                            compact: useCompact,
+                          ),
+                          _TaskActionTile(
+                            icon: Icons.folder_outlined,
+                            label: 'Manage Projects',
+                            onTap: () async {
+                              final scope = DesktopShellScope.maybeOf(context);
+                              if (scope != null) {
+                                scope.pushDetail(
+                                    RouteNames.manageProjects,
+                                    widget.departmentId);
+                              } else {
+                                final result = await Navigator.of(context)
+                                    .pushNamed(
+                                  RouteNames.manageProjects,
+                                  arguments: widget.departmentId,
+                                );
+                                if (result == true &&
+                                    widget.onTasksUpdated != null) {
+                                  widget.onTasksUpdated!();
+                                }
+                              }
+                            },
+                            compact: useCompact,
+                          ),
+                          _TaskActionTile(
+                            icon: Icons.label_outlined,
+                            label: 'Manage Tags',
+                            onTap: () async {
+                              final scope = DesktopShellScope.maybeOf(context);
+                              if (scope != null) {
+                                scope.pushDetail(
+                                    RouteNames.manageTags,
+                                    widget.departmentId);
+                              } else {
+                                final result = await Navigator.of(context)
+                                    .pushNamed(
+                                  RouteNames.manageTags,
+                                  arguments: widget.departmentId,
+                                );
+                                if (result == true &&
+                                    widget.onTasksUpdated != null) {
+                                  widget.onTasksUpdated!();
+                                }
+                              }
+                            },
+                            compact: useCompact,
+                          ),
+                          _TaskActionTile(
+                            icon: Icons.description_outlined,
+                            label: 'Generate Report',
+                            onTap: _generateReport,
+                            compact: useCompact,
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
         // Tasks list
@@ -1342,9 +1429,13 @@ class _TasksTabState extends State<_TasksTab> {
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppDimensions.paddingMD,
                   ),
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Task')),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Task')),
                       DataColumn(label: Text('Description')),
                       DataColumn(label: Text('Actions')),
                     ],
@@ -1391,8 +1482,11 @@ class _TasksTabState extends State<_TasksTab> {
                         },
                       );
                     }).toList(),
-                  ),
-                )
+                        ),
+                      );
+                  },
+                ),
+              )
               : ListView.builder(
                   itemCount: widget.tasks.length,
                   itemBuilder: (context, index) {
@@ -1673,13 +1767,17 @@ class _ReportsTabState extends State<_ReportsTab> {
                   onRefresh: _loadReports,
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Report')),
-                        DataColumn(label: Text('Created')),
-                        DataColumn(label: Text('Actions')),
-                      ],
-                      rows: _reports.map((report) {
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Report')),
+                              DataColumn(label: Text('Created')),
+                              DataColumn(label: Text('Actions')),
+                            ],
+                            rows: _reports.map((report) {
                         return DataRow(
                           cells: [
                             DataCell(
@@ -1761,6 +1859,9 @@ class _ReportsTabState extends State<_ReportsTab> {
                           ],
                         );
                       }).toList(),
+                            ),
+                          );
+                      },
                     ),
                   ),
                 )
@@ -2292,6 +2393,64 @@ class _TaskReportOptionsDialogState extends State<_TaskReportOptionsDialog> {
           child: const Text('Generate'),
         ),
       ],
+    );
+  }
+}
+
+/// Compact tile for task-tab quick actions.
+class _TaskActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool compact;
+
+  const _TaskActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(label, style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.paddingSM),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 28, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(height: 6),
+              Text(label, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

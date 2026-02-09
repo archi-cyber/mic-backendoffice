@@ -149,7 +149,7 @@ class _SplashScreenState extends State<SplashScreen>
                     Text(
                       'Church Administration',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.textLight.withOpacity(0.9),
+                        color: AppColors.textLight.withValues(alpha: 0.9),
                         letterSpacing: 1,
                       ),
                     ),

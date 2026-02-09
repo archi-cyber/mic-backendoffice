@@ -219,7 +219,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                         return localizations?.passwordRequired ??
                             'Password is required';
                       }
-                      if (value != null && value.length < 6) {
+                      if (value.length < 6) {
                         return 'Password must be at least 6 characters';
                       }
                       return null;

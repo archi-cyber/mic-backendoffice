@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../firebase_options.dart';
 
@@ -16,9 +17,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   
   // Handle background message
   // This runs in a separate isolate
-  print('Background message received: ${message.messageId}');
-  print('Message data: ${message.data}');
-  print('Message notification: ${message.notification?.title}');
+  debugPrint('Background message received: ${message.messageId}');
+  debugPrint('Message data: ${message.data}');
+  debugPrint('Message notification: ${message.notification?.title}');
   
   // You can add additional processing here, such as:
   // - Saving notification to local database

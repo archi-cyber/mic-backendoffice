@@ -227,7 +227,6 @@ class BirthdaySchedulerService {
 
         return (allMembers as List)
             .map((m) => m['user_id']?.toString() ?? m['id'].toString())
-            .where((id) => id != null)
             .toList();
       } else if (target == 'leaders_only') {
         // Get only leaders/admins
@@ -252,7 +251,6 @@ class BirthdaySchedulerService {
 
         return (leaderMembers as List)
             .map((m) => m['user_id']?.toString() ?? m['id'].toString())
-            .where((id) => id != null)
             .toList();
       }
 

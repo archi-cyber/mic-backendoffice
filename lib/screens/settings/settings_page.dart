@@ -754,6 +754,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _handleLogout() async {
     final localizations = AppLocalizations.of(context);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.maybeOf(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -778,18 +781,14 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirm != true) return;
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.logout();
 
       if (mounted) {
-        // Navigate to login page
-        Navigator.of(
-          context,
-        ).pushNamedAndRemoveUntil(RouteNames.login, (route) => false);
+        navigator.pushNamedAndRemoveUntil(RouteNames.login, (route) => false);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted && messenger != null) {
+        messenger.showSnackBar(
           SnackBar(
             content: Text(localizations?.logoutFailed ?? 'Logout failed: $e'),
             backgroundColor: AppColors.error,

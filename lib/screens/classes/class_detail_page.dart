@@ -362,7 +362,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                         ),
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                             child: Icon(Icons.event, color: AppColors.primary),
                           ),
                           title: Text(
@@ -670,12 +670,12 @@ class _PresetButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? AppColors.primary
-              : AppColors.primary.withOpacity(0.1),
+              : AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
           border: Border.all(
             color: selected
                 ? AppColors.primary
-                : AppColors.primary.withOpacity(0.3),
+                : AppColors.primary.withValues(alpha: 0.3),
           ),
         ),
         child: Text(

@@ -24,7 +24,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
   bool _isLoading = true;
   bool _canEdit = false;
   bool _canDelete = false;
-  int _visitorsRowsPerPage = 10;
+  final int _visitorsRowsPerPage = 10;
   int _visitorsPage = 0;
 
   @override
@@ -119,21 +119,25 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
             padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.paddingMD,
             ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                columns: const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Visit date')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('Phone')),
-                  DataColumn(label: Text('Notes')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: pageItems.map((visitor) {
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                      ),
+                      columns: const [
+                        DataColumn(label: Text('Name')),
+                        DataColumn(label: Text('Visit date')),
+                        DataColumn(label: Text('Email')),
+                        DataColumn(label: Text('Phone')),
+                        DataColumn(label: Text('Notes')),
+                        DataColumn(label: Text('Actions')),
+                      ],
+                      rows: pageItems.map((visitor) {
                   final firstName = visitor['first_name']?.toString() ?? '';
                   final lastName = visitor['last_name']?.toString() ?? '';
                   final fullName = '$firstName $lastName'.trim();
@@ -233,7 +237,10 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                     ],
                   );
                 }).toList(),
-              ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),

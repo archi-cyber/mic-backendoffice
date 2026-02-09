@@ -516,7 +516,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                                   fillColor: _isViewMode
                                       ? Theme.of(
                                           context,
-                                        ).disabledColor.withOpacity(0.1)
+                                        ).disabledColor.withValues(alpha: 0.1)
                                       : null,
                                 ),
                                 child: Text(
@@ -537,7 +537,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                                 fillColor: _isViewMode
                                     ? Theme.of(
                                         context,
-                                      ).disabledColor.withOpacity(0.1)
+                                      ).disabledColor.withValues(alpha: 0.1)
                                     : null,
                               ),
                               isExpanded: true,
@@ -949,7 +949,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               margin: const EdgeInsets.all(AppDimensions.spacingMD),
               padding: const EdgeInsets.all(AppDimensions.spacingMD),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
+                color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
               ),
               child: Row(
@@ -963,7 +963,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                   Container(
                     width: 1,
                     height: 40,
-                    color: AppColors.textSecondary.withOpacity(0.3),
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
                   ),
                   _buildStatItem(
                     'Total Absence',
@@ -1230,7 +1230,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               decoration: BoxDecoration(
                 color: isSelected
                     ? Colors.white
-                    : AppColors.primary.withOpacity(0.2),
+                    : AppColors.primary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -1251,7 +1251,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           _selectedAttendanceFilter = selected ? value : null;
         });
       },
-      selectedColor: AppColors.primary.withOpacity(0.2),
+      selectedColor: AppColors.primary.withValues(alpha: 0.2),
       checkmarkColor: AppColors.primary,
       labelStyle: TextStyle(
         color: isSelected ? AppColors.primary : AppColors.textPrimary,

@@ -3,6 +3,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/task_service.dart';
 import '../../services/department_service.dart';
+import '../../services/project_service.dart';
+import '../../services/tag_service.dart';
+import '../../core/constants/tag_colors.dart';
 
 /// Edit task page
 class EditTaskPage extends StatefulWidget {
@@ -22,12 +25,17 @@ class _EditTaskPageState extends State<EditTaskPage> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _selectedDepartmentId;
+  String? _selectedProjectId;
+  final List<String> _selectedTagIds = [];
   DateTime? _dueDate;
   String _priority = 'medium';
   String _status = 'pending';
   List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _tags = [];
   bool _isLoading = false;
   bool _isLoadingData = true;
+  final TextEditingController _newTagController = TextEditingController();
 
   @override
   void initState() {
@@ -39,7 +47,77 @@ class _EditTaskPageState extends State<EditTaskPage> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _newTagController.dispose();
     super.dispose();
+  }
+
+  /// Add tag by name: select existing or create if not found.
+  Future<void> _addTagByName(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    Map<String, dynamic>? existing;
+    for (final t in _tags) {
+      if ((t['name']?.toString().trim().toLowerCase() ?? '') == trimmed.toLowerCase()) {
+        existing = t;
+        break;
+      }
+    }
+    if (existing != null) {
+      final id = existing['id'].toString();
+      if (!_selectedTagIds.contains(id)) {
+        setState(() => _selectedTagIds.add(id));
+      }
+      _newTagController.clear();
+      return;
+    }
+    final deptId = _selectedDepartmentId;
+    if (deptId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Task has no department; cannot add tags')),
+        );
+      }
+      return;
+    }
+    try {
+      final created = await TagService.createTag(
+        name: trimmed,
+        departmentId: deptId,
+        color: TagColors.defaultHex,
+      );
+      if (!mounted) return;
+      final id = created['id'].toString();
+      setState(() {
+        _tags.add(created);
+        if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
+      });
+      _newTagController.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add tag: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadTagsForDepartment() async {
+    final deptId = _selectedDepartmentId;
+    if (deptId == null) {
+      setState(() => _tags = []);
+      return;
+    }
+    try {
+      final tags = await TagService.getTags(departmentId: deptId, limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _tags = tags;
+        _selectedTagIds.removeWhere(
+            (id) => !tags.any((t) => t['id'].toString() == id));
+      });
+    } catch (_) {
+      if (mounted) setState(() => _tags = []);
+    }
   }
 
   Future<void> _loadData() async {
@@ -47,16 +125,33 @@ class _EditTaskPageState extends State<EditTaskPage> {
       final results = await Future.wait([
         TaskService.getTaskById(widget.taskId),
         DepartmentService.getDepartments(limit: 100),
+        ProjectService.getProjects(limit: 200),
       ]);
 
       final task = results[0] as Map<String, dynamic>;
       final departments = results[1] as List<Map<String, dynamic>>;
+      final projects = results[2] as List<Map<String, dynamic>>;
+
+      List<Map<String, dynamic>> tags = [];
+      final taskDeptId = task['department_id']?.toString();
+      if (taskDeptId != null) {
+        tags = await TagService.getTags(departmentId: taskDeptId, limit: 200);
+      }
+
+      final taskTags = task['task_tags'] as List?;
+      final tagIds = taskTags
+          ?.map((e) => (e is Map && e['tags'] != null) ? (e['tags'] as Map)['id']?.toString() : null)
+          .whereType<String>()
+          .toList() ?? [];
 
       if (!mounted) return;
       setState(() {
         _titleController.text = task['title']?.toString() ?? '';
         _descriptionController.text = task['description']?.toString() ?? '';
         _selectedDepartmentId = task['department_id']?.toString();
+        _selectedProjectId = task['project_id']?.toString();
+        _selectedTagIds.clear();
+        _selectedTagIds.addAll(tagIds);
         _priority = task['priority']?.toString() ?? 'medium';
         _status = task['status']?.toString() ?? 'pending';
 
@@ -65,6 +160,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
         }
 
         _departments = departments;
+        _projects = projects;
+        _tags = tags;
         _isLoadingData = false;
       });
     } catch (e) {
@@ -115,7 +212,13 @@ class _EditTaskPageState extends State<EditTaskPage> {
           'status': _status,
           if (_selectedDepartmentId != null)
             'department_id': _selectedDepartmentId,
+          'project_id': _selectedProjectId,
         },
+      );
+
+      await TaskService.setTaskTags(
+        taskId: widget.taskId,
+        tagIds: _selectedTagIds,
       );
 
       if (mounted) {
@@ -293,6 +396,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 setState(() {
                                   _selectedDepartmentId = value;
                                 });
+                                _loadTagsForDepartment();
                               },
                             ),
                             const SizedBox(height: AppDimensions.spacingMD),
@@ -378,6 +482,87 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 setState(() => _status = value ?? 'pending');
                               },
                             ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            DropdownButtonFormField<String?>(
+                              initialValue: _selectedProjectId,
+                              decoration: const InputDecoration(
+                                labelText: 'Project (optional)',
+                                prefixIcon: Icon(Icons.folder_outlined),
+                                border: OutlineInputBorder(),
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('None'),
+                                ),
+                                ..._projects.map((p) => DropdownMenuItem<String?>(
+                                      value: p['id'].toString(),
+                                      child: Text(
+                                        p['title']?.toString() ?? '',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                              ],
+                              onChanged: (value) {
+                                setState(() => _selectedProjectId = value);
+                              },
+                            ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            const Text('Tags (optional)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12)),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _newTagController,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Type a tag and add',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    textCapitalization: TextCapitalization.none,
+                                    onSubmitted: (v) => _addTagByName(v),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton.filled(
+                                  onPressed: () =>
+                                      _addTagByName(_newTagController.text),
+                                  icon: const Icon(Icons.add),
+                                  tooltip: 'Add tag',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: _tags.map((tag) {
+                                final id = tag['id'].toString();
+                                final selected = _selectedTagIds.contains(id);
+                                final color = TagColors.colorFromHex(tag['color']?.toString());
+                                return FilterChip(
+                                  label: Text(tag['name']?.toString() ?? ''),
+                                  selected: selected,
+                                  backgroundColor: color.withValues(alpha: 0.2),
+                                  selectedColor: color.withValues(alpha: 0.4),
+                                  checkmarkColor: color,
+                                  side: BorderSide(color: color),
+                                  onSelected: (v) {
+                                    setState(() {
+                                      if (v) {
+                                        _selectedTagIds.add(id);
+                                      } else {
+                                        _selectedTagIds.remove(id);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
                           ],
                         ),
                       ],
@@ -432,6 +617,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         setState(() {
                           _selectedDepartmentId = value;
                         });
+                        _loadTagsForDepartment();
                       },
                     ),
                     const SizedBox(height: AppDimensions.spacingMD),
@@ -509,6 +695,85 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           _status = value ?? 'pending';
                         });
                       },
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _selectedProjectId,
+                      decoration: const InputDecoration(
+                        labelText: 'Project (optional)',
+                        prefixIcon: Icon(Icons.folder_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('None'),
+                        ),
+                        ..._projects.map((p) => DropdownMenuItem<String?>(
+                              value: p['id'].toString(),
+                              child: Text(
+                                p['title']?.toString() ?? '',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedProjectId = value);
+                      },
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    const Text('Tags (optional)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _newTagController,
+                            decoration: const InputDecoration(
+                              hintText: 'Type a tag and add',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            textCapitalization: TextCapitalization.none,
+                            onSubmitted: (v) => _addTagByName(v),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: () =>
+                              _addTagByName(_newTagController.text),
+                          icon: const Icon(Icons.add),
+                          tooltip: 'Add tag',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: _tags.map((tag) {
+                        final id = tag['id'].toString();
+                        final selected = _selectedTagIds.contains(id);
+                        final color = TagColors.colorFromHex(tag['color']?.toString());
+                        return FilterChip(
+                          label: Text(tag['name']?.toString() ?? ''),
+                          selected: selected,
+                          backgroundColor: color.withValues(alpha: 0.2),
+                          selectedColor: color.withValues(alpha: 0.4),
+                          checkmarkColor: color,
+                          side: BorderSide(color: color),
+                          onSelected: (v) {
+                            setState(() {
+                              if (v) {
+                                _selectedTagIds.add(id);
+                              } else {
+                                _selectedTagIds.remove(id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(

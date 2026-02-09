@@ -4,6 +4,9 @@ import '../../core/constants/app_dimensions.dart';
 import '../../services/task_service.dart';
 import '../../services/department_service.dart';
 import '../../services/member_service.dart';
+import '../../services/project_service.dart';
+import '../../services/tag_service.dart';
+import '../../core/constants/tag_colors.dart';
 
 /// Add task page
 class AddTaskPage extends StatefulWidget {
@@ -29,11 +32,68 @@ class _AddTaskPageState extends State<AddTaskPage> {
   String _status = 'pending';
   List<Map<String, dynamic>> _departments = [];
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _projects = [];
+  List<Map<String, dynamic>> _tags = [];
+  String? _selectedProjectId;
+  final List<String> _selectedTagIds = [];
   bool _assignToIndividual = false; // Default: assign to department
   bool _isLoading = false;
   bool _isLoadingDepartments = true;
   bool _isLoadingMembers = false;
+  bool _isLoadingProjects = true;
+  bool _isLoadingTags = true;
   final TextEditingController _memberSearchController = TextEditingController();
+  final TextEditingController _newTagController = TextEditingController();
+
+  /// Add tag by name: select existing or create if not found.
+  Future<void> _addTagByName(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    Map<String, dynamic>? existing;
+    for (final t in _tags) {
+      if ((t['name']?.toString().trim().toLowerCase() ?? '') == trimmed.toLowerCase()) {
+        existing = t;
+        break;
+      }
+    }
+    if (existing != null) {
+      final id = existing['id'].toString();
+      if (!_selectedTagIds.contains(id)) {
+        setState(() => _selectedTagIds.add(id));
+      }
+      _newTagController.clear();
+      return;
+    }
+    final deptId = _tagDepartmentId;
+    if (deptId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select a department to add tags')),
+        );
+      }
+      return;
+    }
+    try {
+      final created = await TagService.createTag(
+        name: trimmed,
+        departmentId: deptId,
+        color: TagColors.defaultHex,
+      );
+      if (!mounted) return;
+      final id = created['id'].toString();
+      setState(() {
+        _tags.add(created);
+        if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
+      });
+      _newTagController.clear();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add tag: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -43,6 +103,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
     }
     _loadDepartments();
     _loadMembers();
+    _loadProjects();
+    _loadTags();
   }
 
   @override
@@ -50,6 +112,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
     _titleController.dispose();
     _descriptionController.dispose();
     _memberSearchController.dispose();
+    _newTagController.dispose();
     super.dispose();
   }
 
@@ -85,6 +148,44 @@ class _AddTaskPageState extends State<AddTaskPage> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
       }
+    }
+  }
+
+  Future<void> _loadProjects() async {
+    try {
+      final projects = await ProjectService.getProjects(limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _projects = projects;
+        _isLoadingProjects = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingProjects = false);
+    }
+  }
+
+  String? get _tagDepartmentId => _selectedDepartmentId ?? widget.departmentId;
+
+  Future<void> _loadTags() async {
+    final deptId = _tagDepartmentId;
+    if (deptId == null) {
+      setState(() {
+        _tags = [];
+        _isLoadingTags = false;
+      });
+      return;
+    }
+    try {
+      final tags = await TagService.getTags(departmentId: deptId, limit: 200);
+      if (!mounted) return;
+      setState(() {
+        _tags = tags;
+        _isLoadingTags = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingTags = false);
     }
   }
 
@@ -141,8 +242,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
           'due_date': _dueDate?.toIso8601String().split('T')[0],
           'priority': _priority,
           'status': _status,
+          if (_selectedProjectId != null) 'project_id': _selectedProjectId,
         },
       );
+
+      if (_selectedTagIds.isNotEmpty) {
+        await TaskService.setTaskTags(
+          taskId: task['id'].toString(),
+          tagIds: _selectedTagIds,
+        );
+      }
 
       // If assigning to individual, also create task assignment for notification
       if (_assignToIndividual && _selectedMemberId != null) {
@@ -487,6 +596,98 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 setState(() => _status = value ?? 'pending');
                               },
                             ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            DropdownButtonFormField<String?>(
+                              initialValue: _selectedProjectId,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                labelText: _isLoadingProjects
+                                    ? 'Project (loading…)'
+                                    : 'Project (optional)',
+                                prefixIcon: const Icon(Icons.folder_outlined),
+                                border: const OutlineInputBorder(),
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('None'),
+                                ),
+                                ..._projects.map((p) => DropdownMenuItem<String?>(
+                                      value: p['id'].toString(),
+                                      child: Text(
+                                        p['title']?.toString() ?? '',
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    )),
+                              ],
+                              onChanged: (value) {
+                                setState(() => _selectedProjectId = value);
+                              },
+                            ),
+                            if (_isLoadingTags && _tags.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 8.0),
+                                child: Text('Tags (loading…)',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 12)),
+                              ),
+                            const SizedBox(height: AppDimensions.spacingMD),
+                            const Text('Tags (optional)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12)),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: _newTagController,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Type a tag and add',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    textCapitalization: TextCapitalization.none,
+                                    onSubmitted: (v) => _addTagByName(v),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton.filled(
+                                  onPressed: () =>
+                                      _addTagByName(_newTagController.text),
+                                  icon: const Icon(Icons.add),
+                                  tooltip: 'Add tag',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: _tags.map((tag) {
+                                final id = tag['id'].toString();
+                                final selected = _selectedTagIds.contains(id);
+                                final color = TagColors.colorFromHex(tag['color']?.toString());
+                                return FilterChip(
+                                  label: Text(tag['name']?.toString() ?? ''),
+                                  selected: selected,
+                                  backgroundColor: color.withValues(alpha: 0.2),
+                                  selectedColor: color.withValues(alpha: 0.4),
+                                  checkmarkColor: color,
+                                  side: BorderSide(color: color),
+                                  onSelected: (v) {
+                                    setState(() {
+                                      if (v) {
+                                        _selectedTagIds.add(id);
+                                      } else {
+                                        _selectedTagIds.remove(id);
+                                      }
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
                           ],
                         ),
                         if (widget.departmentId == null) ...[
@@ -546,6 +747,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       setState(
                                         () => _selectedDepartmentId = value,
                                       );
+                                      _loadTags();
                                     },
                                   ),
                               ] else if (_assignToIndividual) ...[
@@ -709,6 +911,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             setState(() {
                               _selectedDepartmentId = value;
                             });
+                            _loadTags();
                           },
                           validator: (value) {
                             if (!_assignToIndividual && value == null) {
@@ -826,6 +1029,95 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           _status = value ?? 'pending';
                         });
                       },
+                    ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _selectedProjectId,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: _isLoadingProjects
+                            ? 'Project (loading…)'
+                            : 'Project (optional)',
+                        prefixIcon: const Icon(Icons.folder_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('None'),
+                        ),
+                        ..._projects.map((p) => DropdownMenuItem<String?>(
+                              value: p['id'].toString(),
+                              child: Text(
+                                p['title']?.toString() ?? '',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )),
+                      ],
+                      onChanged: (value) {
+                        setState(() => _selectedProjectId = value);
+                      },
+                    ),
+                    if (_isLoadingTags && _tags.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text('Tags (loading…)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w500, fontSize: 12)),
+                      ),
+                    const SizedBox(height: AppDimensions.spacingMD),
+                    const Text('Tags (optional)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500, fontSize: 12)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _newTagController,
+                            decoration: const InputDecoration(
+                              hintText: 'Type a tag and add',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            textCapitalization: TextCapitalization.none,
+                            onSubmitted: (v) => _addTagByName(v),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: () =>
+                              _addTagByName(_newTagController.text),
+                          icon: const Icon(Icons.add),
+                          tooltip: 'Add tag',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: _tags.map((tag) {
+                        final id = tag['id'].toString();
+                        final selected = _selectedTagIds.contains(id);
+                        final color = TagColors.colorFromHex(tag['color']?.toString());
+                        return FilterChip(
+                          label: Text(tag['name']?.toString() ?? ''),
+                          selected: selected,
+                          backgroundColor: color.withValues(alpha: 0.2),
+                          selectedColor: color.withValues(alpha: 0.4),
+                          checkmarkColor: color,
+                          side: BorderSide(color: color),
+                          onSelected: (v) {
+                            setState(() {
+                              if (v) {
+                                _selectedTagIds.add(id);
+                              } else {
+                                _selectedTagIds.remove(id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(

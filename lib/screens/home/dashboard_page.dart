@@ -454,18 +454,22 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               )
                             else
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(
-                                    theme.colorScheme.surfaceContainerHighest,
-                                  ),
-                                  columns: const [
-                                    DataColumn(label: Text('Event')),
-                                    DataColumn(label: Text('Date')),
-                                    DataColumn(label: Text('Action')),
-                                  ],
-                                  rows: _upcomingEventsList.map((event) {
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                      child: DataTable(
+                                        headingRowColor: WidgetStateProperty.all(
+                                          theme.colorScheme.surfaceContainerHighest,
+                                        ),
+                                        columns: const [
+                                          DataColumn(label: Text('Event')),
+                                          DataColumn(label: Text('Date')),
+                                          DataColumn(label: Text('Action')),
+                                        ],
+                                        rows: _upcomingEventsList.map((event) {
                                     final id = event['id']?.toString() ?? '';
                                     final name =
                                         event['title']?.toString() ?? 'Unnamed';
@@ -508,7 +512,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ],
                                     );
                                   }).toList(),
-                                ),
+                                        ),
+                                      ),
+                                  );
+                                },
                               ),
                           ],
                         ),
@@ -576,19 +583,23 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               )
                             else
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(
-                                    theme.colorScheme.surfaceContainerHighest,
-                                  ),
-                                  columns: const [
-                                    DataColumn(label: Text('Title')),
-                                    DataColumn(label: Text('Date')),
-                                    DataColumn(label: Text('Speaker')),
-                                    DataColumn(label: Text('Action')),
-                                  ],
-                                  rows: _recentTeachingsList.map((teaching) {
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                      child: DataTable(
+                                        headingRowColor: WidgetStateProperty.all(
+                                          theme.colorScheme.surfaceContainerHighest,
+                                        ),
+                                        columns: const [
+                                          DataColumn(label: Text('Title')),
+                                          DataColumn(label: Text('Date')),
+                                          DataColumn(label: Text('Speaker')),
+                                          DataColumn(label: Text('Action')),
+                                        ],
+                                        rows: _recentTeachingsList.map((teaching) {
                                     final id = teaching['id']?.toString() ?? '';
                                     final title =
                                         teaching['title']?.toString() ??
@@ -644,7 +655,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ],
                                     );
                                   }).toList(),
-                                ),
+                                        ),
+                                      ),
+                                  );
+                                },
                               ),
                           ],
                         ),
@@ -718,18 +732,22 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               )
                             else
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(
-                                    theme.colorScheme.surfaceContainerHighest,
-                                  ),
-                                  columns: const [
-                                    DataColumn(label: Text('Name')),
-                                    DataColumn(label: Text('Birthday')),
-                                    DataColumn(label: Text('Action')),
-                                  ],
-                                  rows: _upcomingBirthdaysList.map((member) {
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                      child: DataTable(
+                                        headingRowColor: WidgetStateProperty.all(
+                                          theme.colorScheme.surfaceContainerHighest,
+                                        ),
+                                        columns: const [
+                                          DataColumn(label: Text('Name')),
+                                          DataColumn(label: Text('Birthday')),
+                                          DataColumn(label: Text('Action')),
+                                        ],
+                                        rows: _upcomingBirthdaysList.map((member) {
                                     final memberId =
                                         member['id']?.toString() ?? '';
                                     final name =
@@ -780,7 +798,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ],
                                     );
                                   }).toList(),
-                                ),
+                                        ),
+                                      ),
+                                  );
+                                },
                               ),
                           ],
                         ),
@@ -846,18 +867,22 @@ class _DashboardPageState extends State<DashboardPage> {
                                 ),
                               )
                             else
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: DataTable(
-                                  headingRowColor: WidgetStateProperty.all(
-                                    theme.colorScheme.surfaceContainerHighest,
-                                  ),
-                                  columns: const [
-                                    DataColumn(label: Text('Name')),
-                                    DataColumn(label: Text('Phone')),
-                                    DataColumn(label: Text('Action')),
-                                  ],
-                                  rows: _newcomersList.map((member) {
+                              LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                      child: DataTable(
+                                        headingRowColor: WidgetStateProperty.all(
+                                          theme.colorScheme.surfaceContainerHighest,
+                                        ),
+                                        columns: const [
+                                          DataColumn(label: Text('Name')),
+                                          DataColumn(label: Text('Phone')),
+                                          DataColumn(label: Text('Action')),
+                                        ],
+                                        rows: _newcomersList.map((member) {
                                     final id = member['id']?.toString() ?? '';
                                     final firstName =
                                         member['first_name']?.toString() ?? '';
@@ -902,7 +927,10 @@ class _DashboardPageState extends State<DashboardPage> {
                                       ],
                                     );
                                   }).toList(),
-                                ),
+                                        ),
+                                      ),
+                                  );
+                                },
                               ),
                           ],
                         ),
@@ -1209,7 +1237,7 @@ class _QuickActionCard extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(

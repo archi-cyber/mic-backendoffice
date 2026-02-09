@@ -101,7 +101,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
       }
     } catch (e) {
       if (mounted) {
-        print('Error creating announcement: $e');
+        debugPrint('Error creating announcement: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error creating announcement: $e'),

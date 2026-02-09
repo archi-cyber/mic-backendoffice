@@ -459,14 +459,18 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                         onRefresh: _loadTeachings,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest,
-                              ),
-                              columns: const [
-                                DataColumn(label: Text('Title')),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme.surfaceContainerHighest,
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Title')),
                                 DataColumn(label: Text('Date')),
                                 DataColumn(label: Text('Speaker')),
                                 DataColumn(label: Text('Actions')),
@@ -565,7 +569,10 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                                   ],
                                 );
                               }).toList(),
-                            ),
+                                    ),
+                                  ),
+                              );
+                            },
                           ),
                         ),
                       ),

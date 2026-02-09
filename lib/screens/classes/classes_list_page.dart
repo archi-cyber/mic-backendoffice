@@ -236,14 +236,18 @@ class _ClassesListPageState extends State<ClassesListPage> {
                         onRefresh: _loadClasses,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest,
-                              ),
-                              columns: const [
-                                DataColumn(label: Text('Name')),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme.surfaceContainerHighest,
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Name')),
                                 DataColumn(label: Text('Description')),
                                 DataColumn(label: Text('Status')),
                                 DataColumn(label: Text('Actions')),
@@ -321,7 +325,10 @@ class _ClassesListPageState extends State<ClassesListPage> {
                                   ],
                                 );
                               }).toList(),
-                            ),
+                                    ),
+                                  ),
+                                );
+                            },
                           ),
                         ),
                       ),
@@ -461,7 +468,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                 ),
                 child: Icon(Icons.class_, color: AppColors.primary, size: 32),
@@ -490,7 +497,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withOpacity(0.1),
+                              color: AppColors.error.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(

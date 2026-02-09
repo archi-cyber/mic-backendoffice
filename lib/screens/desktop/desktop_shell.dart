@@ -32,6 +32,10 @@ import '../../screens/settings/member_accounts_page.dart';
 import '../../screens/tasks/task_detail_page.dart';
 import '../../screens/tasks/add_task_page.dart';
 import '../../screens/tasks/edit_task_page.dart';
+import '../../screens/tasks/add_project_page.dart';
+import '../../screens/tasks/manage_projects_page.dart';
+import '../../screens/tasks/manage_tags_page.dart';
+import '../../screens/tasks/tasks_list_page.dart';
 import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
@@ -180,11 +184,16 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.taskDetail) return 'Task';
     if (entry.route == RouteNames.addTask) return 'Add Task';
     if (entry.route == RouteNames.editTask) return 'Edit Task';
+    if (entry.route == RouteNames.addProject) return 'Add Project';
+    if (entry.route == RouteNames.tasks && (entry.id ?? '').isNotEmpty) {
+      return 'Manage Tasks';
+    }
     if (entry.route == RouteNames.addClass) return 'Add Training';
     if (entry.route == RouteNames.editClass) return 'Edit Training';
     if (entry.route == RouteNames.churchAttendance) return 'Church Attendance';
-    if (entry.route == RouteNames.sundaySchoolAttendance)
+    if (entry.route == RouteNames.sundaySchoolAttendance) {
       return 'Sunday School';
+    }
     if (entry.route == RouteNames.addVisitor) return 'Add Visitor';
     if (entry.route == RouteNames.editVisitor) return 'Edit Visitor';
     if (entry.route == RouteNames.addGiving) return 'Add Giving Record';
@@ -192,6 +201,8 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.memberReport) return 'Member Report';
     if (entry.route == RouteNames.classReport) return 'Training Report';
     if (entry.route == RouteNames.takeAttendance) return 'Take Attendance';
+    if (entry.route == RouteNames.manageProjects) return 'Manage Projects';
+    if (entry.route == RouteNames.manageTags) return 'Manage Tags';
     return 'Details';
   }
 
@@ -282,7 +293,16 @@ class _DesktopShellState extends State<DesktopShell> {
       return TaskDetailPage(taskId: id, onClose: onClose);
     }
     if (entry.route == RouteNames.addTask) {
-      return AddTaskPage(onClose: (_) => onClose());
+      return AddTaskPage(
+        departmentId: id.isEmpty ? null : id,
+        onClose: (_) => onClose(),
+      );
+    }
+    if (entry.route == RouteNames.addProject) {
+      return AddProjectPage(
+        departmentId: id.isEmpty ? null : id,
+        onClose: (_) => onClose(),
+      );
     }
     if (entry.route == RouteNames.editTask && id.isNotEmpty) {
       return EditTaskPage(taskId: id, onClose: (_) => onClose());
@@ -330,6 +350,24 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.takeAttendance && id.isNotEmpty) {
       return AttendancePage(sessionId: id, members: null, onClose: onClose);
+    }
+    if (entry.route == RouteNames.manageProjects) {
+      return ManageProjectsPage(
+        departmentId: id.isEmpty ? null : id,
+        onClose: (_) => onClose(),
+      );
+    }
+    if (entry.route == RouteNames.manageTags) {
+      return ManageTagsPage(
+        departmentId: id.isEmpty ? null : id,
+        onClose: (_) => onClose(),
+      );
+    }
+    if (entry.route == RouteNames.tasks && id.isNotEmpty) {
+      return TasksListPage(
+        departmentId: id,
+        hideAppBarAndBottomNav: true,
+      );
     }
     return const SizedBox.shrink();
   }

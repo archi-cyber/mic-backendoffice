@@ -196,7 +196,7 @@ class _SundaySchoolAttendanceListPageState
                 horizontal: AppDimensions.spacingMD,
                 vertical: AppDimensions.spacingSM,
               ),
-              color: AppColors.primary.withOpacity(0.1),
+              color: AppColors.primary.withValues(alpha: 0.1),
               child: Row(
                 children: [
                   Expanded(

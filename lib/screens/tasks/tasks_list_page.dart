@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/constants/tag_colors.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/task_service.dart';
@@ -31,6 +32,9 @@ class _TasksListPageState extends State<TasksListPage> {
   bool _isLoading = true;
   String? _selectedStatus;
   String? _selectedPriority;
+  String? _selectedMemberId;
+  String? _selectedProjectId;
+  String? _selectedTagId;
   bool _canCreate = false;
   int _tasksPage = 0;
 
@@ -116,7 +120,122 @@ class _TasksListPageState extends State<TasksListPage> {
           .toList();
     }
 
+    if (_selectedMemberId != null) {
+      filtered = filtered.where((task) {
+        final assignments = task['task_assignments'];
+        if (assignments is! List || assignments.isEmpty) return false;
+        return assignments.any((a) =>
+            a is Map && a['member_id']?.toString() == _selectedMemberId);
+      }).toList();
+    }
+
+    if (_selectedProjectId != null) {
+      filtered = filtered
+          .where((task) =>
+              task['project_id']?.toString() == _selectedProjectId ||
+              (task['projects'] is Map &&
+                  (task['projects'] as Map)['id']?.toString() ==
+                      _selectedProjectId))
+          .toList();
+    }
+
+    if (_selectedTagId != null) {
+      filtered = filtered.where((task) {
+        final taskTags = task['task_tags'];
+        if (taskTags is! List || taskTags.isEmpty) return false;
+        return taskTags.any((tt) =>
+            tt is Map && tt['tags'] is Map && (tt['tags'] as Map)['id']?.toString() == _selectedTagId);
+      }).toList();
+    }
+
     return filtered;
+  }
+
+  /// Unique members assigned across tasks (for filter dropdown)
+  List<Map<String, dynamic>> get _filterMemberOptions {
+    final seen = <String>{};
+    final list = <Map<String, dynamic>>[];
+    for (final task in _tasks) {
+      final assignments = task['task_assignments'];
+      if (assignments is! List) continue;
+      for (final a in assignments) {
+        if (a is! Map) continue;
+        final members = a['members'];
+        if (members is! Map) continue;
+        final id = members['id']?.toString();
+        if (id == null || seen.contains(id)) continue;
+        seen.add(id);
+        list.add(Map<String, dynamic>.from(members));
+      }
+    }
+    list.sort((a, b) {
+      final na = '${a['first_name']} ${a['last_name']}'.toLowerCase();
+      final nb = '${b['first_name']} ${b['last_name']}'.toLowerCase();
+      return na.compareTo(nb);
+    });
+    return list;
+  }
+
+  /// Unique projects across tasks (for filter dropdown)
+  List<Map<String, dynamic>> get _filterProjectOptions {
+    final seen = <String>{};
+    final list = <Map<String, dynamic>>[];
+    for (final task in _tasks) {
+      final proj = task['projects'];
+      if (proj is! Map) continue;
+      final id = proj['id']?.toString();
+      if (id == null || seen.contains(id)) continue;
+      seen.add(id);
+      list.add(Map<String, dynamic>.from(proj));
+    }
+    list.sort((a, b) =>
+        (a['title']?.toString() ?? '').toLowerCase().compareTo(
+            (b['title']?.toString() ?? '').toLowerCase()));
+    return list;
+  }
+
+  /// Unique tags across tasks (for filter dropdown)
+  List<Map<String, dynamic>> get _filterTagOptions {
+    final seen = <String>{};
+    final list = <Map<String, dynamic>>[];
+    for (final task in _tasks) {
+      final taskTags = task['task_tags'];
+      if (taskTags is! List) continue;
+      for (final tt in taskTags) {
+        if (tt is! Map) continue;
+        final tag = tt['tags'];
+        if (tag is! Map) continue;
+        final id = tag['id']?.toString();
+        if (id == null || seen.contains(id)) continue;
+        seen.add(id);
+        list.add(Map<String, dynamic>.from(tag));
+      }
+    }
+    list.sort((a, b) =>
+        (a['name']?.toString() ?? '').toLowerCase().compareTo(
+            (b['name']?.toString() ?? '').toLowerCase()));
+    return list;
+  }
+
+  String _getAssignedMemberDisplay(Map<String, dynamic> task) {
+    final assignments = task['task_assignments'];
+    if (assignments is! List || assignments.isEmpty) return '—';
+    final names = <String>[];
+    for (final a in assignments) {
+      if (a is! Map) continue;
+      final m = a['members'];
+      if (m is Map) {
+        final n = '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'.trim();
+        if (n.isNotEmpty) names.add(n);
+      }
+    }
+    return names.isEmpty ? '—' : names.join(', ');
+  }
+
+  String _getProjectTitle(Map<String, dynamic> task) {
+    final proj = task['projects'];
+    if (proj is Map) return proj['title']?.toString() ?? '—';
+    return '—';
   }
 
   int get _totalTasksPages {
@@ -168,58 +287,122 @@ class _TasksListPageState extends State<TasksListPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Filter Tasks'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: _selectedStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Status',
-                  prefixIcon: Icon(Icons.check_circle),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String?>(
+                  value: _selectedStatus,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    prefixIcon: Icon(Icons.check_circle),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('All Statuses')),
+                    DropdownMenuItem(value: 'pending', child: Text('Pending')),
+                    DropdownMenuItem(
+                      value: 'in_progress',
+                      child: Text('In Progress'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'completed',
+                      child: Text('Completed'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'cancelled',
+                      child: Text('Cancelled'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => _selectedStatus = value);
+                  },
                 ),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('All Statuses')),
-                  DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                  DropdownMenuItem(
-                    value: 'in_progress',
-                    child: Text('In Progress'),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String?>(
+                  value: _selectedPriority,
+                  decoration: const InputDecoration(
+                    labelText: 'Priority',
+                    prefixIcon: Icon(Icons.flag),
                   ),
-                  DropdownMenuItem(
-                    value: 'completed',
-                    child: Text('Completed'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'cancelled',
-                    child: Text('Cancelled'),
-                  ),
-                ],
-                onChanged: (value) {
-                  setDialogState(() {
-                    _selectedStatus = value;
-                  });
-                },
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedPriority,
-                decoration: const InputDecoration(
-                  labelText: 'Priority',
-                  prefixIcon: Icon(Icons.flag),
+                  items: const [
+                    DropdownMenuItem(value: null, child: Text('All Priorities')),
+                    DropdownMenuItem(value: 'low', child: Text('Low')),
+                    DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                    DropdownMenuItem(value: 'high', child: Text('High')),
+                    DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => _selectedPriority = value);
+                  },
                 ),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('All Priorities')),
-                  DropdownMenuItem(value: 'low', child: Text('Low')),
-                  DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                  DropdownMenuItem(value: 'high', child: Text('High')),
-                  DropdownMenuItem(value: 'urgent', child: Text('Urgent')),
-                ],
-                onChanged: (value) {
-                  setDialogState(() {
-                    _selectedPriority = value;
-                  });
-                },
-              ),
-            ],
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String?>(
+                  value: _selectedMemberId,
+                  decoration: const InputDecoration(
+                    labelText: 'Assigned member',
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All members')),
+                    ..._filterMemberOptions.map((m) {
+                      final id = m['id']?.toString();
+                      final name = '${m['first_name']} ${m['last_name']}'.trim();
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text(name.isEmpty ? '—' : name),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => _selectedMemberId = value);
+                  },
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String?>(
+                  value: _selectedProjectId,
+                  decoration: const InputDecoration(
+                    labelText: 'Project',
+                    prefixIcon: Icon(Icons.folder_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All projects')),
+                    ..._filterProjectOptions.map((p) {
+                      final id = p['id']?.toString();
+                      final title = p['title']?.toString() ?? '—';
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text(title),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => _selectedProjectId = value);
+                  },
+                ),
+                const SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String?>(
+                  value: _selectedTagId,
+                  decoration: const InputDecoration(
+                    labelText: 'Tag',
+                    prefixIcon: Icon(Icons.label_outlined),
+                  ),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All tags')),
+                    ..._filterTagOptions.map((t) {
+                      final id = t['id']?.toString();
+                      final name = t['name']?.toString() ?? '—';
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text(name),
+                      );
+                    }),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() => _selectedTagId = value);
+                  },
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -227,6 +410,9 @@ class _TasksListPageState extends State<TasksListPage> {
                 setDialogState(() {
                   _selectedStatus = null;
                   _selectedPriority = null;
+                  _selectedMemberId = null;
+                  _selectedProjectId = null;
+                  _selectedTagId = null;
                 });
               },
               child: const Text('Clear Filters'),
@@ -293,6 +479,56 @@ class _TasksListPageState extends State<TasksListPage> {
                   onPressed: _loadTasks,
                   tooltip: 'Refresh',
                 ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'More',
+                  onSelected: (value) async {
+                    if (value == 'manage_projects') {
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (scope != null) {
+                        scope.pushDetail(
+                            RouteNames.manageProjects,
+                            widget.departmentId ?? '');
+                      } else {
+                        await Navigator.of(context).pushNamed(
+                          RouteNames.manageProjects,
+                        );
+                        _loadTasks();
+                      }
+                    } else if (value == 'manage_tags') {
+                      final scope = DesktopShellScope.maybeOf(context);
+                      if (scope != null) {
+                        scope.pushDetail(RouteNames.manageTags,
+                            widget.departmentId ?? '');
+                      } else {
+                        await Navigator.of(context).pushNamed(
+                          RouteNames.manageTags,
+                        );
+                        _loadTasks();
+                      }
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem<String>(
+                      value: 'manage_projects',
+                      child: ListTile(
+                        leading: Icon(Icons.folder_outlined),
+                        title: Text('Manage projects'),
+                        contentPadding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const PopupMenuItem<String>(
+                      value: 'manage_tags',
+                      child: ListTile(
+                        leading: Icon(Icons.label_outlined),
+                        title: Text('Manage tags'),
+                        contentPadding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
       body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
@@ -307,7 +543,8 @@ class _TasksListPageState extends State<TasksListPage> {
                   onPressed: () async {
                     final scope = DesktopShellScope.maybeOf(context);
                     if (scope != null) {
-                      scope.pushDetail(RouteNames.addTask, '');
+                      scope.pushDetail(
+                          RouteNames.addTask, widget.departmentId ?? '');
                     } else {
                       final result = await Navigator.of(context).pushNamed(
                         RouteNames.addTask,
@@ -371,7 +608,8 @@ class _TasksListPageState extends State<TasksListPage> {
                       onPressed: () {
                         final scope = DesktopShellScope.maybeOf(context);
                         if (scope != null) {
-                          scope.pushDetail(RouteNames.addTask, '');
+                          scope.pushDetail(
+                              RouteNames.addTask, widget.departmentId ?? '');
                         } else {
                           Navigator.of(context)
                               .pushNamed(
@@ -406,7 +644,10 @@ class _TasksListPageState extends State<TasksListPage> {
                             Text(
                               _searchController.text.isNotEmpty ||
                                       _selectedStatus != null ||
-                                      _selectedPriority != null
+                                      _selectedPriority != null ||
+                                      _selectedMemberId != null ||
+                                      _selectedProjectId != null ||
+                                      _selectedTagId != null
                                   ? 'No tasks found'
                                   : 'No tasks yet',
                               style: theme.textTheme.titleMedium,
@@ -418,122 +659,178 @@ class _TasksListPageState extends State<TasksListPage> {
                         onRefresh: _loadTasks,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest,
-                              ),
-                              columns: const [
-                                DataColumn(label: Text('Title')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Priority')),
-                                DataColumn(label: Text('Due Date')),
-                                DataColumn(label: Text('Department')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _paginatedTasks.map((task) {
-                                final id = task['id']?.toString() ?? '';
-                                final title =
-                                    task['title']?.toString() ?? 'Task';
-                                final status =
-                                    task['status']?.toString() ?? '—';
-                                final priority =
-                                    task['priority']?.toString() ?? '—';
-                                final dueStr = task['due_date'];
-                                final dueFormatted = dueStr != null
-                                    ? _formatDate(DateTime.parse(dueStr))
-                                    : '—';
-                                final deptName =
-                                    _getDepartmentName(task) ?? '—';
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      InkWell(
-                                        onTap: () => _openTaskDetail(id),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                          child: Text(
-                                            title,
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
-                                      ),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final w = constraints.maxWidth;
+                              final showDueDate = w >= 200;
+                              final showProject = w >= 320;
+                              final showAssigned = w >= 460;
+                              final showStatus = w >= 560;
+                              final showPriority = w >= 660;
+
+                              final columns = <DataColumn>[
+                                const DataColumn(label: Text('Title')),
+                                if (showDueDate)
+                                  const DataColumn(label: Text('Due Date')),
+                                if (showProject)
+                                  const DataColumn(label: Text('Project')),
+                                if (showAssigned)
+                                  const DataColumn(label: Text('Assigned')),
+                                if (showStatus)
+                                  const DataColumn(label: Text('Status')),
+                                if (showPriority)
+                                  const DataColumn(label: Text('Priority')),
+                                const DataColumn(label: Text('Actions')),
+                              ];
+
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                      minWidth: constraints.maxWidth),
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme
+                                          .surfaceContainerHighest,
                                     ),
-                                    DataCell(
-                                      Text(
-                                        status.replaceAll('_', ' '),
-                                        style: TextStyle(
-                                          color: _getStatusColor(status),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        priority,
-                                        style: TextStyle(
-                                          color: _getPriorityColor(priority),
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                    DataCell(Text(dueFormatted)),
-                                    DataCell(
-                                      Text(
-                                        deptName,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
+                                    columns: columns,
+                                    rows: _paginatedTasks.map((task) {
+                                      final id =
+                                          task['id']?.toString() ?? '';
+                                      final title = task['title']
+                                              ?.toString() ??
+                                          'Task';
+                                      final status = task['status']
+                                              ?.toString() ??
+                                          '—';
+                                      final priority = task['priority']
+                                              ?.toString() ??
+                                          '—';
+                                      final dueStr = task['due_date'];
+                                      final dueFormatted = dueStr != null
+                                          ? _formatDate(
+                                              DateTime.parse(dueStr))
+                                          : '—';
+                                      final projectTitle =
+                                          _getProjectTitle(task);
+                                      final assignedDisplay =
+                                          _getAssignedMemberDisplay(task);
+
+                                      final cells = <DataCell>[
+                                        DataCell(
+                                          InkWell(
+                                            onTap: () =>
                                                 _openTaskDetail(id),
-                                            child: const Text('View'),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 8),
+                                              child: Text(
+                                                title,
+                                                overflow:
+                                                    TextOverflow.ellipsis,
+                                                maxLines: 1,
+                                              ),
+                                            ),
                                           ),
-                                          const SizedBox(width: 4),
-                                          TextButton(
-                                            onPressed: () {
-                                              final scope =
-                                                  DesktopShellScope.maybeOf(
-                                                    context,
-                                                  );
-                                              if (scope != null) {
-                                                scope.pushDetail(
-                                                  RouteNames.editTask,
-                                                  id,
-                                                );
-                                              } else {
-                                                Navigator.of(context)
-                                                    .pushNamed(
-                                                      RouteNames.editTask
-                                                          .replaceAll(
-                                                            ':id',
-                                                            id,
-                                                          ),
-                                                    )
-                                                    .then((result) {
-                                                      if (result == true)
-                                                        _loadTasks();
-                                                    });
-                                              }
-                                            },
-                                            child: const Text('Edit'),
+                                        ),
+                                        if (showDueDate)
+                                          DataCell(Text(dueFormatted)),
+                                        if (showProject)
+                                          DataCell(
+                                            Text(
+                                              projectTitle,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                            ),
+                                        if (showAssigned)
+                                          DataCell(
+                                            Text(
+                                              assignedDisplay,
+                                              overflow:
+                                                  TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                        if (showStatus)
+                                          DataCell(
+                                            Text(
+                                              status.replaceAll('_', ' '),
+                                              style: TextStyle(
+                                                color: _getStatusColor(
+                                                    status),
+                                                fontWeight:
+                                                    FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        if (showPriority)
+                                          DataCell(
+                                            Text(
+                                              priority,
+                                              style: TextStyle(
+                                                color: _getPriorityColor(
+                                                    priority),
+                                                fontWeight:
+                                                    FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                        DataCell(
+                                          Row(
+                                            mainAxisSize:
+                                                MainAxisSize.min,
+                                            children: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    _openTaskDetail(id),
+                                                child: const Text('View'),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              TextButton(
+                                                onPressed: () {
+                                                  final scope =
+                                                      DesktopShellScope
+                                                          .maybeOf(
+                                                              context);
+                                                  if (scope != null) {
+                                                    scope.pushDetail(
+                                                        RouteNames
+                                                            .editTask,
+                                                        id);
+                                                  } else {
+                                                    Navigator.of(
+                                                            context)
+                                                        .pushNamed(
+                                                          RouteNames
+                                                              .editTask
+                                                              .replaceAll(
+                                                                ':id',
+                                                                id,
+                                                              ),
+                                                        )
+                                                        .then((result) {
+                                                          if (result ==
+                                                              true) {
+                                                            _loadTasks();
+                                                          }
+                                                        });
+                                                  }
+                                                },
+                                                child: const Text('Edit'),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ];
+                                      return DataRow(cells: cells);
+                                    }).toList(),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -623,7 +920,10 @@ class _TasksListPageState extends State<TasksListPage> {
                       Text(
                         _searchController.text.isNotEmpty ||
                                 _selectedStatus != null ||
-                                _selectedPriority != null
+                                _selectedPriority != null ||
+                                _selectedMemberId != null ||
+                                _selectedProjectId != null ||
+                                _selectedTagId != null
                             ? 'No tasks found'
                             : 'No tasks yet',
                         style: Theme.of(context).textTheme.titleMedium,
@@ -656,6 +956,8 @@ class _TasksListPageState extends State<TasksListPage> {
         : null;
     final taskId = task['id'].toString();
     final departmentName = _getDepartmentName(task);
+    final projectTitle = _getProjectTitle(task);
+    final assignedDisplay = _getAssignedMemberDisplay(task);
 
     return Card(
       margin: const EdgeInsets.symmetric(
@@ -703,10 +1005,10 @@ class _TasksListPageState extends State<TasksListPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getPriorityColor(priority).withOpacity(0.1),
+                      color: _getPriorityColor(priority).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: _getPriorityColor(priority).withOpacity(0.3),
+                        color: _getPriorityColor(priority).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Text(
@@ -720,6 +1022,42 @@ class _TasksListPageState extends State<TasksListPage> {
                   ),
                 ],
               ),
+              if (dueDate != null || projectTitle != '—' || assignedDisplay != '—') ...[
+                const SizedBox(height: AppDimensions.spacingXS),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (dueDate != null)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calendar_today, size: 14, color: Theme.of(context).colorScheme.outline),
+                          const SizedBox(width: 4),
+                          Text(_formatDate(dueDate), style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
+                    if (projectTitle != '—')
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.folder_outlined, size: 14, color: Theme.of(context).colorScheme.outline),
+                          const SizedBox(width: 4),
+                          Text(projectTitle, style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    if (assignedDisplay != '—')
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.person_outline, size: 14, color: Theme.of(context).colorScheme.outline),
+                          const SizedBox(width: 4),
+                          Text(assignedDisplay, style: Theme.of(context).textTheme.bodySmall, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
               if (description != null && description.isNotEmpty) ...[
                 const SizedBox(height: AppDimensions.spacingXS),
                 Text(
@@ -740,7 +1078,7 @@ class _TasksListPageState extends State<TasksListPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: _getStatusColor(status).withOpacity(0.1),
+                      color: _getStatusColor(status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -760,7 +1098,7 @@ class _TasksListPageState extends State<TasksListPage> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -811,6 +1149,60 @@ class _TasksListPageState extends State<TasksListPage> {
                   ],
                 ],
               ),
+              if (task['projects'] is Map ||
+                  (task['task_tags'] != null &&
+                      (task['task_tags'] as List).isNotEmpty)) ...[
+                const SizedBox(height: AppDimensions.spacingXS),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (task['projects'] is Map) ...[
+                      Icon(
+                        Icons.folder_outlined,
+                        size: 12,
+                        color: Theme.of(context).hintColor,
+                      ),
+                      Text(
+                        (task['projects'] as Map)['title']?.toString() ?? '',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).hintColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    if (task['task_tags'] != null &&
+                        (task['task_tags'] as List).isNotEmpty)
+                      ...(task['task_tags'] as List).map((e) {
+                        final tag = e is Map ? e['tags'] : null;
+                        final name =
+                            tag is Map ? tag['name']?.toString() : null;
+                        if (name == null) return const SizedBox.shrink();
+                        final color = TagColors.colorFromHex(
+                            tag is Map ? tag['color']?.toString() : null);
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.2),
+                            border: Border.all(color: color),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            name,
+                            style: TextStyle(fontSize: 10, color: color),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

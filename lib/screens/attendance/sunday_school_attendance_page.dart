@@ -362,7 +362,7 @@ class _SundaySchoolAttendancePageState
                                 (_isViewMode || widget.sessionDate != null)
                                 ? Theme.of(
                                     context,
-                                  ).disabledColor.withOpacity(0.1)
+                                  ).disabledColor.withValues(alpha: 0.1)
                                 : null,
                           ),
                           child: Text(
@@ -494,7 +494,7 @@ class _SundaySchoolAttendancePageState
           margin: const EdgeInsets.all(AppDimensions.spacingMD),
           padding: const EdgeInsets.all(AppDimensions.spacingMD),
           decoration: BoxDecoration(
-            color: AppColors.accent.withOpacity(0.1),
+            color: AppColors.accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
           ),
           child: Row(
@@ -508,7 +508,7 @@ class _SundaySchoolAttendancePageState
               Container(
                 width: 1,
                 height: 40,
-                color: AppColors.textSecondary.withOpacity(0.3),
+                color: AppColors.textSecondary.withValues(alpha: 0.3),
               ),
               _buildStatItem(
                 'Active Children',

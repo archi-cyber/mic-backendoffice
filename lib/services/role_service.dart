@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 
@@ -161,10 +162,10 @@ class RoleService {
         }
       } catch (e) {
         // Ignore metadata update errors
-        print('Warning: Could not update auth metadata: $e');
+        debugPrint('Warning: Could not update auth metadata: $e');
       }
     } catch (e) {
-      print('Warning: Could not ensure super admin privileges: $e');
+      debugPrint('Warning: Could not ensure super admin privileges: $e');
     }
   }
 

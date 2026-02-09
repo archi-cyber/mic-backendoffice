@@ -4,10 +4,12 @@ import 'supabase_service.dart';
 class TaskService {
   static final _client = SupabaseService.client;
 
+  /// Task select with project, tags and assignments (for getTaskById, getAllTasks, getDepartmentTasks)
+  static const String _taskSelectWithProjectAndTags =
+      '*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email), projects(id, title), task_tags(tag_id, tags(id, name)), task_assignments(member_id, members(id, first_name, last_name, email))';
+
   /// Create task for a department or individual
-  /// POST /departments/:deptId/tasks
-  /// If departmentId is null and memberId is provided, task is created for individual assignment
-  /// If departmentId is provided, task is created for department
+  /// taskData may include project_id (optional) and other fields.
   static Future<Map<String, dynamic>> createTask({
     String? departmentId,
     String? memberId,
@@ -29,6 +31,45 @@ class TaskService {
       return response;
     } catch (e) {
       throw Exception('Failed to create task: $e');
+    }
+  }
+
+  /// Get tags for a task (from task_tags + tags)
+  static Future<List<Map<String, dynamic>>> getTaskTags(String taskId) async {
+    try {
+      final response = await _client
+          .from('task_tags')
+          .select('tag_id, tags(id, name)')
+          .eq('task_id', taskId);
+      final list = List<Map<String, dynamic>>.from(response);
+      return list
+          .map((e) => e['tags'] as Map<String, dynamic>?)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get task tags: $e');
+    }
+  }
+
+  /// Replace all tags for a task (removes existing, inserts new)
+  static Future<void> setTaskTags({
+    required String taskId,
+    required List<String> tagIds,
+  }) async {
+    try {
+      await _client.from('task_tags').delete().eq('task_id', taskId);
+      if (tagIds.isEmpty) return;
+      await _client.from('task_tags').insert(
+            tagIds
+                .map((tagId) => {
+                      'task_id': taskId,
+                      'tag_id': tagId,
+                      'created_at': DateTime.now().toIso8601String(),
+                    })
+                .toList(),
+          );
+    } catch (e) {
+      throw Exception('Failed to set task tags: $e');
     }
   }
 
@@ -151,7 +192,7 @@ class TaskService {
     try {
       var filterQuery = _client
           .from('tasks')
-          .select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)')
+          .select(_taskSelectWithProjectAndTags)
           .eq('department_id', departmentId);
 
       // Order by created date (returns PostgrestTransformBuilder)
@@ -184,7 +225,7 @@ class TaskService {
     try {
       final response = await _client
           .from('tasks')
-          .select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)')
+          .select(_taskSelectWithProjectAndTags)
           .eq('id', taskId)
           .single();
 
@@ -249,7 +290,7 @@ class TaskService {
     int? offset,
   }) async {
     try {
-      var filterQuery = _client.from('tasks').select('*, departments(id, name), members!tasks_member_id_fkey(id, first_name, last_name, email)');
+      var filterQuery = _client.from('tasks').select(_taskSelectWithProjectAndTags);
 
       // Apply filters
       if (departmentId != null) {

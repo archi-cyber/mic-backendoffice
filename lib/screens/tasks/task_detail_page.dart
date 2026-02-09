@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/constants/tag_colors.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/task_service.dart';
 import '../../services/member_service.dart';
@@ -257,137 +258,63 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   static const double _kTaskDetailDesktopBreakpoint = 700;
   static const double _kTaskDetailDesktopMaxWidth = 900;
 
+  Widget _detailLabel(BuildContext context, String text) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+    );
+  }
+
   Widget _buildBody(BuildContext context) {
     final isDesktop =
         MediaQuery.sizeOf(context).width >= _kTaskDetailDesktopBreakpoint;
+    final theme = Theme.of(context);
+    final status = _task!['status']?.toString() ?? 'pending';
+    final priority = _task!['priority']?.toString() ?? 'medium';
+    final description = (_task!['description']?.toString())?.trim() ?? '';
+    final departmentName = _getDepartmentName();
+    final projectTitle = _task!['projects'] is Map
+        ? (_task!['projects'] as Map)['title']?.toString()
+        : null;
+    final taskTags = _task!['task_tags'];
+    final hasTags = taskTags is List && taskTags.isNotEmpty;
+    final dueDateStr = _task!['due_date'];
+
     final content = SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.paddingMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Task details
+          // Title
+          Text(
+            _task!['title'] ?? 'Task',
+            style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ) ??
+                theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                ) ??
+                TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+          ),
+          const SizedBox(height: AppDimensions.spacingLG),
+          // Details card: all fields in a consistent layout
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _task!['title'] ?? 'Task',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: AppDimensions.spacingMD),
-                  Text(
-                    'Description',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: AppDimensions.spacingSM),
-                  Text(
-                    _task!['description'] ?? 'No description',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const Divider(height: AppDimensions.spacingXL),
-                  Row(
-                    children: [
-                      Text(
-                        'Status: ',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppDimensions.paddingSM,
-                          vertical: AppDimensions.paddingXS,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(_task!['status']),
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusSM,
-                          ),
-                        ),
-                        child: Text(
-                          (_task!['status'] ?? 'pending')
-                              .replaceAll('_', ' ')
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.spacingMD),
-                      Text(
-                        'Priority: ',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppDimensions.paddingSM,
-                          vertical: AppDimensions.paddingXS,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getPriorityColor(_task!['priority']),
-                          borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusSM,
-                          ),
-                        ),
-                        child: Text(
-                          (_task!['priority'] ?? 'medium').toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_task!['department_id'] != null) ...[
-                    const SizedBox(height: AppDimensions.spacingSM),
-                    Row(
-                      children: [
-                        const Icon(Icons.group_work, size: 16),
-                        const SizedBox(width: AppDimensions.spacingSM),
-                        Text(
-                          'Department: ',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        Expanded(
-                          child: Text(
-                            _getDepartmentName(),
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (_task!['due_date'] != null) ...[
-                    const SizedBox(height: AppDimensions.spacingSM),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 16),
-                        const SizedBox(width: AppDimensions.spacingSM),
-                        Text(
-                          'Due Date: ${_formatDate(DateTime.parse(_task!['due_date']))}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+              child: isDesktop ? _buildDetailsGrid(theme, description, status, priority, departmentName, projectTitle, hasTags, taskTags, dueDateStr) : _buildDetailsColumn(theme, description, status, priority, departmentName, projectTitle, hasTags, taskTags, dueDateStr),
             ),
           ),
           const SizedBox(height: AppDimensions.spacingMD),
           // Assignments
-          Text('Assigned To', style: Theme.of(context).textTheme.titleLarge),
+          Text('Assigned To', style: theme.textTheme.titleLarge),
           const SizedBox(height: AppDimensions.spacingSM),
           _assignments.isEmpty
               ? Card(
@@ -438,14 +365,15 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                           children: [
                             PopupMenuButton<String>(
                               onSelected: (newStatus) async {
+                                final messenger = ScaffoldMessenger.maybeOf(context);
                                 try {
                                   await TaskService.updateAssignmentStatus(
                                     taskId: widget.taskId,
                                     memberId: memberId,
                                     status: newStatus,
                                   );
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                  if (mounted && messenger != null) {
+                                    messenger.showSnackBar(
                                       const SnackBar(
                                         content: Text('Status updated'),
                                         backgroundColor: AppColors.success,
@@ -454,8 +382,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                     _loadTaskData();
                                   }
                                 } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                  if (mounted && messenger != null) {
+                                    messenger.showSnackBar(
                                       SnackBar(
                                         content: Text('Error: $e'),
                                         backgroundColor: AppColors.error,
@@ -490,7 +418,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                                 decoration: BoxDecoration(
                                   color: _getStatusColor(
                                     assignmentStatus,
-                                  ).withOpacity(0.1),
+                                  ).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -699,17 +627,216 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }
 
   String _getDepartmentName() {
-    // Check if department info is included in the response
     final department = _task!['departments'];
-    if (department != null) {
-      if (department is Map<String, dynamic>) {
-        return department['name']?.toString() ?? 'Unknown Department';
-      }
+    if (department is Map<String, dynamic>) {
+      return department['name']?.toString() ?? 'Unknown Department';
     }
-
-    // Fallback: return department_id if name not available
     final departmentId = _task!['department_id']?.toString();
-    return departmentId ?? 'No Department';
+    return departmentId ?? '—';
+  }
+
+  Widget _buildDetailsColumn(
+    ThemeData theme,
+    String description,
+    String status,
+    String priority,
+    String departmentName,
+    String? projectTitle,
+    bool hasTags,
+    dynamic taskTags,
+    dynamic dueDateStr,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _detailLabel(context, 'Description'),
+        const SizedBox(height: 4),
+        Text(
+          description.isEmpty ? '—' : description,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Status'),
+        const SizedBox(height: 4),
+        _statusPriorityChip(status, true),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Priority'),
+        const SizedBox(height: 4),
+        _statusPriorityChip(priority, false),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Department'),
+        const SizedBox(height: 4),
+        Text(departmentName, style: theme.textTheme.bodyMedium),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Project'),
+        const SizedBox(height: 4),
+        Text(projectTitle ?? '—', style: theme.textTheme.bodyMedium),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Due date'),
+        const SizedBox(height: 4),
+        Text(
+          dueDateStr != null ? _formatDate(DateTime.parse(dueDateStr)) : '—',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Tags'),
+        const SizedBox(height: 4),
+        hasTags && taskTags is List
+            ? Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: _buildTagChips(taskTags),
+              )
+            : Text('—', style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+
+  Widget _buildDetailsGrid(
+    ThemeData theme,
+    String description,
+    String status,
+    String priority,
+    String departmentName,
+    String? projectTitle,
+    bool hasTags,
+    dynamic taskTags,
+    dynamic dueDateStr,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _detailLabel(context, 'Description'),
+        const SizedBox(height: 4),
+        Text(
+          description.isEmpty ? '—' : description,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: AppDimensions.spacingLG),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Wrap(
+              spacing: AppDimensions.spacingLG,
+              runSpacing: AppDimensions.spacingMD,
+              children: [
+                SizedBox(
+                  width: 200,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailLabel(context, 'Status'),
+                      const SizedBox(height: 4),
+                      _statusPriorityChip(status, true),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailLabel(context, 'Priority'),
+                      const SizedBox(height: 4),
+                      _statusPriorityChip(priority, false),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailLabel(context, 'Department'),
+                      const SizedBox(height: 4),
+                      Text(departmentName, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailLabel(context, 'Project'),
+                      const SizedBox(height: 4),
+                      Text(projectTitle ?? '—', style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: 200,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _detailLabel(context, 'Due date'),
+                      const SizedBox(height: 4),
+                      Text(
+                        dueDateStr != null
+                            ? _formatDate(DateTime.parse(dueDateStr))
+                            : '—',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _detailLabel(context, 'Tags'),
+        const SizedBox(height: 4),
+        hasTags && taskTags is List
+            ? Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: _buildTagChips(taskTags),
+              )
+            : Text('—', style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+
+  Widget _statusPriorityChip(String value, bool isStatus) {
+    final color = isStatus ? _getStatusColor(value) : _getPriorityColor(value);
+    final text = (value.replaceAll('_', ' ')).toUpperCase();
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingSM,
+        vertical: AppDimensions.paddingXS,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildTagChips(List taskTags) {
+    return taskTags.map<Widget>((e) {
+      final tag = e is Map ? e['tags'] : null;
+      final name = tag is Map ? tag['name']?.toString() : null;
+      if (name == null) return const SizedBox.shrink();
+      final color = TagColors.colorFromHex(
+          tag is Map ? tag['color']?.toString() : null);
+      return Chip(
+        label: Text(name, style: const TextStyle(fontSize: 12)),
+        padding: EdgeInsets.zero,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.compact,
+        backgroundColor: color.withValues(alpha: 0.2),
+        side: BorderSide(color: color),
+      );
+    }).toList();
   }
 
   Future<void> _showReminderDialog({

@@ -545,17 +545,21 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
               Expanded(
                 child: Card(
                   clipBehavior: Clip.antiAlias,
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Feature')),
-                        DataColumn(label: Text('View')),
-                        DataColumn(label: Text('Create')),
-                        DataColumn(label: Text('Edit')),
-                        DataColumn(label: Text('Delete')),
-                      ],
-                      rows: _features.map((featureName) {
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Feature')),
+                              DataColumn(label: Text('View')),
+                              DataColumn(label: Text('Create')),
+                              DataColumn(label: Text('Edit')),
+                              DataColumn(label: Text('Delete')),
+                            ],
+                            rows: _features.map((featureName) {
                         final pending = _pendingChanges[featureName];
                         final access = pending ?? _leaderAccessMap[featureName];
                         final canView = access?['can_view'] == true;
@@ -630,10 +634,13 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                           ],
                         );
                       }).toList(),
-                    ),
-                  ),
+                          ),
+                        ),
+                    );
+                  },
                 ),
               ),
+            ),
               if (_hasUnsavedChanges) ...[
                 const SizedBox(height: AppDimensions.spacingMD),
                 SizedBox(

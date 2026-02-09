@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'supabase_service.dart';
 import 'role_service.dart';
@@ -196,12 +197,12 @@ class UserManagementService {
           // If sign up was successful but email confirmation is required,
           // the user will need to confirm their email before logging in
           if (signUpResponse.user != null && signUpResponse.session == null) {
-            print(
+            debugPrint(
               'Info: Auth account created for $email. '
               'Email confirmation may be required depending on Supabase settings.',
             );
           } else if (signUpResponse.session != null) {
-            print('Success: Auth account created and confirmed for $email');
+            debugPrint('Success: Auth account created and confirmed for $email');
           }
         } on AuthException catch (e) {
           // If user already exists, try to update password if needed
@@ -209,7 +210,7 @@ class UserManagementService {
               e.message.toLowerCase().contains('already exists') ||
               e.message.toLowerCase().contains('user already registered')) {
             // User already exists in Supabase Auth
-            print('Auth account already exists for $email');
+            debugPrint('Auth account already exists for $email');
 
             // Try to sign in to verify the account works
             // If it fails, we know the password might be different
@@ -218,27 +219,27 @@ class UserManagementService {
                 email: email,
                 password: password,
               );
-              print('Verified: Auth account password is correct for $email');
+              debugPrint('Verified: Auth account password is correct for $email');
             } catch (signInError) {
               // Password might be different, but that's okay
               // The user can use forgot password if needed
-              print(
+              debugPrint(
                 'Note: Auth account exists but password may differ. '
                 'User can use forgot password if needed.',
               );
             }
           } else {
             // Other auth errors - log but don't fail
-            print(
+            debugPrint(
               'Warning: Could not create/verify Supabase Auth user: ${e.message}',
             );
           }
         } catch (e) {
           // Other errors - log but continue with users table update
-          print('Warning: Could not create Supabase Auth user: $e');
+          debugPrint('Warning: Could not create Supabase Auth user: $e');
         }
       } else if (email == null || email.isEmpty) {
-        print(
+        debugPrint(
           'Warning: Cannot create auth account for leader - email is required. '
           'User ID: $userId',
         );
@@ -335,22 +336,22 @@ class UserManagementService {
             data: {'must_change_password': true, 'role': 'leader'},
             emailRedirectTo: null,
           );
-          print('Info: Auth account created for reactivated leader: $email');
+          debugPrint('Info: Auth account created for reactivated leader: $email');
         } on AuthException catch (e) {
           // If user already exists, that's fine - account is already there
           if (e.message.toLowerCase().contains('already registered') ||
               e.message.toLowerCase().contains('already exists') ||
               e.message.toLowerCase().contains('user already registered')) {
-            print(
+            debugPrint(
               'Info: Auth account already exists for reactivated leader: $email',
             );
           } else {
-            print(
+            debugPrint(
               'Warning: Could not verify/create auth account: ${e.message}',
             );
           }
         } catch (e) {
-          print('Warning: Could not verify/create auth account: $e');
+          debugPrint('Warning: Could not verify/create auth account: $e');
         }
       }
 

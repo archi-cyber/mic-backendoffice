@@ -220,19 +220,23 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                       ],
                     ),
                   )
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        theme.colorScheme.surfaceContainerHighest,
-                      ),
-                      columns: const [
-                        DataColumn(label: Text('Name')),
-                        DataColumn(label: Text('Description')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Action')),
-                      ],
-                      rows: _paginatedDepartments.map((dept) {
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      return SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                              theme.colorScheme.surfaceContainerHighest,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Description')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Action')),
+                            ],
+                            rows: _paginatedDepartments.map((dept) {
                         final id = dept['id']?.toString() ?? '';
                         final name = dept['name']?.toString() ?? 'Unnamed';
                         final desc = dept['description']?.toString() ?? '—';
@@ -291,10 +295,13 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                           ],
                         );
                       }).toList(),
-                    ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
           ),
-          if (!_filteredDepartments.isEmpty) ...[
+          if (_filteredDepartments.isNotEmpty) ...[
             const SizedBox(height: AppDimensions.spacingSM),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -492,7 +499,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                 width: 60,
                 height: 60,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
+                  color: AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                 ),
                 child: Center(
@@ -530,7 +537,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withOpacity(0.1),
+                              color: AppColors.error.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -652,11 +659,11 @@ class _WorkersTabState extends State<_WorkersTab> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isMain
-            ? AppColors.primary.withOpacity(0.2)
-            : color.withOpacity(0.1),
+            ? AppColors.primary.withValues(alpha: 0.2)
+            : color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isMain ? AppColors.primary : color.withOpacity(0.3),
+          color: isMain ? AppColors.primary : color.withValues(alpha: 0.3),
           width: isMain ? 2 : 1,
         ),
       ),

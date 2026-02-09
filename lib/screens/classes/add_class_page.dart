@@ -191,7 +191,7 @@ class _AddClassPageState extends State<AddClassPage> {
                               const Center(child: CircularProgressIndicator())
                             else
                               DropdownButtonFormField<String>(
-                                value: _selectedDepartmentId,
+                                initialValue: _selectedDepartmentId,
                                 decoration: const InputDecoration(
                                   labelText: 'Department',
                                   prefixIcon: Icon(Icons.group_work),
@@ -260,7 +260,7 @@ class _AddClassPageState extends State<AddClassPage> {
                       const Center(child: CircularProgressIndicator())
                     else
                       DropdownButtonFormField<String>(
-                        value: _selectedDepartmentId,
+                        initialValue: _selectedDepartmentId,
                         decoration: const InputDecoration(
                           labelText: 'Department',
                           prefixIcon: Icon(Icons.group_work),

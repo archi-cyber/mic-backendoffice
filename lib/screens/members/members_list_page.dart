@@ -30,7 +30,7 @@ class _MembersListPageState extends State<MembersListPage> {
   String? _selectedRole;
   String? _selectedProfession;
   bool? _isNewcomerFilter;
-  int _membersRowsPerPage = 10;
+  final int _membersRowsPerPage = 10;
   int _membersPage = 0;
 
   /// When set (desktop), member profile is shown as stack overlay instead of route.
@@ -352,9 +352,9 @@ class _MembersListPageState extends State<MembersListPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: chipColor.withOpacity(0.15),
+        color: chipColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chipColor.withOpacity(0.4), width: 1),
+        border: Border.all(color: chipColor.withValues(alpha: 0.4), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -399,57 +399,64 @@ class _MembersListPageState extends State<MembersListPage> {
             padding: const EdgeInsets.symmetric(
               horizontal: AppDimensions.paddingMD,
             ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                headingRowColor: WidgetStateProperty.all(
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-                ),
-                columns: const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('Phone')),
-                  DataColumn(label: Text('Role')),
-                  DataColumn(label: Text('Status')),
-                ],
-                rows: pageItems.map((member) {
-                  final firstName = member['first_name']?.toString() ?? '';
-                  final lastName = member['last_name']?.toString() ?? '';
-                  final fullName = '$firstName $lastName'.trim();
-                  final email = member['email']?.toString() ?? '';
-                  final phone = member['phone']?.toString() ?? '';
-                  final role = member['role']?.toString() ?? 'member';
-                  final isActive = member['is_active'] == true;
-                  final memberId = member['id'].toString();
-
-                  return DataRow(
-                    onSelectChanged: (_) {
-                      if (widget.hideAppBarAndBottomNav) {
-                        setState(() => _selectedMemberId = memberId);
-                      } else {
-                        Navigator.of(context).pushNamed(
-                          RouteNames.memberDetail.replaceAll(':id', memberId),
-                        );
-                      }
-                    },
-                    cells: [
-                      DataCell(
-                        Text(
-                          fullName.isEmpty ? 'Unnamed Member' : fullName,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      headingRowColor: WidgetStateProperty.all(
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                       ),
-                      DataCell(Text(email, overflow: TextOverflow.ellipsis)),
-                      DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
-                      DataCell(_buildRoleChip(role)),
-                      DataCell(Text(isActive ? 'Active' : 'Inactive')),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
+                      columns: const [
+                        DataColumn(label: Text('Name')),
+                        DataColumn(label: Text('Email')),
+                        DataColumn(label: Text('Phone')),
+                        DataColumn(label: Text('Role')),
+                        DataColumn(label: Text('Status')),
+                      ],
+                      rows: pageItems.map((member) {
+                        final firstName = member['first_name']?.toString() ?? '';
+                        final lastName = member['last_name']?.toString() ?? '';
+                        final fullName = '$firstName $lastName'.trim();
+                        final email = member['email']?.toString() ?? '';
+                        final phone = member['phone']?.toString() ?? '';
+                        final role = member['role']?.toString() ?? 'member';
+                        final isActive = member['is_active'] == true;
+                        final memberId = member['id'].toString();
+
+                        return DataRow(
+                          onSelectChanged: (_) {
+                            if (widget.hideAppBarAndBottomNav) {
+                              setState(() => _selectedMemberId = memberId);
+                            } else {
+                              Navigator.of(context).pushNamed(
+                                RouteNames.memberDetail.replaceAll(':id', memberId),
+                              );
+                            }
+                          },
+                          cells: [
+                            DataCell(
+                              Text(
+                                fullName.isEmpty ? 'Unnamed Member' : fullName,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            DataCell(Text(email, overflow: TextOverflow.ellipsis)),
+                            DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
+                            DataCell(_buildRoleChip(role)),
+                            DataCell(Text(isActive ? 'Active' : 'Inactive')),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                );
+            },
           ),
         ),
+      ),
         Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: AppDimensions.paddingMD,

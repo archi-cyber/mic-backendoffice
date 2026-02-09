@@ -297,14 +297,18 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                         onRefresh: _loadServices,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.vertical,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowColor: WidgetStateProperty.all(
-                                theme.colorScheme.surfaceContainerHighest,
-                              ),
-                              columns: const [
-                                DataColumn(label: Text('Date')),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  child: DataTable(
+                                    headingRowColor: WidgetStateProperty.all(
+                                      theme.colorScheme.surfaceContainerHighest,
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Date')),
                                 DataColumn(label: Text('Service Type')),
                                 DataColumn(label: Text('Attended')),
                                 DataColumn(label: Text('Actions')),
@@ -363,7 +367,10 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                                   ],
                                 );
                               }).toList(),
-                            ),
+                                    ),
+                                  ),
+                                );
+                            },
                           ),
                         ),
                       ),
@@ -385,7 +392,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
               horizontal: AppDimensions.spacingMD,
               vertical: AppDimensions.spacingSM,
             ),
-            color: AppColors.primary.withOpacity(0.1),
+            color: AppColors.primary.withValues(alpha: 0.1),
             child: Row(
               children: [
                 Expanded(

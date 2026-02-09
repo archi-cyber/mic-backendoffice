@@ -74,6 +74,10 @@ class RouteNames {
   static const String taskDetail = '/tasks/:id';
   static const String addTask = '/tasks/add';
   static const String editTask = '/tasks/:id/edit';
+  static const String manageProjects = '/tasks/projects';
+  static const String addProject = '/tasks/projects/add';
+  static const String editProject = '/tasks/projects/:id/edit';
+  static const String manageTags = '/tasks/tags';
 
   // Report Routes
   static const String reports = '/reports';
