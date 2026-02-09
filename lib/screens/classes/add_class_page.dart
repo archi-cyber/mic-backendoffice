@@ -102,8 +102,7 @@ class _AddClassPageState extends State<AddClassPage> {
 
   @override
   Widget build(BuildContext context) {
-    final useDesktop =
-        MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     return Scaffold(
       appBar: AppBar(
@@ -143,7 +142,9 @@ class _AddClassPageState extends State<AddClassPage> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: _kDesktopMaxWidth),
+                  constraints: const BoxConstraints(
+                    maxWidth: _kDesktopMaxWidth,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Card(
@@ -154,12 +155,8 @@ class _AddClassPageState extends State<AddClassPage> {
                           children: [
                             Text(
                               'Training details',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
@@ -206,7 +203,8 @@ class _AddClassPageState extends State<AddClassPage> {
                                     return DropdownMenuItem<String>(
                                       value: dept['id'].toString(),
                                       child: Text(
-                                          dept['name']?.toString() ?? 'Unnamed'),
+                                        dept['name']?.toString() ?? 'Unnamed',
+                                      ),
                                     );
                                   }),
                                 ],
@@ -274,7 +272,9 @@ class _AddClassPageState extends State<AddClassPage> {
                           ..._departments.map((dept) {
                             return DropdownMenuItem<String>(
                               value: dept['id'].toString(),
-                              child: Text(dept['name']?.toString() ?? 'Unnamed'),
+                              child: Text(
+                                dept['name']?.toString() ?? 'Unnamed',
+                              ),
                             );
                           }),
                         ],

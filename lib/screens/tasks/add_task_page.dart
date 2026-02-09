@@ -51,7 +51,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
     if (trimmed.isEmpty) return;
     Map<String, dynamic>? existing;
     for (final t in _tags) {
-      if ((t['name']?.toString().trim().toLowerCase() ?? '') == trimmed.toLowerCase()) {
+      if ((t['name']?.toString().trim().toLowerCase() ?? '') ==
+          trimmed.toLowerCase()) {
         existing = t;
         break;
       }
@@ -88,9 +89,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
       _newTagController.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not add tag: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not add tag: $e')));
       }
     }
   }
@@ -612,13 +613,15 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   value: null,
                                   child: Text('None'),
                                 ),
-                                ..._projects.map((p) => DropdownMenuItem<String?>(
-                                      value: p['id'].toString(),
-                                      child: Text(
-                                        p['title']?.toString() ?? '',
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    )),
+                                ..._projects.map(
+                                  (p) => DropdownMenuItem<String?>(
+                                    value: p['id'].toString(),
+                                    child: Text(
+                                      p['title']?.toString() ?? '',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
                               ],
                               onChanged: (value) {
                                 setState(() => _selectedProjectId = value);
@@ -627,16 +630,22 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             if (_isLoadingTags && _tags.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.only(top: 8.0),
-                                child: Text('Tags (loading…)',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 12)),
+                                child: Text(
+                                  'Tags (loading…)',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             const SizedBox(height: AppDimensions.spacingMD),
-                            const Text('Tags (optional)',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 12)),
+                            const Text(
+                              'Tags (optional)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -668,7 +677,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               children: _tags.map((tag) {
                                 final id = tag['id'].toString();
                                 final selected = _selectedTagIds.contains(id);
-                                final color = TagColors.colorFromHex(tag['color']?.toString());
+                                final color = TagColors.colorFromHex(
+                                  tag['color']?.toString(),
+                                );
                                 return FilterChip(
                                   label: Text(tag['name']?.toString() ?? ''),
                                   selected: selected,
@@ -1045,13 +1056,15 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           value: null,
                           child: Text('None'),
                         ),
-                        ..._projects.map((p) => DropdownMenuItem<String?>(
-                              value: p['id'].toString(),
-                              child: Text(
-                                p['title']?.toString() ?? '',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            )),
+                        ..._projects.map(
+                          (p) => DropdownMenuItem<String?>(
+                            value: p['id'].toString(),
+                            child: Text(
+                              p['title']?.toString() ?? '',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
                       ],
                       onChanged: (value) {
                         setState(() => _selectedProjectId = value);
@@ -1060,14 +1073,22 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     if (_isLoadingTags && _tags.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
-                        child: Text('Tags (loading…)',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w500, fontSize: 12)),
+                        child: Text(
+                          'Tags (loading…)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                     const SizedBox(height: AppDimensions.spacingMD),
-                    const Text('Tags (optional)',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w500, fontSize: 12)),
+                    const Text(
+                      'Tags (optional)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -1099,7 +1120,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       children: _tags.map((tag) {
                         final id = tag['id'].toString();
                         final selected = _selectedTagIds.contains(id);
-                        final color = TagColors.colorFromHex(tag['color']?.toString());
+                        final color = TagColors.colorFromHex(
+                          tag['color']?.toString(),
+                        );
                         return FilterChip(
                           label: Text(tag['name']?.toString() ?? ''),
                           selected: selected,
