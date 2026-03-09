@@ -292,7 +292,7 @@ class _TasksListPageState extends State<TasksListPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String?>(
-                  value: _selectedStatus,
+                  initialValue: _selectedStatus,
                   decoration: const InputDecoration(
                     labelText: 'Status',
                     prefixIcon: Icon(Icons.check_circle),
@@ -319,7 +319,7 @@ class _TasksListPageState extends State<TasksListPage> {
                 ),
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String?>(
-                  value: _selectedPriority,
+                  initialValue: _selectedPriority,
                   decoration: const InputDecoration(
                     labelText: 'Priority',
                     prefixIcon: Icon(Icons.flag),
@@ -337,7 +337,7 @@ class _TasksListPageState extends State<TasksListPage> {
                 ),
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String?>(
-                  value: _selectedMemberId,
+                  initialValue: _selectedMemberId,
                   decoration: const InputDecoration(
                     labelText: 'Assigned member',
                     prefixIcon: Icon(Icons.person),
@@ -359,7 +359,7 @@ class _TasksListPageState extends State<TasksListPage> {
                 ),
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String?>(
-                  value: _selectedProjectId,
+                  initialValue: _selectedProjectId,
                   decoration: const InputDecoration(
                     labelText: 'Project',
                     prefixIcon: Icon(Icons.folder_outlined),
@@ -381,7 +381,7 @@ class _TasksListPageState extends State<TasksListPage> {
                 ),
                 const SizedBox(height: AppDimensions.spacingMD),
                 DropdownButtonFormField<String?>(
-                  value: _selectedTagId,
+                  initialValue: _selectedTagId,
                   decoration: const InputDecoration(
                     labelText: 'Tag',
                     prefixIcon: Icon(Icons.label_outlined),
