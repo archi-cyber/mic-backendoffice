@@ -259,14 +259,12 @@ class ChatService {
             '[ChatService] Creator user ID (to exclude): ${createdByUserId ?? "null"}',
           );
           
-          // Ensure excludeUserId is a string or null
-          final excludeUserIdStr = createdByUserId?.toString();
-          
+          // Send to every active user, including the creator.
           await PushNotificationService.sendAnnouncementPushNotification(
             title: title,
             message: message,
             announcementId: response['id']?.toString() ?? '',
-            excludeUserId: excludeUserIdStr,
+            excludeUserId: null,
           );
           debugPrint('[ChatService] ✅ Successfully sent push notifications');
         } catch (e, stackTrace) {

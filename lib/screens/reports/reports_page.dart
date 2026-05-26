@@ -8,6 +8,7 @@ import '../../services/member_service.dart';
 import '../../services/class_service.dart';
 import 'member_report_page.dart';
 import 'class_report_page.dart';
+import 'new_comer_report_page.dart';
 
 /// Reports page with member and training reports
 class ReportsPage extends StatefulWidget {
@@ -72,6 +73,14 @@ class _ReportsPageState extends State<ReportsPage> {
                   ),
                 ],
               ),
+              const SizedBox(height: AppDimensions.spacingLG),
+              _ReportCard(
+                title: 'New Comers Stats',
+                description:
+                    'Weekly, monthly, yearly and custom newcomer reports',
+                icon: Icons.groups_2_outlined,
+                onTap: () => _openNewComerReport(context),
+              ),
             ],
           ),
         ),
@@ -96,7 +105,28 @@ class _ReportsPageState extends State<ReportsPage> {
           icon: Icons.class_outlined,
           onTap: () => _showClassSelectionDialog(context),
         ),
+        const SizedBox(height: AppDimensions.spacingMD),
+        _ReportCard(
+          title: 'New Comers Stats',
+          description:
+              'Weekly, monthly, yearly and custom newcomer reports',
+          icon: Icons.groups_2_outlined,
+          onTap: () => _openNewComerReport(context),
+        ),
       ],
+    );
+  }
+
+  void _openNewComerReport(BuildContext context) {
+    final scope = DesktopShellScope.maybeOf(context);
+    final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
+    if (openAsStack) {
+      scope.pushDetail(RouteNames.newComerReport, '');
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NewComerReportPage()),
     );
   }
 

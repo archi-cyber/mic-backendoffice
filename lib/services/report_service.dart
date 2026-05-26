@@ -1,4 +1,5 @@
 import 'supabase_service.dart';
+import 'new_comer_service.dart';
 
 /// Report service for generating reports
 class ReportService {
@@ -216,6 +217,56 @@ class ReportService {
       };
     } catch (e) {
       throw Exception('Failed to generate class report: $e');
+    }
+  }
+
+  /// Get newcomer report for a custom period.
+  static Future<Map<String, dynamic>> getNewComerReport({
+    DateTime? fromDate,
+    DateTime? toDate,
+    int? limit,
+    int? offset,
+  }) async {
+    try {
+      return await NewComerService.getReport(
+        startDate: fromDate,
+        endDate: toDate,
+        limit: limit,
+        offset: offset,
+      );
+    } catch (e) {
+      throw Exception('Failed to generate newcomer report: $e');
+    }
+  }
+
+  /// Get newcomer report for the current/reference week.
+  static Future<Map<String, dynamic>> getWeeklyNewComerReport({
+    DateTime? referenceDate,
+  }) async {
+    try {
+      return await NewComerService.getWeeklyReport(referenceDate: referenceDate);
+    } catch (e) {
+      throw Exception('Failed to generate weekly newcomer report: $e');
+    }
+  }
+
+  /// Get newcomer report for the current/reference month.
+  static Future<Map<String, dynamic>> getMonthlyNewComerReport({
+    DateTime? referenceDate,
+  }) async {
+    try {
+      return await NewComerService.getMonthlyReport(referenceDate: referenceDate);
+    } catch (e) {
+      throw Exception('Failed to generate monthly newcomer report: $e');
+    }
+  }
+
+  /// Get newcomer report for a given year.
+  static Future<Map<String, dynamic>> getYearlyNewComerReport({int? year}) async {
+    try {
+      return await NewComerService.getYearlyReport(year: year);
+    } catch (e) {
+      throw Exception('Failed to generate yearly newcomer report: $e');
     }
   }
 }

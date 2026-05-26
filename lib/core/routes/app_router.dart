@@ -36,6 +36,7 @@ import '../../screens/classes/edit_class_page.dart';
 import '../../screens/reports/reports_page.dart';
 import '../../screens/reports/member_report_page.dart';
 import '../../screens/reports/class_report_page.dart';
+import '../../screens/reports/new_comer_report_page.dart';
 import '../../screens/chat/chat_page.dart';
 import '../../screens/admin/admin_panel_page.dart';
 import '../../screens/notifications/notifications_list_page.dart';
@@ -185,6 +186,11 @@ class AppRouter {
       case RouteNames.reports:
         return MaterialPageRoute(
           builder: (_) => const ReportsPage(),
+          settings: settings,
+        );
+      case RouteNames.newComerReport:
+        return MaterialPageRoute(
+          builder: (_) => const NewComerReportPage(),
           settings: settings,
         );
 

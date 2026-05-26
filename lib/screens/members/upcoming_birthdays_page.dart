@@ -49,10 +49,9 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       final currentDay = now.day;
 
       final upcomingBirthdays = allMembers.where((member) {
-        final birthday = member['birthday'];
-        if (birthday == null) return false;
+        final date = _parseBirthday(member['birthday']);
+        if (date == null) return false;
         try {
-          final date = DateTime.parse(birthday.toString());
           final birthdayMonth = date.month;
           final birthdayDay = date.day;
 
@@ -73,8 +72,9 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       // Sort by birthday (day of month), then alphabetically by name
       upcomingBirthdays.sort((a, b) {
         try {
-          final dateA = DateTime.parse(a['birthday'].toString());
-          final dateB = DateTime.parse(b['birthday'].toString());
+          final dateA = _parseBirthday(a['birthday']);
+          final dateB = _parseBirthday(b['birthday']);
+          if (dateA == null || dateB == null) return 0;
           // First sort by month, then by day
           if (dateA.month != dateB.month) {
             return dateA.month.compareTo(dateB.month);
@@ -132,9 +132,36 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
     }).toList();
   }
 
+  /// Calendar date only (no time-of-day), for consistent day comparisons.
+  DateTime _calendarDate(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  DateTime? _parseBirthday(dynamic value) {
+    if (value == null) return null;
+    try {
+      if (value is DateTime) return _calendarDate(value);
+      return _calendarDate(DateTime.parse(value.toString()));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Next birthday on or after [reference]'s calendar day (this year or next).
+  DateTime _nextBirthdayOccurrence(DateTime birthday, DateTime reference) {
+    final today = _calendarDate(reference);
+    var next = DateTime(today.year, birthday.month, birthday.day);
+    if (next.isBefore(today)) {
+      next = DateTime(today.year + 1, birthday.month, birthday.day);
+    }
+    return next;
+  }
+
+  int _daysUntilNextBirthday(DateTime birthday, DateTime now) {
+    final today = _calendarDate(now);
+    return _nextBirthdayOccurrence(birthday, now).difference(today).inDays;
+  }
+
   String _formatBirthday(DateTime birthday, DateTime now) {
-    final month = birthday.month;
-    final day = birthday.day;
     final monthNames = [
       'January',
       'February',
@@ -150,35 +177,20 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       'December',
     ];
 
-    // If birthday is today
-    if (month == now.month && day == now.day) {
-      return 'Today';
-    }
+    final next = _nextBirthdayOccurrence(birthday, now);
+    final days = _daysUntilNextBirthday(birthday, now);
 
-    // If birthday is tomorrow
-    final tomorrow = now.add(const Duration(days: 1));
-    if (month == tomorrow.month && day == tomorrow.day) {
-      return 'Tomorrow';
-    }
+    if (days == 0) return 'Today';
+    if (days == 1) return 'Tomorrow';
 
-    return '${monthNames[month - 1]} $day';
+    return '${monthNames[next.month - 1]} ${next.day}';
   }
 
   String _getDaysUntilBirthday(DateTime birthday, DateTime now) {
-    // Calculate next occurrence of birthday
-    var nextBirthday = DateTime(now.year, birthday.month, birthday.day);
-    if (nextBirthday.isBefore(now) || nextBirthday.isAtSameMomentAs(now)) {
-      nextBirthday = DateTime(now.year + 1, birthday.month, birthday.day);
-    }
-
-    final difference = nextBirthday.difference(now).inDays;
-    if (difference == 0) {
-      return 'Today';
-    } else if (difference == 1) {
-      return 'Tomorrow';
-    } else {
-      return '$difference days';
-    }
+    final days = _daysUntilNextBirthday(birthday, now);
+    if (days == 0) return 'Today';
+    if (days == 1) return 'Tomorrow';
+    return '$days days';
   }
 
   void _openMemberDetail(Map<String, dynamic> member) {
@@ -343,16 +355,8 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                       '${member['first_name']} ${member['last_name']}';
                                   final email =
                                       member['email']?.toString() ?? '';
-                                  final birthdayStr = member['birthday']
-                                      ?.toString();
-                                  DateTime? birthday;
-                                  if (birthdayStr != null) {
-                                    try {
-                                      birthday = DateTime.parse(birthdayStr);
-                                    } catch (e) {
-                                      birthday = null;
-                                    }
-                                  }
+                                  final birthday =
+                                      _parseBirthday(member['birthday']);
                                   final birthdayText = birthday != null
                                       ? _formatBirthday(birthday, now)
                                       : '—';
@@ -534,15 +538,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                       final name =
                           '${member['first_name']} ${member['last_name']}';
                       final email = member['email']?.toString() ?? '';
-                      final birthdayStr = member['birthday']?.toString();
-                      DateTime? birthday;
-                      if (birthdayStr != null) {
-                        try {
-                          birthday = DateTime.parse(birthdayStr);
-                        } catch (e) {
-                          birthday = null;
-                        }
-                      }
+                      final birthday = _parseBirthday(member['birthday']);
 
                       return Card(
                         margin: const EdgeInsets.only(

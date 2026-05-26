@@ -34,6 +34,10 @@ class VisitorService {
 
   /// Get visitors with optional filters
   /// GET /visitors
+  static String _dateOnly(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
   static Future<List<Map<String, dynamic>>> getVisitors({
     Map<String, dynamic>? filters,
     int? limit,
@@ -49,10 +53,10 @@ class VisitorService {
 
       // Apply date filters
       if (fromDate != null) {
-        filterQuery = filterQuery.gte('visit_date', fromDate.toIso8601String().split('T')[0]);
+        filterQuery = filterQuery.gte('visit_date', _dateOnly(fromDate));
       }
       if (toDate != null) {
-        filterQuery = filterQuery.lte('visit_date', toDate.toIso8601String().split('T')[0]);
+        filterQuery = filterQuery.lte('visit_date', _dateOnly(toDate));
       }
 
       // Apply other filters

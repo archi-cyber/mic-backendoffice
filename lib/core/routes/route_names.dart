@@ -83,6 +83,7 @@ class RouteNames {
   static const String reports = '/reports';
   static const String memberReport = '/reports/member/:id';
   static const String classReport = '/reports/training/:id';
+  static const String newComerReport = '/reports/new-comers';
 
   // Chat/Announcement Routes
   static const String chat = '/chat';

@@ -13,6 +13,7 @@ export 'task_service.dart';
 export 'project_service.dart';
 export 'tag_service.dart';
 export 'report_service.dart';
+export 'new_comer_service.dart';
 export 'chat_service.dart';
 export 'birthday_notification_service.dart';
 export 'notification_service.dart';

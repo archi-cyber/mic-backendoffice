@@ -110,29 +110,37 @@ class DeviceTokenService {
 
       debugPrint('[DeviceTokenService] Saving device token for user: $authUserId');
 
-      // Get the user_id from users table by email (not by auth.users.id)
-      // The user_devices table references users.id, not auth.users.id
-      // We need to find the user by email since users.id might not match auth.users.id
-      final authUserEmail = SupabaseService.currentUser?.email;
-      if (authUserEmail == null) {
-        debugPrint('[DeviceTokenService] Cannot save token: User email not available');
-        return;
-      }
-
+      // user_devices.user_id references users.id, which in this project should
+      // match auth.uid(). Use auth user id first; fallback to email lookup only
+      // if the users table is not yet synced.
       final user = await _client
           .from('users')
           .select('id')
-          .eq('email', authUserEmail)
+          .eq('id', authUserId)
           .limit(1)
           .maybeSingle();
 
+      Map<String, dynamic>? resolvedUser = user;
+
+      if (resolvedUser == null) {
+        final authUserEmail = SupabaseService.currentUser?.email;
+        if (authUserEmail != null && authUserEmail.isNotEmpty) {
+          resolvedUser = await _client
+              .from('users')
+              .select('id')
+              .eq('email', authUserEmail)
+              .limit(1)
+              .maybeSingle();
+        }
+      }
+
       // If user doesn't exist in users table, we can't save the device token
       // This can happen if the user was created in auth but not synced to users table
-      if (user == null) {
+      if (resolvedUser == null) {
         // Log warning but don't throw error - device token will be saved on next login
         // when user record is created
         debugPrint(
-          '[DeviceTokenService] ⚠️ Warning: User with email $authUserEmail not found in users table. '
+          '[DeviceTokenService] ⚠️ Warning: User record not found in users table for auth user $authUserId. '
           'Device token will not be saved. User record may need to be created or synced.',
         );
         debugPrint(
@@ -141,7 +149,7 @@ class DeviceTokenService {
         return;
       }
 
-      final userId = user['id'].toString();
+      final userId = resolvedUser['id'].toString();
 
       // Get device info
       // Note: You may want to add device info like platform, model, etc.

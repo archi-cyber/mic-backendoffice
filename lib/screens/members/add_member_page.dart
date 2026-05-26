@@ -3,6 +3,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/member_constants.dart';
 import '../../services/member_service.dart';
+import '../../services/new_comer_service.dart';
+import '../../services/visitor_service.dart';
 
 /// Add member page with email/phone validation
 class AddMemberPage extends StatefulWidget {
@@ -116,65 +118,108 @@ class _AddMemberPageState extends State<AddMemberPage> {
     setState(() => _isLoading = true);
 
     try {
-      await MemberService.createMember(
-        memberData: {
-          'first_name': _firstNameController.text.trim(),
-          'last_name': _lastNameController.text.trim(),
-          'email': _emailController.text.trim().isNotEmpty
+      final isJustPassingNewComer =
+          _isNewComer && _newcomerIntention == 'just_passing';
+
+      if (isJustPassingNewComer) {
+        await VisitorService.createVisitor(
+          visitorData: {
+            'first_name': _firstNameController.text.trim(),
+            'last_name': _lastNameController.text.trim(),
+            'email': _emailController.text.trim().isNotEmpty
+                ? _emailController.text.trim()
+                : null,
+            'phone': _phoneController.text.trim().isNotEmpty
+                ? _phoneController.text.trim()
+                : null,
+            'address': _addressController.text.trim().isNotEmpty
+                ? _addressController.text.trim()
+                : null,
+            'visit_date': (_newcomerJoinDate ?? DateTime.now())
+                .toIso8601String()
+                .split('T')[0],
+            'notes': 'Converted from newcomer flow (intention: just passing).',
+          },
+        );
+        await NewComerService.createNewComerRecord(
+          memberId: null,
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          email: _emailController.text.trim().isNotEmpty
               ? _emailController.text.trim()
               : null,
-          'phone': _phoneController.text.trim().isNotEmpty
+          phone: _phoneController.text.trim().isNotEmpty
               ? _phoneController.text.trim()
               : null,
-          'birthday': _selectedBirthday != null
-              ? _selectedBirthday!.toIso8601String().split('T')[0]
-              : null,
-          'address': _addressController.text.trim().isNotEmpty
-              ? _addressController.text.trim()
-              : null,
-          'city': _cityController.text.trim().isNotEmpty
-              ? _cityController.text.trim()
-              : null,
-          'state': _stateController.text.trim().isNotEmpty
-              ? _stateController.text.trim()
-              : null,
-          'zip_code': _zipCodeController.text.trim().isNotEmpty
-              ? _zipCodeController.text.trim()
-              : null,
-          'country': _countryController.text.trim().isNotEmpty
-              ? _countryController.text.trim()
-              : null,
-          'quarter': _quarterController.text.trim().isNotEmpty
-              ? _quarterController.text.trim()
-              : null,
-          'profession': _selectedProfession,
-          'level_of_study': _selectedLevelOfStudy,
-          'sector_of_studies': _sectorOfStudiesController.text.trim().isNotEmpty
-              ? _sectorOfStudiesController.text.trim()
-              : null,
-          'domain_of_activity':
-              _domainOfActivityController.text.trim().isNotEmpty
-              ? _domainOfActivityController.text.trim()
-              : null,
-          'key_skills': _keySkillsList.isNotEmpty ? _keySkillsList : null,
-          'last_diplomas': _selectedLastDiploma,
-          'role': _selectedRole,
-          'gender': _selectedGender,
-          'marital_status': _selectedMaritalStatus,
-          'is_new_comer': _isNewComer,
-          'newcomer_join_date': _newcomerJoinDate != null
-              ? _newcomerJoinDate!.toIso8601String().split('T')[0]
-              : null,
-          'newcomer_intention': _newcomerIntention,
-          'is_active': _isActive,
-          'birthday_notifications_opt_out': _birthdayNotificationsOptOut,
-        },
-      );
+          newcomerJoinDate: _newcomerJoinDate ?? DateTime.now(),
+          newcomerIntention: 'just_passing',
+        );
+      } else {
+        await MemberService.createMember(
+          memberData: {
+            'first_name': _firstNameController.text.trim(),
+            'last_name': _lastNameController.text.trim(),
+            'email': _emailController.text.trim().isNotEmpty
+                ? _emailController.text.trim()
+                : null,
+            'phone': _phoneController.text.trim().isNotEmpty
+                ? _phoneController.text.trim()
+                : null,
+            'birthday': _selectedBirthday != null
+                ? _selectedBirthday!.toIso8601String().split('T')[0]
+                : null,
+            'address': _addressController.text.trim().isNotEmpty
+                ? _addressController.text.trim()
+                : null,
+            'city': _cityController.text.trim().isNotEmpty
+                ? _cityController.text.trim()
+                : null,
+            'state': _stateController.text.trim().isNotEmpty
+                ? _stateController.text.trim()
+                : null,
+            'zip_code': _zipCodeController.text.trim().isNotEmpty
+                ? _zipCodeController.text.trim()
+                : null,
+            'country': _countryController.text.trim().isNotEmpty
+                ? _countryController.text.trim()
+                : null,
+            'quarter': _quarterController.text.trim().isNotEmpty
+                ? _quarterController.text.trim()
+                : null,
+            'profession': _selectedProfession,
+            'level_of_study': _selectedLevelOfStudy,
+            'sector_of_studies':
+                _sectorOfStudiesController.text.trim().isNotEmpty
+                ? _sectorOfStudiesController.text.trim()
+                : null,
+            'domain_of_activity':
+                _domainOfActivityController.text.trim().isNotEmpty
+                ? _domainOfActivityController.text.trim()
+                : null,
+            'key_skills': _keySkillsList.isNotEmpty ? _keySkillsList : null,
+            'last_diplomas': _selectedLastDiploma,
+            'role': _selectedRole,
+            'gender': _selectedGender,
+            'marital_status': _selectedMaritalStatus,
+            'is_new_comer': _isNewComer,
+            'newcomer_join_date': _newcomerJoinDate != null
+                ? _newcomerJoinDate!.toIso8601String().split('T')[0]
+                : null,
+            'newcomer_intention': _newcomerIntention,
+            'is_active': _isActive,
+            'birthday_notifications_opt_out': _birthdayNotificationsOptOut,
+          },
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Member created successfully'),
+          SnackBar(
+            content: Text(
+              isJustPassingNewComer
+                  ? 'Visitor created successfully'
+                  : 'Member created successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -754,6 +799,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
           decoration: const InputDecoration(
             labelText: 'Newcomer Intention',
             prefixIcon: Icon(Icons.help_outline),
+            helperText:
+                'Selecting "Just passing" creates a Visitor, not a Member.',
           ),
           items: const [
             DropdownMenuItem<String>(
@@ -1202,7 +1249,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
             decoration: const InputDecoration(
               labelText: 'Newcomer Intention',
               prefixIcon: Icon(Icons.help_outline),
-              helperText: 'Select the newcomer\'s intention',
+              helperText:
+                  'Selecting "Just passing" creates a Visitor, not a Member.',
             ),
             items: const [
               DropdownMenuItem<String>(

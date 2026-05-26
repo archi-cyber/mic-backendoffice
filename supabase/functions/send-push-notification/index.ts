@@ -13,7 +13,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { create, getNumericDate } from 'https://deno.land/x/djwt@v2.8/mod.ts';
 
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
-const MAX_TOKENS_PER_REQUEST = 500; // FCM v1 allows up to 500 tokens per multicast request
+const MAX_TOKENS_PER_REQUEST = 500;
 
 interface PushNotificationRequest {
   deviceTokens: string[];
@@ -154,80 +154,62 @@ serve(async (req) => {
       );
     }
 
-    // Send notifications
-    // FCM v1 doesn't support batch sending like legacy API
-    // We'll send individual requests or use multicast (up to 500 tokens)
+    // FCM HTTP v1 messages:send endpoint supports one target token per request.
+    // We send one request per token (chunked only for progress/logging).
     let totalSuccess = 0;
     let totalFailure = 0;
 
-    // Process in batches of 500 (FCM v1 multicast limit)
-    for (let i = 0; i < deviceTokens.length; i += MAX_TOKENS_PER_REQUEST) {
-      const batch = deviceTokens.slice(i, i + MAX_TOKENS_PER_REQUEST);
-      
-      // For single token, use token field; for multiple, use tokens array (multicast)
-      const messagePayload: any = {
-        notification: {
-          title: title,
-          body: messageBody,
-        },
-        data: data || {},
-        android: {
-          priority: 'high',
-        },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default',
-              badge: 1,
+    // De-duplicate tokens before sending to reduce API calls.
+    const uniqueTokens = [...new Set(deviceTokens.filter((t) => !!t))];
+
+    for (let i = 0; i < uniqueTokens.length; i += MAX_TOKENS_PER_REQUEST) {
+      const batch = uniqueTokens.slice(i, i + MAX_TOKENS_PER_REQUEST);
+
+      for (const token of batch) {
+        const payload = {
+          message: {
+            token,
+            notification: {
+              title,
+              body: messageBody,
+            },
+            data: data || {},
+            android: {
+              priority: 'high',
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'default',
+                  badge: 1,
+                },
+              },
             },
           },
-        },
-      };
+        };
 
-      // Use multicast for multiple tokens, single token for one
-      if (batch.length === 1) {
-        messagePayload.token = batch[0];
-      } else {
-        messagePayload.tokens = batch;
-      }
-
-      const payload = {
-        message: messagePayload,
-      };
-
-      const response = await fetch(fcmUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`FCM API error: ${response.status} - ${errorText}`);
-        totalFailure += batch.length;
-        continue;
-      }
-
-      const result = await response.json();
-      
-      // For multicast, check responses array
-      if (batch.length > 1 && result.responses) {
-        result.responses.forEach((resp: any) => {
-          if (resp.success) {
-            totalSuccess++;
-          } else {
-            totalFailure++;
-            console.error(`Token failed: ${resp.error}`);
-          }
+        const response = await fetch(fcmUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
         });
-      } else if (result.name) {
-        // Single token success
-        totalSuccess++;
-      } else {
-        totalFailure++;
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          totalFailure++;
+          console.error(`FCM token send failed (${response.status}): ${errorText}`);
+          continue;
+        }
+
+        const result = await response.json();
+        if (result?.name) {
+          totalSuccess++;
+        } else {
+          totalFailure++;
+        }
       }
 
       console.log(`Batch ${Math.floor(i / MAX_TOKENS_PER_REQUEST) + 1}: processed ${batch.length} tokens`);

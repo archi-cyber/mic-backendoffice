@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/church_attendance_service.dart';
 import '../../services/attendance_report_pdf_service.dart';
@@ -40,23 +41,15 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   Future<void> _loadServices() async {
     setState(() => _isLoading = true);
     try {
-      // Load services with filters
+      // Load all services with filters
       final services = await ChurchAttendanceService.getAllServices(
         startDate: _filterStartDate,
         endDate: _filterEndDate,
-        limit: 200,
+        limit: null,
       );
 
-      // Apply service type filter if set
-      List<Map<String, dynamic>> filteredServices = services;
-      if (_filterServiceType != null) {
-        filteredServices = services
-            .where((s) => s['service_type'] == _filterServiceType)
-            .toList();
-      }
-
       setState(() {
-        _services = filteredServices;
+        _services = services;
         _isLoading = false;
       });
     } catch (e) {
@@ -302,74 +295,82 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
                                   child: DataTable(
                                     headingRowColor: WidgetStateProperty.all(
                                       theme.colorScheme.surfaceContainerHighest,
                                     ),
                                     columns: const [
                                       DataColumn(label: Text('Date')),
-                                DataColumn(label: Text('Service Type')),
-                                DataColumn(label: Text('Attended')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _services.map((service) {
-                                final serviceDate =
-                                    service['service_date'] as String;
-                                final serviceType =
-                                    service['service_type'] as String;
-                                final attendanceCount =
-                                    service['attendance_count'] as int? ?? 0;
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      Text(
-                                        _formatDate(serviceDate),
-                                        style: theme.textTheme.bodyMedium,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            serviceType == 'sunday'
-                                                ? Icons.wb_sunny
-                                                : Icons.calendar_today,
-                                            size: 18,
-                                            color: serviceType == 'sunday'
-                                                ? AppColors.primary
-                                                : AppColors.secondary,
+                                      DataColumn(label: Text('Service Type')),
+                                      DataColumn(label: Text('Attended')),
+                                      DataColumn(label: Text('Actions')),
+                                    ],
+                                    rows: _services.map((service) {
+                                      final serviceDate =
+                                          service['service_date'] as String;
+                                      final serviceType =
+                                          service['service_type'] as String;
+                                      final attendanceCount =
+                                          service['attendance_count'] as int? ??
+                                          0;
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            Text(
+                                              _formatDate(serviceDate),
+                                              style: theme.textTheme.bodyMedium,
+                                            ),
                                           ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            _getServiceTypeLabel(serviceType),
-                                            style: theme.textTheme.bodyMedium,
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  serviceType == 'sunday'
+                                                      ? Icons.wb_sunny
+                                                      : Icons.calendar_today,
+                                                  size: 18,
+                                                  color: serviceType == 'sunday'
+                                                      ? AppColors.primary
+                                                      : AppColors.secondary,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  _getServiceTypeLabel(
+                                                    serviceType,
+                                                  ),
+                                                  style: theme
+                                                      .textTheme
+                                                      .bodyMedium,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              '$attendanceCount ${attendanceCount == 1 ? 'member' : 'members'}',
+                                              style: theme.textTheme.bodyMedium,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            TextButton(
+                                              onPressed: () =>
+                                                  _viewServiceDetails(
+                                                    serviceDate,
+                                                    serviceType,
+                                                  ),
+                                              child: const Text('View'),
+                                            ),
                                           ),
                                         ],
-                                      ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        '$attendanceCount ${attendanceCount == 1 ? 'member' : 'members'}',
-                                        style: theme.textTheme.bodyMedium,
-                                      ),
-                                    ),
-                                    DataCell(
-                                      TextButton(
-                                        onPressed: () => _viewServiceDetails(
-                                          serviceDate,
-                                          serviceType,
-                                        ),
-                                        child: const Text('View'),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                                    ),
+                                      );
+                                    }).toList(),
                                   ),
-                                );
+                                ),
+                              );
                             },
                           ),
                         ),
@@ -588,6 +589,9 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     );
 
     if (result != null) {
+      if (!mounted) return;
+      final l10n =
+          AppLocalizations.of(context) ?? AppLocalizations(const Locale('en'));
       try {
         // Show loading indicator
         if (mounted) {
@@ -604,6 +608,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
               startDate: result['startDate'] as DateTime?,
               endDate: result['endDate'] as DateTime?,
               serviceType: result['serviceType'] as String?,
+              localizations: l10n,
             );
 
         if (mounted) {

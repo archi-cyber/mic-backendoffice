@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
+import 'new_comer_service.dart';
 import 'user_management_service.dart';
 
 /// Member service for member management operations
@@ -23,6 +24,14 @@ class MemberService {
         throw Exception(
           'Member must have at least email or phone for password reset capability. '
           'Email is strongly recommended.',
+        );
+      }
+
+      final isNewComer = memberData['is_new_comer'] == true;
+      final newcomerIntention = memberData['newcomer_intention']?.toString();
+      if (isNewComer && newcomerIntention == 'just_passing') {
+        throw Exception(
+          'New comers with "just passing" intention must be created as visitors, not members.',
         );
       }
 
@@ -52,6 +61,9 @@ class MemberService {
         // In production, this could be handled by database trigger
         debugPrint('Warning: Failed to create user account: $e');
       }
+
+      // Track newcomer creation in dedicated history table.
+      await NewComerService.ensureRecordExistsForMember(member: response);
 
       return response;
     } catch (e) {
@@ -139,6 +151,9 @@ class MemberService {
           .eq('id', memberId)
           .select()
           .single();
+
+      // If this update marks member as newcomer, ensure history is tracked.
+      await NewComerService.ensureRecordExistsForMember(member: response);
 
       return response;
     } catch (e) {

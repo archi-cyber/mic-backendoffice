@@ -1077,6 +1077,116 @@ class AppLocalizations {
   String get sundaySchool =>
       _localizedValues[locale.languageCode]?['sundaySchool'] ?? 'Sunday School';
 
+  /// Church attendance PDF — column / chart strings
+  String get churchAttendanceReportPdfTitle =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfTitle'] ??
+      'Church attendance report';
+  String get churchAttendanceReportPdfIntro =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfIntro'] ??
+      'This report is organised by calendar month. Each month includes a member table (Onsite / Online / Absent per service) and monthly summary charts. '
+          'The last column is left blank for notes.';
+  String churchAttendanceReportPdfDiligenceNote(int pctDiligent, int pctModerate) =>
+      (_localizedValues[locale.languageCode]
+              ?['churchAttendanceReportPdfDiligenceNote'] ??
+          'Diligence: ≥{d}% present = Diligent; ≥{m}% = Moderately diligent; below = Not diligent. '
+              'Present = onsite + online, denominator = number of scheduled services in the month.')
+          .replaceAll('{d}', '$pctDiligent')
+          .replaceAll('{m}', '$pctModerate');
+  String get attendanceReportFullName =>
+      _localizedValues[locale.languageCode]?['attendanceReportFullName'] ??
+      'Full name';
+  String get attendanceReportOnsiteTotal =>
+      _localizedValues[locale.languageCode]?['attendanceReportOnsiteTotal'] ??
+      'Onsite (total)';
+  String get attendanceReportOnlineTotal =>
+      _localizedValues[locale.languageCode]?['attendanceReportOnlineTotal'] ??
+      'Online (total)';
+  String get attendanceReportTotalPresent =>
+      _localizedValues[locale.languageCode]?['attendanceReportTotalPresent'] ??
+      'Total present';
+  String get attendanceReportObservation =>
+      _localizedValues[locale.languageCode]?['attendanceReportObservation'] ??
+      'Observation';
+  String get attendanceReportSpecificObservations =>
+      _localizedValues[locale.languageCode]?['attendanceReportSpecificObservations'] ??
+      'Specific observations';
+  String get attendanceReportPresentAbbr =>
+      _localizedValues[locale.languageCode]?['attendanceReportPresentAbbr'] ?? 'P';
+  String get attendanceReportAbsentAbbr =>
+      _localizedValues[locale.languageCode]?['attendanceReportAbsentAbbr'] ?? 'A';
+  String get attendanceReportOnlineAbbr =>
+      _localizedValues[locale.languageCode]?['attendanceReportOnlineAbbr'] ?? 'O';
+  String get attendanceReportOnsite =>
+      _localizedValues[locale.languageCode]?['attendanceReportOnsite'] ?? 'Onsite';
+  String get attendanceReportOnline =>
+      _localizedValues[locale.languageCode]?['attendanceReportOnline'] ?? 'Online';
+  String get attendanceReportAbsent =>
+      _localizedValues[locale.languageCode]?['attendanceReportAbsent'] ?? 'Absent';
+  String get attendanceReportVisitor =>
+      _localizedValues[locale.languageCode]?['attendanceReportVisitor'] ?? 'Visitor';
+  String get attendanceReportVisitorsSection =>
+      _localizedValues[locale.languageCode]?['attendanceReportVisitorsSection'] ??
+      'Visitors';
+  String get attendanceReportMembersSection =>
+      _localizedValues[locale.languageCode]?['attendanceReportMembersSection'] ??
+      'Members';
+  String get attendanceReportMonthlySummaryTitle =>
+      _localizedValues[locale.languageCode]?['attendanceReportMonthlySummaryTitle'] ??
+      'Monthly attendance (sum of present counts)';
+  String get attendanceReportPresenceChartsSection =>
+      _localizedValues[locale.languageCode]?['attendanceReportPresenceChartsSection'] ??
+      'Monthly presence';
+  String get attendanceReportSundayMonthlyPresenceChart =>
+      _localizedValues[locale
+              .languageCode]?['attendanceReportSundayMonthlyPresenceChart'] ??
+      'Sunday — present count by service';
+  String get attendanceReportWednesdayMonthlyPresenceChart =>
+      _localizedValues[locale
+              .languageCode]?['attendanceReportWednesdayMonthlyPresenceChart'] ??
+      'Wednesday — present count by service';
+  String get attendanceReportTotalMonthlyPresenceChart =>
+      _localizedValues[locale.languageCode]?['attendanceReportTotalMonthlyPresenceChart'] ??
+      'Total presence — by service date (chronological)';
+  String get attendanceReportSundayMonthTotal =>
+      _localizedValues[locale.languageCode]?['attendanceReportSundayMonthTotal'] ??
+      'Sunday (month)';
+  String get attendanceReportWednesdayMonthTotal =>
+      _localizedValues[locale.languageCode]?['attendanceReportWednesdayMonthTotal'] ??
+      'Wednesday (month)';
+  String get attendanceReportAllServicesMonthTotal =>
+      _localizedValues[locale.languageCode]?['attendanceReportAllServicesMonthTotal'] ??
+      'All services (month)';
+  String get attendanceReportChartNoData =>
+      _localizedValues[locale.languageCode]?['attendanceReportChartNoData'] ??
+      'No data';
+  String get attendanceReportDiligent =>
+      _localizedValues[locale.languageCode]?['attendanceReportDiligent'] ??
+      'Diligent';
+  String get attendanceReportModeratelyDiligent =>
+      _localizedValues[locale.languageCode]?['attendanceReportModeratelyDiligent'] ??
+      'Moderately diligent';
+  String get attendanceReportNotDiligent =>
+      _localizedValues[locale.languageCode]?['attendanceReportNotDiligent'] ??
+      'Not diligent';
+  String get attendanceReportSundayShort =>
+      _localizedValues[locale.languageCode]?['attendanceReportSundayShort'] ?? 'Sun';
+  String get attendanceReportWednesdayShort =>
+      _localizedValues[locale.languageCode]?['attendanceReportWednesdayShort'] ?? 'Wed';
+  String get churchAttendanceReportPdfGenerated =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfGenerated'] ??
+      'Generated';
+  String get churchAttendanceReportPdfPeriod =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfPeriod'] ?? 'Period';
+  String get churchAttendanceReportPdfServiceFilter =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfServiceFilter'] ??
+      'Service type';
+  String get churchAttendanceReportPdfSundayService =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfSundayService'] ??
+      'Sunday service';
+  String get churchAttendanceReportPdfWednesdayService =>
+      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfWednesdayService'] ??
+      'Wednesday service';
+
   // Reports
   String get trainingReport =>
       _localizedValues[locale.languageCode]?['trainingReport'] ??
@@ -1554,6 +1664,48 @@ class AppLocalizations {
       // Church Attendance
       'churchAttendance': 'Church Attendance',
       'sundaySchool': 'Sunday School',
+      'churchAttendanceReportPdfTitle': 'Church attendance report',
+      'churchAttendanceReportPdfIntro':
+          'This report is organised by calendar month. Each month includes a member table (Onsite / Online / Absent per service) and monthly summary charts. The last column is left blank for notes.',
+      'churchAttendanceReportPdfDiligenceNote':
+          'Diligence: ≥{d}% present = Diligent; ≥{m}% = Moderately diligent; below = Not diligent. Present = onsite + online, denominator = number of scheduled services in the month.',
+      'attendanceReportFullName': 'Full name',
+      'attendanceReportOnsiteTotal': 'Onsite (total)',
+      'attendanceReportOnlineTotal': 'Online (total)',
+      'attendanceReportTotalPresent': 'Total present',
+      'attendanceReportObservation': 'Observation',
+      'attendanceReportSpecificObservations': 'Specific observations',
+      'attendanceReportPresentAbbr': 'P',
+      'attendanceReportAbsentAbbr': 'A',
+      'attendanceReportOnlineAbbr': 'O',
+      'attendanceReportOnsite': 'Onsite',
+      'attendanceReportOnline': 'Online',
+      'attendanceReportAbsent': 'Absent',
+      'attendanceReportVisitor': 'Visitor',
+      'attendanceReportVisitorsSection': 'Visitors',
+      'attendanceReportMembersSection': 'Members',
+      'attendanceReportMonthlySummaryTitle': 'Monthly attendance (sum of present counts)',
+      'attendanceReportPresenceChartsSection': 'Monthly presence',
+      'attendanceReportSundayMonthlyPresenceChart':
+          'Sunday — present count by service',
+      'attendanceReportWednesdayMonthlyPresenceChart':
+          'Wednesday — present count by service',
+      'attendanceReportTotalMonthlyPresenceChart':
+          'Total presence — by service date (chronological)',
+      'attendanceReportSundayMonthTotal': 'Sunday (month)',
+      'attendanceReportWednesdayMonthTotal': 'Wednesday (month)',
+      'attendanceReportAllServicesMonthTotal': 'All services (month)',
+      'attendanceReportChartNoData': 'No data',
+      'attendanceReportDiligent': 'Diligent',
+      'attendanceReportModeratelyDiligent': 'Moderately diligent',
+      'attendanceReportNotDiligent': 'Not diligent',
+      'attendanceReportSundayShort': 'Sun',
+      'attendanceReportWednesdayShort': 'Wed',
+      'churchAttendanceReportPdfGenerated': 'Generated',
+      'churchAttendanceReportPdfPeriod': 'Period',
+      'churchAttendanceReportPdfServiceFilter': 'Service type',
+      'churchAttendanceReportPdfSundayService': 'Sunday service',
+      'churchAttendanceReportPdfWednesdayService': 'Wednesday service',
       // Reports
       'trainingReport': 'Training Report',
       'memberReport': 'Member Report',
@@ -1941,6 +2093,48 @@ class AppLocalizations {
       // Church Attendance
       'churchAttendance': 'Asistencia de la Iglesia',
       'sundaySchool': 'Escuela Dominical',
+      'churchAttendanceReportPdfTitle': 'Informe de asistencia a la iglesia',
+      'churchAttendanceReportPdfIntro':
+          'Este informe está organizado por mes natural. Cada mes incluye una tabla de miembros (Presente / Ausente / En línea por culto) y gráficos mensuales de resumen. La última columna queda en blanco para notas.',
+      'churchAttendanceReportPdfDiligenceNote':
+          'Asistencia constante: ≥{d}% presente = Constante; ≥{m}% = Moderadamente constante; por debajo = No constante. Presente = presencial + en línea, denominador = número de cultos programados en el mes.',
+      'attendanceReportFullName': 'Nombre completo',
+      'attendanceReportOnsiteTotal': 'Presencial (total)',
+      'attendanceReportOnlineTotal': 'En línea (total)',
+      'attendanceReportTotalPresent': 'Total presentes',
+      'attendanceReportObservation': 'Observación',
+      'attendanceReportSpecificObservations': 'Observaciones específicas',
+      'attendanceReportPresentAbbr': 'P',
+      'attendanceReportAbsentAbbr': 'A',
+      'attendanceReportOnlineAbbr': 'O',
+      'attendanceReportOnsite': 'Presencial',
+      'attendanceReportOnline': 'En línea',
+      'attendanceReportAbsent': 'Ausente',
+      'attendanceReportVisitor': 'Visitante',
+      'attendanceReportVisitorsSection': 'Visitantes',
+      'attendanceReportMembersSection': 'Miembros',
+      'attendanceReportMonthlySummaryTitle': 'Asistencia mensual (suma de presentes)',
+      'attendanceReportPresenceChartsSection': 'Presencia mensual',
+      'attendanceReportSundayMonthlyPresenceChart':
+          'Domingo — presentes por culto',
+      'attendanceReportWednesdayMonthlyPresenceChart':
+          'Miércoles — presentes por culto',
+      'attendanceReportTotalMonthlyPresenceChart':
+          'Presencia total — por fecha de culto (cronológico)',
+      'attendanceReportSundayMonthTotal': 'Domingo (mes)',
+      'attendanceReportWednesdayMonthTotal': 'Miércoles (mes)',
+      'attendanceReportAllServicesMonthTotal': 'Todos los cultos (mes)',
+      'attendanceReportChartNoData': 'Sin datos',
+      'attendanceReportDiligent': 'Constante',
+      'attendanceReportModeratelyDiligent': 'Moderadamente constante',
+      'attendanceReportNotDiligent': 'No constante',
+      'attendanceReportSundayShort': 'Dom',
+      'attendanceReportWednesdayShort': 'Mié',
+      'churchAttendanceReportPdfGenerated': 'Generado',
+      'churchAttendanceReportPdfPeriod': 'Período',
+      'churchAttendanceReportPdfServiceFilter': 'Tipo de culto',
+      'churchAttendanceReportPdfSundayService': 'Culto dominical',
+      'churchAttendanceReportPdfWednesdayService': 'Culto de miércoles',
       // Reports
       'trainingReport': 'Reporte de Entrenamiento',
       'memberReport': 'Reporte de Miembro',
@@ -2398,6 +2592,48 @@ class AppLocalizations {
       // Church Attendance
       'churchAttendance': 'Assistance de l\'Église',
       'sundaySchool': 'École du Dimanche',
+      'churchAttendanceReportPdfTitle': 'Rapport de présence au culte',
+      'churchAttendanceReportPdfIntro':
+          'Ce rapport est organisé par mois civil. Chaque mois comprend un tableau des membres (Présent / Absent / En ligne par culte) et des graphiques de synthèse mensuels. La dernière colonne est laissée vide pour les notes.',
+      'churchAttendanceReportPdfDiligenceNote':
+          'Assiduité : ≥{d}% de présences = Assidu ; ≥{m}% = Modérément assidu ; en dessous = Peu assidu. Présent = sur place + en ligne, dénominateur = nombre de cultes prévus dans le mois.',
+      'attendanceReportFullName': 'Nom complet',
+      'attendanceReportOnsiteTotal': 'Sur place (total)',
+      'attendanceReportOnlineTotal': 'En ligne (total)',
+      'attendanceReportTotalPresent': 'Total présences',
+      'attendanceReportObservation': 'Observation',
+      'attendanceReportSpecificObservations': 'Observations spécifiques',
+      'attendanceReportPresentAbbr': 'P',
+      'attendanceReportAbsentAbbr': 'A',
+      'attendanceReportOnlineAbbr': 'O',
+      'attendanceReportOnsite': 'Sur place',
+      'attendanceReportOnline': 'En ligne',
+      'attendanceReportAbsent': 'Absent',
+      'attendanceReportVisitor': 'Visiteur',
+      'attendanceReportVisitorsSection': 'Visiteurs',
+      'attendanceReportMembersSection': 'Membres',
+      'attendanceReportMonthlySummaryTitle': 'Présence mensuelle (somme des présences)',
+      'attendanceReportPresenceChartsSection': 'Présence mensuelle',
+      'attendanceReportSundayMonthlyPresenceChart':
+          'Dimanche — présents par culte',
+      'attendanceReportWednesdayMonthlyPresenceChart':
+          'Mercredi — présents par culte',
+      'attendanceReportTotalMonthlyPresenceChart':
+          'Présence totale — par date de culte (chronologique)',
+      'attendanceReportSundayMonthTotal': 'Dimanche (mois)',
+      'attendanceReportWednesdayMonthTotal': 'Mercredi (mois)',
+      'attendanceReportAllServicesMonthTotal': 'Tous les cultes (mois)',
+      'attendanceReportChartNoData': 'Aucune donnée',
+      'attendanceReportDiligent': 'Assidu',
+      'attendanceReportModeratelyDiligent': 'Modérément assidu',
+      'attendanceReportNotDiligent': 'Peu assidu',
+      'attendanceReportSundayShort': 'Dim',
+      'attendanceReportWednesdayShort': 'Mer',
+      'churchAttendanceReportPdfGenerated': 'Généré',
+      'churchAttendanceReportPdfPeriod': 'Période',
+      'churchAttendanceReportPdfServiceFilter': 'Type de culte',
+      'churchAttendanceReportPdfSundayService': 'Culte du dimanche',
+      'churchAttendanceReportPdfWednesdayService': 'Culte du mercredi',
       // Reports
       'trainingReport': 'Rapport de Formation',
       'memberReport': 'Rapport de Membre',

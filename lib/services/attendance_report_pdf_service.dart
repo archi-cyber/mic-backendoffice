@@ -6,7 +6,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
+import '../core/localization/app_localizations.dart';
 import 'church_attendance_service.dart';
+import 'church_attendance_report_builder.dart';
+import 'member_service.dart';
+import 'visitor_service.dart';
 import 'sunday_school_attendance_service.dart';
 
 /// Service for generating PDF reports for attendance
@@ -16,10 +20,17 @@ class AttendanceReportPdfService {
     DateTime? startDate,
     DateTime? endDate,
     String? serviceType,
+    required AppLocalizations localizations,
   }) async {
     try {
       debugPrint(
         '[AttendanceReportPdfService] Generating church attendance report',
+      );
+
+      final allActiveMembers = await MemberService.getMembers(
+        filters: {'is_active': true},
+        orderBy: 'last_name',
+        ascending: true,
       );
 
       // Get all services in the date range
@@ -41,26 +52,66 @@ class AttendanceReportPdfService {
         throw Exception('No attendance records found for the selected period');
       }
 
-      // Get detailed attendance for each service
+      // Get detailed attendance and visitors for each service
+      final visitorsByDate = <String, List<Map<String, dynamic>>>{};
       final List<Map<String, dynamic>> detailedServices = [];
       for (final service in filteredServices) {
+        final serviceDate = DateTime.parse(service['service_date'] as String);
+        final serviceType = service['service_type'] as String;
+        final dateKey = service['service_date'] as String;
+
+        if (!visitorsByDate.containsKey(dateKey)) {
+          try {
+            visitorsByDate[dateKey] = await VisitorService.getVisitors(
+              fromDate: serviceDate,
+              toDate: serviceDate,
+            );
+          } catch (e) {
+            debugPrint(
+              '[AttendanceReportPdfService] Error loading visitors for $dateKey: $e',
+            );
+            visitorsByDate[dateKey] = [];
+          }
+        }
+
+        final visitorsForService = visitorsByDate[dateKey]!
+            .where((visitor) {
+              final st = visitor['service_type']?.toString();
+              if (st == null || st.isEmpty) return true;
+              return st == serviceType;
+            })
+            .toList();
+
         final attendance = await ChurchAttendanceService.getServiceAttendance(
-          serviceDate: DateTime.parse(service['service_date'] as String),
-          serviceType: service['service_type'] as String,
+          serviceDate: serviceDate,
+          serviceType: serviceType,
         );
-        detailedServices.add({...service, 'attendance': attendance});
+        detailedServices.add({
+          ...service,
+          'attendance': attendance,
+          'visitors': visitorsForService,
+        });
       }
 
       final pdf = pw.Document();
 
       pdf.addPage(
         pw.MultiPage(
-          pageFormat: PdfPageFormat.a4,
-          margin: const pw.EdgeInsets.all(40),
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(28),
           build: (context) => [
-            _buildChurchAttendanceHeader(startDate, endDate, serviceType),
-            pw.SizedBox(height: 20),
-            ..._buildChurchAttendanceContent(detailedServices),
+            _buildChurchAttendanceHeader(
+              localizations,
+              startDate,
+              endDate,
+              serviceType,
+            ),
+            pw.SizedBox(height: 12),
+            ...ChurchAttendanceReportBuilder.buildMonthlySections(
+              detailedServices,
+              allMembers: allActiveMembers,
+              localizations: localizations,
+            ),
           ],
         ),
       );
@@ -131,154 +182,42 @@ class AttendanceReportPdfService {
   }
 
   static pw.Widget _buildChurchAttendanceHeader(
+    AppLocalizations l10n,
     DateTime? startDate,
     DateTime? endDate,
     String? serviceType,
   ) {
+    final localeTag = l10n.locale.toString();
+    final df = DateFormat.yMMMd(localeTag);
+    final dft = DateFormat.yMMMd(localeTag).add_jm();
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text(
-          'Church Attendance Report',
+          l10n.churchAttendanceReportPdfTitle,
           style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
         ),
         pw.SizedBox(height: 10),
         pw.Text(
-          'Generated: ${DateFormat('MMM d, yyyy • h:mm a').format(DateTime.now())}',
+          '${l10n.churchAttendanceReportPdfGenerated}: ${dft.format(DateTime.now())}',
           style: const pw.TextStyle(fontSize: 10),
         ),
         if (startDate != null || endDate != null) ...[
           pw.SizedBox(height: 5),
           pw.Text(
-            'Period: ${startDate != null ? DateFormat('MMM d, yyyy').format(startDate) : 'Start'} - ${endDate != null ? DateFormat('MMM d, yyyy').format(endDate) : 'End'}',
+            '${l10n.churchAttendanceReportPdfPeriod}: ${startDate != null ? df.format(startDate) : '—'} - ${endDate != null ? df.format(endDate) : '—'}',
             style: const pw.TextStyle(fontSize: 10),
           ),
         ],
         if (serviceType != null) ...[
           pw.SizedBox(height: 5),
           pw.Text(
-            'Service Type: ${serviceType == 'sunday' ? 'Sunday Service' : 'Wednesday Service'}',
+            '${l10n.churchAttendanceReportPdfServiceFilter}: ${serviceType == 'sunday' ? l10n.churchAttendanceReportPdfSundayService : l10n.churchAttendanceReportPdfWednesdayService}',
             style: const pw.TextStyle(fontSize: 10),
           ),
         ],
       ],
     );
-  }
-
-  static List<pw.Widget> _buildChurchAttendanceContent(
-    List<Map<String, dynamic>> services,
-  ) {
-    final widgets = <pw.Widget>[];
-
-    // Summary statistics
-    int totalServices = services.length;
-    int totalAttendance = services.fold<int>(
-      0,
-      (sum, service) => sum + (service['attendance_count'] as int? ?? 0),
-    );
-    final avgAttendance = totalServices > 0
-        ? totalAttendance / totalServices
-        : 0;
-
-    widgets.add(
-      pw.Container(
-        padding: const pw.EdgeInsets.all(15),
-        decoration: pw.BoxDecoration(
-          border: pw.Border.all(color: PdfColors.grey300),
-          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-        ),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'Summary',
-              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.SizedBox(height: 10),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatBox('Total Services', totalServices.toString()),
-                _buildStatBox('Total Attendance', totalAttendance.toString()),
-                _buildStatBox('Average', avgAttendance.toStringAsFixed(1)),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-
-    widgets.add(pw.SizedBox(height: 20));
-
-    // Services list
-    for (final service in services) {
-      final serviceDate = DateTime.parse(service['service_date'] as String);
-      final serviceType = service['service_type'] as String;
-      final attendance = service['attendance'] as List<Map<String, dynamic>>;
-      final attendanceCount = service['attendance_count'] as int? ?? 0;
-
-      widgets.add(
-        pw.Container(
-          margin: const pw.EdgeInsets.only(bottom: 15),
-          padding: const pw.EdgeInsets.all(15),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey300),
-            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(5)),
-          ),
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text(
-                    '${serviceType == 'sunday' ? 'Sunday' : 'Wednesday'} Service',
-                    style: pw.TextStyle(
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.Text(
-                    DateFormat('MMM d, yyyy').format(serviceDate),
-                    style: const pw.TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Text(
-                'Attendance: $attendanceCount members',
-                style: const pw.TextStyle(fontSize: 11),
-              ),
-              if (attendance.isNotEmpty) ...[
-                pw.SizedBox(height: 10),
-                pw.Text(
-                  'Attendees:',
-                  style: pw.TextStyle(
-                    fontSize: 11,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 5),
-                ...attendance.map((record) {
-                  final member = record['member'] as Map<String, dynamic>?;
-                  final firstName = member?['first_name'] ?? 'Unknown';
-                  final lastName = member?['last_name'] ?? '';
-                  return pw.Padding(
-                    padding: const pw.EdgeInsets.only(left: 10, bottom: 3),
-                    child: pw.Text(
-                      '• $firstName $lastName',
-                      style: const pw.TextStyle(fontSize: 10),
-                    ),
-                  );
-                }),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    return widgets;
   }
 
   static pw.Widget _buildSundaySchoolHeader(

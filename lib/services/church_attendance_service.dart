@@ -190,7 +190,9 @@ class ChurchAttendanceService {
       final dateString = serviceDate.toIso8601String().split('T')[0];
       final response = await _client
           .from('church_attendance')
-          .select('*, member:members(id, first_name, last_name, email)')
+          .select(
+            '*, member:members(id, first_name, last_name, email, birthday)',
+          )
           .eq('service_date', dateString)
           .eq('service_type', serviceType)
           .order('created_at', ascending: false);
@@ -214,74 +216,100 @@ class ChurchAttendanceService {
     int? limit,
   }) async {
     try {
-      // Get all attendance records with filters
-      // Note: Filters must be applied before transforms (order, limit)
-      dynamic query = _client
-          .from('church_attendance')
-          .select('service_date, service_type, id, attendance_type, member_id');
+      // Fetch all rows in chunks because PostgREST may cap a single response.
+      const pageSize = 1000;
+      var offset = 0;
+      var hasMore = true;
+      final records = <Map<String, dynamic>>[];
 
-      // Apply filters first
-      if (startDate != null) {
-        query = query.gte(
-          'service_date',
-          startDate.toIso8601String().split('T')[0],
-        );
+      while (hasMore) {
+        dynamic query = _client
+            .from('church_attendance')
+            .select(
+              'service_date, service_type, id, attendance_type, member_id, deleted_at, created_at',
+            );
+
+        if (startDate != null) {
+          query = query.gte(
+            'service_date',
+            startDate.toIso8601String().split('T')[0],
+          );
+        }
+        if (endDate != null) {
+          query = query.lte(
+            'service_date',
+            endDate.toIso8601String().split('T')[0],
+          );
+        }
+
+        query = query
+            .order('service_date', ascending: false)
+            .order('created_at', ascending: false)
+            .range(offset, offset + pageSize - 1);
+
+        final page = List<Map<String, dynamic>>.from(await query);
+        records.addAll(page);
+        hasMore = page.length == pageSize;
+        offset += page.length;
       }
-      if (endDate != null) {
-        query = query.lte(
-          'service_date',
-          endDate.toIso8601String().split('T')[0],
-        );
-      }
 
-      // Apply transforms after filters
-      query = query.order('service_date', ascending: false);
-
-      if (limit != null) {
-        query = query.limit(
-          limit * 10,
-        ); // Get more records to account for multiple services per date
-      }
-
-      final response = await query;
-      final records = List<Map<String, dynamic>>.from(response);
-
-      // Filter out deleted records and group by service_date + service_type
-      // Only count unique members with 'onsite' and 'online' attendance, exclude 'absent'
-      final serviceMemberSets =
-          <String, Set<String>>{}; // Track unique member IDs
+      // Build effective attendance per member per service using latest row.
+      // This avoids unstable counts when duplicate rows exist for same member.
+      final latestByServiceMember = <String, Map<String, dynamic>>{};
       final serviceMap = <String, Map<String, dynamic>>{};
 
       for (final record in records) {
         if (record['deleted_at'] == null) {
-          final attendanceType = record['attendance_type']?.toString();
-          // Only count actual attendance (onsite or online), not absent
-          if (attendanceType != null && attendanceType != 'absent') {
-            final serviceDate = record['service_date'] as String;
-            final serviceType = record['service_type'] as String;
-            final key = '${serviceDate}_$serviceType';
-            final memberId = record['member_id']?.toString();
+          final serviceDate = record['service_date'] as String;
+          final serviceType = record['service_type'] as String;
+          final key = '${serviceDate}_$serviceType';
+          final memberId = record['member_id']?.toString();
 
-            // Track unique member IDs per service
-            if (memberId != null) {
-              serviceMemberSets.putIfAbsent(key, () => <String>{});
-              serviceMemberSets[key]!.add(memberId);
-            }
+          if (!serviceMap.containsKey(key)) {
+            serviceMap[key] = {
+              'service_date': serviceDate,
+              'service_type': serviceType,
+            };
+          }
 
-            if (!serviceMap.containsKey(key)) {
-              serviceMap[key] = {
-                'service_date': serviceDate,
-                'service_type': serviceType,
-              };
+          if (memberId != null) {
+            final smKey = '${key}_$memberId';
+            final existing = latestByServiceMember[smKey];
+            if (existing == null) {
+              latestByServiceMember[smKey] = record;
+            } else {
+              final existingCreatedAt =
+                  existing['created_at']?.toString() ?? '';
+              final incomingCreatedAt = record['created_at']?.toString() ?? '';
+              if (incomingCreatedAt.compareTo(existingCreatedAt) >= 0) {
+                latestByServiceMember[smKey] = record;
+              }
             }
           }
         }
       }
 
-      // Combine service info with counts (using unique member count)
+      // Count only effective attended members (onsite/online) per service.
+      final attendedMemberSets = <String, Set<String>>{};
+      for (final entry in latestByServiceMember.entries) {
+        final row = entry.value;
+        final serviceDate = row['service_date']?.toString();
+        final serviceType = row['service_type']?.toString();
+        final memberId = row['member_id']?.toString();
+        final attendanceType = row['attendance_type']?.toString();
+        if (serviceDate == null || serviceType == null || memberId == null) {
+          continue;
+        }
+        final key = '${serviceDate}_$serviceType';
+        if (attendanceType == 'onsite' || attendanceType == 'online') {
+          attendedMemberSets.putIfAbsent(key, () => <String>{});
+          attendedMemberSets[key]!.add(memberId);
+        }
+      }
+
       final servicesWithCounts = serviceMap.entries.map((entry) {
-        final uniqueMemberCount = serviceMemberSets[entry.key]?.length ?? 0;
-        return {...entry.value, 'attendance_count': uniqueMemberCount};
+        final attendedCount = attendedMemberSets[entry.key]?.length ?? 0;
+        return {...entry.value, 'attendance_count': attendedCount};
       }).toList();
 
       // Sort by date descending
@@ -300,6 +328,58 @@ class ChurchAttendanceService {
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error getting all services: $e');
       throw Exception('Failed to get all services: $e');
+    }
+  }
+
+  /// Get raw church attendance rows with pagination support.
+  static Future<List<Map<String, dynamic>>> getRawAttendanceRows({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? serviceType,
+    bool includeDeleted = false,
+    int limit = 300,
+    int offset = 0,
+  }) async {
+    try {
+      dynamic query = _client
+          .from('church_attendance')
+          .select(
+            'id, member_id, service_date, service_type, attendance_type, deleted_at',
+          );
+
+      if (startDate != null) {
+        query = query.gte(
+          'service_date',
+          startDate.toIso8601String().split('T')[0],
+        );
+      }
+      if (endDate != null) {
+        query = query.lte(
+          'service_date',
+          endDate.toIso8601String().split('T')[0],
+        );
+      }
+      if (serviceType != null) {
+        query = query.eq('service_type', serviceType);
+      }
+      if (!includeDeleted) {
+        query = query.isFilter('deleted_at', null);
+      }
+
+      // Apply transforms after filters
+      query = query
+          .order('service_date', ascending: false)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      final response = await query;
+      final rows = List<Map<String, dynamic>>.from(response);
+      return rows;
+    } catch (e) {
+      debugPrint(
+        '[ChurchAttendanceService] Error getting raw attendance rows: $e',
+      );
+      throw Exception('Failed to get raw attendance rows: $e');
     }
   }
 
