@@ -191,7 +191,7 @@ class ChurchAttendanceService {
       final response = await _client
           .from('church_attendance')
           .select(
-            '*, member:members(id, first_name, last_name, email, birthday)',
+            '*, member:members(id, first_name, last_name, email, birthday, is_new_comer)',
           )
           .eq('service_date', dateString)
           .eq('service_type', serviceType)

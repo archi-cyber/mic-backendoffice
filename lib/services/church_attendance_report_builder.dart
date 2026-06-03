@@ -7,6 +7,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../core/localization/app_localizations.dart';
+import '../utils/member_utils.dart';
 
 /// Thresholds for diligence (present / scheduled services in month).
 const double kDiligenceDiligentMin = 0.8;
@@ -180,7 +181,29 @@ class ChurchAttendanceReportBuilder {
       final id = row['id'].toString();
       final fn = row['first_name']?.toString() ?? '';
       final ln = row['last_name']?.toString() ?? '';
-      memberNames[id] = ('$fn $ln').trim().isEmpty ? id : ('$fn $ln').trim();
+      var name = ('$fn $ln').trim().isEmpty ? id : ('$fn $ln').trim();
+
+      final birthday = row['birthday'];
+      DateTime? birthdayDate;
+      if (birthday is String) {
+        try {
+          birthdayDate = DateTime.parse(birthday.split('T').first);
+        } catch (_) {}
+      } else if (birthday is DateTime) {
+        birthdayDate = birthday;
+      }
+      final tags = <String>[];
+      if (MemberUtils.getAgeCategory(birthdayDate) == 'child') {
+        tags.add(l10n.attendanceReportChildTag);
+      }
+      if (row['is_new_comer'] == true) {
+        tags.add(l10n.attendanceReportNewComerTag);
+      }
+      if (tags.isNotEmpty) {
+        name = '$name (${tags.join(', ')})';
+      }
+
+      memberNames[id] = name;
     }
 
     final visitorRows = <Map<String, dynamic>>[];

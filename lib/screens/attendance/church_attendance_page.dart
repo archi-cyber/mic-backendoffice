@@ -74,6 +74,37 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     ]);
   }
 
+  Map<String, Map<String, dynamic>> get _membersById {
+    final map = <String, Map<String, dynamic>>{};
+    for (final member in _members) {
+      final id = member['id']?.toString();
+      if (id != null && id.isNotEmpty) {
+        map[id] = member;
+      }
+    }
+    return map;
+  }
+
+  void _enrichAttendanceRecordMember(Map<String, dynamic> record) {
+    final memberId = record['member_id']?.toString();
+    if (memberId == null) return;
+
+    final fromMembers = _membersById[memberId];
+    final existing = record['member'] as Map<String, dynamic>?;
+    final member = Map<String, dynamic>.from(existing ?? {});
+
+    if (fromMembers != null) {
+      member['id'] = memberId;
+      member['first_name'] ??= fromMembers['first_name'];
+      member['last_name'] ??= fromMembers['last_name'];
+      member['email'] ??= fromMembers['email'];
+      member['is_new_comer'] = fromMembers['is_new_comer'] == true;
+      member['birthday'] ??= fromMembers['birthday'];
+    }
+
+    record['member'] = member;
+  }
+
   String _formatDateOnly(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
@@ -198,31 +229,8 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         ascending: true,
       );
 
-      // Filter out children - only show adults and teenagers
-      final filteredMembers = allMembers.where((member) {
-        final birthday = member['birthday'];
-        if (birthday == null) {
-          return true; // Include if no birthday (assume adult)
-        }
-
-        DateTime? birthdayDate;
-        try {
-          if (birthday is String) {
-            birthdayDate = DateTime.parse(birthday);
-          } else if (birthday is DateTime) {
-            birthdayDate = birthday;
-          }
-        } catch (e) {
-          return true; // Include if can't parse birthday
-        }
-
-        final ageCategory = MemberUtils.getAgeCategory(birthdayDate);
-        // Only include adults and teenagers, exclude children
-        return ageCategory != 'child';
-      }).toList();
-
       setState(() {
-        _members = filteredMembers;
+        _members = allMembers;
         _isLoading = false;
       });
     } catch (e) {
@@ -287,6 +295,8 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               'first_name': member['first_name'] ?? '',
               'last_name': member['last_name'] ?? '',
               'email': member['email'] ?? '',
+              'is_new_comer': member['is_new_comer'] == true,
+              'birthday': member['birthday'],
             },
             'created_at': null,
           };
@@ -303,6 +313,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (memberId != null && !processedMemberIds.contains(memberId)) {
           allAttendanceRecords.add(record);
         }
+      }
+
+      for (final record in allAttendanceRecords) {
+        _enrichAttendanceRecordMember(record);
       }
 
       setState(() {
@@ -1499,6 +1513,19 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     return member?['is_new_comer'] == true;
   }
 
+  bool _attendanceRecordIsNewComerChild(Map<String, dynamic> record) {
+    return _attendanceRecordIsChild(record) &&
+        _attendanceRecordIsNewComer(record);
+  }
+
+  int _uniqueOnsiteMemberCount(Iterable<Map<String, dynamic>> records) {
+    return records
+        .map((r) => r['member_id']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .toSet()
+        .length;
+  }
+
   List<Map<String, dynamic>> get _filteredAttendanceRecords {
     var filtered = _attendanceRecords;
 
@@ -1692,6 +1719,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 .toSet()
                 .length;
 
+            final newComerChildrenAttended = onsiteRecords
+                .where(_attendanceRecordIsNewComerChild)
+                .map((record) => record['member_id']?.toString())
+                .where((id) => id != null)
+                .toSet()
+                .length;
+
             final newComersAttended = onsiteRecords
                 .where(_attendanceRecordIsNewComer)
                 .map((record) => record['member_id']?.toString())
@@ -1715,8 +1749,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 .toSet()
                 .length;
 
-            final totalExcludingOnline =
-                childrenAttended + adultsAttended + newComersAttended;
+            final totalExcludingOnline = _uniqueOnsiteMemberCount(onsiteRecords);
 
             return Container(
               margin: const EdgeInsets.all(AppDimensions.spacingMD),
@@ -1731,6 +1764,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                   _buildSummaryLine(
                     'Children attended',
                     childrenAttended,
+                    Icons.child_care,
+                  ),
+                  const SizedBox(height: AppDimensions.spacingXS),
+                  _buildSummaryLine(
+                    'New comer children attended',
+                    newComerChildrenAttended,
                     Icons.child_care,
                   ),
                   const SizedBox(height: AppDimensions.spacingXS),

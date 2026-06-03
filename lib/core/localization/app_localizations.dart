@@ -1127,6 +1127,12 @@ class AppLocalizations {
   String get attendanceReportVisitorsSection =>
       _localizedValues[locale.languageCode]?['attendanceReportVisitorsSection'] ??
       'Visitors';
+  String get attendanceReportChildTag =>
+      _localizedValues[locale.languageCode]?['attendanceReportChildTag'] ??
+      'Child';
+  String get attendanceReportNewComerTag =>
+      _localizedValues[locale.languageCode]?['attendanceReportNewComerTag'] ??
+      'New comer';
   String get attendanceReportMembersSection =>
       _localizedValues[locale.languageCode]?['attendanceReportMembersSection'] ??
       'Members';
@@ -1683,6 +1689,8 @@ class AppLocalizations {
       'attendanceReportAbsent': 'Absent',
       'attendanceReportVisitor': 'Visitor',
       'attendanceReportVisitorsSection': 'Visitors',
+      'attendanceReportChildTag': 'Child',
+      'attendanceReportNewComerTag': 'New comer',
       'attendanceReportMembersSection': 'Members',
       'attendanceReportMonthlySummaryTitle': 'Monthly attendance (sum of present counts)',
       'attendanceReportPresenceChartsSection': 'Monthly presence',
@@ -2112,6 +2120,8 @@ class AppLocalizations {
       'attendanceReportAbsent': 'Ausente',
       'attendanceReportVisitor': 'Visitante',
       'attendanceReportVisitorsSection': 'Visitantes',
+      'attendanceReportChildTag': 'Niño',
+      'attendanceReportNewComerTag': 'Nuevo',
       'attendanceReportMembersSection': 'Miembros',
       'attendanceReportMonthlySummaryTitle': 'Asistencia mensual (suma de presentes)',
       'attendanceReportPresenceChartsSection': 'Presencia mensual',
@@ -2611,6 +2621,8 @@ class AppLocalizations {
       'attendanceReportAbsent': 'Absent',
       'attendanceReportVisitor': 'Visiteur',
       'attendanceReportVisitorsSection': 'Visiteurs',
+      'attendanceReportChildTag': 'Enfant',
+      'attendanceReportNewComerTag': 'Nouveau',
       'attendanceReportMembersSection': 'Membres',
       'attendanceReportMonthlySummaryTitle': 'Présence mensuelle (somme des présences)',
       'attendanceReportPresenceChartsSection': 'Présence mensuelle',
