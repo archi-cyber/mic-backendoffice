@@ -109,17 +109,21 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
         .length;
   }
 
-  int get _totalAttendance {
-    return _filteredServices.fold<int>(
+  int _avgAttendanceForType(String serviceType) {
+    final services = _filteredServices
+        .where((service) => service['service_type']?.toString() == serviceType)
+        .toList();
+    if (services.isEmpty) return 0;
+    final total = services.fold<int>(
       0,
       (sum, service) => sum + (service['attendance_count'] as int? ?? 0),
     );
+    return (total / services.length).round();
   }
 
-  int get _avgAttendance {
-    if (_filteredServices.isEmpty) return 0;
-    return (_totalAttendance / _filteredServices.length).round();
-  }
+  int get _avgSundayAttendance => _avgAttendanceForType('sunday');
+
+  int get _avgWednesdayAttendance => _avgAttendanceForType('wednesday');
 
   DateTime? _parseServiceDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) return null;
@@ -337,6 +341,13 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           ),
           SizedBox(width: AppDimensions.spacingSM),
           _ChurchStatChip(
+            label: context.tr('Avg / Sunday'),
+            value: _isLoading ? '…' : '$_avgSundayAttendance',
+            icon: Icons.trending_up,
+            color: AppColors.warning,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          _ChurchStatChip(
             label: context.tr('Wednesday Service'),
             value: _isLoading ? '…' : '$_wednesdayCount',
             icon: Icons.nightlight_outlined,
@@ -344,17 +355,10 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           ),
           SizedBox(width: AppDimensions.spacingSM),
           _ChurchStatChip(
-            label: context.tr('Members attended'),
-            value: _isLoading ? '…' : '$_totalAttendance',
-            icon: Icons.people_outline,
-            color: AppColors.success,
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          _ChurchStatChip(
-            label: context.tr('Avg / service'),
-            value: _isLoading ? '…' : '$_avgAttendance',
+            label: context.tr('Avg / Wednesday'),
+            value: _isLoading ? '…' : '$_avgWednesdayAttendance',
             icon: Icons.trending_up,
-            color: AppColors.secondaryDark,
+            color: AppColors.info,
           ),
         ],
       ),
@@ -940,16 +944,22 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           color: AppColors.warning,
         ),
         DesktopStatChip(
+          label: context.tr('Avg / Sunday'),
+          value: _isLoading ? '…' : '$_avgSundayAttendance',
+          icon: Icons.trending_up,
+          color: AppColors.warning,
+        ),
+        DesktopStatChip(
           label: context.tr('Wednesday Service'),
           value: _isLoading ? '…' : '$_wednesdayCount',
           icon: Icons.nightlight_outlined,
           color: AppColors.info,
         ),
         DesktopStatChip(
-          label: context.tr('Avg / service'),
-          value: _isLoading ? '…' : '$_avgAttendance',
+          label: context.tr('Avg / Wednesday'),
+          value: _isLoading ? '…' : '$_avgWednesdayAttendance',
           icon: Icons.trending_up,
-          color: AppColors.success,
+          color: AppColors.info,
         ),
       ],
       toolbar: _buildDesktopToolbar(),

@@ -279,13 +279,6 @@ class _SundaySchoolAttendanceListPageState
           ),
           SizedBox(width: AppDimensions.spacingSM),
           _SundaySchoolStatChip(
-            label: context.tr('Children attended'),
-            value: _isLoading ? '…' : '$_totalAttendance',
-            icon: Icons.child_care_outlined,
-            color: AppColors.primary,
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          _SundaySchoolStatChip(
             label: context.tr('Avg / session'),
             value: _isLoading ? '…' : '$_avgAttendance',
             icon: Icons.trending_up,
@@ -803,12 +796,6 @@ class _SundaySchoolAttendanceListPageState
           value: _isLoading ? '…' : '$_thisMonthCount',
           icon: Icons.calendar_month_outlined,
           color: AppColors.accent,
-        ),
-        DesktopStatChip(
-          label: context.tr('Children attended'),
-          value: _isLoading ? '…' : '$_totalAttendance',
-          icon: Icons.child_care_outlined,
-          color: AppColors.primary,
         ),
         DesktopStatChip(
           label: context.tr('Avg / session'),

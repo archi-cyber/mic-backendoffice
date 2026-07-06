@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -9,6 +8,7 @@ import '../../services/member_service.dart';
 import '../../services/visitor_service.dart';
 import '../../services/attendance_report_pdf_service.dart';
 import '../../utils/member_utils.dart';
+import '../../utils/whatsapp_utils.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 
@@ -113,6 +113,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       member['first_name'] ??= fromMembers['first_name'];
       member['last_name'] ??= fromMembers['last_name'];
       member['email'] ??= fromMembers['email'];
+      member['phone'] ??= fromMembers['phone'];
       member['is_new_comer'] = fromMembers['is_new_comer'] == true;
       member['birthday'] ??= fromMembers['birthday'];
     }
@@ -1861,6 +1862,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               ],
             ),
           ),
+          if (_isViewMode) _buildMobileAbsentActions(),
           Expanded(
             child: TabBarView(
               children: [
@@ -1927,6 +1929,36 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         setState(() => _selectedAttendanceFilter = value);
         Navigator.pop(sheetContext);
       },
+    );
+  }
+
+  Widget _buildMobileAbsentActions() {
+    final absentCount = _absentPeopleEntries().length;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.spacingMD,
+        AppDimensions.spacingSM,
+        AppDimensions.spacingMD,
+        AppDimensions.spacingSM,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _showAbsentPeopleDialog,
+              icon: const Icon(Icons.person_off_outlined, size: 18),
+              label: Text('Absent ($absentCount)'),
+            ),
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          IconButton.filledTonal(
+            onPressed: _generateAbsentPeoplePdf,
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'Export absent PDF',
+          ),
+        ],
+      ),
     );
   }
 
@@ -2831,66 +2863,102 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     );
   }
 
-  String? _whatsAppUrlFromPhone(String? phone) {
-    final raw = phone ?? '';
-    if (raw.trim().isEmpty) return null;
-    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return null;
-    return 'https://wa.me/$digits';
-  }
-
   List<Map<String, String?>> _absentPeopleEntries() {
-    // In view mode, absent means:
-    // - members: _memberAttendanceTypes[memberId] == null
-    // - visitors: _visitorAttendanceTypes[visitorId] == null
     final entries = <Map<String, String?>>[];
 
-    for (final member in _filteredMembers) {
-      final id = member['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      final attendanceType = _memberAttendanceTypes[id];
-      if (attendanceType != null) continue; // not absent
-
-      final first = member['first_name']?.toString().trim() ?? '';
-      final last = member['last_name']?.toString().trim() ?? '';
-      final name = '$first $last'.trim().isEmpty
-          ? (member['id']?.toString() ?? '—')
-          : '$first $last'.trim();
-
-      final phone = member['phone']?.toString();
-      final email = member['email']?.toString();
-
+    void addEntry({
+      required String kind,
+      required String name,
+      String? phone,
+      String? email,
+    }) {
       entries.add({
-        'kind': 'Member',
+        'kind': kind,
         'name': name,
         'phone': phone,
         'email': email,
-        'whatsappUrl': _whatsAppUrlFromPhone(phone),
+        'whatsappUrl': WhatsAppUtils.urlFromPhone(phone),
       });
     }
 
-    for (final visitor in _filteredVisitors) {
-      final id = visitor['id']?.toString() ?? '';
-      if (id.isEmpty) continue;
-      final attendanceType = _visitorAttendanceTypes[id];
-      if (attendanceType != null) continue; // not absent
+    if (_isViewMode) {
+      for (final record in _attendanceRecords) {
+        if (record['attendance_type']?.toString() != 'absent') continue;
 
-      final first = visitor['first_name']?.toString().trim() ?? '';
-      final last = visitor['last_name']?.toString().trim() ?? '';
-      final name = '$first $last'.trim().isEmpty
-          ? (visitor['id']?.toString() ?? '—')
-          : '$first $last'.trim();
+        final memberId = record['member_id']?.toString() ?? '';
+        final member = record['member'] as Map<String, dynamic>?;
+        final fromMembers =
+            memberId.isNotEmpty ? _membersById[memberId] : null;
 
-      final phone = visitor['phone']?.toString();
-      final email = visitor['email']?.toString();
+        final first = (member?['first_name'] ?? fromMembers?['first_name'] ?? '')
+            .toString()
+            .trim();
+        final last = (member?['last_name'] ?? fromMembers?['last_name'] ?? '')
+            .toString()
+            .trim();
+        final name = '$first $last'.trim().isEmpty
+            ? (memberId.isNotEmpty ? memberId : 'Unknown')
+            : '$first $last'.trim();
 
-      entries.add({
-        'kind': 'Visitor',
-        'name': name,
-        'phone': phone,
-        'email': email,
-        'whatsappUrl': _whatsAppUrlFromPhone(phone),
-      });
+        addEntry(
+          kind: 'Member',
+          name: name,
+          phone: fromMembers?['phone']?.toString() ?? member?['phone']?.toString(),
+          email: fromMembers?['email']?.toString() ?? member?['email']?.toString(),
+        );
+      }
+
+      for (final visitor in _visitorsForSelectedService) {
+        final at = visitor['attendance_type']?.toString();
+        if (at == 'onsite' || at == 'online') continue;
+
+        final first = visitor['first_name']?.toString().trim() ?? '';
+        final last = visitor['last_name']?.toString().trim() ?? '';
+        final name = '$first $last'.trim().isEmpty
+            ? (visitor['id']?.toString() ?? 'Unknown')
+            : '$first $last'.trim();
+
+        addEntry(
+          kind: 'Visitor',
+          name: name,
+          phone: visitor['phone']?.toString(),
+          email: visitor['email']?.toString(),
+        );
+      }
+    } else {
+      for (final member in _members) {
+        final id = member['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        if (_memberAttendanceTypes[id] != null) continue;
+
+        final first = member['first_name']?.toString().trim() ?? '';
+        final last = member['last_name']?.toString().trim() ?? '';
+        final name = '$first $last'.trim().isEmpty ? id : '$first $last'.trim();
+
+        addEntry(
+          kind: 'Member',
+          name: name,
+          phone: member['phone']?.toString(),
+          email: member['email']?.toString(),
+        );
+      }
+
+      for (final visitor in _visitorsForSelectedService) {
+        final id = visitor['id']?.toString() ?? '';
+        if (id.isEmpty) continue;
+        if (_visitorAttendanceTypes[id] != null) continue;
+
+        final first = visitor['first_name']?.toString().trim() ?? '';
+        final last = visitor['last_name']?.toString().trim() ?? '';
+        final name = '$first $last'.trim().isEmpty ? id : '$first $last'.trim();
+
+        addEntry(
+          kind: 'Visitor',
+          name: name,
+          phone: visitor['phone']?.toString(),
+          email: visitor['email']?.toString(),
+        );
+      }
     }
 
     entries.sort((a, b) {
@@ -2902,82 +2970,159 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     return entries;
   }
 
+  Widget _buildAbsentPeopleList(List<Map<String, String?>> entries) {
+    if (entries.isEmpty) {
+      return Center(
+        child: Text(
+          'No absent people',
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: context.mic.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: entries.length,
+      separatorBuilder: (_, __) => Divider(
+        height: 1,
+        color: Theme.of(context).dividerColor.withValues(alpha: 0.35),
+      ),
+      itemBuilder: (context, index) {
+        final e = entries[index];
+        final name = e['name'] ?? '-';
+        final kind = e['kind'] ?? '';
+        final phone = e['phone'] ?? '';
+        final email = e['email'] ?? '';
+
+        return ListTile(
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.spacingMD,
+            vertical: AppDimensions.spacingXS,
+          ),
+          leading: CircleAvatar(
+            backgroundColor: AppColors.error.withValues(alpha: 0.12),
+            child: const Icon(Icons.person_off_outlined, color: AppColors.error),
+          ),
+          title: Text(name),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (kind.isNotEmpty)
+                Text(
+                  kind,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              if (phone.isNotEmpty) Text('Phone: $phone'),
+              if (email.isNotEmpty) Text('Email: $email'),
+            ],
+          ),
+          trailing: phone.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.chat, color: Colors.green),
+                  tooltip: 'Open WhatsApp',
+                  onPressed: () => _openWhatsApp(phone),
+                )
+              : null,
+        );
+      },
+    );
+  }
+
+  Future<void> _openWhatsApp(String phone) async {
+    final opened = await WhatsAppUtils.openChat(phone: phone);
+    if (opened || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Could not open WhatsApp. Make sure it is installed on this device.',
+        ),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
   Future<void> _showAbsentPeopleDialog() async {
     final entries = _absentPeopleEntries();
+    final isMobile = _isCompactServiceDetails(context);
+
+    if (isMobile) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) {
+          final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.85;
+          return SafeArea(
+            child: SizedBox(
+              height: maxHeight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppDimensions.spacingMD,
+                      0,
+                      AppDimensions.spacingMD,
+                      AppDimensions.spacingSM,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Absent people (${entries.length})',
+                            style: Theme.of(sheetContext)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _generateAbsentPeoplePdf();
+                          },
+                          icon: const Icon(Icons.picture_as_pdf),
+                          tooltip: 'Export PDF',
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: _buildAbsentPeopleList(entries)),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
 
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Absent people'),
+          title: Text('Absent people (${entries.length})'),
           content: SizedBox(
-            width: 980,
-            height: 560,
-            child: entries.isEmpty
-                ? Center(
-                    child: Text(
-                      'No absent people',
-                      textAlign: TextAlign.center,
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: entries.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final e = entries[index];
-                      final name = e['name'] ?? '—';
-                      final kind = e['kind'] ?? '';
-                      final phone = e['phone'] ?? '';
-                      final email = e['email'] ?? '';
-                      final whatsappUrl = e['whatsappUrl'];
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.error.withValues(alpha: 0.12),
-                          child: Icon(Icons.person_off_outlined,
-                              color: AppColors.error),
-                        ),
-                        title: Text(name),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (kind.isNotEmpty)
-                              Text(
-                                kind,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .labelSmall
-                                    ?.copyWith(color: context.mic.textSecondary),
-                              ),
-                            if (phone.isNotEmpty)
-                              Text('Phone: $phone'),
-                            if (email.isNotEmpty)
-                              Text('Email: $email'),
-                          ],
-                        ),
-                        trailing: whatsappUrl != null
-                            ? IconButton(
-                                icon: Icon(Icons.chat, color: Colors.green),
-                                tooltip: 'Open WhatsApp',
-                                onPressed: () async {
-                                  final uri = Uri.parse(whatsappUrl);
-                                  final ok = await canLaunchUrl(uri);
-                                  if (!ok) return;
-                                  await launchUrl(
-                                    uri,
-                                    mode: LaunchMode.externalApplication,
-                                  );
-                                },
-                              )
-                            : null,
-                      );
-                    },
-                  ),
+            width: 720,
+            height: 480,
+            child: _buildAbsentPeopleList(entries),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Close'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                _generateAbsentPeoplePdf();
+              },
+              icon: const Icon(Icons.picture_as_pdf),
+              label: const Text('Export PDF'),
             ),
           ],
         );
