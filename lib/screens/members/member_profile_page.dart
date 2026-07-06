@@ -952,35 +952,43 @@ class _AttendanceStatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 132,
-      padding: EdgeInsets.all(AppDimensions.paddingMD),
-      decoration: BoxDecoration(
-        color: context.mic.surface,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 20),
-          const Spacer(),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
+    return SizedBox(
+      width: 118,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppDimensions.paddingSM + 4,
+          vertical: AppDimensions.paddingSM,
+        ),
+        decoration: BoxDecoration(
+          color: context.mic.surface,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+              ),
             ),
-          ),
-          Text(
-            label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: context.mic.textSecondary,
+            Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: context.mic.textSecondary,
+                height: 1.1,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
