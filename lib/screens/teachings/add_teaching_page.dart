@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/teaching_service.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Add teaching page
 class AddTeachingPage extends StatefulWidget {
@@ -98,113 +98,111 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
     }
   }
 
-  static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 800;
-
-  Widget _desktopSectionCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    List<Widget> children,
-  ) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-      child: Container(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
+  List<Widget> _teachingFormFields(AppLocalizations? localizations) {
+    return [
+      TextFormField(
+        controller: _titleController,
+        decoration: InputDecoration(
+          labelText: '${localizations?.teachingTitle ?? 'Title'} *',
+          prefixIcon: const Icon(Icons.title),
+          border: const OutlineInputBorder(),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-                  ),
-                  child: Icon(icon, size: 20, color: AppColors.primary),
-                ),
-                SizedBox(width: AppDimensions.spacingMD),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return localizations?.teachingTitleRequired ??
+                'Please enter a title';
+          }
+          return null;
+        },
+        textCapitalization: TextCapitalization.words,
+      ),
+      SizedBox(height: AppDimensions.spacingMD),
+      InkWell(
+        onTap: _selectTeachingDate,
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText:
+                '${localizations?.teachingDate ?? 'Teaching Date'} *',
+            prefixIcon: const Icon(Icons.calendar_today),
+            border: const OutlineInputBorder(),
+          ),
+          child: Text(
+            _teachingDate != null
+                ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
+                : (localizations?.teachingDateRequired ?? 'Select date'),
+            style: TextStyle(
+              color: _teachingDate != null
+                  ? Theme.of(context).textTheme.bodyLarge?.color
+                  : Theme.of(context).hintColor,
             ),
-            SizedBox(height: AppDimensions.spacingMD),
-            ...children,
-          ],
+          ),
         ),
       ),
-    );
+      SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _speakerController,
+        decoration: InputDecoration(
+          labelText:
+              '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
+          prefixIcon: const Icon(Icons.person),
+          border: const OutlineInputBorder(),
+        ),
+        textCapitalization: TextCapitalization.words,
+      ),
+      SizedBox(height: AppDimensions.spacingMD),
+      TextFormField(
+        controller: _descriptionController,
+        decoration: InputDecoration(
+          labelText:
+              '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
+          prefixIcon: const Icon(Icons.description),
+          border: const OutlineInputBorder(),
+        ),
+        maxLines: 4,
+        textCapitalization: TextCapitalization.sentences,
+      ),
+    ];
   }
 
-  Widget _desktopIntroCard(
+  Widget _buildDesktopBody(
     BuildContext context,
-    AppLocalizations? localizations,
-  ) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withValues(alpha: 0.14),
-            AppColors.primary.withValues(alpha: 0.04),
+    AppLocalizations? localizations, {
+    required bool embedded,
+  }) {
+    return DesktopPageShell(
+      maxWidth: kDesktopFormMaxWidth,
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: localizations?.addTeaching ?? 'Add Teaching',
+        subtitle: context.tr(
+          'Capture a teaching with its date, speaker, and notes.',
+        ),
+        icon: Icons.menu_book_outlined,
+        trailing: embedded
+            ? IconButton(
+                onPressed: _closeWithoutResult,
+                icon: const Icon(Icons.close),
+                tooltip: localizations?.cancel ?? 'Cancel',
+              )
+            : null,
+      ),
+      child: Form(
+        key: _formKey,
+        child: DesktopSectionCard(
+          title: localizations?.teachingDetails ?? 'Teaching details',
+          icon: Icons.menu_book,
+          children: [
+            ..._teachingFormFields(localizations),
+            SizedBox(height: AppDimensions.spacingLG),
+            DesktopFormActions(
+              onCancel: _closeWithoutResult,
+              primaryLabel: localizations?.addTeaching ?? 'Add Teaching',
+              primaryIcon: Icons.add,
+              onPrimary: _handleSave,
+              isLoading: _isLoading,
+            ),
           ],
         ),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-            ),
-            child: Icon(Icons.menu_book_outlined, color: AppColors.primary),
-          ),
-          SizedBox(width: AppDimensions.spacingLG),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  localizations?.addTeaching ?? 'Add Teaching',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: AppDimensions.spacingXS),
-                Text(
-                  context.tr(
-                    'Capture a teaching with its date, speaker, and notes.',
-                  ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.mic.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: _closeWithoutResult,
-            icon: Icon(Icons.close),
-            tooltip: localizations?.cancel ?? 'Cancel',
-          ),
-        ],
       ),
     );
   }
@@ -212,21 +210,26 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
-    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
-    final useDesktopShell = widget.onClose != null && useDesktop;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+    final useDesktopLayout =
+        embedded ||
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
 
     return Scaffold(
-      appBar: useDesktopShell
+      appBar: embedded
           ? null
           : AppBar(
               leading: widget.onClose != null
                   ? IconButton(
-                      icon: Icon(Icons.arrow_back),
+                      icon: const Icon(Icons.arrow_back),
                       onPressed: () => widget.onClose!(null),
                     )
                   : null,
               title: Text(localizations?.addTeaching ?? 'Add Teaching'),
-              actions: useDesktop
+              actions: useDesktopLayout && !embedded
                   ? [
                       TextButton(
                         onPressed: _closeWithoutResult,
@@ -236,14 +239,14 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                       FilledButton.icon(
                         onPressed: _isLoading ? null : _handleSave,
                         icon: _isLoading
-                            ? SizedBox(
+                            ? const SizedBox(
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Icon(Icons.add, size: 20),
+                            : const Icon(Icons.add, size: 20),
                         label: Text(
                           localizations?.addTeaching ?? 'Add Teaching',
                         ),
@@ -252,128 +255,8 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                     ]
                   : null,
             ),
-      body: useDesktop
-          ? Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(AppDimensions.paddingLG),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _desktopIntroCard(context, localizations),
-                        SizedBox(height: AppDimensions.spacingLG),
-                        _desktopSectionCard(
-                          context,
-                          localizations?.teachingDetails ?? 'Teaching details',
-                          Icons.menu_book,
-                          [
-                            TextFormField(
-                              controller: _titleController,
-                              decoration: InputDecoration(
-                                labelText:
-                                    '${localizations?.teachingTitle ?? 'Title'} *',
-                                prefixIcon: Icon(Icons.title),
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return localizations?.teachingTitleRequired ??
-                                      'Please enter a title';
-                                }
-                                return null;
-                              },
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            InkWell(
-                              onTap: _selectTeachingDate,
-                              child: InputDecorator(
-                                decoration: InputDecoration(
-                                  labelText:
-                                      '${localizations?.teachingDate ?? 'Teaching Date'} *',
-                                  prefixIcon: Icon(Icons.calendar_today),
-                                  border: OutlineInputBorder(),
-                                ),
-                                child: Text(
-                                  _teachingDate != null
-                                      ? '${_teachingDate!.year}-${_teachingDate!.month.toString().padLeft(2, '0')}-${_teachingDate!.day.toString().padLeft(2, '0')}'
-                                      : (localizations?.teachingDateRequired ??
-                                            'Select date'),
-                                  style: TextStyle(
-                                    color: _teachingDate != null
-                                        ? Theme.of(
-                                            context,
-                                          ).textTheme.bodyLarge?.color
-                                        : Theme.of(context).hintColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            TextFormField(
-                              controller: _speakerController,
-                              decoration: InputDecoration(
-                                labelText:
-                                    '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
-                                prefixIcon: Icon(Icons.person),
-                                border: OutlineInputBorder(),
-                              ),
-                              textCapitalization: TextCapitalization.words,
-                            ),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            TextFormField(
-                              controller: _descriptionController,
-                              decoration: InputDecoration(
-                                labelText:
-                                    '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
-                                prefixIcon: Icon(Icons.description),
-                                border: OutlineInputBorder(),
-                              ),
-                              maxLines: 4,
-                              textCapitalization: TextCapitalization.sentences,
-                            ),
-                            SizedBox(height: AppDimensions.spacingLG),
-                            Divider(),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton(
-                                  onPressed: _closeWithoutResult,
-                                  child: Text(
-                                    localizations?.cancel ?? 'Cancel',
-                                  ),
-                                ),
-                                SizedBox(width: AppDimensions.spacingSM),
-                                FilledButton.icon(
-                                  onPressed: _isLoading ? null : _handleSave,
-                                  icon: _isLoading
-                                      ? SizedBox(
-                                          height: 18,
-                                          width: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Icon(Icons.add, size: 20),
-                                  label: Text(
-                                    localizations?.addTeaching ??
-                                        'Add Teaching',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            )
+      body: useDesktopLayout
+          ? _buildDesktopBody(context, localizations, embedded: embedded)
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(

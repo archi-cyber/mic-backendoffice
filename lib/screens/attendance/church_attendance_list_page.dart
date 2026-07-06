@@ -10,6 +10,7 @@ import '../../services/attendance_report_pdf_service.dart';
 import '../../services/church_attendance_service.dart';
 import '../../services/visitor_service.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Page showing list of church services with details
 class ChurchAttendanceListPage extends StatefulWidget {
@@ -770,8 +771,320 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     );
   }
 
+  int get _totalServicePages {
+    if (_filteredServices.isEmpty) return 1;
+    return (_filteredServices.length / _rowsPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _paginatedServices {
+    final services = _filteredServices;
+    if (services.isEmpty) return [];
+    final maxPage = _totalServicePages - 1;
+    final currentPage = _currentPage.clamp(0, maxPage);
+    final start = currentPage * _rowsPerPage;
+    final end = (start + _rowsPerPage).clamp(0, services.length);
+    return services.sublist(start, end);
+  }
+
+  Widget _buildDesktopToolbar() {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_hasActiveFilters)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    if (_filterStartDate != null)
+                      Padding(
+                        padding:
+                            EdgeInsets.only(right: AppDimensions.spacingSM),
+                        child: Chip(
+                          avatar: const Icon(Icons.date_range, size: 16),
+                          label: Text(
+                            '${context.tr('From')}: ${_formatDate(_filterStartDate!.toIso8601String().split('T')[0])}',
+                          ),
+                          onDeleted: () {
+                            setState(() => _filterStartDate = null);
+                            _loadServices();
+                          },
+                        ),
+                      ),
+                    if (_filterEndDate != null)
+                      Padding(
+                        padding:
+                            EdgeInsets.only(right: AppDimensions.spacingSM),
+                        child: Chip(
+                          avatar: const Icon(Icons.event, size: 16),
+                          label: Text(
+                            '${context.tr('To')}: ${_formatDate(_filterEndDate!.toIso8601String().split('T')[0])}',
+                          ),
+                          onDeleted: () {
+                            setState(() => _filterEndDate = null);
+                            _loadServices();
+                          },
+                        ),
+                      ),
+                    if (_filterServiceType != null)
+                      Padding(
+                        padding:
+                            EdgeInsets.only(right: AppDimensions.spacingSM),
+                        child: Chip(
+                          avatar: Icon(
+                            _serviceIcon(_filterServiceType!),
+                            size: 16,
+                          ),
+                          label:
+                              Text(_getServiceTypeLabel(_filterServiceType!)),
+                          onDeleted: () {
+                            setState(() => _filterServiceType = null);
+                          },
+                        ),
+                      ),
+                    TextButton.icon(
+                      onPressed: _clearFilters,
+                      icon: const Icon(Icons.clear, size: 18),
+                      label: Text(context.tr('Clear All')),
+                    ),
+                  ],
+                ),
+              ),
+            if (_hasActiveFilters) SizedBox(height: AppDimensions.spacingSM),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _hasActiveFilters
+                        ? context.tr('Filtered church services')
+                        : context.tr('All church services'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.mic.textSecondary,
+                        ),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  onPressed: _showFilterDialog,
+                  icon: const Icon(Icons.filter_list),
+                  tooltip: context.tr('Filter Services'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filledTonal(
+                  onPressed: _isLoading ? null : _generateReport,
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: context.tr('Generate Report'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filledTonal(
+                  onPressed: _isLoading ? null : _loadServices,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: context.tr('Refresh'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _markNewAttendance,
+                  icon: const Icon(Icons.add),
+                  label: Text(context.tr('Mark Attendance')),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody() {
+    final theme = Theme.of(context);
+    final pageItems = _paginatedServices;
+
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: context.tr('Church Attendance'),
+        subtitle:
+            context.tr('Track Sunday and Wednesday service attendance'),
+        icon: Icons.church_outlined,
+        accent: AppColors.primary,
+        trailing: Text(
+          '${_filteredServices.length}',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: context.mic.appBarForeground,
+          ),
+        ),
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Services'),
+          value: _isLoading ? '…' : '${_filteredServices.length}',
+          icon: Icons.event_note_outlined,
+        ),
+        DesktopStatChip(
+          label: context.tr('This month'),
+          value: _isLoading ? '…' : '$_thisMonthCount',
+          icon: Icons.calendar_month_outlined,
+          color: AppColors.accent,
+        ),
+        DesktopStatChip(
+          label: context.tr('Sunday Service'),
+          value: _isLoading ? '…' : '$_sundayCount',
+          icon: Icons.wb_sunny_outlined,
+          color: AppColors.warning,
+        ),
+        DesktopStatChip(
+          label: context.tr('Wednesday Service'),
+          value: _isLoading ? '…' : '$_wednesdayCount',
+          icon: Icons.nightlight_outlined,
+          color: AppColors.info,
+        ),
+        DesktopStatChip(
+          label: context.tr('Avg / service'),
+          value: _isLoading ? '…' : '$_avgAttendance',
+          icon: Icons.trending_up,
+          color: AppColors.success,
+        ),
+      ],
+      toolbar: _buildDesktopToolbar(),
+      pagination: _filteredServices.isEmpty
+          ? null
+          : DesktopPaginationBar(
+              currentPage: _currentPage.clamp(0, _totalServicePages - 1),
+              totalPages: _totalServicePages,
+              onPrevious: _currentPage > 0
+                  ? () => setState(() => _currentPage--)
+                  : null,
+              onNext: _currentPage < _totalServicePages - 1
+                  ? () => setState(() => _currentPage++)
+                  : null,
+            ),
+      child: DesktopDataTableCard(
+              emptyMessage: context.tr('No services found'),
+              emptyIcon: Icons.church_outlined,
+              columns: [
+                DataColumn(label: Text(context.tr('Date'))),
+                DataColumn(label: Text(context.tr('Service'))),
+                DataColumn(label: Text(context.tr('Day'))),
+                DataColumn(label: Text(context.tr('Attendance'))),
+                DataColumn(label: Text(context.tr('Actions'))),
+              ],
+              rows: pageItems.map((service) {
+                final serviceDate = service['service_date'] as String;
+                final serviceType = service['service_type'] as String;
+                final attendanceCount =
+                    service['attendance_count'] as int? ?? 0;
+                final color = _serviceColor(serviceType);
+                final weekday = _formatWeekday(serviceDate);
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      InkWell(
+                        onTap: () =>
+                            _viewServiceDetails(serviceDate, serviceType),
+                        child: Text(
+                          _formatDate(serviceDate),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(_serviceIcon(serviceType), size: 14, color: color),
+                            const SizedBox(width: 4),
+                            Text(
+                              _getServiceTypeLabel(serviceType),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(weekday)),
+                    DataCell(
+                      Text(
+                        '$attendanceCount',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.visibility_outlined, size: 20),
+                            tooltip: context.tr('View'),
+                            onPressed: () => _viewServiceDetails(
+                              serviceDate,
+                              serviceType,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20),
+                            tooltip: context.tr('Delete'),
+                            onPressed: () => _confirmDeleteService(
+                              serviceDate,
+                              serviceType,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildMobileBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHeaderBanner(),
+        SizedBox(height: AppDimensions.spacingMD),
+        _buildStatsRow(),
+        _buildToolbar(),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredServices.isEmpty
+                  ? _buildEmptyState()
+                  : _buildServicesList(),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDesktop = isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
+
     return Scaffold(
       backgroundColor: context.mic.background,
       appBar: widget.hideAppBarAndBottomNav
@@ -801,22 +1114,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                 ),
               ],
             ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeaderBanner(),
-          SizedBox(height: AppDimensions.spacingMD),
-          _buildStatsRow(),
-          _buildToolbar(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredServices.isEmpty
-                ? _buildEmptyState()
-                : _buildServicesList(),
-          ),
-        ],
-      ),
+      body: isDesktop ? _buildDesktopBody() : _buildMobileBody(),
       floatingActionButton: widget.hideAppBarAndBottomNav
           ? null
           : FloatingActionButton.extended(

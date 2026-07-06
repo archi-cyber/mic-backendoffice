@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/class_service.dart';
 import '../../services/department_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Add training page
 class AddClassPage extends StatefulWidget {
@@ -99,134 +99,36 @@ class _AddClassPageState extends State<AddClassPage> {
     }
   }
 
-  static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 800;
-
-  Widget _desktopIntroCard(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withValues(alpha: 0.14),
-            AppColors.primary.withValues(alpha: 0.04),
-          ],
+  Widget _buildDesktopBody(BuildContext context, {required bool embedded}) {
+    return DesktopPageShell(
+      maxWidth: kDesktopFormMaxWidth,
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: context.tr('Add Training'),
+        subtitle: context.tr(
+          'Create a training and optionally link it to a department.',
         ),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+        icon: Icons.school_outlined,
+        trailing: embedded
+            ? IconButton(
+                onPressed: _closeWithoutResult,
+                icon: const Icon(Icons.close),
+                tooltip: context.tr('Cancel'),
+              )
+            : null,
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-            ),
-            child: Icon(Icons.school_outlined, color: AppColors.primary),
-          ),
-          SizedBox(width: AppDimensions.spacingLG),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.tr('Add Training'),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: AppDimensions.spacingXS),
-                Text(
-                  context.tr(
-                    'Create a training and optionally link it to a department.',
-                  ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.mic.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: _closeWithoutResult,
-            icon: Icon(Icons.close),
-            tooltip: context.tr('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDesktopBody(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _desktopIntroCard(context),
-                SizedBox(height: AppDimensions.spacingLG),
-                _desktopFormCard(context),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _desktopFormCard(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-      child: Container(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Form(
+        key: _formKey,
+        child: DesktopSectionCard(
+          title: context.tr('Training details'),
+          icon: Icons.class_outlined,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-                  ),
-                  child: Icon(
-                    Icons.class_outlined,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                ),
-                SizedBox(width: AppDimensions.spacingMD),
-                Text(
-                  context.tr('Training details'),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
             TextFormField(
               controller: _nameController,
               decoration: InputDecoration(
                 labelText: context.tr('Class Name *'),
-                prefixIcon: Icon(Icons.class_),
-                border: OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.class_),
+                border: const OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -240,21 +142,21 @@ class _AddClassPageState extends State<AddClassPage> {
               controller: _descriptionController,
               decoration: InputDecoration(
                 labelText: context.tr('Description'),
-                prefixIcon: Icon(Icons.description),
-                border: OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.description),
+                border: const OutlineInputBorder(),
               ),
               maxLines: 4,
             ),
             SizedBox(height: AppDimensions.spacingMD),
             if (_isLoadingDepartments)
-              Center(child: CircularProgressIndicator())
+              const Center(child: CircularProgressIndicator())
             else
               DropdownButtonFormField<String>(
                 initialValue: _selectedDepartmentId,
                 decoration: InputDecoration(
                   labelText: context.tr('Department'),
-                  prefixIcon: Icon(Icons.group_work),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.group_work),
+                  border: const OutlineInputBorder(),
                 ),
                 items: [
                   DropdownMenuItem<String>(
@@ -275,28 +177,12 @@ class _AddClassPageState extends State<AddClassPage> {
                 },
               ),
             SizedBox(height: AppDimensions.spacingLG),
-            Divider(),
-            SizedBox(height: AppDimensions.spacingMD),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: _closeWithoutResult,
-                  child: Text(context.tr('Cancel')),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _handleSave,
-                  icon: _isLoading
-                      ? SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(Icons.add, size: 20),
-                  label: Text(context.tr('Create Training')),
-                ),
-              ],
+            DesktopFormActions(
+              onCancel: _closeWithoutResult,
+              primaryLabel: context.tr('Create Training'),
+              primaryIcon: Icons.add,
+              onPrimary: _handleSave,
+              isLoading: _isLoading,
             ),
           ],
         ),
@@ -306,21 +192,26 @@ class _AddClassPageState extends State<AddClassPage> {
 
   @override
   Widget build(BuildContext context) {
-    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
-    final useDesktopShell = widget.onClose != null && useDesktop;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+    final useDesktopLayout =
+        embedded ||
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
 
     return Scaffold(
-      appBar: useDesktopShell
+      appBar: embedded
           ? null
           : AppBar(
               leading: widget.onClose != null
                   ? IconButton(
-                      icon: Icon(Icons.arrow_back),
+                      icon: const Icon(Icons.arrow_back),
                       onPressed: () => widget.onClose!(null),
                     )
                   : null,
               title: Text(context.tr('Add Training')),
-              actions: useDesktop
+              actions: useDesktopLayout && !embedded
                   ? [
                       TextButton(
                         onPressed: _closeWithoutResult,
@@ -330,22 +221,22 @@ class _AddClassPageState extends State<AddClassPage> {
                       FilledButton.icon(
                         onPressed: _isLoading ? null : _handleSave,
                         icon: _isLoading
-                            ? SizedBox(
+                            ? const SizedBox(
                                 height: 18,
                                 width: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               )
-                            : Icon(Icons.add, size: 20),
+                            : const Icon(Icons.add, size: 20),
                         label: Text(context.tr('Create Training')),
                       ),
                       SizedBox(width: AppDimensions.paddingMD),
                     ]
                   : null,
             ),
-      body: useDesktop
-          ? _buildDesktopBody(context)
+      body: useDesktopLayout
+          ? _buildDesktopBody(context, embedded: embedded)
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(

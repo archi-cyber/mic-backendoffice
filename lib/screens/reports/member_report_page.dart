@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -6,6 +7,7 @@ import '../../services/member_service.dart';
 import '../../services/report_service.dart';
 import '../../services/finance_service.dart';
 import '../../widgets/attendance_chart.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../../utils/export_utils.dart';
 import '../../core/localization/app_localizations.dart';
 
@@ -120,17 +122,83 @@ class _MemberReportPageState extends State<MemberReportPage> {
     }
   }
 
+  bool _isDesktopLayout(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < kDesktopEmbeddedBreakpoint) {
+      return false;
+    }
+    return widget.onClose != null;
+  }
+
+  Widget _buildReportContent({
+    required Map<String, dynamic>? attendance,
+    required Map<String, dynamic>? giving,
+    required List attendanceRecords,
+    required Map<String, int> attendanceData,
+    required int present,
+    required int absent,
+    required int late,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                title: 'Attendance',
+                value: '${attendance?['total'] ?? 0}',
+                icon: Icons.event,
+                color: AppColors.primary,
+              ),
+            ),
+            if (_isFinanceLeader) ...[
+              SizedBox(width: AppDimensions.spacingMD),
+              Expanded(
+                child: _StatCard(
+                  title: 'Total Giving',
+                  value:
+                      '\$${giving?['total']?.toStringAsFixed(2) ?? '0.00'}',
+                  icon: Icons.attach_money,
+                  color: AppColors.accent,
+                ),
+              ),
+            ],
+          ],
+        ),
+        SizedBox(height: AppDimensions.spacingMD),
+        AttendanceChart(
+          attendanceData: attendanceData,
+          title: 'Attendance Trend',
+        ),
+        SizedBox(height: AppDimensions.spacingMD),
+        AttendancePieChart(present: present, absent: absent, late: late),
+        SizedBox(height: AppDimensions.spacingMD),
+        _buildAttendanceDetailsSection(attendanceRecords),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDesktop = _isDesktopLayout(context);
+
     if (_isLoading) {
-      return Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: isDesktop
+            ? const DesktopPageShell(isLoading: true, child: SizedBox.shrink())
+            : const Center(child: CircularProgressIndicator()),
+      );
     }
 
     final attendance = _report?['attendance'] as Map<String, dynamic>?;
     final giving = _report?['giving'] as Map<String, dynamic>?;
     final attendanceRecords = attendance?['records'] as List? ?? [];
+    final memberName =
+        '${_member?['first_name']} ${_member?['last_name']}'.trim();
+    final dateRange =
+        '${DateFormat('MMM d, yyyy').format(_fromDate)} – ${DateFormat('MMM d, yyyy').format(_toDate)}';
 
-    // Prepare chart data
     final attendanceData = <String, int>{};
     for (final record in attendanceRecords) {
       final displayDate = record['display_date']?.toString();
@@ -139,15 +207,12 @@ class _MemberReportPageState extends State<MemberReportPage> {
       }
     }
 
-    // Count attendance status
     int present = 0, absent = 0, late = 0;
     for (final record in attendanceRecords) {
       final attendanceCategory = record['attendance_category']?.toString();
       if (attendanceCategory == 'sunday_school') {
-        // All Sunday school records count as present
         present++;
       } else {
-        // For church attendance, check attendance_type
         final attendanceType = record['attendance_type']?.toString() ?? '';
         if (attendanceType == 'onsite' || attendanceType == 'online') {
           present++;
@@ -157,16 +222,51 @@ class _MemberReportPageState extends State<MemberReportPage> {
       }
     }
 
+    final reportContent = _buildReportContent(
+      attendance: attendance,
+      giving: giving,
+      attendanceRecords: attendanceRecords,
+      attendanceData: attendanceData,
+      present: present,
+      absent: absent,
+      late: late,
+    );
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: DesktopPageShell(
+          banner: DesktopHeroBanner(
+            title: memberName.isEmpty
+                ? context.tr('Member Report')
+                : '$memberName - ${context.tr('Report')}',
+            subtitle: dateRange,
+            icon: Icons.person_outline,
+            accent: AppColors.primary,
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.date_range_outlined),
+              onPressed: _selectDateRange,
+              tooltip: context.tr('Select Date Range'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.download_outlined),
+              onPressed: _exportToCSV,
+              tooltip: context.tr('Export to CSV'),
+            ),
+          ],
+          child: reportContent,
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
         title: Text(
-          '${_member?['first_name']} ${_member?['last_name']} - Report',
+          memberName.isEmpty
+              ? context.tr('Member Report')
+              : '$memberName - ${context.tr('Report')}',
         ),
         actions: [
           IconButton(
@@ -183,47 +283,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(AppDimensions.paddingMD),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Summary cards
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Attendance',
-                    value: '${attendance?['total'] ?? 0}',
-                    icon: Icons.event,
-                    color: AppColors.primary,
-                  ),
-                ),
-                if (_isFinanceLeader) ...[
-                  SizedBox(width: AppDimensions.spacingMD),
-                  Expanded(
-                    child: _StatCard(
-                      title: 'Total Giving',
-                      value:
-                          '\$${giving?['total']?.toStringAsFixed(2) ?? '0.00'}',
-                      icon: Icons.attach_money,
-                      color: AppColors.accent,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
-            // Charts
-            AttendanceChart(
-              attendanceData: attendanceData,
-              title: 'Attendance Trend',
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
-            AttendancePieChart(present: present, absent: absent, late: late),
-            SizedBox(height: AppDimensions.spacingMD),
-            // Attendance Details Section
-            _buildAttendanceDetailsSection(attendanceRecords),
-          ],
-        ),
+        child: reportContent,
       ),
     );
   }

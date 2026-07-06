@@ -7,12 +7,15 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/new_comer_report_pdf_service.dart';
 import '../../services/report_service.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/pinned_scroll_helpers.dart';
 
 enum _NewComerReportPeriod { weekly, monthly, yearly, custom }
 
 class NewComerReportPage extends StatefulWidget {
-  const NewComerReportPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const NewComerReportPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<NewComerReportPage> createState() => _NewComerReportPageState();
@@ -158,6 +161,13 @@ class _NewComerReportPageState extends State<NewComerReportPage>
     }).toList();
   }
 
+  bool _isDesktopLayout(BuildContext context) {
+    return isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary =
@@ -167,6 +177,55 @@ class _NewComerReportPageState extends State<NewComerReportPage>
     );
     final attendance =
         (_report?['attendance_report'] as Map<String, dynamic>?) ?? const {};
+    final isDesktop = _isDesktopLayout(context);
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: DesktopPageShell(
+          isLoading: _isLoading && _error == null,
+          banner: DesktopHeroBanner(
+            title: context.tr('New Comers Report'),
+            subtitle: context.tr('Track newcomer outcomes and attendance'),
+            icon: Icons.fiber_new_rounded,
+            accent: AppColors.accent,
+          ),
+          actions: [
+            IconButton(
+              onPressed: _isLoading ? null : _generatePdfReport,
+              tooltip: context.tr('Generate PDF Report'),
+              icon: const Icon(Icons.picture_as_pdf),
+            ),
+            IconButton(
+              onPressed: _isLoading ? null : _loadReport,
+              tooltip: context.tr('Refresh'),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          child: _error != null
+              ? Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppDimensions.paddingLG),
+                    child: Text(_error!, textAlign: TextAlign.center),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final height = MediaQuery.sizeOf(context).height - 240;
+                    return SizedBox(
+                      height: height.clamp(480, 1200),
+                      child: _buildReportLayout(
+                        summary: summary,
+                        records: records,
+                        attendance: attendance,
+                        isDesktop: true,
+                      ),
+                    );
+                  },
+                ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: context.mic.background,
@@ -189,6 +248,7 @@ class _NewComerReportPageState extends State<NewComerReportPage>
         summary: summary,
         records: records,
         attendance: attendance,
+        isDesktop: false,
       ),
     );
   }
@@ -259,22 +319,64 @@ class _NewComerReportPageState extends State<NewComerReportPage>
     required Map<String, dynamic> summary,
     required List<Map<String, dynamic>> records,
     required Map<String, dynamic> attendance,
+    required bool isDesktop,
   }) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppDimensions.paddingLG),
-          child: Text(_error!, textAlign: TextAlign.center),
-        ),
-      );
+    if (!isDesktop) {
+      if (_isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (_error != null) {
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Text(_error!, textAlign: TextAlign.center),
+          ),
+        );
+      }
     }
 
     final horizontalPadding = EdgeInsets.symmetric(
-      horizontal: AppDimensions.paddingMD,
+      horizontal: isDesktop ? 0 : AppDimensions.paddingMD,
     );
+
+    if (isDesktop) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildControls(records.length, attendance),
+          SizedBox(height: AppDimensions.spacingMD),
+          _buildSearchBar(),
+          SizedBox(height: AppDimensions.spacingSM),
+          _buildTabBar(),
+          SizedBox(height: AppDimensions.spacingSM),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: AppDimensions.paddingLG),
+                  child: _buildSideStats(summary, attendance),
+                ),
+                SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: AppDimensions.paddingLG),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _buildStatsContent(records),
+                  ),
+                ),
+                SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: AppDimensions.paddingLG),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _buildAttendanceContent(attendance),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

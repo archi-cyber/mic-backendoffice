@@ -353,6 +353,12 @@ class AppRouter {
           settings: settings,
         );
 
+      case RouteNames.birthdayNotificationsSettings:
+        return MaterialPageRoute(
+          builder: (_) => BirthdayNotificationsSettingsPage(),
+          settings: settings,
+        );
+
       case RouteNames.notifications:
         // Birthday notifications settings
         if (settings.arguments == 'birthday') {

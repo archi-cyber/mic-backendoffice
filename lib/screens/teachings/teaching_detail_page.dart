@@ -9,6 +9,7 @@ import '../../core/utils/permission_helper.dart';
 import '../../services/teaching_service.dart';
 import '../desktop/desktop_shell_scope.dart';
 import 'edit_teaching_page.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Teaching detail page with listeners management
 class TeachingDetailPage extends StatefulWidget {
@@ -351,12 +352,14 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
-    final isDesktop =
-        widget.onClose != null && MediaQuery.sizeOf(context).width >= 700;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     if (_isLoading || _teaching == null) {
       return Scaffold(
-        appBar: isDesktop
+        appBar: embedded
             ? null
             : AppBar(
                 leading: widget.onClose != null
@@ -383,8 +386,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: isDesktop ? null : _buildMobileAppBar(localizations, title),
-        body: isDesktop
+        appBar: embedded ? null : _buildMobileAppBar(localizations, title),
+        body: embedded
             ? _buildDesktopBody(
                 localizations: localizations,
                 title: title,
@@ -438,71 +441,113 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     required String speaker,
     required String description,
   }) {
-    final theme = Theme.of(context);
+    final subtitle = teachingDate != null
+        ? DateFormat('MMMM d, yyyy').format(teachingDate)
+        : (speaker.isNotEmpty ? speaker : null);
 
-    return Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 1180),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 340,
-                child: SingleChildScrollView(
-                  child: _TeachingSummaryPanel(
-                    title: title,
-                    speaker: speaker,
-                    teachingDate: teachingDate,
-                    listenerCount: _listeners.length,
-                    canEdit: _canEdit,
-                    canDelete: _canDelete,
-                    onEdit: _openEditTeaching,
-                    onDelete: _deleteTeaching,
-                  ),
+    return DesktopPageShell(
+      maxWidth: kDesktopContentMaxWidth,
+      isLoading: _isLoading,
+      padding: EdgeInsets.zero,
+      banner: DesktopHeroBanner(
+        title: title,
+        subtitle: subtitle,
+        icon: Icons.menu_book_outlined,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_canEdit)
+              IconButton(
+                onPressed: _openEditTeaching,
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: context.tr('Edit'),
+              ),
+            if (_canDelete)
+              IconButton(
+                onPressed: _deleteTeaching,
+                icon: Icon(Icons.delete_outline, color: AppColors.error),
+                tooltip: localizations?.delete ?? 'Delete',
+              ),
+            if (widget.onClose != null)
+              IconButton(
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close),
+                tooltip: context.tr('Close'),
+              ),
+          ],
+        ),
+      ),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height - 220,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 320,
+              child: SingleChildScrollView(
+                child: DesktopSectionCard(
+                  title: localizations?.overview ?? 'Overview',
+                  icon: Icons.info_outline,
+                  children: [
+                    _TeachingBadge(label: context.tr('Teaching')),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    _TeachingInfoTile(
+                      icon: Icons.calendar_today_outlined,
+                      label: context.tr('Date'),
+                      value: teachingDate == null
+                          ? context.tr('Not set')
+                          : DateFormat('MMMM d, yyyy').format(teachingDate),
+                    ),
+                    SizedBox(height: AppDimensions.spacingSM),
+                    _TeachingInfoTile(
+                      icon: Icons.person_outline,
+                      label: context.tr('Speaker'),
+                      value: speaker.isEmpty ? context.tr('Not set') : speaker,
+                    ),
+                    SizedBox(height: AppDimensions.spacingSM),
+                    DesktopStatChip(
+                      label: localizations?.listeners ?? 'Listeners',
+                      value: _listeners.length.toString(),
+                      icon: Icons.people_outline,
+                    ),
+                    if (_canEdit) ...[
+                      SizedBox(height: AppDimensions.spacingMD),
+                      FilledButton.icon(
+                        onPressed: _openEditTeaching,
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(context.tr('Edit')),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              SizedBox(width: AppDimensions.spacingLG),
-              Expanded(
-                child: Material(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusXL,
-                      ),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
+            ),
+            SizedBox(width: AppDimensions.spacingLG),
+            Expanded(
+              child: DesktopSectionCard(
+                title: localizations?.teachingDetails ?? 'Teaching Details',
+                icon: Icons.article_outlined,
+                children: [
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).height - 320,
                     child: Column(
                       children: [
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            AppDimensions.paddingLG,
-                            AppDimensions.paddingMD,
-                            AppDimensions.paddingLG,
-                            0,
-                          ),
-                          child: TabBar(
-                            labelColor: AppColors.primary,
-                            unselectedLabelColor: context.mic.textSecondary,
-                            indicatorSize: TabBarIndicatorSize.tab,
-                            tabs: [
-                              Tab(
-                                icon: Icon(Icons.article_outlined),
-                                text: localizations?.overview ?? 'Details',
-                              ),
-                              Tab(
-                                icon: Icon(Icons.people_outline),
-                                text: localizations?.listeners ?? 'Listeners',
-                              ),
-                            ],
-                          ),
+                        TabBar(
+                          labelColor: AppColors.primary,
+                          unselectedLabelColor: context.mic.textSecondary,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          tabs: [
+                            Tab(
+                              icon: const Icon(Icons.article_outlined),
+                              text: localizations?.overview ?? 'Details',
+                            ),
+                            Tab(
+                              icon: const Icon(Icons.people_outline),
+                              text: localizations?.listeners ?? 'Listeners',
+                            ),
+                          ],
                         ),
-                        Divider(height: 1),
+                        const Divider(height: 1),
                         Expanded(
                           child: TabBarView(
                             children: [
@@ -519,10 +564,10 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -803,112 +848,6 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
             child: Text(localizations?.cancel ?? 'Cancel'),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TeachingSummaryPanel extends StatelessWidget {
-  final String title;
-  final String speaker;
-  final DateTime? teachingDate;
-  final int listenerCount;
-  final bool canEdit;
-  final bool canDelete;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _TeachingSummaryPanel({
-    required this.title,
-    required this.speaker,
-    required this.teachingDate,
-    required this.listenerCount,
-    required this.canEdit,
-    required this.canDelete,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-      child: Container(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-              ),
-              child: Icon(Icons.menu_book_outlined, color: AppColors.primary),
-            ),
-            SizedBox(height: AppDimensions.spacingLG),
-            Text(
-              title,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            _TeachingBadge(label: context.tr('Teaching')),
-            SizedBox(height: AppDimensions.spacingLG),
-            _TeachingInfoTile(
-              icon: Icons.calendar_today_outlined,
-              label: context.tr('Date'),
-              value: teachingDate == null
-                  ? context.tr('Not set')
-                  : DateFormat('MMMM d, yyyy').format(teachingDate!),
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            _TeachingInfoTile(
-              icon: Icons.person_outline,
-              label: context.tr('Speaker'),
-              value: speaker.isEmpty ? context.tr('Not set') : speaker,
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            _TeachingInfoTile(
-              icon: Icons.people_outline,
-              label: context.tr('Listeners'),
-              value: listenerCount.toString(),
-            ),
-            if (canEdit || canDelete) ...[
-              SizedBox(height: AppDimensions.spacingXL),
-              Row(
-                children: [
-                  if (canEdit)
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: onEdit,
-                        icon: Icon(Icons.edit_outlined),
-                        label: Text(context.tr('Edit')),
-                      ),
-                    ),
-                  if (canEdit && canDelete)
-                    SizedBox(width: AppDimensions.spacingSM),
-                  if (canDelete)
-                    IconButton.outlined(
-                      onPressed: onDelete,
-                      icon: Icon(Icons.delete_outline),
-                      color: AppColors.error,
-                      tooltip: context.tr('Delete'),
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

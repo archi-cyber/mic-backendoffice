@@ -8,6 +8,7 @@ import '../../services/member_service.dart';
 import '../../services/visitor_service.dart';
 import '../../utils/member_utils.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Page for marking church attendance (Wednesday and Sunday services)
 class ChurchAttendancePage extends StatefulWidget {
@@ -1124,102 +1125,174 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+    final useDesktopLayout =
+        embedded ||
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
+
+    final bodyColumn = _buildBodyColumn(embedded: embedded);
+
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(_isViewMode ? 'Service Details' : 'Mark Attendance'),
-        actions: [
-          if (_isViewMode) ...[
-            IconButton(
-              icon: Icon(Icons.person_add_alt_1),
-              onPressed: _showAddVisitorDialog,
-              tooltip: context.tr('Add Visitor'),
+      appBar: embedded
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: widget.onClose,
+                    )
+                  : null,
+              title: Text(_isViewMode ? 'Service Details' : 'Mark Attendance'),
+              actions: [
+                if (_isViewMode) ...[
+                  IconButton(
+                    icon: const Icon(Icons.person_add_alt_1),
+                    onPressed: _showAddVisitorDialog,
+                    tooltip: context.tr('Add Visitor'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit),
+                    onPressed: () {
+                      setState(() {
+                        _isViewMode = false;
+                        _beginEditSession();
+                        for (var record in _attendanceRecords) {
+                          final memberId = record['member_id']?.toString();
+                          if (memberId != null) {
+                            final attendanceType =
+                                record['attendance_type']?.toString();
+                            _memberAttendanceTypes[memberId] =
+                                attendanceType == 'absent'
+                                    ? null
+                                    : attendanceType;
+                            final observation = record['specific_observation']
+                                ?.toString()
+                                .trim();
+                            if (observation != null && observation.isNotEmpty) {
+                              _memberSpecificObservations[memberId] =
+                                  observation;
+                            }
+                          }
+                        }
+                        _syncVisitorAttendanceTypes();
+                      });
+                      _loadVisitorsFromTable();
+                    },
+                    tooltip: context.tr('Edit Attendance'),
+                  ),
+                ] else ...[
+                  IconButton(
+                    icon: const Icon(Icons.person_add_alt_1),
+                    onPressed: _showAddVisitorDialog,
+                    tooltip: context.tr('Add Visitor'),
+                  ),
+                  if (_isSaving)
+                    const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.save),
+                      onPressed: _saveAttendance,
+                      tooltip: context.tr('Save Attendance'),
+                    ),
+                ],
+              ],
             ),
-            IconButton(
-              icon: Icon(Icons.edit),
-              onPressed: () {
-                setState(() {
-                  _isViewMode = false;
-                  _beginEditSession();
-                  // Ensure existing attendance is loaded into edit state
-                  // Note: 'absent' records are set to null (not selected)
-                  for (var record in _attendanceRecords) {
-                    final memberId = record['member_id']?.toString();
-                    if (memberId != null) {
-                      final attendanceType = record['attendance_type']
-                          ?.toString();
-                      _memberAttendanceTypes[memberId] =
-                          attendanceType == 'absent' ? null : attendanceType;
-                      final observation = record['specific_observation']
-                          ?.toString()
-                          .trim();
-                      if (observation != null && observation.isNotEmpty) {
-                        _memberSpecificObservations[memberId] = observation;
-                      }
-                    }
-                  }
-                  _syncVisitorAttendanceTypes();
-                });
-                _loadVisitorsFromTable();
-              },
-              tooltip: context.tr('Edit Attendance'),
-            ),
-          ] else ...[
-            IconButton(
-              icon: Icon(Icons.person_add_alt_1),
-              onPressed: _showAddVisitorDialog,
-              tooltip: context.tr('Add Visitor'),
-            ),
-            if (_isSaving)
-              Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else
-              IconButton(
-                icon: Icon(Icons.save),
-                onPressed: _saveAttendance,
-                tooltip: context.tr('Save Attendance'),
-              ),
-          ],
-        ],
-      ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : isDesktop
-          ? Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 900),
-                child: _buildBodyColumn(),
+          ? const Center(child: CircularProgressIndicator())
+          : embedded
+          ? DesktopPageShell(
+              maxWidth: kDesktopNarrowMaxWidth,
+              isLoading: _isSaving,
+              padding: EdgeInsets.zero,
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height - 48,
+                child: bodyColumn,
               ),
             )
-          : _buildBodyColumn(),
+          : useDesktopLayout
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: bodyColumn,
+              ),
+            )
+          : bodyColumn,
     );
   }
 
-  Widget _buildBodyColumn() {
+  Widget _buildDesktopHeroBanner() {
+    final serviceLabel = _selectedServiceType == 'sunday'
+        ? context.tr('Sunday Service')
+        : context.tr('Wednesday Service');
+    final dateLabel = DateFormat('EEEE, MMM d, yyyy').format(_selectedDate);
+
+    return DesktopHeroBanner(
+      title: _isViewMode
+          ? context.tr('Service Details')
+          : context.tr('Mark Attendance'),
+      subtitle: '$serviceLabel · $dateLabel',
+      icon: Icons.church_outlined,
+      trailing: widget.onClose != null
+          ? IconButton(
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.close),
+              tooltip: context.tr('Close'),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildBodyColumn({required bool embedded}) {
     final compactView = _isCompactServiceDetails(context);
 
     return Column(
       children: [
+        if (embedded)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.paddingLG,
+              AppDimensions.paddingLG,
+              AppDimensions.paddingLG,
+              0,
+            ),
+            child: _buildDesktopHeroBanner(),
+          ),
         if (compactView)
           _buildCompactServiceHeader()
-        else
+        else if (!embedded || !_isViewMode)
           _buildStandardServiceHeader(),
         Expanded(
-          child: _isViewMode
-              ? _buildViewModeContent()
-              : _buildEditModeContent(),
+          child: embedded
+              ? Padding(
+                  padding: EdgeInsets.all(AppDimensions.paddingLG),
+                  child: DesktopSectionCard(
+                    title: _isViewMode
+                        ? context.tr('Attendance Records')
+                        : context.tr('Members & Visitors'),
+                    icon: Icons.people_outline,
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.sizeOf(context).height - 380,
+                        child: _isViewMode
+                            ? _buildViewModeContent()
+                            : _buildEditModeContent(),
+                      ),
+                    ],
+                  ),
+                )
+              : (_isViewMode
+                  ? _buildViewModeContent()
+                  : _buildEditModeContent()),
         ),
       ],
     );

@@ -16,6 +16,7 @@ import '../../services/task_report_service.dart';
 import '../../services/storage_service.dart';
 import 'edit_department_page.dart';
 import 'department_form_ui.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Department detail with members, docs, tasks, and reports
 class DepartmentDetailPage extends StatefulWidget {
@@ -121,8 +122,10 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
       );
     }
 
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= 700 && widget.onClose != null;
+    final isDesktop = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     return DefaultTabController(
       length: 4,
@@ -206,8 +209,10 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
   }
 
   Future<void> _openEditDepartment(BuildContext context) async {
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= 700 && widget.onClose != null;
+    final isDesktop = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     if (isDesktop) {
       final result = await showDialog<bool>(
@@ -250,106 +255,133 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
     final completedTasks = _tasks.where((task) {
       return task['status']?.toString() == 'completed';
     }).length;
+    final viewportHeight = MediaQuery.sizeOf(context).height;
 
-    return Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: 320,
-            child: _DepartmentDesktopSummary(
-              name: name,
-              description: description,
-              isActive: isActive,
-              leaderNames: leaderNames,
-              memberCount: _members.length,
-              taskCount: _tasks.length,
-              completedTaskCount: completedTasks,
-              canEdit: _canEdit,
-              canDelete: _canDelete,
-              onEdit: () => _openEditDepartment(context),
-              onDelete: _deleteDepartment,
-            ),
-          ),
-          SizedBox(width: AppDimensions.spacingLG),
-          Expanded(
-            child: Material(
-              color: theme.colorScheme.surface,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-                side: BorderSide(
-                  color: theme.dividerColor.withValues(alpha: 0.45),
-                ),
+    return DesktopPageShell(
+      maxWidth: kDesktopContentMaxWidth,
+      banner: DesktopHeroBanner(
+        title: name,
+        subtitle: description?.isNotEmpty == true ? description : null,
+        icon: Icons.apartment_outlined,
+        accent: DepartmentFormUi.accent,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_canEdit)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () => _openEditDepartment(context),
+                tooltip: context.tr('Edit Department'),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    padding: EdgeInsets.fromLTRB(
-                      AppDimensions.paddingLG,
-                      AppDimensions.paddingMD,
-                      AppDimensions.paddingLG,
-                      0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerLowest,
-                      border: Border(
-                        bottom: BorderSide(
-                          color: theme.dividerColor.withValues(alpha: 0.3),
+            if (_canDelete)
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: AppColors.error),
+                onPressed: _deleteDepartment,
+                tooltip: context.tr('Delete Department'),
+              ),
+          ],
+        ),
+      ),
+      child: SizedBox(
+        height: viewportHeight - 280,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 320,
+              child: _DepartmentDesktopSummary(
+                name: name,
+                description: description,
+                isActive: isActive,
+                leaderNames: leaderNames,
+                memberCount: _members.length,
+                taskCount: _tasks.length,
+                completedTaskCount: completedTasks,
+                canEdit: _canEdit,
+                canDelete: _canDelete,
+                onEdit: () => _openEditDepartment(context),
+                onDelete: _deleteDepartment,
+              ),
+            ),
+            SizedBox(width: AppDimensions.spacingLG),
+            Expanded(
+              child: Material(
+                color: theme.colorScheme.surface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+                  side: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.45),
+                  ),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.fromLTRB(
+                        AppDimensions.paddingLG,
+                        AppDimensions.paddingMD,
+                        AppDimensions.paddingLG,
+                        0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerLowest,
+                        border: Border(
+                          bottom: BorderSide(
+                            color: theme.dividerColor.withValues(alpha: 0.3),
+                          ),
                         ),
                       ),
-                    ),
-                    child: DepartmentFormUi.coloredTabBar(
-                      context: context,
-                      tabs: [
-                        Tab(text: localizations?.overview ?? 'Overview'),
-                        Tab(text: localizations?.members ?? 'Members'),
-                        Tab(text: localizations?.tasks ?? 'Tasks'),
-                        Tab(text: localizations?.reports ?? 'Reports'),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppDimensions.paddingLG),
-                      child: TabBarView(
-                        children: [
-                          _OverviewTab(
-                            department: _department!,
-                            memberCount: _members.length,
-                            taskCount: _tasks.length,
-                            onDepartmentUpdated: _loadDepartmentData,
-                            isDesktop: true,
-                          ),
-                          _MembersTab(
-                            departmentId: widget.departmentId,
-                            onMembersUpdated: _loadDepartmentData,
-                            isDesktop: true,
-                          ),
-                          _TasksTab(
-                            departmentId: widget.departmentId,
-                            tasks: _tasks,
-                            onTasksUpdated: _loadDepartmentData,
-                            isDesktop: true,
-                          ),
-                          _ReportsTab(
-                            departmentId: widget.departmentId,
-                            reports: _reports,
-                            onReportsUpdated: _loadDepartmentData,
-                            isDesktop: true,
-                          ),
+                      child: DepartmentFormUi.coloredTabBar(
+                        context: context,
+                        tabs: [
+                          Tab(text: localizations?.overview ?? 'Overview'),
+                          Tab(text: localizations?.members ?? 'Members'),
+                          Tab(text: localizations?.tasks ?? 'Tasks'),
+                          Tab(text: localizations?.reports ?? 'Reports'),
                         ],
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.all(AppDimensions.paddingLG),
+                        child: TabBarView(
+                          children: [
+                            _OverviewTab(
+                              department: _department!,
+                              memberCount: _members.length,
+                              taskCount: _tasks.length,
+                              onDepartmentUpdated: _loadDepartmentData,
+                              isDesktop: true,
+                            ),
+                            _MembersTab(
+                              departmentId: widget.departmentId,
+                              onMembersUpdated: _loadDepartmentData,
+                              isDesktop: true,
+                            ),
+                            _TasksTab(
+                              departmentId: widget.departmentId,
+                              tasks: _tasks,
+                              onTasksUpdated: _loadDepartmentData,
+                              isDesktop: true,
+                            ),
+                            _ReportsTab(
+                              departmentId: widget.departmentId,
+                              reports: _reports,
+                              onReportsUpdated: _loadDepartmentData,
+                              isDesktop: true,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

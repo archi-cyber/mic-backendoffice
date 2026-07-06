@@ -9,6 +9,7 @@ import '../desktop/desktop_shell_scope.dart';
 import 'attendance_page.dart';
 import 'edit_class_page.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Training detail page with sessions and attendance
 class ClassDetailPage extends StatefulWidget {
@@ -23,8 +24,7 @@ class ClassDetailPage extends StatefulWidget {
   State<ClassDetailPage> createState() => _ClassDetailPageState();
 }
 
-const double _kClassDetailDesktopBreakpoint = 700;
-const double _kClassDetailDesktopMaxWidth = 1180;
+const double _kClassDetailDesktopMaxWidth = kDesktopContentMaxWidth;
 
 class _ClassDetailPageState extends State<ClassDetailPage> {
   Map<String, dynamic>? _classData;
@@ -58,9 +58,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        widget.onClose != null &&
-        MediaQuery.sizeOf(context).width >= _kClassDetailDesktopBreakpoint;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     if (_isLoading) {
       return Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -68,7 +69,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
     if (_classData == null) {
       return Scaffold(
-        appBar: isDesktop
+        appBar: embedded
             ? null
             : AppBar(
                 title: Text(context.tr('Training')),
@@ -86,8 +87,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: isDesktop ? null : _buildMobileAppBar(),
-        body: isDesktop
+        appBar: embedded ? null : _buildMobileAppBar(),
+        body: embedded
             ? _buildDesktopBody(context)
             : TabBarView(
                 children: [
@@ -146,68 +147,113 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final startDate = _classData!['start_date']?.toString();
     final endDate = _classData!['end_date']?.toString();
 
-    return Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: _kClassDetailDesktopMaxWidth),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 340,
-                child: SingleChildScrollView(
-                  child: _TrainingSummaryPanel(
-                    className: className,
-                    description: description,
-                    isActive: isActive,
-                    startDate: startDate,
-                    endDate: endDate,
-                    onEdit: _openEditClass,
-                    onDelete: _deleteClass,
-                  ),
+    return DesktopPageShell(
+      maxWidth: _kClassDetailDesktopMaxWidth,
+      isLoading: _isLoading,
+      padding: EdgeInsets.zero,
+      banner: DesktopHeroBanner(
+        title: className,
+        subtitle: description?.trim().isNotEmpty == true
+            ? description
+            : (isActive ? context.tr('Active') : context.tr('Inactive')),
+        icon: Icons.school_outlined,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: _openEditClass,
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: context.tr('Edit Training'),
+            ),
+            IconButton(
+              onPressed: _deleteClass,
+              icon: Icon(Icons.delete_outline, color: AppColors.error),
+              tooltip: context.tr('Delete'),
+            ),
+            if (widget.onClose != null)
+              IconButton(
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close),
+                tooltip: context.tr('Close'),
+              ),
+          ],
+        ),
+      ),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height - 220,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 320,
+              child: SingleChildScrollView(
+                child: DesktopSectionCard(
+                  title: context.tr('Overview'),
+                  icon: Icons.info_outline,
+                  children: [
+                    _TrainingStatusPill(isActive: isActive),
+                    if (description != null && description.trim().isNotEmpty) ...[
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        description,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: context.mic.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: AppDimensions.spacingMD),
+                    _TrainingInfoTile(
+                      icon: Icons.play_circle_outline,
+                      label: context.tr('Start Date'),
+                      value: startDate == null || startDate.isEmpty
+                          ? context.tr('Not set')
+                          : startDate,
+                    ),
+                    SizedBox(height: AppDimensions.spacingSM),
+                    _TrainingInfoTile(
+                      icon: Icons.flag_outlined,
+                      label: context.tr('End Date'),
+                      value: endDate == null || endDate.isEmpty
+                          ? context.tr('Not set')
+                          : endDate,
+                    ),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    FilledButton.icon(
+                      onPressed: _openEditClass,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: Text(context.tr('Edit')),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(width: AppDimensions.spacingLG),
-              Expanded(
-                child: Material(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusXL,
-                      ),
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                      ),
-                    ),
+            ),
+            SizedBox(width: AppDimensions.spacingLG),
+            Expanded(
+              child: DesktopSectionCard(
+                title: context.tr('Training'),
+                icon: Icons.event_note_outlined,
+                children: [
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).height - 320,
                     child: Column(
                       children: [
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            AppDimensions.paddingLG,
-                            AppDimensions.paddingMD,
-                            AppDimensions.paddingLG,
-                            0,
-                          ),
-                          child: TabBar(
-                            labelColor: AppColors.primary,
-                            unselectedLabelColor: context.mic.textSecondary,
-                            indicatorSize: TabBarIndicatorSize.tab,
-                            tabs: [
-                              Tab(
-                                icon: Icon(Icons.event_note_outlined),
-                                text: context.tr('Sessions'),
-                              ),
-                              Tab(
-                                icon: Icon(Icons.people_outline),
-                                text: context.tr('Members'),
-                              ),
-                            ],
-                          ),
+                        TabBar(
+                          labelColor: AppColors.primary,
+                          unselectedLabelColor: context.mic.textSecondary,
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          tabs: [
+                            Tab(
+                              icon: const Icon(Icons.event_note_outlined),
+                              text: context.tr('Sessions'),
+                            ),
+                            Tab(
+                              icon: const Icon(Icons.people_outline),
+                              text: context.tr('Members'),
+                            ),
+                          ],
                         ),
-                        Divider(height: 1),
+                        const Divider(height: 1),
                         Expanded(
                           child: TabBarView(
                             children: [
@@ -222,10 +268,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -316,111 +362,6 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         }
       }
     }
-  }
-}
-
-class _TrainingSummaryPanel extends StatelessWidget {
-  final String className;
-  final String? description;
-  final bool isActive;
-  final String? startDate;
-  final String? endDate;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-
-  const _TrainingSummaryPanel({
-    required this.className,
-    required this.description,
-    required this.isActive,
-    required this.startDate,
-    required this.endDate,
-    required this.onEdit,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-      child: Container(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-              ),
-              child: Icon(Icons.school_outlined, color: AppColors.primary),
-            ),
-            SizedBox(height: AppDimensions.spacingLG),
-            Text(
-              className,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            _TrainingStatusPill(isActive: isActive),
-            if (description != null && description!.trim().isNotEmpty) ...[
-              SizedBox(height: AppDimensions.spacingLG),
-              Text(
-                description!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: context.mic.textSecondary,
-                  height: 1.4,
-                ),
-              ),
-            ],
-            SizedBox(height: AppDimensions.spacingLG),
-            _TrainingInfoTile(
-              icon: Icons.play_circle_outline,
-              label: context.tr('Start Date'),
-              value: startDate == null || startDate!.isEmpty
-                  ? context.tr('Not set')
-                  : startDate!,
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            _TrainingInfoTile(
-              icon: Icons.flag_outlined,
-              label: context.tr('End Date'),
-              value: endDate == null || endDate!.isEmpty
-                  ? context.tr('Not set')
-                  : endDate!,
-            ),
-            SizedBox(height: AppDimensions.spacingXL),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onEdit,
-                    icon: Icon(Icons.edit_outlined),
-                    label: Text(context.tr('Edit')),
-                  ),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                IconButton.outlined(
-                  onPressed: onDelete,
-                  icon: Icon(Icons.delete_outline),
-                  color: AppColors.error,
-                  tooltip: context.tr('Delete'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

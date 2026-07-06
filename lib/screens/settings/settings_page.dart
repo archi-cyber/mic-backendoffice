@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
 import '../desktop/desktop_shell_scope.dart';
@@ -13,6 +14,7 @@ import '../../services/supabase_service.dart';
 import '../../services/role_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Settings page
 class SettingsPage extends StatefulWidget {
@@ -454,11 +456,17 @@ class _SettingsPageState extends State<SettingsPage> {
         }
 
         final localizations = AppLocalizations.of(context);
+        final isDesktop = isDesktopEmbedded(
+          context,
+          hideAppBar: widget.hideAppBarAndBottomNav,
+        );
         return Scaffold(
           appBar: widget.hideAppBarAndBottomNav
               ? null
               : AppBar(title: Text(localizations?.settings ?? 'Settings')),
-          body: ListView(
+          body: isDesktop
+              ? _buildDesktopBody(context, settingsProvider, localizations)
+              : ListView(
             padding: EdgeInsets.all(AppDimensions.paddingMD),
             children: [
               // Language Settings
@@ -629,10 +637,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   trailing: Icon(Icons.chevron_right),
                   onTap: () {
-                    Navigator.of(context).pushNamed(
-                      RouteNames.notifications,
-                      arguments: 'birthday',
-                    );
+                    final scope = DesktopShellScope.maybeOf(context);
+                    if (widget.hideAppBarAndBottomNav && scope != null) {
+                      scope.pushDetail(
+                        RouteNames.birthdayNotificationsSettings,
+                        '',
+                      );
+                    } else {
+                      Navigator.of(context).pushNamed(
+                        RouteNames.notifications,
+                        arguments: 'birthday',
+                      );
+                    }
                   },
                 ),
               ),
@@ -785,6 +801,289 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       }
     }
+  }
+
+  Widget _buildDesktopBody(
+    BuildContext context,
+    SettingsProvider settingsProvider,
+    AppLocalizations? localizations,
+  ) {
+    final scope = DesktopShellScope.maybeOf(context);
+    final languageLabel = settingsProvider.locale?.languageCode == 'fr'
+        ? 'Français'
+        : settingsProvider.locale?.languageCode == 'es'
+        ? 'Español'
+        : 'English';
+    final themeLabel = settingsProvider.themeMode == ThemeMode.light
+        ? (localizations?.light ?? 'Light')
+        : settingsProvider.themeMode == ThemeMode.dark
+        ? (localizations?.dark ?? 'Dark')
+        : (localizations?.systemDefault ?? 'System Default');
+
+    return DesktopPageShell(
+      banner: DesktopHeroBanner(
+        title: localizations?.settings ?? 'Settings',
+        subtitle: localizations?.configureBirthdayNotifications ??
+            'Manage preferences, data, and admin tools',
+        icon: Icons.settings_outlined,
+        accent: AppColors.secondary,
+        trailing: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+            vertical: AppDimensions.spacingSM,
+          ),
+          decoration: BoxDecoration(
+            color: context.mic.accentIconBackground(AppColors.secondary),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+          ),
+          child: Text(
+            SupabaseService.currentUser?.email ?? context.tr('Account'),
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.mic.appBarForeground,
+                ),
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: AppDimensions.spacingSM,
+            runSpacing: AppDimensions.spacingSM,
+            children: [
+              DesktopStatChip(
+                label: localizations?.language ?? 'Language',
+                value: languageLabel,
+                icon: Icons.translate,
+                color: AppColors.primary,
+              ),
+              DesktopStatChip(
+                label: localizations?.theme ?? 'Theme',
+                value: themeLabel,
+                icon: Icons.palette_outlined,
+                color: AppColors.accent,
+              ),
+              DesktopStatChip(
+                label: localizations?.notifications ?? 'Notifications',
+                value: settingsProvider.notificationsEnabled
+                    ? context.tr('On')
+                    : context.tr('Off'),
+                icon: Icons.notifications_outlined,
+                color: settingsProvider.notificationsEnabled
+                    ? AppColors.success
+                    : AppColors.secondary,
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingLG),
+          DesktopFormColumns(
+            sections: [
+              DesktopSectionCard(
+                title: localizations?.languageAndRegion ?? 'Language & Region',
+                icon: Icons.language,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.translate),
+                    title: Text(localizations?.language ?? 'Language'),
+                    subtitle: Text(languageLabel),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showLanguageDialog(settingsProvider.locale),
+                  ),
+                ],
+              ),
+              DesktopSectionCard(
+                title: localizations?.appearance ?? 'Appearance',
+                icon: Icons.brightness_6,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.palette_outlined),
+                    title: Text(localizations?.theme ?? 'Theme'),
+                    subtitle: Text(themeLabel),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _showThemeDialog(settingsProvider.themeMode),
+                  ),
+                  const Divider(height: 1),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    secondary: const Icon(Icons.notifications_outlined),
+                    title: Text(
+                      localizations?.enableNotifications ??
+                          'Enable Notifications',
+                    ),
+                    subtitle: Text(
+                      localizations?.receivePushNotifications ??
+                          'Receive push notifications',
+                    ),
+                    value: settingsProvider.notificationsEnabled,
+                    onChanged: _toggleNotifications,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingLG),
+          DesktopSectionCard(
+            title: localizations?.dataManagement ?? 'Data Management',
+            icon: Icons.storage_outlined,
+            accent: AppColors.primary,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final crossAxisCount = constraints.maxWidth >= 900 ? 2 : 1;
+                  final tiles = <Widget>[
+                    DesktopSettingsTile(
+                      icon: Icons.cake_outlined,
+                      title: localizations?.birthdayNotifications ??
+                          'Birthday Notifications',
+                      subtitle: localizations?.configureBirthdayNotifications ??
+                          'Configure birthday notification settings',
+                      color: AppColors.accent,
+                      onTap: () {
+                        if (scope != null) {
+                          scope.pushDetail(
+                            RouteNames.birthdayNotificationsSettings,
+                            '',
+                          );
+                        }
+                      },
+                    ),
+                    DesktopSettingsTile(
+                      icon: Icons.upload_file,
+                      title: localizations?.exportAllData ?? 'Export All Data',
+                      subtitle: localizations?.exportAllDataSubtitle ??
+                          'Export all data to JSON file',
+                      color: AppColors.primary,
+                      onTap: _exportAllData,
+                    ),
+                    DesktopSettingsTile(
+                      icon: Icons.file_download_outlined,
+                      title: localizations?.importData ?? 'Import Data',
+                      subtitle: localizations?.importDataSubtitle ??
+                          'Import data from JSON file',
+                      color: AppColors.primary,
+                      onTap: _importData,
+                    ),
+                    DesktopSettingsTile(
+                      icon: Icons.people_outline,
+                      title: localizations?.exportMembers ?? 'Export Members',
+                      subtitle: localizations?.exportMembersSubtitle ??
+                          'Export members to CSV',
+                      color: AppColors.primary,
+                      onTap: _exportMembers,
+                    ),
+                    DesktopSettingsTile(
+                      icon: Icons.sync,
+                      title: localizations?.syncUsersMembers ??
+                          'Sync Users & Members',
+                      subtitle: localizations?.syncUsersMembers ??
+                          'Create members for all users and users for all leaders',
+                      color: AppColors.secondary,
+                      onTap: _syncUsersAndMembers,
+                    ),
+                    DesktopSettingsTile(
+                      icon: Icons.assessment_outlined,
+                      title: localizations?.generateAllUsersReport ??
+                          'Generate All Users Report',
+                      subtitle: localizations?.generateReportComprehensive ??
+                          'Generate comprehensive report for all users',
+                      color: AppColors.info,
+                      onTap: _generateAllUsersReport,
+                    ),
+                    if (_isAdmin)
+                      DesktopSettingsTile(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: localizations?.leaderAccessManagement ??
+                            'Leader Access Management',
+                        subtitle: localizations?.defineFeatureAccess ??
+                            'Define feature access for each leader',
+                        color: AppColors.warning,
+                        onTap: () {
+                          scope?.pushDetail(RouteNames.leaderAccess, '');
+                        },
+                      ),
+                    if (_isAdmin)
+                      DesktopSettingsTile(
+                        icon: Icons.person_add_alt_1_outlined,
+                        title: context.tr('Member Accounts'),
+                        subtitle:
+                            'Create login accounts for members and manage their access',
+                        color: AppColors.success,
+                        onTap: () {
+                          scope?.pushDetail(RouteNames.memberAccounts, '');
+                        },
+                      ),
+                  ];
+
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      mainAxisSpacing: AppDimensions.spacingMD,
+                      crossAxisSpacing: AppDimensions.spacingMD,
+                      childAspectRatio: crossAxisCount == 2 ? 2.8 : 2.4,
+                    ),
+                    itemCount: tiles.length,
+                    itemBuilder: (context, index) => tiles[index],
+                  );
+                },
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          DesktopFormColumns(
+            sections: [
+              DesktopSectionCard(
+                title: localizations?.account ?? 'Account',
+                icon: Icons.person_outline,
+                accent: AppColors.warning,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.email_outlined),
+                    title: Text(localizations?.currentUser ?? 'Current User'),
+                    subtitle: Text(
+                      SupabaseService.currentUser?.email ??
+                          (localizations?.notLoggedIn ?? 'Not logged in'),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.logout, color: AppColors.error),
+                    title: Text(
+                      localizations?.logout ?? 'Logout',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+                    subtitle: Text(
+                      localizations?.signOutAccount ??
+                          'Sign out of your account',
+                    ),
+                    onTap: _handleLogout,
+                  ),
+                ],
+              ),
+              DesktopSectionCard(
+                title: localizations?.about ?? 'About',
+                icon: Icons.info_outline,
+                accent: AppColors.info,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.verified_outlined),
+                    title: Text(localizations?.appVersion ?? 'App Version'),
+                    subtitle: const Text('1.0.0'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSectionHeader(String title) {

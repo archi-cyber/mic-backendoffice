@@ -105,6 +105,8 @@ class RouteNames {
   static const String admin = '/admin';
   static const String leaderAccess = '/settings/leader-access';
   static const String memberAccounts = '/settings/member-accounts';
+  static const String birthdayNotificationsSettings =
+      '/settings/birthday-notifications';
 
   // Common Routes
   static const String fileViewer = '/file-viewer';

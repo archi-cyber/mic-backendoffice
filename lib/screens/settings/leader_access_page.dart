@@ -4,9 +4,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/leader_access_service.dart';
 import '../../core/localization/app_localizations.dart';
-
-const double _kLeaderAccessDesktopBreakpoint = 700;
-const double _kLeaderAccessDesktopMaxWidth = 900;
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Leader access management page (admin only)
 /// Allows admins to define feature access for each leader
@@ -412,271 +410,280 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= _kLeaderAccessDesktopBreakpoint;
+    final isDesktop = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(context.tr('Leader Access Management')),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _loadLeaders,
-            tooltip: context.tr('Refresh'),
-          ),
-        ],
-      ),
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: widget.onClose,
+                    )
+                  : null,
+              title: Text(context.tr('Leader Access Management')),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadLeaders,
+                  tooltip: context.tr('Refresh'),
+                ),
+              ],
+            ),
       body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
     );
   }
 
   Widget _buildDesktopBody(BuildContext context) {
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
     if (_leaders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.people_outline,
-              size: 64,
-              color: context.mic.textSecondary,
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
-            Text(
-              'No leaders found',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            SizedBox(height: AppDimensions.spacingSM),
-            Text(
-              'Leaders must have role "leader" in the users table',
-              style: TextStyle(color: context.mic.textSecondary),
-            ),
-          ],
+      return DesktopPageShell(
+        banner: DesktopHeroBanner(
+          title: context.tr('Leader Access Management'),
+          subtitle: context.tr('Define feature access for each leader'),
+          icon: Icons.admin_panel_settings_outlined,
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.people_outline,
+                size: 64,
+                color: context.mic.textSecondary,
+              ),
+              SizedBox(height: AppDimensions.spacingMD),
+              Text(
+                'No leaders found',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              SizedBox(height: AppDimensions.spacingSM),
+              Text(
+                'Leaders must have role "leader" in the users table',
+                style: TextStyle(color: context.mic.textSecondary),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingMD),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: _kLeaderAccessDesktopMaxWidth),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                child: Padding(
-                  padding: EdgeInsets.all(AppDimensions.paddingMD),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Leader or Member',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+    return DesktopPageShell(
+      isLoading: _isSaving,
+      maxWidth: kDesktopContentMaxWidth,
+      banner: DesktopHeroBanner(
+        title: context.tr('Leader Access Management'),
+        subtitle: context.tr('Define feature access for each leader'),
+        icon: Icons.admin_panel_settings_outlined,
+        trailing: IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _loadLeaders,
+          tooltip: context.tr('Refresh'),
+        ),
+      ),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height - 280,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopSectionCard(
+              title: context.tr('Select Leader or Member'),
+              icon: Icons.person_search_outlined,
+              children: [
+                InkWell(
+                  onTap: _openLeaderPicker,
+                  borderRadius: BorderRadius.circular(8),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.person),
+                      suffixIcon: const Icon(Icons.arrow_drop_down),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
                       ),
-                      SizedBox(height: AppDimensions.spacingSM),
-                      InkWell(
-                        onTap: _openLeaderPicker,
-                        borderRadius: BorderRadius.circular(8),
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.person),
-                            suffixIcon: Icon(Icons.arrow_drop_down),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 14,
+                    ),
+                    child: Text(
+                      _selectedLeaderId == null
+                          ? 'Tap to select'
+                          : _getLeaderDisplayName(
+                              _leaders.firstWhere(
+                                (l) =>
+                                    l['id'].toString() == _selectedLeaderId,
+                                orElse: () => const {'email': 'Unknown'},
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            _selectedLeaderId == null
-                                ? 'Tap to select'
-                                : _getLeaderDisplayName(
-                                    _leaders.firstWhere(
-                                      (l) =>
-                                          l['id'].toString() ==
-                                          _selectedLeaderId,
-                                      orElse: () => const {'email': 'Unknown'},
-                                    ),
-                                  ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: AppDimensions.spacingMD),
-              if (_hasUnsavedChanges) ...[
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppDimensions.spacingSM,
-                    vertical: AppDimensions.spacingXS,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit, size: 14, color: AppColors.warning),
-                      SizedBox(width: AppDimensions.spacingXS),
-                      Text(
-                        'Unsaved changes',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.warning,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppDimensions.spacingSM),
-              ],
-              Expanded(
-                child: Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        padding: EdgeInsets.all(AppDimensions.paddingMD),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth: constraints.maxWidth,
-                          ),
-                          child: DataTable(
-                            columns: [
-                              DataColumn(label: Text(context.tr('Feature'))),
-                              DataColumn(label: Text(context.tr('View'))),
-                              DataColumn(label: Text(context.tr('Create'))),
-                              DataColumn(label: Text(context.tr('Edit'))),
-                              DataColumn(label: Text(context.tr('Delete'))),
-                            ],
-                            rows: _features.map((featureName) {
-                              final pending = _pendingChanges[featureName];
-                              final access =
-                                  pending ?? _leaderAccessMap[featureName];
-                              final canView = access?['can_view'] == true;
-                              final canCreate = access?['can_create'] == true;
-                              final canEdit = access?['can_edit'] == true;
-                              final canDelete = access?['can_delete'] == true;
-                              return DataRow(
-                                cells: [
-                                  DataCell(
-                                    Text(
-                                      _getFeatureDisplayName(featureName),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Checkbox(
-                                      value: canView,
-                                      onChanged: _isSaving
-                                          ? null
-                                          : (value) {
-                                              _updatePendingChange(
-                                                featureName,
-                                                'can_view',
-                                                value ?? false,
-                                              );
-                                            },
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Checkbox(
-                                      value: canCreate,
-                                      onChanged: _isSaving
-                                          ? null
-                                          : (value) {
-                                              _updatePendingChange(
-                                                featureName,
-                                                'can_create',
-                                                value ?? false,
-                                              );
-                                            },
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Checkbox(
-                                      value: canEdit,
-                                      onChanged: _isSaving
-                                          ? null
-                                          : (value) {
-                                              _updatePendingChange(
-                                                featureName,
-                                                'can_edit',
-                                                value ?? false,
-                                              );
-                                            },
-                                    ),
-                                  ),
-                                  DataCell(
-                                    Checkbox(
-                                      value: canDelete,
-                                      onChanged: _isSaving
-                                          ? null
-                                          : (value) {
-                                              _updatePendingChange(
-                                                featureName,
-                                                'can_delete',
-                                                value ?? false,
-                                              );
-                                            },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              if (_hasUnsavedChanges) ...[
-                SizedBox(height: AppDimensions.spacingMD),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _isSaving ? null : _saveAllChanges,
-                    icon: _isSaving
-                        ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(Icons.save),
-                    label: Text(_isSaving ? 'Saving...' : 'Save All Changes'),
-                    style: FilledButton.styleFrom(
-                      minimumSize: Size(
-                        double.infinity,
-                        AppDimensions.buttonHeightLG,
-                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ),
               ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            if (_hasUnsavedChanges) ...[
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppDimensions.spacingSM,
+                  vertical: AppDimensions.spacingXS,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit, size: 14, color: AppColors.warning),
+                    SizedBox(width: AppDimensions.spacingXS),
+                    Text(
+                      'Unsaved changes',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: AppDimensions.spacingSM),
             ],
-          ),
+            Expanded(
+              child: DesktopSectionCard(
+                title: context.tr('Feature Access Permissions'),
+                icon: Icons.security_outlined,
+                children: [
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).height - 480,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return SingleChildScrollView(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
+                              columns: [
+                                DataColumn(label: Text(context.tr('Feature'))),
+                                DataColumn(label: Text(context.tr('View'))),
+                                DataColumn(label: Text(context.tr('Create'))),
+                                DataColumn(label: Text(context.tr('Edit'))),
+                                DataColumn(label: Text(context.tr('Delete'))),
+                              ],
+                              rows: _features.map((featureName) {
+                                final pending = _pendingChanges[featureName];
+                                final access =
+                                    pending ?? _leaderAccessMap[featureName];
+                                final canView = access?['can_view'] == true;
+                                final canCreate =
+                                    access?['can_create'] == true;
+                                final canEdit = access?['can_edit'] == true;
+                                final canDelete =
+                                    access?['can_delete'] == true;
+                                return DataRow(
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        _getFeatureDisplayName(featureName),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Checkbox(
+                                        value: canView,
+                                        onChanged: _isSaving
+                                            ? null
+                                            : (value) {
+                                                _updatePendingChange(
+                                                  featureName,
+                                                  'can_view',
+                                                  value ?? false,
+                                                );
+                                              },
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Checkbox(
+                                        value: canCreate,
+                                        onChanged: _isSaving
+                                            ? null
+                                            : (value) {
+                                                _updatePendingChange(
+                                                  featureName,
+                                                  'can_create',
+                                                  value ?? false,
+                                                );
+                                              },
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Checkbox(
+                                        value: canEdit,
+                                        onChanged: _isSaving
+                                            ? null
+                                            : (value) {
+                                                _updatePendingChange(
+                                                  featureName,
+                                                  'can_edit',
+                                                  value ?? false,
+                                                );
+                                              },
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Checkbox(
+                                        value: canDelete,
+                                        onChanged: _isSaving
+                                            ? null
+                                            : (value) {
+                                                _updatePendingChange(
+                                                  featureName,
+                                                  'can_delete',
+                                                  value ?? false,
+                                                );
+                                              },
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_hasUnsavedChanges) ...[
+              SizedBox(height: AppDimensions.spacingMD),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: _isSaving ? null : _saveAllChanges,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(_isSaving ? 'Saving...' : 'Save All Changes'),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

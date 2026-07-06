@@ -9,6 +9,7 @@ import '../../services/member_service.dart';
 import '../../core/utils/permission_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Event detail page with registration and leader management
 class EventDetailPage extends StatefulWidget {
@@ -22,9 +23,6 @@ class EventDetailPage extends StatefulWidget {
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
 }
-
-const double _kEventDetailDesktopBreakpoint = 700;
-const double _kEventDetailDesktopMaxWidth = 900;
 
 class _EventDetailPageState extends State<EventDetailPage> {
   Map<String, dynamic>? _event;
@@ -120,76 +118,191 @@ class _EventDetailPageState extends State<EventDetailPage> {
     }
   }
 
+  void _openEditEvent() {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.editEvent, widget.eventId);
+    } else {
+      Navigator.of(context)
+          .pushNamed(
+            RouteNames.editEvent.replaceAll(':id', widget.eventId),
+          )
+          .then((result) {
+            if (result == true) _loadEventData();
+          });
+    }
+  }
+
+  String? _eventSubtitle(Map<String, dynamic> event) {
+    final parts = <String>[];
+    if (event['event_date'] != null) {
+      final date = DateTime.parse(event['event_date']);
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      parts.add('${months[date.month - 1]} ${date.day}, ${date.year}');
+    }
+    final eventTime = event['event_time']?.toString();
+    if (eventTime != null) {
+      parts.add(
+        eventTime.length >= 5 ? eventTime.substring(0, 5) : eventTime,
+      );
+    }
+    if (event['location'] != null) {
+      parts.add(event['location'].toString());
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  PreferredSizeWidget _buildMobileAppBar() {
+    return AppBar(
+      leading: widget.onClose != null
+          ? IconButton(
+              icon: Icon(Icons.arrow_back),
+              onPressed: widget.onClose,
+            )
+          : null,
+      title: Text(_event!['title'] ?? 'Event'),
+      actions: [
+        if (_canEdit)
+          IconButton(icon: Icon(Icons.edit), onPressed: _openEditEvent),
+        if (_canDelete)
+          IconButton(icon: Icon(Icons.delete), onPressed: _deleteEvent),
+      ],
+      bottom: TabBar(
+        tabs: [
+          Tab(text: 'Overview', icon: Icon(Icons.info)),
+          Tab(text: 'Registrations', icon: Icon(Icons.people)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final event = _event!;
+    final tabHeight = (MediaQuery.sizeOf(context).height - 300).clamp(420.0, 720.0);
+
+    return DesktopPageShell(
+      maxWidth: kDesktopContentMaxWidth,
+      banner: DesktopHeroBanner(
+        title: event['title']?.toString() ?? 'Event',
+        subtitle: _eventSubtitle(event),
+        icon: Icons.event,
+        accent: AppColors.primary,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_canEdit)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: context.tr('Edit'),
+                onPressed: _openEditEvent,
+              ),
+            if (_canDelete)
+              IconButton(
+                icon: Icon(Icons.delete_outline, color: AppColors.error),
+                tooltip: context.tr('Delete'),
+                onPressed: _deleteEvent,
+              ),
+          ],
+        ),
+      ),
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+          side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TabBar(
+              labelColor: AppColors.primary,
+              unselectedLabelColor: context.mic.textSecondary,
+              tabs: [
+                Tab(text: context.tr('Overview'), icon: Icon(Icons.info_outline)),
+                Tab(
+                  text: context.tr('Registrations'),
+                  icon: Icon(Icons.people_outline),
+                ),
+              ],
+            ),
+            SizedBox(
+              height: tabHeight,
+              child: TabBarView(
+                children: [
+                  _OverviewTab(event: event, isDesktop: true),
+                  _RegistrationsTab(
+                    eventId: widget.eventId,
+                    isLeader: _canEdit || _canDelete,
+                    onRegistrationsUpdated: _loadEventData,
+                    isDesktop: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final inShell = widget.onClose != null;
+    final embedded = isDesktopEmbedded(context, inShell: inShell);
+
     if (_isLoading) {
+      if (embedded) {
+        return Scaffold(
+          body: DesktopPageShell(
+            isLoading: true,
+            maxWidth: kDesktopContentMaxWidth,
+            child: const SizedBox.shrink(),
+          ),
+        );
+      }
       return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_event == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(context.tr('Event')),
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-        ),
+        appBar: embedded
+            ? null
+            : AppBar(
+                title: Text(context.tr('Event')),
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.arrow_back),
+                        onPressed: widget.onClose,
+                      )
+                    : null,
+              ),
         body: Center(child: Text(context.tr('Event not found'))),
       );
     }
 
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= _kEventDetailDesktopBreakpoint;
-    final desktopMaxWidth = isDesktop ? _kEventDetailDesktopMaxWidth : null;
+    if (embedded) {
+      return DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: null,
+          body: _buildDesktopBody(context),
+        ),
+      );
+    }
+
+    final desktopMaxWidth =
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint
+            ? 900.0
+            : null;
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-          title: Text(_event!['title'] ?? 'Event'),
-          actions: [
-            if (_canEdit) ...[
-              IconButton(
-                icon: Icon(Icons.edit),
-                onPressed: () {
-                  final scope = DesktopShellScope.maybeOf(context);
-                  if (scope != null) {
-                    scope.pushDetail(RouteNames.editEvent, widget.eventId);
-                  } else {
-                    Navigator.of(context)
-                        .pushNamed(
-                          RouteNames.editEvent.replaceAll(
-                            ':id',
-                            widget.eventId,
-                          ),
-                        )
-                        .then((result) {
-                          if (result == true) _loadEventData();
-                        });
-                  }
-                },
-              ),
-            ],
-            if (_canDelete) ...[
-              IconButton(icon: Icon(Icons.delete), onPressed: _deleteEvent),
-            ],
-          ],
-          bottom: TabBar(
-            tabs: [
-              Tab(text: 'Overview', icon: Icon(Icons.info)),
-              Tab(text: 'Registrations', icon: Icon(Icons.people)),
-            ],
-          ),
-        ),
+        appBar: _buildMobileAppBar(),
         body: TabBarView(
           children: [
             _OverviewTab(event: _event!, desktopMaxWidth: desktopMaxWidth),
@@ -210,8 +323,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
 class _OverviewTab extends StatelessWidget {
   final Map<String, dynamic> event;
   final double? desktopMaxWidth;
+  final bool isDesktop;
 
-  _OverviewTab({required this.event, this.desktopMaxWidth});
+  _OverviewTab({
+    required this.event,
+    this.desktopMaxWidth,
+    this.isDesktop = false,
+  });
 
   String _formatDate(DateTime date) {
     const months = [
@@ -229,6 +347,98 @@ class _OverviewTab extends StatelessWidget {
       'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  Widget _buildDesktopContent(BuildContext context) {
+    final eventDate = event['event_date'] != null
+        ? DateTime.parse(event['event_date'])
+        : null;
+    final eventTime = event['event_time']?.toString();
+    final isRepeated = event['is_repeated'] == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DesktopSectionCard(
+          title: context.tr('Event information'),
+          icon: Icons.info_outline,
+          children: [
+            if (eventDate != null) ...[
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 20, color: AppColors.primary),
+                  SizedBox(width: AppDimensions.spacingSM),
+                  Text(
+                    _formatDate(eventDate),
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+              SizedBox(height: AppDimensions.spacingSM),
+            ],
+            if (eventTime != null) ...[
+              Row(
+                children: [
+                  Icon(Icons.access_time, size: 20, color: AppColors.primary),
+                  SizedBox(width: AppDimensions.spacingSM),
+                  Text(
+                    eventTime.length >= 5
+                        ? eventTime.substring(0, 5)
+                        : eventTime,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+              SizedBox(height: AppDimensions.spacingSM),
+            ],
+            if (event['location'] != null) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.location_on, size: 20, color: AppColors.primary),
+                  SizedBox(width: AppDimensions.spacingSM),
+                  Expanded(
+                    child: Text(
+                      event['location'],
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppDimensions.spacingSM),
+            ],
+            if (isRepeated)
+              Row(
+                children: [
+                  Icon(Icons.repeat, size: 20, color: AppColors.primary),
+                  SizedBox(width: AppDimensions.spacingSM),
+                  Text(
+                    'Repeated Event',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        if (event['description'] != null) ...[
+          SizedBox(height: AppDimensions.spacingMD),
+          DesktopSectionCard(
+            title: context.tr('Description'),
+            icon: Icons.description_outlined,
+            accent: AppColors.info,
+            children: [
+              Text(
+                event['description'],
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
   }
 
   Widget _buildContent(BuildContext context) {
@@ -334,6 +544,12 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktop) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: _buildDesktopContent(context),
+      );
+    }
     if (desktopMaxWidth != null) {
       return Center(
         child: ConstrainedBox(
@@ -352,12 +568,14 @@ class _RegistrationsTab extends StatefulWidget {
   final bool isLeader;
   final VoidCallback onRegistrationsUpdated;
   final double? desktopMaxWidth;
+  final bool isDesktop;
 
   _RegistrationsTab({
     required this.eventId,
     required this.isLeader,
     required this.onRegistrationsUpdated,
     this.desktopMaxWidth,
+    this.isDesktop = false,
   });
 
   @override
@@ -779,6 +997,12 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       return Center(child: CircularProgressIndicator());
     }
     final content = _buildRegistrationsContent(context);
+    if (widget.isDesktop) {
+      return Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: content,
+      );
+    }
     if (widget.desktopMaxWidth != null) {
       return Center(
         child: ConstrainedBox(

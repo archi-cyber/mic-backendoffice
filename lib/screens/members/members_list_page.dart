@@ -10,6 +10,7 @@ import 'add_member_page.dart';
 import 'edit_member_page.dart';
 import 'member_form_ui.dart';
 import 'member_profile_page.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Members list with search and filters
 class MembersListPage extends StatefulWidget {
@@ -633,65 +634,283 @@ class _MembersListPageState extends State<MembersListPage> {
     );
   }
 
-  Widget _buildMembersTable() {
+  Widget _buildDesktopToolbar(AppLocalizations? localizations) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText:
+                      localizations?.search ?? context.tr('Search members...'),
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: context.mic.background,
+                  isDense: true,
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _membersPage = 0;
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusMD),
+                    borderSide: BorderSide(color: context.mic.border),
+                  ),
+                ),
+                onChanged: (_) => setState(() => _membersPage = 0),
+              ),
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            IconButton.filledTonal(
+              onPressed: _showFilterDialog,
+              icon: const Icon(Icons.tune),
+              tooltip: context.tr('Filter'),
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            IconButton.filledTonal(
+              onPressed: _isLoading ? null : _loadMembers,
+              icon: const Icon(Icons.refresh),
+              tooltip: localizations?.refresh ?? context.tr('Refresh'),
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            FilledButton.icon(
+              onPressed: () => setState(() => _showAddMember = true),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(localizations?.addMember ?? context.tr('Add Member')),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _paginatedMembers {
     final members = _filteredMembers;
     final total = members.length;
-    final rowsPerPage = _membersRowsPerPage;
-
-    if (total == 0) {
-      return SizedBox.shrink();
-    }
-
-    final maxPage = (total - 1) ~/ rowsPerPage;
+    if (total == 0) return [];
+    final maxPage = (total - 1) ~/ _membersRowsPerPage;
     final currentPage = _membersPage.clamp(0, maxPage);
-    final startIndex = currentPage * rowsPerPage;
-    final endIndex = startIndex + rowsPerPage > total
-        ? total
-        : startIndex + rowsPerPage;
-    final pageItems = members.sublist(startIndex, endIndex);
+    final startIndex = currentPage * _membersRowsPerPage;
+    final endIndex = (startIndex + _membersRowsPerPage).clamp(0, total);
+    return members.sublist(startIndex, endIndex);
+  }
 
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.only(top: AppDimensions.spacingSM),
-            itemCount: pageItems.length,
-            itemBuilder: (context, index) =>
-                _buildMemberCard(pageItems[index]),
+  int get _totalMemberPages {
+    if (_filteredMembers.isEmpty) return 1;
+    return (_filteredMembers.length / _membersRowsPerPage).ceil();
+  }
+
+  Widget _buildDesktopBody(AppLocalizations? localizations) {
+    final theme = Theme.of(context);
+    final pageItems = _paginatedMembers;
+
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: localizations?.members ?? context.tr('Members'),
+        subtitle: context.tr('Manage church members, roles, and profiles'),
+        icon: Icons.people_outline,
+        accent: AppColors.primary,
+        trailing: Text(
+          '${_filteredMembers.length}',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: context.mic.appBarForeground,
           ),
         ),
-        Container(
-          margin: EdgeInsets.all(AppDimensions.paddingMD),
-          padding: EdgeInsets.symmetric(
-            horizontal: AppDimensions.paddingMD,
-            vertical: AppDimensions.spacingSM,
-          ),
-          decoration: BoxDecoration(
-            color: context.mic.surface,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-            border: Border.all(color: context.mic.border),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Text(
-                context.tr('Page ${currentPage + 1} of ${maxPage + 1}'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_left),
-                onPressed: currentPage > 0
-                    ? () => setState(() => _membersPage = currentPage - 1)
-                    : null,
-              ),
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                onPressed: currentPage < maxPage
-                    ? () => setState(() => _membersPage = currentPage + 1)
-                    : null,
-              ),
-            ],
-          ),
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Total'),
+          value: _isLoading ? '…' : '${_members.length}',
+          icon: Icons.groups_outlined,
+        ),
+        DesktopStatChip(
+          label: context.tr('Active'),
+          value: _isLoading ? '…' : '$_activeCount',
+          icon: Icons.check_circle_outline,
+          color: AppColors.success,
+        ),
+        DesktopStatChip(
+          label: context.tr('Newcomers'),
+          value: _isLoading ? '…' : '$_newcomerCount',
+          icon: Icons.person_add_alt_1_outlined,
+          color: AppColors.accent,
+        ),
+        DesktopStatChip(
+          label: context.tr('Showing'),
+          value: _isLoading ? '…' : '${_filteredMembers.length}',
+          icon: Icons.filter_list_outlined,
+          color: AppColors.secondary,
+        ),
+      ],
+      toolbar: _buildDesktopToolbar(localizations),
+      pagination: _filteredMembers.isEmpty
+          ? null
+          : DesktopPaginationBar(
+              currentPage: _membersPage.clamp(0, _totalMemberPages - 1),
+              totalPages: _totalMemberPages,
+              itemLabel:
+                  '${_filteredMembers.length} ${context.tr('Members').toLowerCase()}',
+              onPrevious: _membersPage > 0
+                  ? () => setState(() => _membersPage--)
+                  : null,
+              onNext: _membersPage < _totalMemberPages - 1
+                  ? () => setState(() => _membersPage++)
+                  : null,
+            ),
+      child: DesktopDataTableCard(
+          emptyMessage: localizations?.noData ?? context.tr('No members found'),
+          emptyIcon: Icons.people_outline,
+          columns: [
+            DataColumn(label: Text(context.tr('Member'))),
+            DataColumn(label: Text(context.tr('Email'))),
+            DataColumn(label: Text(context.tr('Phone'))),
+            DataColumn(label: Text(context.tr('Role'))),
+            DataColumn(label: Text(context.tr('Status'))),
+            DataColumn(label: Text(context.tr('Actions'))),
+          ],
+          rows: pageItems.map((member) {
+            final firstName = member['first_name']?.toString() ?? '';
+            final lastName = member['last_name']?.toString() ?? '';
+            final fullName = '$firstName $lastName'.trim();
+            final email = member['email']?.toString() ?? '—';
+            final phone = member['phone']?.toString() ?? '—';
+            final role = member['role']?.toString() ?? 'member';
+            final isActive = member['is_active'] == true;
+            final memberId = member['id'].toString();
+            final photoUrl = member['photo_url']?.toString();
+            final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+            final roleColor = MemberFormUi.roleColor(role);
+            final initials = _memberInitials(firstName, lastName);
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  InkWell(
+                    onTap: () => _openMember(memberId),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: roleColor.withValues(alpha: 0.15),
+                          backgroundImage:
+                              hasPhoto ? NetworkImage(photoUrl) : null,
+                          child: hasPhoto
+                              ? null
+                              : Text(
+                                  initials,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: roleColor,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                        ),
+                        SizedBox(width: AppDimensions.spacingSM),
+                        Expanded(
+                          child: Text(
+                            fullName.isEmpty
+                                ? context.tr('Unnamed member')
+                                : fullName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                DataCell(Text(email, overflow: TextOverflow.ellipsis)),
+                DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
+                DataCell(MemberFormUi.roleChip(context, role)),
+                DataCell(
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (isActive ? AppColors.success : AppColors.error)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isActive
+                          ? context.tr('Active')
+                          : context.tr('Inactive'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? AppColors.success : AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility_outlined, size: 20),
+                        tooltip: context.tr('View'),
+                        onPressed: () => _openMember(memberId),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, size: 20),
+                        tooltip: context.tr('Edit'),
+                        onPressed: () =>
+                            setState(() => _editMemberId = memberId),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+    );
+  }
+
+  Widget _buildMobileBody(AppLocalizations? localizations) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHeaderBanner(localizations),
+        SizedBox(height: AppDimensions.spacingMD),
+        _buildStatsRow(),
+        _buildSearchToolbar(localizations),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredMembers.isEmpty
+              ? _buildEmptyState(localizations)
+              : RefreshIndicator(
+                  onRefresh: _loadMembers,
+                  child: ListView.builder(
+                    padding: EdgeInsets.only(
+                      bottom: AppDimensions.spacingXL,
+                    ),
+                    itemCount: _filteredMembers.length,
+                    itemBuilder: (context, index) =>
+                        _buildMemberCard(_filteredMembers[index]),
+                  ),
+                ),
         ),
       ],
     );
@@ -700,6 +919,10 @@ class _MembersListPageState extends State<MembersListPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop = isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
 
     return Scaffold(
       backgroundColor: context.mic.background,
@@ -717,34 +940,10 @@ class _MembersListPageState extends State<MembersListPage> {
             ),
       body: Stack(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeaderBanner(localizations),
-              SizedBox(height: AppDimensions.spacingMD),
-              _buildStatsRow(),
-              _buildSearchToolbar(localizations),
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filteredMembers.isEmpty
-                    ? _buildEmptyState(localizations)
-                    : widget.hideAppBarAndBottomNav
-                    ? _buildMembersTable()
-                    : RefreshIndicator(
-                        onRefresh: _loadMembers,
-                        child: ListView.builder(
-                          padding: EdgeInsets.only(
-                            bottom: AppDimensions.spacingXL,
-                          ),
-                          itemCount: _filteredMembers.length,
-                          itemBuilder: (context, index) =>
-                              _buildMemberCard(_filteredMembers[index]),
-                        ),
-                      ),
-              ),
-            ],
-          ),
+          if (isDesktop)
+            Positioned.fill(child: _buildDesktopBody(localizations))
+          else
+            _buildMobileBody(localizations),
           if (widget.hideAppBarAndBottomNav && _selectedMemberId != null)
             Positioned.fill(
               child: Material(

@@ -7,6 +7,7 @@ import '../../services/sunday_school_attendance_service.dart';
 import '../../services/member_service.dart';
 import '../../utils/member_utils.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Page for marking Sunday school attendance (for children only)
 class SundaySchoolAttendancePage extends StatefulWidget {
@@ -269,6 +270,25 @@ class _SundaySchoolAttendancePageState
     final l = lastName.isNotEmpty ? lastName[0].toUpperCase() : '';
     final initials = '$f$l';
     return initials.isEmpty ? '?' : initials;
+  }
+
+  Widget _buildDesktopHeroBanner() {
+    final dateLabel = DateFormat('EEE, MMM d, yyyy').format(_selectedDate);
+    return DesktopHeroBanner(
+      title: _isViewMode
+          ? context.tr('Session Details')
+          : context.tr('Mark Attendance'),
+      subtitle: dateLabel,
+      icon: _isViewMode ? Icons.visibility_outlined : Icons.child_care_outlined,
+      accent: AppColors.secondary,
+      trailing: widget.onClose != null
+          ? IconButton(
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.close),
+              tooltip: context.tr('Close'),
+            )
+          : null,
+    );
   }
 
   Widget _buildHeroBanner() {
@@ -640,74 +660,99 @@ class _SundaySchoolAttendancePageState
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+    final useDesktopLayout =
+        embedded ||
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
+
+    final bodyColumn = _buildBodyColumn(embedded: embedded);
 
     return Scaffold(
       backgroundColor: context.mic.background,
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(
-          _isViewMode
-              ? context.tr('Session Details')
-              : context.tr('Mark Attendance'),
-        ),
-        actions: [
-          if (_isViewMode) ...[
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: _attendanceRecords.isEmpty ? null : _deleteSession,
-              tooltip: context.tr('Delete Session'),
-              color: AppColors.error,
-            ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () => setState(() => _isViewMode = false),
-              tooltip: context.tr('Edit Session'),
-            ),
-          ] else ...[
-            if (_isSaving)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else ...[
-              TextButton(
-                onPressed: () {
-                  _loadExistingAttendance();
-                  setState(() => _isViewMode = true);
-                },
-                child: Text(context.tr('Cancel')),
+      appBar: embedded
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: widget.onClose,
+                    )
+                  : null,
+              title: Text(
+                _isViewMode
+                    ? context.tr('Session Details')
+                    : context.tr('Mark Attendance'),
               ),
-              FilledButton.icon(
-                onPressed: _saveAttendance,
-                icon: const Icon(Icons.save, size: 18),
-                label: Text(context.tr('Save')),
-              ),
-              SizedBox(width: AppDimensions.spacingSM),
-            ],
-          ],
-        ],
-      ),
+              actions: [
+                if (_isViewMode) ...[
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed:
+                        _attendanceRecords.isEmpty ? null : _deleteSession,
+                    tooltip: context.tr('Delete Session'),
+                    color: AppColors.error,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => setState(() => _isViewMode = false),
+                    tooltip: context.tr('Edit Session'),
+                  ),
+                ] else ...[
+                  if (_isSaving)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else ...[
+                    TextButton(
+                      onPressed: () {
+                        _loadExistingAttendance();
+                        setState(() => _isViewMode = true);
+                      },
+                      child: Text(context.tr('Cancel')),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _saveAttendance,
+                      icon: const Icon(Icons.save, size: 18),
+                      label: Text(context.tr('Save')),
+                    ),
+                    SizedBox(width: AppDimensions.spacingSM),
+                  ],
+                ],
+              ],
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : isDesktop
+          : embedded
+          ? DesktopPageShell(
+              maxWidth: kDesktopNarrowMaxWidth,
+              isLoading: _isSaving,
+              padding: EdgeInsets.zero,
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height - 48,
+                child: bodyColumn,
+              ),
+            )
+          : useDesktopLayout
           ? Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 900),
-                child: _buildBodyColumn(),
+                child: bodyColumn,
               ),
             )
-          : _buildBodyColumn(),
-      floatingActionButton: !_isViewMode && !_isSaving && _members.isNotEmpty
+          : bodyColumn,
+      floatingActionButton: !embedded &&
+              !useDesktopLayout &&
+              !_isViewMode &&
+              !_isSaving &&
+              _members.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: _saveAttendance,
               icon: const Icon(Icons.save),
@@ -717,15 +762,44 @@ class _SundaySchoolAttendancePageState
     );
   }
 
-  Widget _buildBodyColumn() {
+  Widget _buildBodyColumn({required bool embedded}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildHeroBanner(),
+        embedded
+            ? Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppDimensions.paddingLG,
+                  AppDimensions.paddingLG,
+                  AppDimensions.paddingLG,
+                  0,
+                ),
+                child: _buildDesktopHeroBanner(),
+              )
+            : _buildHeroBanner(),
         Expanded(
-          child: _isViewMode
-              ? _buildViewModeContent()
-              : _buildEditModeContent(),
+          child: embedded
+              ? Padding(
+                  padding: EdgeInsets.all(AppDimensions.paddingLG),
+                  child: DesktopSectionCard(
+                    title: _isViewMode
+                        ? context.tr('Attendees')
+                        : context.tr('Children'),
+                    icon: Icons.child_care_outlined,
+                    accent: AppColors.secondary,
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.sizeOf(context).height - 340,
+                        child: _isViewMode
+                            ? _buildViewModeContent()
+                            : _buildEditModeContent(),
+                      ),
+                    ],
+                  ),
+                )
+              : (_isViewMode
+                  ? _buildViewModeContent()
+                  : _buildEditModeContent()),
         ),
       ],
     );

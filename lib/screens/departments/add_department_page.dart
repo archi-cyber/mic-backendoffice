@@ -7,6 +7,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../services/department_service.dart';
 import '../../services/storage_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import 'department_form_ui.dart';
 
 /// Add department page
@@ -373,122 +374,117 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
     }
   }
 
-  static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 800;
-
-  @override
-  Widget build(BuildContext context) {
-    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
-
-    return Scaffold(
-      backgroundColor: context.mic.background,
-      appBar: AppBar(
-        leading: widget.onClose != null
+  Widget _buildDesktopBody(BuildContext context) {
+    return DesktopPageShell(
+      isLoading: _isLoading,
+      maxWidth: kDesktopFormMaxWidth,
+      banner: DesktopHeroBanner(
+        title: context.tr('Add Department'),
+        subtitle: context.tr(
+          'Create a department and attach reference documents',
+        ),
+        icon: Icons.add_business_outlined,
+        accent: DepartmentFormUi.accent,
+        trailing: widget.onClose != null
             ? IconButton(
-                icon: Icon(Icons.close),
+                icon: const Icon(Icons.close),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: Text(context.tr('Add Department')),
-        actions: useDesktop
-            ? [
-                TextButton(
-                  onPressed: () => widget.onClose != null
-                      ? widget.onClose!(null)
-                      : Navigator.of(context).pop(),
-                  child: Text(context.tr('Cancel')),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _handleSave,
-                  icon: _isLoading
-                      ? SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(Icons.save, size: 20),
-                  label: Text(context.tr('Create Department')),
-                ),
-                SizedBox(width: AppDimensions.paddingMD),
-              ]
-            : null,
       ),
-      body: useDesktop
-          ? Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(AppDimensions.paddingLG),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        DepartmentFormUi.heroBanner(
-                          context: context,
-                          isEdit: false,
-                          title: context.tr('Add Department'),
-                          subtitle: context.tr(
-                            'Create a department and attach reference documents',
-                          ),
-                        ),
-                        SizedBox(height: AppDimensions.spacingLG),
-                        _desktopSectionCard(
-                          context,
-                          'Basic information',
-                          Icons.info_outline,
-                          [
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: InputDecoration(
-                                labelText: context.tr('Department Name *'),
-                                prefixIcon: Icon(Icons.group_work),
-                                helperText: context.tr(
-                                  'Enter the name of the department',
-                                ),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Department name is required';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            TextFormField(
-                              controller: _descriptionController,
-                              decoration: InputDecoration(
-                                labelText: context.tr('Description'),
-                                prefixIcon: Icon(Icons.description),
-                                helperText: context.tr(
-                                  'Optional description for the department',
-                                ),
-                              ),
-                              maxLines: 4,
-                            ),
-                          ],
-                        ),
-                        _desktopSectionCard(
-                          context,
-                          'Documents (Optional)',
-                          Icons.folder_outlined,
-                          [
-                            _buildDocumentPicker(1, _document1Name),
-                            SizedBox(height: AppDimensions.spacingSM),
-                            _buildDocumentPicker(2, _document2Name),
-                            SizedBox(height: AppDimensions.spacingSM),
-                            _buildDocumentPicker(3, _document3Name),
-                            SizedBox(height: AppDimensions.spacingSM),
-                            _buildDocumentPicker(4, _document4Name),
-                          ],
-                        ),
-                      ],
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopSectionCard(
+              title: context.tr('Basic information'),
+              icon: Icons.info_outline,
+              accent: DepartmentFormUi.accent,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: context.tr('Department Name *'),
+                    prefixIcon: const Icon(Icons.group_work),
+                    helperText: context.tr(
+                      'Enter the name of the department',
                     ),
                   ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Department name is required';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-            )
+                SizedBox(height: AppDimensions.spacingMD),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(
+                    labelText: context.tr('Description'),
+                    prefixIcon: const Icon(Icons.description),
+                    helperText: context.tr(
+                      'Optional description for the department',
+                    ),
+                  ),
+                  maxLines: 4,
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            DesktopSectionCard(
+              title: context.tr('Documents (Optional)'),
+              icon: Icons.folder_outlined,
+              accent: DepartmentFormUi.accent,
+              children: [
+                _buildDocumentPicker(1, _document1Name),
+                SizedBox(height: AppDimensions.spacingSM),
+                _buildDocumentPicker(2, _document2Name),
+                SizedBox(height: AppDimensions.spacingSM),
+                _buildDocumentPicker(3, _document3Name),
+                SizedBox(height: AppDimensions.spacingSM),
+                _buildDocumentPicker(4, _document4Name),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            DesktopFormActions(
+              onCancel: () => widget.onClose != null
+                  ? widget.onClose!(null)
+                  : Navigator.of(context).pop(),
+              primaryLabel: context.tr('Create Department'),
+              onPrimary: _handleSave,
+              primaryIcon: Icons.save,
+              isLoading: _isLoading,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+
+    return Scaffold(
+      backgroundColor: context.mic.background,
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => widget.onClose!(null),
+                    )
+                  : null,
+              title: Text(context.tr('Add Department')),
+            ),
+      body: isDesktop
+          ? _buildDesktopBody(context)
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
@@ -562,21 +558,6 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                 ),
               ),
             ),
-    );
-  }
-
-  Widget _desktopSectionCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    List<Widget> children,
-  ) {
-    return DepartmentFormUi.sectionCard(
-      context: context,
-      title: title,
-      icon: icon,
-      accentColor: DepartmentFormUi.accent,
-      children: children,
     );
   }
 

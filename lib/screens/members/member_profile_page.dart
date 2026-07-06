@@ -12,6 +12,7 @@ import '../../services/role_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
 import '../../utils/member_utils.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import 'member_form_ui.dart';
 
 /// Member profile with attendance summary, classes, and departments
@@ -135,6 +136,10 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        widget.onClose != null &&
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
+
     if (_isLoading) {
       return Scaffold(
         backgroundColor: context.mic.background,
@@ -145,16 +150,25 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
     if (_member == null) {
       return Scaffold(
         backgroundColor: context.mic.background,
-        appBar: AppBar(
-          title: Text(context.tr('Member Profile')),
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => widget.onClose!(null),
-                )
-              : null,
-        ),
+        appBar: isDesktop
+            ? null
+            : AppBar(
+                title: Text(context.tr('Member Profile')),
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => widget.onClose!(null),
+                      )
+                    : null,
+              ),
         body: Center(child: Text(context.tr('Member not found'))),
+      );
+    }
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: _buildDesktopBody(context),
       );
     }
 
@@ -235,19 +249,152 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
       ),
     );
   }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final member = _member!;
+    final firstName = member['first_name']?.toString() ?? '';
+    final lastName = member['last_name']?.toString() ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final email = member['email']?.toString();
+    final role = member['role']?.toString() ?? 'member';
+
+    return DefaultTabController(
+      length: 3,
+      child: DesktopPageShell(
+        maxWidth: kDesktopContentMaxWidth,
+        banner: DesktopHeroBanner(
+          title: fullName.isEmpty ? context.tr('Unnamed Member') : fullName,
+          subtitle: email,
+          icon: MemberFormUi.roleIcon(role),
+          accent: MemberFormUi.roleColor(role),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: Icon(Icons.edit_outlined),
+                onPressed: () async {
+                  if (widget.onEditRequested != null) {
+                    widget.onEditRequested!(widget.memberId);
+                    return;
+                  }
+                  final result = await Navigator.of(
+                    context,
+                    rootNavigator: true,
+                  ).pushNamed(
+                    RouteNames.editMember.replaceAll(':id', widget.memberId),
+                  );
+                  if (result == true) _loadMemberData();
+                },
+                tooltip: context.tr('Edit Member'),
+              ),
+              if (_canDelete)
+                PopupMenuButton(
+                  icon: Icon(Icons.more_vert),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, color: AppColors.error),
+                          SizedBox(width: 8),
+                          Text(
+                            AppLocalizations.of(context)?.deleteMember ??
+                                'Delete Member',
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        Future.delayed(
+                          Duration(milliseconds: 100),
+                          () => _deleteMember(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              IconButton(
+                icon: Icon(Icons.close),
+                onPressed: () => widget.onClose!(null),
+                tooltip: context.tr('Close'),
+              ),
+            ],
+          ),
+        ),
+        child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+            side: BorderSide(
+              color: context.mic.border.withValues(alpha: 0.75),
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              MemberFormUi.coloredTabBar(
+                context: context,
+                tabs: [
+                  Tab(text: context.tr('Profile')),
+                  Tab(text: context.tr('Attendance')),
+                  Tab(text: context.tr('Classes')),
+                ],
+              ),
+              SizedBox(
+                height: 560,
+                child: TabBarView(
+                  children: [
+                    _ProfileTab(member: member, isDesktop: true),
+                    _AttendanceTab(memberId: widget.memberId, isDesktop: true),
+                    _ClassesTab(memberId: widget.memberId, isDesktop: true),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 
 /// Profile tab
 class _ProfileTab extends StatelessWidget {
   final Map<String, dynamic> member;
+  final bool isDesktop;
 
-  const _ProfileTab({required this.member});
+  const _ProfileTab({required this.member, this.isDesktop = false});
+
+  Widget _sectionCard(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color accent,
+    required List<Widget> children,
+  }) {
+    if (isDesktop) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: AppDimensions.spacingMD),
+        child: DesktopSectionCard(
+          title: title,
+          icon: icon,
+          accent: accent,
+          children: children,
+        ),
+      );
+    }
+    return MemberFormUi.sectionCard(
+      context: context,
+      title: title,
+      icon: icon,
+      accent: accent,
+      children: children,
+    );
+  }
 
   List<Widget> _detailSections(BuildContext context) {
     final sections = <Widget>[
-      MemberFormUi.sectionCard(
-        context: context,
+      _sectionCard(
+        context,
         title: context.tr('Contact'),
         icon: Icons.contact_phone_outlined,
         accent: AppColors.primary,
@@ -266,8 +413,8 @@ class _ProfileTab extends StatelessWidget {
           ),
         ],
       ),
-      MemberFormUi.sectionCard(
-        context: context,
+      _sectionCard(
+        context,
         title: context.tr('Personal details'),
         icon: Icons.badge_outlined,
         accent: AppColors.accent,
@@ -369,8 +516,8 @@ class _ProfileTab extends StatelessWidget {
     }
     if (professional.isNotEmpty) {
       sections.add(
-        MemberFormUi.sectionCard(
-          context: context,
+        _sectionCard(
+          context,
           title: context.tr('Professional details'),
           icon: Icons.work_outline,
           accent: AppColors.info,
@@ -382,8 +529,8 @@ class _ProfileTab extends StatelessWidget {
     final skills = _getKeySkillsList(member['key_skills']);
     if (skills.isNotEmpty) {
       sections.add(
-        MemberFormUi.sectionCard(
-          context: context,
+        _sectionCard(
+          context,
           title: context.tr('Key Skills'),
           icon: Icons.star_outline,
           accent: AppColors.secondary,
@@ -419,6 +566,26 @@ class _ProfileTab extends StatelessWidget {
       if (firstName.isNotEmpty) firstName[0],
       if (lastName.isNotEmpty) lastName[0],
     ].join().toUpperCase();
+
+    if (isDesktop) {
+      return ListView(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        children: [
+          MemberFormUi.profileHero(
+            context: context,
+            fullName:
+                fullName.isEmpty ? context.tr('Unnamed Member') : fullName,
+            email: member['email']?.toString(),
+            role: member['role']?.toString() ?? 'member',
+            isActive: member['is_active'] == true,
+            photoUrl: photoUrl,
+            initials: initials.isEmpty ? 'M' : initials,
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          ..._detailSections(context),
+        ],
+      );
+    }
 
     return ListView(
       padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
@@ -462,8 +629,9 @@ class _ProfileTab extends StatelessWidget {
 /// Church attendance report for the Presence / Attendance tab.
 class _AttendanceTab extends StatefulWidget {
   final String memberId;
+  final bool isDesktop;
 
-  const _AttendanceTab({required this.memberId});
+  const _AttendanceTab({required this.memberId, this.isDesktop = false});
 
   @override
   State<_AttendanceTab> createState() => _AttendanceTabState();
@@ -546,6 +714,111 @@ class _AttendanceTabState extends State<_AttendanceTab> {
     final online = attendance['online'] as int? ?? 0;
     final absent = attendance['absent'] as int? ?? 0;
 
+    final statChips = [
+      widget.isDesktop
+          ? DesktopStatChip(
+              label: context.tr('Total Attendance'),
+              value: '$totalPresent',
+              icon: Icons.how_to_reg_outlined,
+              color: AppColors.primary,
+            )
+          : _AttendanceStatChip(
+              label: context.tr('Total Attendance'),
+              value: '$totalPresent',
+              icon: Icons.how_to_reg_outlined,
+              color: AppColors.primary,
+            ),
+      widget.isDesktop
+          ? DesktopStatChip(
+              label: context.tr('Onsite'),
+              value: '$onsite',
+              icon: Icons.church_outlined,
+              color: AppColors.success,
+            )
+          : _AttendanceStatChip(
+              label: context.tr('Onsite'),
+              value: '$onsite',
+              icon: Icons.church_outlined,
+              color: AppColors.success,
+            ),
+      widget.isDesktop
+          ? DesktopStatChip(
+              label: context.tr('Online'),
+              value: '$online',
+              icon: Icons.wifi_tethering_outlined,
+              color: AppColors.accent,
+            )
+          : _AttendanceStatChip(
+              label: context.tr('Online'),
+              value: '$online',
+              icon: Icons.wifi_tethering_outlined,
+              color: AppColors.accent,
+            ),
+      widget.isDesktop
+          ? DesktopStatChip(
+              label: context.tr('Absent'),
+              value: '$absent',
+              icon: Icons.event_busy_outlined,
+              color: AppColors.error,
+            )
+          : _AttendanceStatChip(
+              label: context.tr('Absent'),
+              value: '$absent',
+              icon: Icons.event_busy_outlined,
+              color: AppColors.error,
+            ),
+    ];
+
+    final recordsContent = records.isEmpty
+        ? Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.event_busy_outlined,
+                    size: 48,
+                    color: context.mic.textSecondary,
+                  ),
+                  SizedBox(height: AppDimensions.spacingMD),
+                  Text(context.tr('No attendance records')),
+                ],
+              ),
+            ),
+          )
+        : Column(
+            children: records
+                .map((record) => _churchRecordTile(context, record))
+                .toList(),
+          );
+
+    if (widget.isDesktop) {
+      return ListView(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        children: [
+          DesktopSectionCard(
+            title: context.tr('churchAttendance'),
+            icon: Icons.how_to_reg_outlined,
+            accent: AppColors.primary,
+            trailing: TextButton.icon(
+              onPressed: _selectDateRange,
+              icon: const Icon(Icons.date_range_outlined, size: 18),
+              label: Text(context.tr('Select Date Range')),
+            ),
+            children: [
+              Wrap(
+                spacing: AppDimensions.spacingSM,
+                runSpacing: AppDimensions.spacingSM,
+                children: statChips,
+              ),
+              SizedBox(height: AppDimensions.spacingMD),
+              recordsContent,
+            ],
+          ),
+        ],
+      );
+    }
+
     return ListView(
       padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
       children: [
@@ -581,33 +854,10 @@ class _AttendanceTabState extends State<_AttendanceTab> {
             scrollDirection: Axis.horizontal,
             padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
             children: [
-              _AttendanceStatChip(
-                label: context.tr('Total Attendance'),
-                value: '$totalPresent',
-                icon: Icons.how_to_reg_outlined,
-                color: AppColors.primary,
-              ),
-              SizedBox(width: AppDimensions.spacingSM),
-              _AttendanceStatChip(
-                label: context.tr('Onsite'),
-                value: '$onsite',
-                icon: Icons.church_outlined,
-                color: AppColors.success,
-              ),
-              SizedBox(width: AppDimensions.spacingSM),
-              _AttendanceStatChip(
-                label: context.tr('Online'),
-                value: '$online',
-                icon: Icons.wifi_tethering_outlined,
-                color: AppColors.accent,
-              ),
-              SizedBox(width: AppDimensions.spacingSM),
-              _AttendanceStatChip(
-                label: context.tr('Absent'),
-                value: '$absent',
-                icon: Icons.event_busy_outlined,
-                color: AppColors.error,
-              ),
+              for (var i = 0; i < statChips.length; i++) ...[
+                if (i > 0) SizedBox(width: AppDimensions.spacingSM),
+                statChips[i],
+              ],
             ],
           ),
         ),
@@ -739,8 +989,9 @@ class _AttendanceStatChip extends StatelessWidget {
 /// Classes tab
 class _ClassesTab extends StatefulWidget {
   final String memberId;
+  final bool isDesktop;
 
-  const _ClassesTab({required this.memberId});
+  const _ClassesTab({required this.memberId, this.isDesktop = false});
 
   @override
   State<_ClassesTab> createState() => _ClassesTabState();
@@ -783,7 +1034,7 @@ class _ClassesTabState extends State<_ClassesTab> {
     }
 
     if (_classes.isEmpty) {
-      return Center(
+      final emptyContent = Center(
         child: Padding(
           padding: EdgeInsets.all(AppDimensions.paddingLG),
           child: Column(
@@ -796,37 +1047,68 @@ class _ClassesTabState extends State<_ClassesTab> {
           ),
         ),
       );
+
+      if (widget.isDesktop) {
+        return ListView(
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          children: [
+            DesktopSectionCard(
+              title: context.tr('Classes'),
+              icon: Icons.class_outlined,
+              accent: AppColors.secondary,
+              children: [SizedBox(height: 120, child: emptyContent)],
+            ),
+          ],
+        );
+      }
+
+      return emptyContent;
+    }
+
+    final classTiles = _classes.map((classItem) {
+      final classId = classItem['id']?.toString() ?? '';
+      final route = RouteNames.classDetail.replaceAll(':id', classId);
+      return Container(
+        margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
+        decoration: BoxDecoration(
+          color: context.mic.surface,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          border: Border.all(color: context.mic.border),
+        ),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: AppColors.secondary.withValues(alpha: 0.12),
+            child: Icon(Icons.class_, color: AppColors.secondaryDark),
+          ),
+          title: Text(
+            classItem['name']?.toString() ?? context.tr('Class'),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(classItem['description']?.toString() ?? ''),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).pushNamed(route),
+        ),
+      );
+    }).toList();
+
+    if (widget.isDesktop) {
+      return ListView(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        children: [
+          DesktopSectionCard(
+            title: context.tr('Classes'),
+            icon: Icons.class_outlined,
+            accent: AppColors.secondary,
+            children: classTiles,
+          ),
+        ],
+      );
     }
 
     return ListView.builder(
       padding: EdgeInsets.all(AppDimensions.paddingMD),
       itemCount: _classes.length,
-      itemBuilder: (context, index) {
-        final classItem = _classes[index];
-        final classId = classItem['id']?.toString() ?? '';
-        final route = RouteNames.classDetail.replaceAll(':id', classId);
-        return Container(
-          margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
-          decoration: BoxDecoration(
-            color: context.mic.surface,
-            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-            border: Border.all(color: context.mic.border),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: AppColors.secondary.withValues(alpha: 0.12),
-              child: Icon(Icons.class_, color: AppColors.secondaryDark),
-            ),
-            title: Text(
-              classItem['name']?.toString() ?? context.tr('Class'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(classItem['description']?.toString() ?? ''),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).pushNamed(route),
-          ),
-        );
-      },
+      itemBuilder: (context, index) => classTiles[index],
     );
   }
 }

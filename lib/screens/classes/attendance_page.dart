@@ -7,6 +7,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/class_service.dart';
 import '../../services/offline_queue_service.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Attendance-taking UI with MIC styling, search, and quick bulk actions.
 class AttendancePage extends StatefulWidget {
@@ -243,84 +244,135 @@ class _AttendancePageState extends State<AttendancePage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
+    final embedded = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
+    final useDesktopLayout =
+        embedded ||
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
 
     if (_isLoadingMembers || _isLoadingSession) {
       return Scaffold(
         backgroundColor: context.mic.background,
-        appBar: _buildAppBar(context, isDesktop),
+        appBar: embedded ? null : _buildAppBar(context),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
+    final body = Column(
+      children: [
+        Expanded(
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: embedded
+                    ? Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          AppDimensions.paddingLG,
+                          AppDimensions.paddingLG,
+                          AppDimensions.paddingLG,
+                          0,
+                        ),
+                        child: _buildDesktopBanner(),
+                      )
+                    : _buildHeaderBanner(),
+              ),
+              SliverToBoxAdapter(child: SizedBox(height: AppDimensions.spacingMD)),
+              SliverToBoxAdapter(child: _buildStatsRow(useDesktopLayout)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    embedded
+                        ? AppDimensions.paddingLG
+                        : AppDimensions.paddingMD,
+                    AppDimensions.spacingMD,
+                    embedded
+                        ? AppDimensions.paddingLG
+                        : AppDimensions.paddingMD,
+                    AppDimensions.spacingSM,
+                  ),
+                  child: _buildActionRow(useDesktopLayout),
+                ),
+              ),
+              SliverAppBar(
+                pinned: true,
+                automaticallyImplyLeading: false,
+                backgroundColor: context.mic.background,
+                surfaceTintColor: context.mic.background,
+                elevation: innerBoxIsScrolled ? 1 : 0,
+                scrolledUnderElevation: 1,
+                toolbarHeight: 72,
+                titleSpacing: embedded
+                    ? AppDimensions.paddingLG
+                    : AppDimensions.paddingMD,
+                title: TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: context.tr('Search members...'),
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: context.mic.surface,
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusMD),
+                      borderSide: BorderSide(color: context.mic.border),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            body: embedded
+                ? Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingLG,
+                    ),
+                    child: DesktopSectionCard(
+                      title: context.tr('Members'),
+                      icon: Icons.people_outline,
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.sizeOf(context).height - 420,
+                          child: _buildMembersList(),
+                        ),
+                      ],
+                    ),
+                  )
+                : _buildMembersList(),
+          ),
+        ),
+        _buildSaveBar(context, useDesktopLayout),
+      ],
+    );
+
     return Scaffold(
       backgroundColor: context.mic.background,
-      appBar: isDesktop ? null : _buildAppBar(context, isDesktop),
-      body: Column(
-        children: [
-          Expanded(
-            child: NestedScrollView(
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                SliverToBoxAdapter(child: _buildHeaderBanner()),
-                SliverToBoxAdapter(child: SizedBox(height: AppDimensions.spacingMD)),
-                SliverToBoxAdapter(child: _buildStatsRow()),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppDimensions.paddingMD,
-                      AppDimensions.spacingMD,
-                      AppDimensions.paddingMD,
-                      AppDimensions.spacingSM,
-                    ),
-                    child: _buildActionRow(isDesktop),
-                  ),
-                ),
-                SliverAppBar(
-                  pinned: true,
-                  automaticallyImplyLeading: false,
-                  backgroundColor: context.mic.background,
-                  surfaceTintColor: context.mic.background,
-                  elevation: innerBoxIsScrolled ? 1 : 0,
-                  scrolledUnderElevation: 1,
-                  toolbarHeight: 72,
-                  titleSpacing: AppDimensions.paddingMD,
-                  title: TextField(
-                    controller: _searchController,
-                    onChanged: (_) => setState(() {}),
-                    decoration: InputDecoration(
-                      hintText: context.tr('Search members...'),
-                      prefixIcon: const Icon(Icons.search),
-                      filled: true,
-                      fillColor: context.mic.surface,
-                      suffixIcon: _searchController.text.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                _searchController.clear();
-                                setState(() {});
-                              },
-                            )
-                          : null,
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppDimensions.radiusMD),
-                        borderSide: BorderSide(color: context.mic.border),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              body: _buildMembersList(),
-            ),
-          ),
-          _buildSaveBar(context, isDesktop),
-        ],
-      ),
+      appBar: embedded ? null : _buildAppBar(context),
+      body: embedded
+          ? DesktopPageShell(
+              maxWidth: kDesktopContentMaxWidth,
+              isLoading: _isSaving,
+              padding: EdgeInsets.zero,
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height - 48,
+                child: body,
+              ),
+            )
+          : body,
     );
   }
 
-  PreferredSizeWidget? _buildAppBar(BuildContext context, bool isDesktop) {
-    if (isDesktop) return null;
+  PreferredSizeWidget? _buildAppBar(BuildContext context) {
     return AppBar(
       leading: widget.onClose != null
           ? IconButton(
@@ -353,6 +405,27 @@ class _AttendancePageState extends State<AttendancePage> {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildDesktopBanner() {
+    final trainingName =
+        _training?['name']?.toString() ?? context.tr('Training');
+    final sessionDate = _sessionDateLabel();
+
+    return DesktopHeroBanner(
+      title: context.tr('Mark Attendance'),
+      subtitle: sessionDate != null
+          ? '$trainingName · $sessionDate'
+          : trainingName,
+      icon: Icons.fact_check_outlined,
+      trailing: widget.onClose != null
+          ? IconButton(
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.close),
+              tooltip: context.tr('Close'),
+            )
+          : null,
     );
   }
 
@@ -438,7 +511,43 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(bool useDesktopLayout) {
+    if (useDesktopLayout) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingLG),
+        child: Wrap(
+          spacing: AppDimensions.spacingSM,
+          runSpacing: AppDimensions.spacingSM,
+          children: [
+            DesktopStatChip(
+              label: context.tr('Present'),
+              value: '$_presentCount',
+              icon: Icons.check_circle_outline,
+              color: AppColors.success,
+            ),
+            DesktopStatChip(
+              label: context.tr('Late'),
+              value: '$_lateCount',
+              icon: Icons.schedule_outlined,
+              color: AppColors.warning,
+            ),
+            DesktopStatChip(
+              label: context.tr('Absent'),
+              value: '$_absentCount',
+              icon: Icons.cancel_outlined,
+              color: AppColors.error,
+            ),
+            DesktopStatChip(
+              label: context.tr('Unmarked'),
+              value: '$_unmarkedCount',
+              icon: Icons.help_outline,
+              color: context.mic.textSecondary,
+            ),
+          ],
+        ),
+      );
+    }
+
     return SizedBox(
       height: 96,
       child: ListView(
@@ -477,7 +586,7 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _buildActionRow(bool isDesktop) {
+  Widget _buildActionRow(bool useDesktopLayout) {
     return Wrap(
       spacing: AppDimensions.spacingSM,
       runSpacing: AppDimensions.spacingSM,
@@ -519,7 +628,7 @@ class _AttendancePageState extends State<AttendancePage> {
               ? context.tr('Cancel')
               : context.tr('Select all'),
         ),
-        if (isDesktop)
+        if (useDesktopLayout)
           FilledButton.icon(
             onPressed: _isSaving ? null : _saveAttendance,
             icon: _isSaving
@@ -613,8 +722,8 @@ class _AttendancePageState extends State<AttendancePage> {
     );
   }
 
-  Widget _buildSaveBar(BuildContext context, bool isDesktop) {
-    if (isDesktop) return const SizedBox.shrink();
+  Widget _buildSaveBar(BuildContext context, bool useDesktopLayout) {
+    if (useDesktopLayout) return const SizedBox.shrink();
 
     return Container(
       padding: EdgeInsets.all(AppDimensions.paddingMD),

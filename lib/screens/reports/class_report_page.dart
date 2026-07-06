@@ -9,6 +9,7 @@ import '../../services/class_service.dart';
 import '../../services/report_service.dart';
 import '../../utils/export_utils.dart';
 import '../../widgets/attendance_chart.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Detailed training report for a single class.
 class ClassReportPage extends StatefulWidget {
@@ -113,12 +114,85 @@ class _ClassReportPageState extends State<ClassReportPage> {
     }
   }
 
+  bool _isDesktopLayout(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width < kDesktopEmbeddedBreakpoint) {
+      return false;
+    }
+    return widget.onClose != null;
+  }
+
+  Widget _buildReportContent({
+    required Map<String, dynamic>? sessions,
+    required Map<String, dynamic>? attendance,
+    required Map<String, int> attendanceData,
+    required int present,
+    required int absent,
+    required int late,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildStatsRow(
+          sessions: sessions?['total'] ?? 0,
+          attendance: attendance?['total'] ?? 0,
+          uniqueMembers: attendance?['unique_members'] ?? 0,
+          present: present,
+          absent: absent,
+          late: late,
+        ),
+        SizedBox(height: AppDimensions.spacingMD),
+        if (attendanceData.isNotEmpty) ...[
+          _ReportSurface(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            child: AttendanceChart(
+              attendanceData: attendanceData,
+              title: context.tr('Attendance Trend'),
+            ),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          _ReportSurface(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            child: AttendancePieChart(
+              present: present,
+              absent: absent,
+              late: late,
+            ),
+          ),
+        ] else
+          _ReportSurface(
+            padding: EdgeInsets.all(AppDimensions.paddingXL),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.event_busy_outlined,
+                  size: 48,
+                  color: context.mic.textSecondary,
+                ),
+                SizedBox(height: AppDimensions.spacingMD),
+                Text(
+                  context.tr('No attendance data available'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDesktop = _isDesktopLayout(context);
+
     if (_isLoading) {
       return Scaffold(
         backgroundColor: context.mic.background,
-        body: const Center(child: CircularProgressIndicator()),
+        body: isDesktop
+            ? const DesktopPageShell(isLoading: true, child: SizedBox.shrink())
+            : const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -152,15 +226,51 @@ class _ClassReportPageState extends State<ClassReportPage> {
     final dateRange =
         '${DateFormat('MMM d, yyyy').format(_fromDate)} – ${DateFormat('MMM d, yyyy').format(_toDate)}';
 
+    final reportContent = _buildReportContent(
+      sessions: sessions,
+      attendance: attendance,
+      attendanceData: attendanceData,
+      present: present,
+      absent: absent,
+      late: late,
+    );
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: DesktopPageShell(
+          banner: DesktopHeroBanner(
+            title: trainingName,
+            subtitle: dateRange,
+            icon: Icons.school_outlined,
+            accent: AppColors.secondaryDark,
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.date_range_outlined),
+              onPressed: _selectDateRange,
+              tooltip: context.tr('Select Date Range'),
+            ),
+            IconButton(
+              icon: _isExporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download_outlined),
+              onPressed: _isExporting ? null : _exportToCSV,
+              tooltip: context.tr('Export to CSV'),
+            ),
+          ],
+          child: reportContent,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.mic.background,
       appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
         title: Text(trainingName),
         actions: [
           IconButton(
@@ -198,61 +308,7 @@ class _ClassReportPageState extends State<ClassReportPage> {
                     _buildHeaderBanner(trainingName, dateRange),
                     Padding(
                       padding: EdgeInsets.all(AppDimensions.paddingMD),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _buildStatsRow(
-                            sessions: sessions?['total'] ?? 0,
-                            attendance: attendance?['total'] ?? 0,
-                            uniqueMembers: attendance?['unique_members'] ?? 0,
-                            present: present,
-                            absent: absent,
-                            late: late,
-                          ),
-                          SizedBox(height: AppDimensions.spacingMD),
-                          if (attendanceData.isNotEmpty) ...[
-                            _ReportSurface(
-                              padding: EdgeInsets.all(AppDimensions.paddingMD),
-                              child: AttendanceChart(
-                                attendanceData: attendanceData,
-                                title: context.tr('Attendance Trend'),
-                              ),
-                            ),
-                            SizedBox(height: AppDimensions.spacingMD),
-                            _ReportSurface(
-                              padding: EdgeInsets.all(AppDimensions.paddingMD),
-                              child: AttendancePieChart(
-                                present: present,
-                                absent: absent,
-                                late: late,
-                              ),
-                            ),
-                          ] else
-                            _ReportSurface(
-                              padding: EdgeInsets.all(AppDimensions.paddingXL),
-                              child: Column(
-                                children: [
-                                  Icon(
-                                    Icons.event_busy_outlined,
-                                    size: 48,
-                                    color: context.mic.textSecondary,
-                                  ),
-                                  SizedBox(height: AppDimensions.spacingMD),
-                                  Text(
-                                    context.tr('No attendance data available'),
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: context.mic.textSecondary,
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
+                      child: reportContent,
                     ),
                   ],
                 ),

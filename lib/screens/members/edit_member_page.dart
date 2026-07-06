@@ -5,7 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/member_constants.dart';
 import '../../services/member_service.dart';
 import '../../core/localization/app_localizations.dart';
-import 'member_form_ui.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Edit member page with pre-filled form
 class EditMemberPage extends StatefulWidget {
@@ -285,74 +285,56 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
   }
 
-  static const double _kDesktopFormMaxWidth = 1000;
-  static const double _kDesktopBreakpoint = 700;
-
   @override
   Widget build(BuildContext context) {
+    final useDesktopShell =
+        widget.onClose != null &&
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
+
     if (_isLoadingData) {
       return Scaffold(
         backgroundColor: context.mic.background,
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: Icon(Icons.close),
-                  onPressed: () => widget.onClose!(null),
-                )
-              : null,
-          title: Text(context.tr('Edit Member')),
-        ),
-        body: Center(child: CircularProgressIndicator()),
+        appBar: useDesktopShell
+            ? null
+            : AppBar(
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () => widget.onClose!(null),
+                      )
+                    : null,
+                title: Text(context.tr('Edit Member')),
+              ),
+        body: useDesktopShell
+            ? DesktopPageShell(
+                isLoading: true,
+                maxWidth: kDesktopFormMaxWidth,
+                banner: DesktopHeroBanner(
+                  title: context.tr('Edit Member'),
+                  subtitle: context.tr('Update member profile and details'),
+                  icon: Icons.edit_note,
+                ),
+                child: const SizedBox.shrink(),
+              )
+            : Center(child: CircularProgressIndicator()),
       );
     }
 
-    final width = MediaQuery.sizeOf(context).width;
-    final useDesktopLayout = width >= _kDesktopBreakpoint;
-
     return Scaffold(
       backgroundColor: context.mic.background,
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: Icon(Icons.close),
-                onPressed: () => widget.onClose!(null),
-              )
-            : null,
-        title: Text(context.tr('Edit Member')),
-        actions: useDesktopLayout
-            ? [
-                TextButton(
-                  onPressed: () => widget.onClose != null
-                      ? widget.onClose!(null)
-                      : Navigator.of(context).pop(),
-                  child: Text(context.tr('Cancel')),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _handleSave,
-                  icon: _isLoading
-                      ? SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(Icons.save, size: 20),
-                  label: Text(context.tr('Update Member')),
-                ),
-                SizedBox(width: AppDimensions.paddingMD),
-              ]
-            : null,
-      ),
-      body: useDesktopLayout
-          ? Center(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(AppDimensions.paddingLG),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: _kDesktopFormMaxWidth),
-                  child: Form(key: _formKey, child: _buildDesktopForm(context)),
-                ),
-              ),
-            )
+      appBar: useDesktopShell
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: Icon(Icons.close),
+                      onPressed: () => widget.onClose!(null),
+                    )
+                  : null,
+              title: Text(context.tr('Edit Member')),
+            ),
+      body: useDesktopShell
+          ? _buildDesktopBody(context)
           : SingleChildScrollView(
               padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
@@ -366,76 +348,82 @@ class _EditMemberPageState extends State<EditMemberPage> {
     );
   }
 
-  Widget _desktopSectionCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    List<Widget> children, {
-    Color accent = AppColors.primary,
-  }) {
-    return MemberFormUi.sectionCard(
-      context: context,
-      title: title,
-      icon: icon,
-      accent: accent,
-      children: children,
-    );
-  }
+  Widget _buildDesktopBody(BuildContext context) {
+    final memberName =
+        '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}'
+            .trim();
 
-  Widget _buildDesktopForm(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        MemberFormUi.heroBanner(
-          context: context,
-          isEdit: true,
-          title: context.tr('Edit Member'),
-          subtitle: context.tr('Update member profile and details'),
+    return DesktopPageShell(
+      isLoading: _isLoading,
+      maxWidth: kDesktopFormMaxWidth,
+      banner: DesktopHeroBanner(
+        title: context.tr('Edit Member'),
+        subtitle: memberName.isNotEmpty
+            ? memberName
+            : context.tr('Update member profile and details'),
+        icon: Icons.edit_note,
+        trailing: IconButton(
+          icon: Icon(Icons.close),
+          onPressed: () => widget.onClose!(null),
+          tooltip: context.tr('Cancel'),
         ),
-        SizedBox(height: AppDimensions.spacingLG),
-        _desktopSectionCard(
-          context,
-          context.tr('Personal information'),
-          Icons.person,
-          _buildPersonalSection(context),
-          accent: AppColors.primary,
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopFormColumns(
+              sections: [
+                DesktopSectionCard(
+                  title: context.tr('Personal information'),
+                  icon: Icons.person,
+                  accent: AppColors.primary,
+                  children: _buildPersonalSection(context),
+                ),
+                DesktopSectionCard(
+                  title: context.tr('Contact'),
+                  icon: Icons.contact_phone,
+                  accent: AppColors.accent,
+                  children: _buildContactSection(context),
+                ),
+                DesktopSectionCard(
+                  title: context.tr('Address'),
+                  icon: Icons.home,
+                  accent: AppColors.secondary,
+                  children: _buildAddressSection(context),
+                ),
+                DesktopSectionCard(
+                  title: context.tr('Professional details'),
+                  icon: Icons.work,
+                  accent: AppColors.info,
+                  children: _buildProfessionalSection(context),
+                ),
+                DesktopSectionCard(
+                  title: context.tr('Role & status'),
+                  icon: Icons.badge,
+                  accent: AppColors.warning,
+                  children: _buildRoleStatusSection(context),
+                ),
+                DesktopSectionCard(
+                  title: context.tr('Newcomer'),
+                  icon: Icons.person_add,
+                  accent: AppColors.primary,
+                  children: _buildNewcomerSection(context),
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            DesktopFormActions(
+              onCancel: () => widget.onClose!(null),
+              primaryLabel: context.tr('Update Member'),
+              onPrimary: _handleSave,
+              primaryIcon: Icons.save,
+              isLoading: _isLoading,
+            ),
+          ],
         ),
-        _desktopSectionCard(
-          context,
-          context.tr('Contact'),
-          Icons.contact_phone,
-          _buildContactSection(context),
-          accent: AppColors.accent,
-        ),
-        _desktopSectionCard(
-          context,
-          context.tr('Address'),
-          Icons.home,
-          _buildAddressSection(context),
-          accent: AppColors.secondary,
-        ),
-        _desktopSectionCard(
-          context,
-          context.tr('Professional details'),
-          Icons.work,
-          _buildProfessionalSection(context),
-          accent: AppColors.info,
-        ),
-        _desktopSectionCard(
-          context,
-          context.tr('Role & status'),
-          Icons.badge,
-          _buildRoleStatusSection(context),
-          accent: AppColors.warning,
-        ),
-        _desktopSectionCard(
-          context,
-          context.tr('Newcomer'),
-          Icons.person_add,
-          _buildNewcomerSection(context),
-          accent: AppColors.primary,
-        ),
-      ],
+      ),
     );
   }
 

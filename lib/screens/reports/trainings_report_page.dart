@@ -7,6 +7,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/trainings_report_service.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/pinned_scroll_helpers.dart';
 import '../desktop/desktop_shell_scope.dart';
 import 'class_report_page.dart';
@@ -14,7 +15,9 @@ import 'class_report_page.dart';
 enum _TrainingsReportPeriod { weekly, monthly, yearly, custom }
 
 class TrainingsReportPage extends StatefulWidget {
-  const TrainingsReportPage({super.key});
+  final bool hideAppBarAndBottomNav;
+
+  const TrainingsReportPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<TrainingsReportPage> createState() => _TrainingsReportPageState();
@@ -155,6 +158,13 @@ class _TrainingsReportPageState extends State<TrainingsReportPage>
     );
   }
 
+  bool _isDesktopLayout(BuildContext context) {
+    return isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary =
@@ -162,6 +172,51 @@ class _TrainingsReportPageState extends State<TrainingsReportPage>
     final records = List<Map<String, dynamic>>.from(
       _report?['records'] as List? ?? [],
     );
+    final isDesktop = _isDesktopLayout(context);
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: DesktopPageShell(
+          isLoading: _isLoading && _error == null,
+          banner: DesktopHeroBanner(
+            title: context.tr('Training Report'),
+            subtitle: context.tr(
+              'Review training summaries before opening a detailed report',
+            ),
+            icon: Icons.school_outlined,
+            accent: AppColors.secondaryDark,
+          ),
+          actions: [
+            IconButton(
+              onPressed: _isLoading ? null : _loadReport,
+              tooltip: context.tr('Refresh'),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+          child: _error != null
+              ? Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppDimensions.paddingLG),
+                    child: Text(_error!, textAlign: TextAlign.center),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final height = MediaQuery.sizeOf(context).height - 240;
+                    return SizedBox(
+                      height: height.clamp(480, 1200),
+                      child: _buildReportLayout(
+                        summary: summary,
+                        records: records,
+                        isDesktop: true,
+                      ),
+                    );
+                  },
+                ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: context.mic.background,
@@ -175,29 +230,70 @@ class _TrainingsReportPageState extends State<TrainingsReportPage>
           ),
         ],
       ),
-      body: _buildReportLayout(summary: summary, records: records),
+      body: _buildReportLayout(
+        summary: summary,
+        records: records,
+        isDesktop: false,
+      ),
     );
   }
 
   Widget _buildReportLayout({
     required Map<String, dynamic> summary,
     required List<Map<String, dynamic>> records,
+    required bool isDesktop,
   }) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: EdgeInsets.all(AppDimensions.paddingLG),
-          child: Text(_error!, textAlign: TextAlign.center),
-        ),
-      );
+    if (!isDesktop) {
+      if (_isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (_error != null) {
+        return Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Text(_error!, textAlign: TextAlign.center),
+          ),
+        );
+      }
     }
 
     final horizontalPadding = EdgeInsets.symmetric(
-      horizontal: AppDimensions.paddingMD,
+      horizontal: isDesktop ? 0 : AppDimensions.paddingMD,
     );
+
+    if (isDesktop) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildControls(summary, records.length),
+          SizedBox(height: AppDimensions.spacingMD),
+          _buildSearchBar(),
+          SizedBox(height: AppDimensions.spacingSM),
+          _buildTabBar(),
+          SizedBox(height: AppDimensions.spacingSM),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: AppDimensions.paddingLG),
+                  child: _buildSummaryPanel(summary),
+                ),
+                SingleChildScrollView(
+                  padding: EdgeInsets.only(bottom: AppDimensions.paddingLG),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _buildTrainingsContent(
+                      _filteredRecords(records),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {

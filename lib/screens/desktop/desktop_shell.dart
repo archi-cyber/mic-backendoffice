@@ -35,6 +35,7 @@ import '../../screens/departments/add_department_page.dart';
 import '../../screens/departments/edit_department_page.dart';
 import '../../screens/settings/leader_access_page.dart';
 import '../../screens/settings/member_accounts_page.dart';
+import '../../screens/settings/birthday_notifications_settings_page.dart';
 import '../../screens/tasks/task_detail_page.dart';
 import '../../screens/tasks/add_task_page.dart';
 import '../../screens/tasks/edit_task_page.dart';
@@ -221,6 +222,9 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.memberAccounts) {
       return context.tr('Member Accounts');
     }
+    if (entry.route == RouteNames.birthdayNotificationsSettings) {
+      return context.tr('Birthday Notifications');
+    }
     if (entry.route == RouteNames.addTeaching) {
       return context.tr('Add Teaching');
     }
@@ -370,6 +374,9 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.memberAccounts) {
       return MemberAccountsPage(onClose: onClose);
     }
+    if (entry.route == RouteNames.birthdayNotificationsSettings) {
+      return BirthdayNotificationsSettingsPage(onClose: onClose);
+    }
     if (entry.route == RouteNames.addTeaching) {
       return AddTeachingPage(onClose: (_) => onClose());
     }
@@ -433,16 +440,16 @@ class _DesktopShellState extends State<DesktopShell> {
       return MemberReportPage(memberId: id, onClose: onClose);
     }
     if (entry.route == RouteNames.membersReport) {
-      return const MembersReportPage();
+      return const MembersReportPage(hideAppBarAndBottomNav: true);
     }
     if (entry.route == RouteNames.trainingsReport) {
-      return const TrainingsReportPage();
+      return const TrainingsReportPage(hideAppBarAndBottomNav: true);
     }
     if (entry.route == RouteNames.classReport && id.isNotEmpty) {
       return ClassReportPage(classId: id, onClose: onClose);
     }
     if (entry.route == RouteNames.newComerReport) {
-      return NewComerReportPage();
+      return const NewComerReportPage(hideAppBarAndBottomNav: true);
     }
     if (entry.route == RouteNames.takeAttendance && id.isNotEmpty) {
       return AttendancePage(sessionId: id, members: null, onClose: onClose);
@@ -755,12 +762,29 @@ class _DesktopShellState extends State<DesktopShell> {
                   Divider(height: 1),
                   Expanded(
                     child: _stack.isEmpty
-                        ? SizedBox.shrink()
-                        : KeyedSubtree(
-                            key: ValueKey<String>(
-                              '${_stack.last.route}_${_stack.last.id}_$_refreshSeed',
+                        ? const SizedBox.shrink()
+                        : AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 280),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.02, 0),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              );
+                            },
+                            child: KeyedSubtree(
+                              key: ValueKey<String>(
+                                '${_stack.last.route}_${_stack.last.id}_$_refreshSeed',
+                              ),
+                              child: _buildContent(_stack.last),
                             ),
-                            child: _buildContent(_stack.last),
                           ),
                   ),
                 ],

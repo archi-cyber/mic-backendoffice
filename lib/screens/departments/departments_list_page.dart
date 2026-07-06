@@ -11,6 +11,7 @@ import '../../core/utils/permission_helper.dart';
 import 'add_department_page.dart';
 import 'department_form_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Departments list page
 class DepartmentsListPage extends StatefulWidget {
@@ -227,6 +228,140 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     return _filteredDepartments.sublist(start, end);
   }
 
+  Widget _buildDesktopDepartmentsTab(AppLocalizations? localizations) {
+    final pageItems = _paginatedDepartments;
+
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: localizations?.departments ?? context.tr('Departments'),
+        subtitle: context.tr('Organize teams, leaders, and ministry work'),
+        icon: Icons.apartment_outlined,
+        accent: DepartmentFormUi.accent,
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Total'),
+          value: _isLoading ? '…' : '${_departments.length}',
+          icon: Icons.apartment_outlined,
+          color: DepartmentFormUi.accent,
+        ),
+        DesktopStatChip(
+          label: context.tr('Active'),
+          value: _isLoading ? '…' : '$_activeCount',
+          icon: Icons.check_circle_outline,
+          color: AppColors.success,
+        ),
+        DesktopStatChip(
+          label: context.tr('Showing'),
+          value: _isLoading ? '…' : '${_filteredDepartments.length}',
+          icon: Icons.filter_list_outlined,
+          color: AppColors.accent,
+        ),
+      ],
+      headerBelow: null,
+      toolbar: _buildDepartmentsSearchBar(
+        context,
+        localizations,
+        isDesktop: true,
+      ),
+      pagination: _filteredDepartments.isEmpty
+          ? null
+          : DesktopPaginationBar(
+              currentPage: _deptPage.clamp(0, _totalDeptPages - 1),
+              totalPages: _totalDeptPages,
+              onPrevious:
+                  _deptPage > 0 ? () => setState(() => _deptPage--) : null,
+              onNext: _deptPage < _totalDeptPages - 1
+                  ? () => setState(() => _deptPage++)
+                  : null,
+            ),
+      child: DesktopDataTableCard(
+          emptyMessage: _searchController.text.isNotEmpty
+              ? (localizations?.noDepartmentsFound ?? 'No departments found')
+              : (localizations?.noDepartments ?? 'No departments yet'),
+          emptyIcon: Icons.apartment_outlined,
+          columns: [
+            DataColumn(label: Text(context.tr('Name'))),
+            DataColumn(label: Text(context.tr('Leader'))),
+            DataColumn(label: Text(context.tr('Tasks'))),
+            DataColumn(label: Text(context.tr('Status'))),
+            DataColumn(label: Text(context.tr('Actions'))),
+          ],
+          rows: pageItems.map((department) {
+            final name = department['name']?.toString() ?? 'Unnamed';
+            final description = department['description']?.toString();
+            final isActive = department['is_active'] == true;
+            final departmentId = department['id'].toString();
+            final leaderName = department['leader_name']?.toString() ?? '—';
+            final taskCount = department['task_count'] as int? ?? 0;
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  InkWell(
+                    onTap: () => _openDepartment(departmentId),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (description != null && description.isNotEmpty)
+                          Text(
+                            description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: context.mic.textSecondary),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                DataCell(Text(leaderName, overflow: TextOverflow.ellipsis)),
+                DataCell(Text('$taskCount')),
+                DataCell(
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (isActive ? AppColors.success : AppColors.error)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      isActive
+                          ? context.tr('Active')
+                          : context.tr('Inactive'),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? AppColors.success : AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+                DataCell(
+                  FilledButton.tonalIcon(
+                    onPressed: () => _openDepartment(departmentId),
+                    icon: const Icon(Icons.arrow_forward, size: 18),
+                    label: Text(context.tr('Open')),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+    );
+  }
+
   Widget _buildDepartmentsTabContent(
     BuildContext context,
     AppLocalizations? localizations,
@@ -437,6 +572,11 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop = isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -460,10 +600,53 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                   ],
                 ),
               ),
-        body: TabBarView(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildDepartmentsTabContent(context, localizations),
-            _WorkersTab(),
+            if (isDesktop)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppDimensions.paddingMD,
+                  AppDimensions.paddingMD,
+                  AppDimensions.paddingMD,
+                  0,
+                ),
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusLG),
+                    side: BorderSide(
+                      color: context.mic.border.withValues(alpha: 0.75),
+                    ),
+                  ),
+                  child: TabBar(
+                    labelColor: DepartmentFormUi.accent,
+                    unselectedLabelColor: context.mic.textSecondary,
+                    indicatorColor: DepartmentFormUi.accent,
+                    indicatorWeight: 3,
+                    tabs: [
+                      Tab(
+                        text: localizations?.departments ??
+                            context.tr('Departments'),
+                      ),
+                      Tab(
+                        text: localizations?.workers ?? context.tr('Workers'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  isDesktop
+                      ? _buildDesktopDepartmentsTab(localizations)
+                      : _buildDepartmentsTabContent(context, localizations),
+                  _WorkersTab(isDesktopView: isDesktop),
+                ],
+              ),
+            ),
           ],
         ),
         floatingActionButton: widget.hideAppBarAndBottomNav
@@ -493,11 +676,11 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
   void _openDepartment(String departmentId) {
     final scope = DesktopShellScope.maybeOf(context);
     if (scope != null) {
-      scope.pushDetail(RouteNames.departments, departmentId);
+      scope.pushDetail(RouteNames.departmentDetail, departmentId);
     } else {
       Navigator.pushNamed(
         context,
-        '${RouteNames.departments}/$departmentId',
+        RouteNames.departmentDetail.replaceAll(':id', departmentId),
       );
     }
   }
@@ -569,7 +752,9 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
 
 /// Workers tab - shows all workers with their departments
 class _WorkersTab extends StatefulWidget {
-  _WorkersTab();
+  const _WorkersTab({this.isDesktopView = false});
+
+  final bool isDesktopView;
 
   @override
   State<_WorkersTab> createState() => _WorkersTabState();
@@ -684,6 +869,10 @@ class _WorkersTabState extends State<_WorkersTab> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    if (widget.isDesktopView) {
+      return _buildDesktopWorkersBody(localizations);
+    }
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -728,6 +917,116 @@ class _WorkersTabState extends State<_WorkersTab> {
         ),
       ],
       body: _buildWorkersListBody(context, localizations),
+    );
+  }
+
+  Widget _buildDesktopWorkersBody(AppLocalizations? localizations) {
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: localizations?.workers ?? context.tr('Workers'),
+        subtitle: context.tr('Members serving across departments'),
+        icon: Icons.badge_outlined,
+        accent: AppColors.secondary,
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Total'),
+          value: _isLoading ? '…' : '${_workers.length}',
+          icon: Icons.groups_outlined,
+          color: AppColors.secondary,
+        ),
+        DesktopStatChip(
+          label: context.tr('Showing'),
+          value: _isLoading ? '…' : '${_filteredWorkers.length}',
+          icon: Icons.filter_list_outlined,
+        ),
+      ],
+      toolbar: Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+          side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: localizations?.searchWorkers ??
+                        context.tr('Search workers...'),
+                    prefixIcon: const Icon(Icons.search),
+                    filled: true,
+                    fillColor: context.mic.background,
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusMD),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+              IconButton.filledTonal(
+                onPressed: _loadWorkers,
+                icon: const Icon(Icons.refresh),
+                tooltip: context.tr('Refresh'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      child: DesktopDataTableCard(
+          emptyMessage: localizations?.noWorkers ?? context.tr('No workers found'),
+          emptyIcon: Icons.people_outline,
+          columns: [
+            DataColumn(label: Text(context.tr('Worker'))),
+            DataColumn(label: Text(context.tr('Email'))),
+            DataColumn(label: Text(context.tr('Departments'))),
+          ],
+          rows: _filteredWorkers.map((worker) {
+            final member = worker['member'] as Map<String, dynamic>?;
+            final departments =
+                worker['departments'] as List<Map<String, dynamic>>? ?? [];
+            if (member == null) {
+              return DataRow(cells: List.generate(3, (_) => const DataCell(Text('—'))));
+            }
+            final firstName = member['first_name']?.toString() ?? '';
+            final lastName = member['last_name']?.toString() ?? '';
+            final fullName = '$firstName $lastName'.trim();
+            final email = member['email']?.toString() ?? '—';
+            final mainDepartmentId = worker['main_department_id']?.toString();
+
+            return DataRow(
+              cells: [
+                DataCell(
+                  Text(
+                    fullName.isEmpty ? context.tr('Unnamed member') : fullName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                DataCell(Text(email, overflow: TextOverflow.ellipsis)),
+                DataCell(
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: departments.map((dept) {
+                      final deptName = dept['name']?.toString() ?? '';
+                      final role = dept['role']?.toString() ?? 'member';
+                      final deptId = dept['id']?.toString();
+                      final isMain = deptId == mainDepartmentId;
+                      return _buildDepartmentChip(deptName, role, isMain);
+                    }).toList(),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
     );
   }
 

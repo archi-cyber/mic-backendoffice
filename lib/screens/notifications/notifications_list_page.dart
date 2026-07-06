@@ -6,6 +6,7 @@ import '../../core/routes/route_names.dart';
 import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Notifications list page
@@ -24,6 +25,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
   bool _isLoading = true;
   String? _memberId;
   int _unreadCount = 0;
+  bool? _desktopInboxFilter;
 
   @override
   void initState() {
@@ -414,6 +416,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = widget.hideAppBarAndBottomNav &&
+        MediaQuery.sizeOf(context).width >= kDesktopEmbeddedBreakpoint;
+
     return Scaffold(
       appBar: widget.hideAppBarAndBottomNav
           ? null
@@ -428,113 +433,356 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                   ),
               ],
             ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : _notifications.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_none,
-                    size: 64,
-                    color: context.mic.textSecondary,
-                  ),
-                  SizedBox(height: AppDimensions.spacingMD),
-                  Text(context.tr('No notifications')),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _loadNotifications,
-              child: ListView.builder(
-                itemCount: _notifications.length,
-                itemBuilder: (context, index) {
-                  final notification = _notifications[index];
-                  final isRead = notification['is_read'] == true;
-                  final type = notification['type']?.toString();
-                  final createdAt = notification['created_at'] != null
-                      ? DateTime.parse(notification['created_at'])
-                      : null;
+      body: isDesktop
+          ? _buildDesktopBody(context)
+          : _buildMobileBody(context),
+    );
+  }
 
-                  return Dismissible(
-                    key: Key(notification['id'].toString()),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      alignment: Alignment.centerRight,
-                      padding: EdgeInsets.only(right: AppDimensions.paddingMD),
-                      color: AppColors.error,
-                      child: Icon(Icons.delete, color: Colors.white),
-                    ),
-                    onDismissed: (_) =>
-                        _deleteNotification(notification['id'].toString()),
-                    child: InkWell(
-                      onTap: () => _handleNotificationTap(notification),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isRead
-                              ? null
-                              : AppColors.primary.withValues(alpha: 0.05),
-                          border: Border(
-                            left: BorderSide(
-                              color: _getNotificationColor(type),
-                              width: 4,
-                            ),
-                          ),
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: _getNotificationColor(
-                              type,
-                            ).withValues(alpha: 0.1),
-                            child: Icon(
-                              _getNotificationIcon(type),
-                              color: _getNotificationColor(type),
-                            ),
-                          ),
-                          title: Text(
-                            notification['title'] ?? 'Notification',
-                            style: TextStyle(
-                              fontWeight: isRead
-                                  ? FontWeight.normal
-                                  : FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(height: 4),
-                              Text(
-                                notification['message'] ?? '',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
+  Widget _buildMobileBody(BuildContext context) {
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator());
+    }
+
+    if (_notifications.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications_none,
+              size: 64,
+              color: context.mic.textSecondary,
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            Text(context.tr('No notifications')),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadNotifications,
+      child: ListView.builder(
+        itemCount: _notifications.length,
+        itemBuilder: (context, index) =>
+            _buildNotificationTile(context, _notifications[index]),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _desktopFilteredNotifications {
+    if (_desktopInboxFilter == null) return _notifications;
+    return _notifications.where((notification) {
+      final isRead = notification['is_read'] == true;
+      return _desktopInboxFilter! ? !isRead : isRead;
+    }).toList();
+  }
+
+  int get _readCount => _notifications.length - _unreadCount;
+
+  Widget _buildDesktopFilterChips() {
+    return Wrap(
+      spacing: AppDimensions.spacingSM,
+      children: [
+        FilterChip(
+          selected: _desktopInboxFilter == null,
+          label: Text(context.tr('All')),
+          onSelected: (_) => setState(() => _desktopInboxFilter = null),
+        ),
+        FilterChip(
+          selected: _desktopInboxFilter == true,
+          label: Text(context.tr('Unread')),
+          onSelected: (_) => setState(() => _desktopInboxFilter = true),
+        ),
+        FilterChip(
+          selected: _desktopInboxFilter == false,
+          label: Text(context.tr('Read')),
+          onSelected: (_) => setState(() => _desktopInboxFilter = false),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopNotificationRow(Map<String, dynamic> notification) {
+    final isRead = notification['is_read'] == true;
+    final type = notification['type']?.toString();
+    final createdAt = notification['created_at'] != null
+        ? DateTime.parse(notification['created_at'])
+        : null;
+    final color = _getNotificationColor(type);
+
+    return DesktopHoverRow(
+      highlightColor: color,
+      onTap: () => _handleNotificationTap(notification),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppDimensions.paddingSM,
+          vertical: AppDimensions.spacingSM,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(_getNotificationIcon(type), color: color, size: 20),
+            ),
+            SizedBox(width: AppDimensions.spacingMD),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          notification['title']?.toString() ??
+                              context.tr('Notification'),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(
+                                fontWeight:
+                                    isRead ? FontWeight.w500 : FontWeight.w800,
                               ),
-                              if (createdAt != null) ...[
-                                SizedBox(height: 4),
-                                Text(
-                                  _formatDate(createdAt),
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: context.mic.textSecondary,
-                                      ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          trailing: isRead
-                              ? null
-                              : Icon(
-                                  Icons.circle,
-                                  size: 8,
-                                  color: AppColors.primary,
-                                ),
                         ),
                       ),
+                      if (!isRead)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          margin: EdgeInsets.only(
+                            left: AppDimensions.spacingSM,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    notification['message']?.toString() ?? '',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.mic.textSecondary,
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
+            SizedBox(width: AppDimensions.spacingMD),
+            if (createdAt != null)
+              Text(
+                _formatDate(createdAt),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: context.mic.textTertiary,
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: context.tr('Delete'),
+              onPressed: () =>
+                  _deleteNotification(notification['id'].toString()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final filtered = _desktopFilteredNotifications;
+
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: context.tr('Notifications'),
+        subtitle: _unreadCount > 0
+            ? '$_unreadCount ${context.tr('unread')}'
+            : context.tr('All caught up'),
+        icon: Icons.notifications_outlined,
+        accent: AppColors.primary,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_unreadCount > 0)
+              FilledButton.tonalIcon(
+                onPressed: _markAllAsRead,
+                icon: const Icon(Icons.done_all, size: 18),
+                label: Text(context.tr('Mark all read')),
+              ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: _isLoading ? null : _loadNotifications,
+              tooltip: context.tr('Refresh'),
+            ),
+          ],
+        ),
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Total'),
+          value: '${_notifications.length}',
+          icon: Icons.inbox_outlined,
+        ),
+        DesktopStatChip(
+          label: context.tr('Unread'),
+          value: '$_unreadCount',
+          icon: Icons.mark_email_unread_outlined,
+          color: AppColors.primary,
+        ),
+        DesktopStatChip(
+          label: context.tr('Read'),
+          value: '$_readCount',
+          icon: Icons.drafts_outlined,
+          color: AppColors.secondary,
+        ),
+      ],
+      toolbar: Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+          side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          child: _buildDesktopFilterChips(),
+        ),
+      ),
+      child: filtered.isEmpty
+          ? DesktopSectionCard(
+                title: context.tr('Inbox'),
+                icon: Icons.inbox_outlined,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      vertical: AppDimensions.paddingXL,
+                    ),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.notifications_none,
+                            size: 56,
+                            color: context.mic.textSecondary,
+                          ),
+                          SizedBox(height: AppDimensions.spacingMD),
+                          Text(context.tr('No notifications')),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : DesktopSectionCard(
+                title: context.tr('Inbox'),
+                icon: Icons.inbox_outlined,
+                trailing: Text(
+                  '${filtered.length}',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+                children: [
+                  ...filtered.map(_buildDesktopNotificationRow),
+                ],
+              ),
+    );
+  }
+
+  Widget _buildNotificationTile(
+    BuildContext context,
+    Map<String, dynamic> notification, {
+    bool compact = false,
+  }) {
+    final isRead = notification['is_read'] == true;
+    final type = notification['type']?.toString();
+    final createdAt = notification['created_at'] != null
+        ? DateTime.parse(notification['created_at'])
+        : null;
+
+    return Dismissible(
+      key: Key(notification['id'].toString()),
+      direction: compact ? DismissDirection.none : DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: EdgeInsets.only(right: AppDimensions.paddingMD),
+        color: AppColors.error,
+        child: Icon(Icons.delete, color: Colors.white),
+      ),
+      onDismissed: (_) => _deleteNotification(notification['id'].toString()),
+      child: InkWell(
+        onTap: () => _handleNotificationTap(notification),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isRead
+                ? null
+                : AppColors.primary.withValues(alpha: 0.05),
+            border: Border(
+              left: BorderSide(
+                color: _getNotificationColor(type),
+                width: 4,
+              ),
+            ),
+          ),
+          child: ListTile(
+            contentPadding: compact
+                ? EdgeInsets.symmetric(
+                    horizontal: AppDimensions.paddingSM,
+                    vertical: AppDimensions.spacingXS,
+                  )
+                : null,
+            leading: CircleAvatar(
+              backgroundColor: _getNotificationColor(
+                type,
+              ).withValues(alpha: 0.1),
+              child: Icon(
+                _getNotificationIcon(type),
+                color: _getNotificationColor(type),
+              ),
+            ),
+            title: Text(
+              notification['title'] ?? 'Notification',
+              style: TextStyle(
+                fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 4),
+                Text(
+                  notification['message'] ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (createdAt != null) ...[
+                  SizedBox(height: 4),
+                  Text(
+                    _formatDate(createdAt),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.mic.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            trailing: isRead
+                ? IconButton(
+                    icon: Icon(Icons.delete_outline, size: 20),
+                    onPressed: () =>
+                        _deleteNotification(notification['id'].toString()),
+                    tooltip: context.tr('Delete'),
+                  )
+                : Icon(Icons.circle, size: 8, color: AppColors.primary),
+          ),
+        ),
+      ),
     );
   }
 }

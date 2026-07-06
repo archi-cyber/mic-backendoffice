@@ -5,6 +5,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
 import 'members_report_page.dart';
 import 'trainings_report_page.dart';
@@ -21,13 +22,69 @@ class ReportsPage extends StatefulWidget {
 }
 
 class _ReportsPageState extends State<ReportsPage> {
+  bool _isDesktopLayout(BuildContext context) {
+    return isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDesktop = _isDesktopLayout(context);
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: DesktopPageShell(
+          banner: DesktopHeroBanner(
+            title: context.tr('Statistics'),
+            subtitle: context.tr(
+              'Insights and attendance reports for your church',
+            ),
+            icon: Icons.insights_outlined,
+            accent: AppColors.info,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 760;
+              final cards = _reportCards(context);
+
+              if (isWide) {
+                return Wrap(
+                  spacing: AppDimensions.spacingMD,
+                  runSpacing: AppDimensions.spacingMD,
+                  children: cards
+                      .map(
+                        (card) => SizedBox(
+                          width:
+                              (constraints.maxWidth - AppDimensions.spacingMD) /
+                              2,
+                          child: card,
+                        ),
+                      )
+                      .toList(),
+                );
+              }
+
+              return Column(
+                children: [
+                  for (var i = 0; i < cards.length; i++) ...[
+                    cards[i],
+                    if (i < cards.length - 1)
+                      SizedBox(height: AppDimensions.spacingMD),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.mic.background,
-      appBar: widget.hideAppBarAndBottomNav
-          ? null
-          : AppBar(title: Text(context.tr('Statistics'))),
+      appBar: AppBar(title: Text(context.tr('Statistics'))),
       body: ListView(
         padding: EdgeInsets.only(bottom: AppDimensions.paddingXL),
         children: [

@@ -8,6 +8,7 @@ import '../../services/member_account_service.dart';
 import '../../services/role_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Member accounts management page (admin only).
 /// Admins can create login accounts for members and manage their access.
@@ -21,9 +22,6 @@ class MemberAccountsPage extends StatefulWidget {
   @override
   State<MemberAccountsPage> createState() => _MemberAccountsPageState();
 }
-
-const double _kMemberAccountsDesktopBreakpoint = 700;
-const double _kMemberAccountsDesktopMaxWidth = 1000;
 
 class _MemberAccountsPageState extends State<MemberAccountsPage> {
   List<Map<String, dynamic>> _members = [];
@@ -273,211 +271,230 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       );
     }
 
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= _kMemberAccountsDesktopBreakpoint;
+    final isDesktop = isDesktopEmbedded(
+      context,
+      inShell: widget.onClose != null,
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(context.tr('Member Accounts')),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _loadMembers,
-            tooltip: context.tr('Refresh'),
-          ),
-        ],
-      ),
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: widget.onClose,
+                    )
+                  : null,
+              title: Text(context.tr('Member Accounts')),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _isLoading ? null : _loadMembers,
+                  tooltip: context.tr('Refresh'),
+                ),
+              ],
+            ),
       body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
     );
   }
 
   Widget _buildDesktopBody(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingMD),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: _kMemberAccountsDesktopMaxWidth,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  SegmentedButton<String>(
-                    segments: [
-                      ButtonSegment(
-                        value: 'all',
-                        label: Text(context.tr('All')),
-                      ),
-                      ButtonSegment(
-                        value: 'with_account',
-                        label: Text(context.tr('With account')),
-                      ),
-                      ButtonSegment(
-                        value: 'without_account',
-                        label: Text(context.tr('No account')),
-                      ),
-                    ],
-                    selected: {_filter},
-                    onSelectionChanged: (Set<String> selected) {
-                      setState(() => _filter = selected.first);
-                    },
-                  ),
-                  SizedBox(width: AppDimensions.spacingMD),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 400),
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: context.tr('Search by name or email'),
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+    return DesktopPageShell(
+      maxWidth: kDesktopContentMaxWidth,
+      banner: DesktopHeroBanner(
+        title: context.tr('Member Accounts'),
+        subtitle: context.tr(
+          'Create login accounts for members and manage their access',
+        ),
+        icon: Icons.manage_accounts_outlined,
+        trailing: IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: _isLoading ? null : _loadMembers,
+          tooltip: context.tr('Refresh'),
+        ),
+      ),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height - 280,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DesktopSectionCard(
+              title: context.tr('Filter members'),
+              icon: Icons.filter_list_outlined,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SegmentedButton<String>(
+                      segments: [
+                        ButtonSegment(
+                          value: 'all',
+                          label: Text(context.tr('All')),
                         ),
-                      ),
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
+                        ButtonSegment(
+                          value: 'with_account',
+                          label: Text(context.tr('With account')),
+                        ),
+                        ButtonSegment(
+                          value: 'without_account',
+                          label: Text(context.tr('No account')),
+                        ),
+                      ],
+                      selected: {_filter},
+                      onSelectionChanged: (Set<String> selected) {
+                        setState(() => _filter = selected.first);
+                      },
                     ),
-                  ),
-                  Spacer(),
-                  IconButton(
-                    icon: Icon(Icons.refresh),
-                    onPressed: _isLoading ? null : _loadMembers,
-                    tooltip: context.tr('Refresh'),
-                  ),
-                ],
-              ),
-              SizedBox(height: AppDimensions.spacingMD),
-              Expanded(
-                child: _isLoading
-                    ? Center(child: CircularProgressIndicator())
-                    : _filteredMembers.isEmpty
-                    ? Center(
-                        child: Text(
-                          _filter == 'all'
-                              ? 'No members found.'
-                              : _filter == 'with_account'
-                              ? 'No members with accounts.'
-                              : 'No members without accounts.',
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: context.mic.textSecondary),
+                    SizedBox(width: AppDimensions.spacingMD),
+                    Expanded(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: context.tr('Search by name or email'),
+                          prefixIcon: const Icon(Icons.search),
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                         ),
-                      )
-                    : Card(
-                        clipBehavior: Clip.antiAlias,
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.vertical,
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minWidth: constraints.maxWidth,
-                                  ),
-                                  child: DataTable(
-                                    columns: [
-                                      DataColumn(
-                                        label: Text(context.tr('Name')),
-                                      ),
-                                      DataColumn(
-                                        label: Text(context.tr('Email')),
-                                      ),
-                                      DataColumn(
-                                        label: Text(context.tr('Status')),
-                                      ),
-                                      DataColumn(
-                                        label: Text(context.tr('Actions')),
-                                      ),
-                                    ],
-                                    rows: _filteredMembers.map((m) {
-                                      final hasAccount =
-                                          m['has_account'] == true;
-                                      final name =
-                                          '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
-                                              .trim();
-                                      final displayName = name.isEmpty
-                                          ? 'Unnamed member'
-                                          : name;
-                                      final email =
-                                          m['email']?.toString() ?? '';
-                                      final statusText = hasAccount
-                                          ? 'Account'
-                                          : email.isEmpty
-                                          ? 'No email'
-                                          : 'No account';
-                                      return DataRow(
-                                        cells: [
-                                          DataCell(Text(displayName)),
-                                          DataCell(Text(email)),
-                                          DataCell(
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  hasAccount
-                                                      ? Icons.check_circle
-                                                      : Icons
-                                                            .person_off_outlined,
-                                                  size: 18,
-                                                  color: hasAccount
-                                                      ? AppColors.success
-                                                      : context.mic.textSecondary,
-                                                ),
-                                                SizedBox(width: 6),
-                                                Text(statusText),
-                                              ],
-                                            ),
-                                          ),
-                                          DataCell(
-                                            hasAccount
-                                                ? TextButton.icon(
-                                                    icon: Icon(
-                                                      Icons.settings,
-                                                      size: 18,
-                                                    ),
-                                                    label: Text(
-                                                      'Manage access',
-                                                    ),
-                                                    onPressed: () =>
-                                                        _manageAccess(m),
-                                                  )
-                                                : TextButton.icon(
-                                                    icon: Icon(
-                                                      Icons
-                                                          .person_add_alt_1_outlined,
-                                                      size: 18,
-                                                    ),
-                                                    label: Text(
-                                                      'Create account',
-                                                    ),
-                                                    onPressed: () =>
-                                                        _createAccount(m),
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredMembers.isEmpty
+                  ? Center(
+                      child: Text(
+                        _filter == 'all'
+                            ? 'No members found.'
+                            : _filter == 'with_account'
+                            ? 'No members with accounts.'
+                            : 'No members without accounts.',
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: context.mic.textSecondary,
+                        ),
+                      ),
+                    )
+                  : DesktopSectionCard(
+                      title: context.tr('Members'),
+                      icon: Icons.people_outline,
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.sizeOf(context).height - 460,
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: SingleChildScrollView(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minWidth: constraints.maxWidth,
+                                    ),
+                                    child: DataTable(
+                                      columns: [
+                                        DataColumn(
+                                          label: Text(context.tr('Name')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Email')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Status')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Actions')),
+                                        ),
+                                      ],
+                                      rows: _filteredMembers.map((m) {
+                                        final hasAccount =
+                                            m['has_account'] == true;
+                                        final name =
+                                            '${m['first_name'] ?? ''} ${m['last_name'] ?? ''}'
+                                                .trim();
+                                        final displayName = name.isEmpty
+                                            ? 'Unnamed member'
+                                            : name;
+                                        final email =
+                                            m['email']?.toString() ?? '';
+                                        final statusText = hasAccount
+                                            ? 'Account'
+                                            : email.isEmpty
+                                            ? 'No email'
+                                            : 'No account';
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(Text(displayName)),
+                                            DataCell(Text(email)),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    hasAccount
+                                                        ? Icons.check_circle
+                                                        : Icons
+                                                              .person_off_outlined,
+                                                    size: 18,
+                                                    color: hasAccount
+                                                        ? AppColors.success
+                                                        : context
+                                                              .mic
+                                                              .textSecondary,
                                                   ),
-                                          ),
-                                        ],
-                                      );
-                                    }).toList(),
+                                                  const SizedBox(width: 6),
+                                                  Text(statusText),
+                                                ],
+                                              ),
+                                            ),
+                                            DataCell(
+                                              hasAccount
+                                                  ? TextButton.icon(
+                                                      icon: const Icon(
+                                                        Icons.settings,
+                                                        size: 18,
+                                                      ),
+                                                      label: const Text(
+                                                        'Manage access',
+                                                      ),
+                                                      onPressed: () =>
+                                                          _manageAccess(m),
+                                                    )
+                                                  : TextButton.icon(
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .person_add_alt_1_outlined,
+                                                        size: 18,
+                                                      ),
+                                                      label: const Text(
+                                                        'Create account',
+                                                      ),
+                                                      onPressed: () =>
+                                                          _createAccount(m),
+                                                    ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            );
-                          },
+                              );
+                            },
+                          ),
                         ),
-                      ),
-              ),
-            ],
-          ),
+                      ],
+                    ),
+            ),
+          ],
         ),
       ),
     );

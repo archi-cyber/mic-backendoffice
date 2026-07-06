@@ -5,6 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Page displaying members with upcoming birthdays (current month and next month)
@@ -18,7 +19,6 @@ class UpcomingBirthdaysPage extends StatefulWidget {
 }
 
 const double _kBirthdaysDesktopBreakpoint = 700;
-const double _kBirthdaysDesktopMaxWidth = 1000;
 
 class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
   List<Map<String, dynamic>> _members = [];
@@ -245,217 +245,170 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
     ];
     final currentMonth = now.month;
     final nextMonth = (now.month % 12) + 1;
+    final rangeLabel =
+        'Showing birthdays from ${monthNames[currentMonth - 1]} ${now.day} to ${monthNames[nextMonth - 1]}';
 
-    return RefreshIndicator(
-      onRefresh: _loadUpcomingBirthdays,
-      child: Padding(
-        padding: EdgeInsets.all(AppDimensions.paddingMD),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: _kBirthdaysDesktopMaxWidth),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+    return DesktopPageShell(
+      isLoading: _isLoading,
+      maxWidth: kDesktopNarrowMaxWidth,
+      banner: DesktopHeroBanner(
+        title: localizations?.birthdays ?? 'Upcoming Birthdays',
+        subtitle: rangeLabel,
+        icon: Icons.cake_outlined,
+        accent: AppColors.accent,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DesktopStatChip(
+              label: context.tr('Members'),
+              value: '${_filteredMembers.length}',
+              icon: Icons.people_outline,
+              color: AppColors.primary,
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            IconButton(
+              icon: Icon(Icons.refresh),
+              onPressed: _isLoading ? null : _loadUpcomingBirthdays,
+              tooltip: context.tr('Refresh'),
+            ),
+          ],
+        ),
+      ),
+      child: DesktopSectionCard(
+        title: context.tr('Birthday calendar'),
+        icon: Icons.calendar_month_outlined,
+        accent: AppColors.accent,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: localizations?.search ?? 'Search',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          if (_filteredMembers.isEmpty && !_isLoading)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: AppDimensions.paddingXL),
+              child: Center(
+                child: Column(
                   children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: 400),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: localizations?.search ?? 'Search',
-                          prefixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
+                    Icon(
+                      Icons.cake_outlined,
+                      size: 56,
+                      color: context.mic.textSecondary,
                     ),
-                    SizedBox(width: AppDimensions.spacingMD),
-                    IconButton(
-                      icon: Icon(Icons.refresh),
-                      onPressed: _isLoading ? null : _loadUpcomingBirthdays,
-                      tooltip: context.tr('Refresh'),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Text(
+                      'No upcoming birthdays found',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: context.mic.textSecondary,
+                      ),
                     ),
                   ],
                 ),
-                SizedBox(height: AppDimensions.spacingSM),
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppDimensions.paddingMD,
-                    vertical: AppDimensions.spacingSM,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: AppColors.primary),
-                      SizedBox(width: AppDimensions.spacingSM),
-                      Expanded(
-                        child: Text(
-                          'Showing birthdays from ${monthNames[currentMonth - 1]} ${now.day} to ${monthNames[nextMonth - 1]}',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: AppColors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppDimensions.spacingMD),
-                Expanded(
-                  child: _isLoading
-                      ? Center(child: CircularProgressIndicator())
-                      : _filteredMembers.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.cake_outlined,
-                                size: 64,
-                                color: context.mic.textSecondary,
-                              ),
-                              SizedBox(height: AppDimensions.spacingMD),
-                              Text(
-                                'No upcoming birthdays found',
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(color: context.mic.textSecondary),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.vertical,
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      minWidth: constraints.maxWidth,
-                                    ),
-                                    child: DataTable(
-                                      columns: [
-                                        DataColumn(
-                                          label: Text(context.tr('Name')),
-                                        ),
-                                        DataColumn(
-                                          label: Text(context.tr('Email')),
-                                        ),
-                                        DataColumn(
-                                          label: Text(context.tr('Birthday')),
-                                        ),
-                                        DataColumn(
-                                          label: Text(context.tr('Days')),
-                                        ),
-                                      ],
-                                      rows: _filteredMembers.map((member) {
-                                        final name =
-                                            '${member['first_name']} ${member['last_name']}';
-                                        final email =
-                                            member['email']?.toString() ?? '';
-                                        final birthday = _parseBirthday(
-                                          member['birthday'],
-                                        );
-                                        final birthdayText = birthday != null
-                                            ? _formatBirthday(birthday, now)
-                                            : '—';
-                                        final daysText = birthday != null
-                                            ? _getDaysUntilBirthday(
-                                                birthday,
-                                                now,
-                                              )
-                                            : '—';
-                                        return DataRow(
-                                          onSelectChanged: (_) =>
-                                              _openMemberDetail(member),
-                                          cells: [
-                                            DataCell(
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  CircleAvatar(
-                                                    radius: 16,
-                                                    backgroundColor:
-                                                        AppColors.primary,
-                                                    child: Text(
-                                                      name.isNotEmpty
-                                                          ? name[0]
-                                                                .toUpperCase()
-                                                          : '?',
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  SizedBox(
-                                                    width:
-                                                        AppDimensions.spacingSM,
-                                                  ),
-                                                  Text(name),
-                                                ],
-                                              ),
-                                            ),
-                                            DataCell(Text(email)),
-                                            DataCell(
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Icon(
-                                                    Icons.cake,
-                                                    size: 18,
-                                                    color: AppColors.accent,
-                                                  ),
-                                                  SizedBox(
-                                                    width:
-                                                        AppDimensions.spacingXS,
-                                                  ),
-                                                  Text(
-                                                    birthdayText,
-                                                    style: TextStyle(
-                                                      color: AppColors.accent,
-                                                      fontWeight:
-                                                          FontWeight.w500,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                            DataCell(
-                                              Text(
-                                                daysText,
-                                                style: TextStyle(
-                                                  color:
-                                                      context.mic.textSecondary,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      }).toList(),
+              ),
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                      columns: [
+                        DataColumn(label: Text(context.tr('Name'))),
+                        DataColumn(label: Text(context.tr('Email'))),
+                        DataColumn(label: Text(context.tr('Birthday'))),
+                        DataColumn(label: Text(context.tr('Days'))),
+                      ],
+                      rows: _filteredMembers.map((member) {
+                        final name =
+                            '${member['first_name']} ${member['last_name']}';
+                        final email = member['email']?.toString() ?? '';
+                        final birthday = _parseBirthday(member['birthday']);
+                        final birthdayText = birthday != null
+                            ? _formatBirthday(birthday, now)
+                            : '—';
+                        final daysText = birthday != null
+                            ? _getDaysUntilBirthday(birthday, now)
+                            : '—';
+                        return DataRow(
+                          onSelectChanged: (_) => _openMemberDetail(member),
+                          cells: [
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: AppColors.primary,
+                                    child: Text(
+                                      name.isNotEmpty
+                                          ? name[0].toUpperCase()
+                                          : '?',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ),
+                                  SizedBox(width: AppDimensions.spacingSM),
+                                  Text(name),
+                                ],
+                              ),
+                            ),
+                            DataCell(Text(email)),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.cake,
+                                    size: 18,
+                                    color: AppColors.accent,
+                                  ),
+                                  SizedBox(
+                                    width: AppDimensions.spacingXS,
+                                  ),
+                                  Text(
+                                    birthdayText,
+                                    style: TextStyle(
+                                      color: AppColors.accent,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                daysText,
+                                style: TextStyle(
+                                  color: context.mic.textSecondary,
+                                  fontSize: 13,
                                 ),
-                              );
-                            },
-                          ),
-                        ),
-                ),
-              ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
-        ),
+        ],
       ),
     );
   }

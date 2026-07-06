@@ -10,6 +10,7 @@ import '../../services/visitor_service.dart';
 import '../../services/visitor_report_pdf_service.dart';
 import 'visitor_form_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../widgets/desktop/desktop_ui.dart';
 
 /// Visitors list page
 class VisitorsListPage extends StatefulWidget {
@@ -802,9 +803,299 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
     }
   }
 
+  int get _totalVisitorPages {
+    if (_filteredVisitors.isEmpty) return 1;
+    return (_filteredVisitors.length / _visitorsRowsPerPage).ceil();
+  }
+
+  List<Map<String, dynamic>> get _paginatedVisitors {
+    final visitors = _filteredVisitors;
+    if (visitors.isEmpty) return [];
+    final maxPage = _totalVisitorPages - 1;
+    final currentPage = _visitorsPage.clamp(0, maxPage);
+    final start = currentPage * _visitorsRowsPerPage;
+    final end = (start + _visitorsRowsPerPage).clamp(0, visitors.length);
+    return visitors.sublist(start, end);
+  }
+
+  String _serviceTypeLabel(String? serviceType) {
+    if (serviceType == 'sunday') return context.tr('Sunday service');
+    if (serviceType == 'wednesday') return context.tr('Wednesday service');
+    return '—';
+  }
+
+  Widget _buildDesktopToolbar(AppLocalizations? localizations) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        side: BorderSide(color: context.mic.border.withValues(alpha: 0.75)),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: localizations?.searchVisitors ??
+                      context.tr('Search visitors...'),
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: context.mic.background,
+                  isDense: true,
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _visitorsPage = 0;
+                            });
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                ),
+                onChanged: (_) => setState(() => _visitorsPage = 0),
+              ),
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            IconButton.filledTonal(
+              onPressed: _loadVisitors,
+              icon: const Icon(Icons.refresh),
+              tooltip: localizations?.refresh ?? context.tr('Refresh'),
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            IconButton.filledTonal(
+              onPressed: _isLoading ? null : _generatePdfReport,
+              icon: const Icon(Icons.picture_as_pdf),
+              tooltip: context.tr('Generate PDF Report'),
+            ),
+            if (_canCreate) ...[
+              SizedBox(width: AppDimensions.spacingSM),
+              FilledButton.icon(
+                onPressed: _navigateToAdd,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: Text(
+                  localizations?.addVisitor ?? context.tr('Add Visitor'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody(AppLocalizations? localizations) {
+    final theme = Theme.of(context);
+    final pageItems = _paginatedVisitors;
+
+    return DesktopListWorkspace(
+      isLoading: _isLoading,
+      banner: DesktopHeroBanner(
+        title: localizations?.visitors ?? context.tr('Visitors'),
+        subtitle: context.tr('Track and follow up with church visitors'),
+        icon: Icons.groups_outlined,
+        accent: AppColors.primary,
+        trailing: Text(
+          '${_filteredVisitors.length}',
+          style: theme.textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: context.mic.appBarForeground,
+          ),
+        ),
+      ),
+      stats: [
+        DesktopStatChip(
+          label: context.tr('Total'),
+          value: _isLoading ? '…' : '${_visitors.length}',
+          icon: Icons.people_outline,
+          color: AppColors.primary,
+        ),
+        DesktopStatChip(
+          label: context.tr('This month'),
+          value: _isLoading ? '…' : '$_thisMonthCount',
+          icon: Icons.calendar_month_outlined,
+          color: AppColors.accent,
+        ),
+        DesktopStatChip(
+          label: context.tr('Showing'),
+          value: _isLoading ? '…' : '${_filteredVisitors.length}',
+          icon: Icons.filter_list_outlined,
+          color: AppColors.secondary,
+        ),
+      ],
+      toolbar: _buildDesktopToolbar(localizations),
+      pagination: _filteredVisitors.isEmpty
+          ? null
+          : DesktopPaginationBar(
+              currentPage: _visitorsPage.clamp(0, _totalVisitorPages - 1),
+              totalPages: _totalVisitorPages,
+              onPrevious: _visitorsPage > 0
+                  ? () => setState(() => _visitorsPage--)
+                  : null,
+              onNext: _visitorsPage < _totalVisitorPages - 1
+                  ? () => setState(() => _visitorsPage++)
+                  : null,
+            ),
+      child: DesktopDataTableCard(
+              emptyMessage: _searchController.text.isNotEmpty
+                  ? (localizations?.noVisitorsFound ??
+                      context.tr('No visitors found matching your search'))
+                  : (localizations?.noVisitors ??
+                      context.tr('No visitors yet')),
+              emptyIcon: Icons.person_add_alt_1_outlined,
+              columns: [
+                DataColumn(label: Text(context.tr('Visitor'))),
+                DataColumn(label: Text(context.tr('Email'))),
+                DataColumn(label: Text(context.tr('Phone'))),
+                DataColumn(label: Text(context.tr('Visit Date'))),
+                DataColumn(label: Text(context.tr('Service'))),
+                DataColumn(label: Text(context.tr('Actions'))),
+              ],
+              rows: pageItems.map((visitor) {
+                final fullName = _visitorName(visitor);
+                final email = visitor['email']?.toString() ?? '—';
+                final phone = visitor['phone']?.toString() ?? '—';
+                final visitDate = VisitorFormUi.parseVisitDate(
+                  visitor['visit_date'],
+                );
+                final visitorId = visitor['id'].toString();
+                final serviceType = visitor['service_type']?.toString();
+
+                return DataRow(
+                  cells: [
+                    DataCell(
+                      InkWell(
+                        onTap: _canEdit
+                            ? () => _navigateToEdit(visitorId)
+                            : null,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor:
+                                  AppColors.primary.withValues(alpha: 0.15),
+                              child: Text(
+                                _visitorInitials(visitor),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: AppDimensions.spacingSM),
+                            Expanded(
+                              child: Text(
+                                fullName,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(email, overflow: TextOverflow.ellipsis)),
+                    DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
+                    DataCell(
+                      Text(
+                        visitDate != null ? _formatDate(visitDate) : '—',
+                      ),
+                    ),
+                    DataCell(Text(_serviceTypeLabel(serviceType))),
+                    DataCell(
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_horiz, size: 20),
+                        onSelected: (action) async {
+                          if (action == 'edit') {
+                            await _navigateToEdit(visitorId);
+                          } else if (action == 'convert') {
+                            await _convertVisitor(
+                              visitorId,
+                              fullName,
+                              visitor,
+                            );
+                          } else if (action == 'delete') {
+                            await _deleteVisitor(visitorId, fullName);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          if (_canEdit)
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text(context.tr('Edit')),
+                            ),
+                          if (_canCreateMember)
+                            PopupMenuItem(
+                              value: 'convert',
+                              child: Text(context.tr('Convert to Member')),
+                            ),
+                          if (_canDelete)
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text(context.tr('Delete')),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  Widget _buildMobileBody(AppLocalizations? localizations) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHeaderBanner(localizations),
+        SizedBox(height: AppDimensions.spacingMD),
+        _buildStatsRow(),
+        _buildSearchToolbar(localizations),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _filteredVisitors.isEmpty
+                  ? _buildEmptyState(localizations)
+                  : widget.hideAppBarAndBottomNav
+                      ? _buildVisitorsTable()
+                      : RefreshIndicator(
+                          onRefresh: _loadVisitors,
+                          child: ListView.builder(
+                            padding: EdgeInsets.only(
+                              top: AppDimensions.spacingSM,
+                              bottom: AppDimensions.spacingXL,
+                            ),
+                            itemCount: _filteredVisitors.length,
+                            itemBuilder: (context, index) =>
+                                _buildVisitorListTile(
+                              _filteredVisitors[index],
+                            ),
+                          ),
+                        ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop = isDesktopEmbedded(
+      context,
+      hideAppBar: widget.hideAppBarAndBottomNav,
+    );
 
     return Scaffold(
       backgroundColor: context.mic.background,
@@ -822,7 +1113,8 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                   IconButton(
                     icon: const Icon(Icons.person_add_alt_1_outlined),
                     onPressed: _navigateToAdd,
-                    tooltip: localizations?.addVisitor ?? context.tr('Add Visitor'),
+                    tooltip:
+                        localizations?.addVisitor ?? context.tr('Add Visitor'),
                   ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -831,35 +1123,9 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                 ),
               ],
             ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildHeaderBanner(localizations),
-          SizedBox(height: AppDimensions.spacingMD),
-          _buildStatsRow(),
-          _buildSearchToolbar(localizations),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredVisitors.isEmpty
-                ? _buildEmptyState(localizations)
-                : widget.hideAppBarAndBottomNav
-                ? _buildVisitorsTable()
-                : RefreshIndicator(
-                    onRefresh: _loadVisitors,
-                    child: ListView.builder(
-                      padding: EdgeInsets.only(
-                        top: AppDimensions.spacingSM,
-                        bottom: AppDimensions.spacingXL,
-                      ),
-                      itemCount: _filteredVisitors.length,
-                      itemBuilder: (context, index) =>
-                          _buildVisitorListTile(_filteredVisitors[index]),
-                    ),
-                  ),
-          ),
-        ],
-      ),
+      body: isDesktop
+          ? _buildDesktopBody(localizations)
+          : _buildMobileBody(localizations),
       floatingActionButton: widget.hideAppBarAndBottomNav || !_canCreate
           ? null
           : FloatingActionButton.extended(
