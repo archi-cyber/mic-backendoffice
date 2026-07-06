@@ -2,16 +2,19 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/department_service.dart';
 import '../../services/storage_service.dart';
+import '../../core/localization/app_localizations.dart';
+import 'department_form_ui.dart';
 
 /// Add department page
 class AddDepartmentPage extends StatefulWidget {
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const AddDepartmentPage({super.key, this.onClose});
+  AddDepartmentPage({super.key, this.onClose});
 
   @override
   State<AddDepartmentPage> createState() => _AddDepartmentPageState();
@@ -78,7 +81,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error picking file: $e'),
+            content: Text(context.tr('Error picking file: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -283,7 +286,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
             backgroundColor: uploadErrors.isEmpty
                 ? AppColors.success
                 : AppColors.warning,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
 
@@ -293,11 +296,11 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
             await showDialog(
               context: context,
               builder: (context) => AlertDialog(
-                title: const Row(
+                title: Row(
                   children: [
                     Icon(Icons.warning, color: AppColors.warning),
                     SizedBox(width: 8),
-                    Text('Document Upload Errors'),
+                    Text(context.tr('Document Upload Errors')),
                   ],
                 ),
                 content: SingleChildScrollView(
@@ -305,24 +308,24 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'The department was created, but the following documents failed to upload:',
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       ...uploadErrors.map(
                         (error) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: EdgeInsets.only(bottom: 8),
                           child: Text(
                             '• $error',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.error,
                               fontSize: 14,
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
+                      SizedBox(height: 8),
+                      Text(
                         'You can add these documents later by editing the department.',
                         style: TextStyle(fontSize: 12),
                       ),
@@ -332,7 +335,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
+                    child: Text(context.tr('OK')),
                   ),
                 ],
               ),
@@ -378,51 +381,59 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
     final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     return Scaffold(
+      backgroundColor: context.mic.background,
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Add Department'),
+        title: Text(context.tr('Add Department')),
         actions: useDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 20),
-                  label: const Text('Create Department'),
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Create Department')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        DepartmentFormUi.heroBanner(
+                          context: context,
+                          isEdit: false,
+                          title: context.tr('Add Department'),
+                          subtitle: context.tr(
+                            'Create a department and attach reference documents',
+                          ),
+                        ),
+                        SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
                           'Basic information',
@@ -430,10 +441,12 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                           [
                             TextFormField(
                               controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Department Name *',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Department Name *'),
                                 prefixIcon: Icon(Icons.group_work),
-                                helperText: 'Enter the name of the department',
+                                helperText: context.tr(
+                                  'Enter the name of the department',
+                                ),
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -442,14 +455,15 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Description'),
                                 prefixIcon: Icon(Icons.description),
-                                helperText:
-                                    'Optional description for the department',
+                                helperText: context.tr(
+                                  'Optional description for the department',
+                                ),
                               ),
                               maxLines: 4,
                             ),
@@ -461,11 +475,11 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                           Icons.folder_outlined,
                           [
                             _buildDocumentPicker(1, _document1Name),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(2, _document2Name),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(3, _document3Name),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(4, _document4Name),
                           ],
                         ),
@@ -476,7 +490,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -484,10 +498,12 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                   children: [
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Department Name *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Department Name *'),
                         prefixIcon: Icon(Icons.group_work),
-                        helperText: 'Enter the name of the department',
+                        helperText: context.tr(
+                          'Enter the name of the department',
+                        ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
@@ -496,49 +512,51 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
-                        helperText: 'Optional description for the department',
+                        helperText: context.tr(
+                          'Optional description for the department',
+                        ),
                       ),
                       maxLines: 4,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    const Divider(),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Divider(),
+                    SizedBox(height: AppDimensions.spacingSM),
                     Text(
                       'Documents (Optional)',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(1, _document1Name),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(2, _document2Name),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(3, _document3Name),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(4, _document4Name),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Create Department'),
+                          : Text(context.tr('Create Department')),
                     ),
                   ],
                 ),
@@ -553,31 +571,12 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
     IconData icon,
     List<Widget> children,
   ) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingLG),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingLG),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 22, color: theme.colorScheme.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            ...children,
-          ],
-        ),
-      ),
+    return DepartmentFormUi.sectionCard(
+      context: context,
+      title: title,
+      icon: icon,
+      accentColor: DepartmentFormUi.accent,
+      children: children,
     );
   }
 
@@ -586,21 +585,21 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingSM),
+        padding: EdgeInsets.all(AppDimensions.paddingSM),
         child: Row(
           children: [
             Icon(
               Icons.insert_drive_file,
-              color: hasFile ? AppColors.primary : AppColors.textSecondary,
+              color: hasFile ? AppColors.primary : context.mic.textSecondary,
             ),
-            const SizedBox(width: AppDimensions.spacingSM),
+            SizedBox(width: AppDimensions.spacingSM),
             Expanded(
               child: Text(
                 hasFile ? fileName : 'Document $documentNumber (Optional)',
                 style: TextStyle(
                   color: hasFile
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
+                      ? context.mic.textPrimary
+                      : context.mic.textSecondary,
                   fontWeight: hasFile ? FontWeight.w500 : FontWeight.normal,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -608,15 +607,15 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
             ),
             if (hasFile)
               IconButton(
-                icon: const Icon(Icons.close, size: 20),
+                icon: Icon(Icons.close, size: 20),
                 onPressed: () => _removeDocument(documentNumber),
-                tooltip: 'Remove',
+                tooltip: context.tr('Remove'),
               )
             else
               TextButton.icon(
                 onPressed: () => _pickDocument(documentNumber),
-                icon: const Icon(Icons.upload_file, size: 18),
-                label: const Text('Upload'),
+                icon: Icon(Icons.upload_file, size: 18),
+                label: Text(context.tr('Upload')),
               ),
           ],
         ),

@@ -3,12 +3,13 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/department_report_service.dart';
 import '../../services/department_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Add department report page
 class AddDepartmentReportPage extends StatefulWidget {
   final String departmentId;
 
-  const AddDepartmentReportPage({super.key, required this.departmentId});
+  AddDepartmentReportPage({super.key, required this.departmentId});
 
   @override
   State<AddDepartmentReportPage> createState() =>
@@ -58,7 +59,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading department: $e'),
+            content: Text(context.tr('Error loading department: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -86,8 +87,8 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report created successfully'),
+          SnackBar(
+            content: Text(context.tr('Report created successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -98,7 +99,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error creating report: ${e.toString()}'),
+            content: Text(context.tr('Error creating report: ${e.toString()}')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -110,8 +111,8 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
   Widget build(BuildContext context) {
     if (_isLoadingData) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Create Report')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: Text(context.tr('Create Report'))),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -120,7 +121,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
         title: Text('Create Report - ${_department?['name'] ?? 'Department'}'),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
           key: _formKey,
           child: Column(
@@ -128,10 +129,12 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
             children: [
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Report Title *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Report Title *'),
                   prefixIcon: Icon(Icons.title),
-                  helperText: 'Enter a descriptive title for this report',
+                  helperText: context.tr(
+                    'Enter a descriptive title for this report',
+                  ),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -140,13 +143,15 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _definedObjectivesController,
-                decoration: const InputDecoration(
-                  labelText: 'Defined Objectives *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Defined Objectives *'),
                   prefixIcon: Icon(Icons.flag),
-                  helperText: 'List the objectives that were defined',
+                  helperText: context.tr(
+                    'List the objectives that were defined',
+                  ),
                 ),
                 maxLines: 5,
                 validator: (value) {
@@ -156,13 +161,15 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _positivePointsController,
-                decoration: const InputDecoration(
-                  labelText: 'Positive Points *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Positive Points *'),
                   prefixIcon: Icon(Icons.check_circle),
-                  helperText: 'List positive achievements or points',
+                  helperText: context.tr(
+                    'List positive achievements or points',
+                  ),
                 ),
                 maxLines: 5,
                 validator: (value) {
@@ -172,13 +179,15 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _difficultiesController,
-                decoration: const InputDecoration(
-                  labelText: 'Difficulties Encountered *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Difficulties Encountered *'),
                   prefixIcon: Icon(Icons.warning),
-                  helperText: 'Describe any difficulties or challenges faced',
+                  helperText: context.tr(
+                    'Describe any difficulties or challenges faced',
+                  ),
                 ),
                 maxLines: 5,
                 validator: (value) {
@@ -188,13 +197,13 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _suggestionsController,
-                decoration: const InputDecoration(
-                  labelText: 'Suggestions *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Suggestions *'),
                   prefixIcon: Icon(Icons.lightbulb),
-                  helperText: 'Provide suggestions for improvement',
+                  helperText: context.tr('Provide suggestions for improvement'),
                 ),
                 maxLines: 5,
                 validator: (value) {
@@ -204,32 +213,34 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _commentsController,
-                decoration: const InputDecoration(
-                  labelText: 'Comments',
+                decoration: InputDecoration(
+                  labelText: context.tr('Comments'),
                   prefixIcon: Icon(Icons.comment),
-                  helperText: 'Additional comments or notes (optional)',
+                  helperText: context.tr(
+                    'Additional comments or notes (optional)',
+                  ),
                 ),
                 maxLines: 4,
               ),
-              const SizedBox(height: AppDimensions.spacingXL),
+              SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
+                  minimumSize: Size(
                     double.infinity,
                     AppDimensions.buttonHeightLG,
                   ),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Create Report'),
+                    : Text(context.tr('Create Report')),
               ),
             ],
           ),

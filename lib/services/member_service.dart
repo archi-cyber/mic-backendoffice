@@ -7,25 +7,18 @@ import 'user_management_service.dart';
 class MemberService {
   static final _client = SupabaseService.client;
 
-  /// Create member (admin only) - auto-creates user (inactive)
+  /// Create member (admin only) - auto-creates user (inactive) when email/phone provided
   /// POST /members
   /// Business Rule: When admin creates a member → user account is auto-created but active=false
-  /// Edge case: Requires at least email or phone for password resets
   static Future<Map<String, dynamic>> createMember({
     required Map<String, dynamic> memberData,
   }) async {
     try {
-      // Validate: Must have at least email or phone for password reset capability
       final email = memberData['email'] as String?;
       final phone = memberData['phone'] as String?;
-
-      if ((email == null || email.isEmpty) &&
-          (phone == null || phone.isEmpty)) {
-        throw Exception(
-          'Member must have at least email or phone for password reset capability. '
-          'Email is strongly recommended.',
-        );
-      }
+      final hasContact =
+          (email != null && email.isNotEmpty) ||
+          (phone != null && phone.isNotEmpty);
 
       final isNewComer = memberData['is_new_comer'] == true;
       final newcomerIntention = memberData['newcomer_intention']?.toString();
@@ -48,18 +41,18 @@ class MemberService {
 
       final memberId = response['id'].toString();
 
-      // Auto-create inactive user account
-      // Business Rule: user.active=false, member cannot login
-      try {
-        await UserManagementService.createInactiveUserForMember(
-          memberId: memberId,
-          email: email,
-          phone: phone,
-        );
-      } catch (e) {
-        // Log error but don't fail member creation
-        // In production, this could be handled by database trigger
-        debugPrint('Warning: Failed to create user account: $e');
+      // Auto-create inactive user account when contact info is available.
+      if (hasContact) {
+        try {
+          await UserManagementService.createInactiveUserForMember(
+            memberId: memberId,
+            email: email,
+            phone: phone,
+          );
+        } catch (e) {
+          // Log error but don't fail member creation
+          debugPrint('Warning: Failed to create user account: $e');
+        }
       }
 
       // Track newcomer creation in dedicated history table.

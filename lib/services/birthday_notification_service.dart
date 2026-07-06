@@ -1,4 +1,5 @@
 import 'supabase_service.dart';
+import 'notification_service.dart';
 
 /// Service for birthday notifications with configuration options
 class BirthdayNotificationService {
@@ -103,27 +104,17 @@ class BirthdayNotificationService {
 
       // Create notifications for target members
       if (targetMemberIds.isNotEmpty && birthdayMembers.isNotEmpty) {
-        final notifications = <Map<String, dynamic>>[];
-
         for (final birthdayMember in birthdayMembers) {
           final memberId = birthdayMember['id'].toString();
-          if (targetMemberIds.contains(memberId)) {
-            notifications.add({
-              'member_id': memberId,
-              'type': 'birthday',
-              'title': 'Birthday Alert',
-              'message':
-                  '${birthdayMember['first_name']} ${birthdayMember['last_name']} has a birthday this month!',
-              'related_id': memberId,
-              'related_type': 'member',
-              'is_read': false,
-              'created_at': DateTime.now().toIso8601String(),
-            });
-          }
-        }
-
-        if (notifications.isNotEmpty) {
-          await _client.from('notifications').insert(notifications);
+          await NotificationService.createBulkNotifications(
+            memberIds: targetMemberIds,
+            type: 'birthday',
+            title: 'Birthday Alert',
+            message:
+                '${birthdayMember['first_name']} ${birthdayMember['last_name']} has a birthday this month!',
+            relatedId: memberId,
+            relatedType: 'member',
+          );
         }
       }
     } catch (e) {

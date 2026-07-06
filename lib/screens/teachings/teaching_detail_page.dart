@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/teaching_service.dart';
+import '../desktop/desktop_shell_scope.dart';
+import 'edit_teaching_page.dart';
 
 /// Teaching detail page with listeners management
 class TeachingDetailPage extends StatefulWidget {
@@ -273,7 +276,11 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
       try {
         await TeachingService.deleteTeaching(widget.teachingId);
         if (mounted) {
-          Navigator.of(context).pop(true);
+          if (widget.onClose != null) {
+            widget.onClose!();
+          } else {
+            Navigator.of(context).pop(true);
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -314,7 +321,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
 
   Widget _buildListenerCard(Map<String, dynamic> listener) {
     final member = listener['members'] as Map<String, dynamic>?;
-    if (member == null) return const SizedBox.shrink();
+    if (member == null) return SizedBox.shrink();
 
     final firstName = member['first_name']?.toString() ?? '';
     final lastName = member['last_name']?.toString() ?? '';
@@ -323,7 +330,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     final listenerId = listener['id'].toString();
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingSM),
+      margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
       child: ListTile(
         leading: CircleAvatar(
           child: Text(fullName.isNotEmpty ? fullName[0].toUpperCase() : '?'),
@@ -332,9 +339,9 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         subtitle: role.isNotEmpty ? Text(role.toUpperCase()) : null,
         trailing: _canEdit
             ? IconButton(
-                icon: const Icon(Icons.delete, color: AppColors.error),
+                icon: Icon(Icons.delete, color: AppColors.error),
                 onPressed: () => _removeListener(listenerId, fullName),
-                tooltip: 'Remove',
+                tooltip: context.tr('Remove'),
               )
             : null,
       ),
@@ -344,18 +351,25 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
+    final isDesktop =
+        widget.onClose != null && MediaQuery.sizeOf(context).width >= 700;
+
     if (_isLoading || _teaching == null) {
       return Scaffold(
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-          title: Text(localizations?.teachingDetails ?? 'Teaching Details'),
-        ),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: isDesktop
+            ? null
+            : AppBar(
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.arrow_back),
+                        onPressed: widget.onClose,
+                      )
+                    : null,
+                title: Text(
+                  localizations?.teachingDetails ?? 'Teaching Details',
+                ),
+              ),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -369,219 +383,342 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-          title: Text(title),
-          actions: [
-            if (_canEdit) ...[
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () async {
-                  final result = await Navigator.of(context).pushNamed(
-                    RouteNames.editTeaching.replaceAll(
-                      ':id',
-                      widget.teachingId,
+        appBar: isDesktop ? null : _buildMobileAppBar(localizations, title),
+        body: isDesktop
+            ? _buildDesktopBody(
+                localizations: localizations,
+                title: title,
+                teachingDate: teachingDate,
+                speaker: speaker,
+                description: description,
+              )
+            : TabBarView(
+                children: [
+                  _buildOverviewTab(
+                    localizations,
+                    teachingDate,
+                    speaker,
+                    description,
+                  ),
+                  _buildListenersTab(localizations),
+                ],
+              ),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildMobileAppBar(
+    AppLocalizations? localizations,
+    String title,
+  ) {
+    return AppBar(
+      leading: widget.onClose != null
+          ? IconButton(icon: Icon(Icons.arrow_back), onPressed: widget.onClose)
+          : null,
+      title: Text(title),
+      actions: [
+        if (_canEdit)
+          IconButton(icon: Icon(Icons.edit), onPressed: _openEditTeaching),
+        if (_canDelete)
+          IconButton(icon: Icon(Icons.delete), onPressed: _deleteTeaching),
+      ],
+      bottom: TabBar(
+        tabs: [
+          Tab(text: localizations?.overview ?? 'Details'),
+          Tab(text: localizations?.listeners ?? 'Listeners'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody({
+    required AppLocalizations? localizations,
+    required String title,
+    required DateTime? teachingDate,
+    required String speaker,
+    required String description,
+  }) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 1180),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 340,
+                child: SingleChildScrollView(
+                  child: _TeachingSummaryPanel(
+                    title: title,
+                    speaker: speaker,
+                    teachingDate: teachingDate,
+                    listenerCount: _listeners.length,
+                    canEdit: _canEdit,
+                    canDelete: _canDelete,
+                    onEdit: _openEditTeaching,
+                    onDelete: _deleteTeaching,
+                  ),
+                ),
+              ),
+              SizedBox(width: AppDimensions.spacingLG),
+              Expanded(
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusXL,
+                      ),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
                     ),
-                  );
-                  if (result == true) {
-                    _loadTeachingData();
-                  }
-                },
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            AppDimensions.paddingLG,
+                            AppDimensions.paddingMD,
+                            AppDimensions.paddingLG,
+                            0,
+                          ),
+                          child: TabBar(
+                            labelColor: AppColors.primary,
+                            unselectedLabelColor: context.mic.textSecondary,
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            tabs: [
+                              Tab(
+                                icon: Icon(Icons.article_outlined),
+                                text: localizations?.overview ?? 'Details',
+                              ),
+                              Tab(
+                                icon: Icon(Icons.people_outline),
+                                text: localizations?.listeners ?? 'Listeners',
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(height: 1),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              _buildOverviewTab(
+                                localizations,
+                                teachingDate,
+                                speaker,
+                                description,
+                              ),
+                              _buildListenersTab(localizations),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ],
-            if (_canDelete) ...[
-              IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: _deleteTeaching,
-              ),
-            ],
-          ],
-          bottom: TabBar(
-            tabs: [
-              Tab(text: localizations?.overview ?? 'Details'),
-              Tab(text: localizations?.listeners ?? 'Listeners'),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            // Details Tab
-            SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (teachingDate != null) ...[
-                    _buildDetailRow(
-                      icon: Icons.calendar_today,
-                      label: localizations?.date ?? 'Date',
-                      value: DateFormat('MMMM d, yyyy').format(teachingDate),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                  ],
-                  if (speaker.isNotEmpty) ...[
-                    _buildDetailRow(
-                      icon: Icons.person,
-                      label: localizations?.speaker ?? 'Speaker',
-                      value: speaker,
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                  ],
-                  if (description.isNotEmpty) ...[
-                    Text(
-                      localizations?.description ?? 'Description',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingSM),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            // Listeners Tab
-            Column(
-              children: [
-                // Sync button and search
-                Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                  child: Column(
-                    children: [
-                      if (_canEdit)
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _syncFromAttendance,
-                            icon: const Icon(Icons.sync),
-                            label: Text(
-                              localizations?.syncFromAttendance ??
-                                  'Sync from Church Attendance',
-                            ),
-                          ),
-                        ),
-                      if (_canEdit)
-                        const SizedBox(height: AppDimensions.spacingMD),
-                      TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText:
-                              localizations?.searchPotentialListeners ??
-                              'Search potential listeners...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {});
-                                  },
-                                )
-                              : null,
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ],
-                  ),
-                ),
-                // Listeners list
-                Expanded(
-                  child: _isLoadingListeners
-                      ? const Center(child: CircularProgressIndicator())
-                      : Column(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppDimensions.paddingMD,
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '${localizations?.listeners ?? 'Listeners'} (${_listeners.length})',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  if (_canEdit)
-                                    TextButton.icon(
-                                      onPressed: () => _showAddListenerDialog(),
-                                      icon: const Icon(Icons.add),
-                                      label: Text(
-                                        localizations?.addListener ?? 'Add',
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            Expanded(
-                              child: _listeners.isEmpty
-                                  ? Center(
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          const Icon(
-                                            Icons.people_outline,
-                                            size: 64,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                          const SizedBox(
-                                            height: AppDimensions.spacingMD,
-                                          ),
-                                          Text(
-                                            localizations?.noListeners ??
-                                                'No listeners yet',
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleMedium,
-                                          ),
-                                          if (_canEdit) ...[
-                                            const SizedBox(
-                                              height: AppDimensions.spacingSM,
-                                            ),
-                                            Text(
-                                              localizations?.useSyncOrAdd ??
-                                                  'Use "Sync from Church Attendance" or "Add" to add listeners',
-                                              style: const TextStyle(
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.all(
-                                        AppDimensions.paddingMD,
-                                      ),
-                                      itemCount: _listeners.length,
-                                      itemBuilder: (context, index) {
-                                        return _buildListenerCard(
-                                          _listeners[index],
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
-                        ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
+  }
+
+  Widget _buildOverviewTab(
+    AppLocalizations? localizations,
+    DateTime? teachingDate,
+    String speaker,
+    String description,
+  ) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (teachingDate != null) ...[
+            _buildDetailRow(
+              icon: Icons.calendar_today,
+              label: localizations?.date ?? 'Date',
+              value: DateFormat('MMMM d, yyyy').format(teachingDate),
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+          ],
+          if (speaker.isNotEmpty) ...[
+            _buildDetailRow(
+              icon: Icons.person,
+              label: localizations?.speaker ?? 'Speaker',
+              value: speaker,
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+          ],
+          if (description.isNotEmpty) ...[
+            Text(
+              localizations?.description ?? 'Description',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            Text(description, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListenersTab(AppLocalizations? localizations) {
+    return Column(
+      children: [
+        Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          child: Column(
+            children: [
+              if (_canEdit)
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _syncFromAttendance,
+                    icon: Icon(Icons.sync),
+                    label: Text(
+                      localizations?.syncFromAttendance ??
+                          'Sync from Church Attendance',
+                    ),
+                  ),
+                ),
+              if (_canEdit) SizedBox(height: AppDimensions.spacingMD),
+              TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText:
+                      localizations?.searchPotentialListeners ??
+                      'Search potential listeners...',
+                  prefixIcon: Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _isLoadingListeners
+              ? Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppDimensions.paddingMD,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${localizations?.listeners ?? 'Listeners'} (${_listeners.length})',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          if (_canEdit)
+                            TextButton.icon(
+                              onPressed: () => _showAddListenerDialog(),
+                              icon: Icon(Icons.add),
+                              label: Text(localizations?.addListener ?? 'Add'),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: _listeners.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.people_outline,
+                                    size: 64,
+                                    color: context.mic.textSecondary,
+                                  ),
+                                  SizedBox(height: AppDimensions.spacingMD),
+                                  Text(
+                                    localizations?.noListeners ??
+                                        'No listeners yet',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  if (_canEdit) ...[
+                                    SizedBox(height: AppDimensions.spacingSM),
+                                    Text(
+                                      localizations?.useSyncOrAdd ??
+                                          'Use "Sync from Church Attendance" or "Add" to add listeners',
+                                      style: TextStyle(
+                                        color: context.mic.textSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: EdgeInsets.all(AppDimensions.paddingMD),
+                              itemCount: _listeners.length,
+                              itemBuilder: (context, index) {
+                                return _buildListenerCard(_listeners[index]);
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openEditTeaching() async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          final height = MediaQuery.sizeOf(dialogContext).height;
+          return Dialog(
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingXL,
+              vertical: AppDimensions.paddingLG,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox(
+              width: 760,
+              height: height * 0.86,
+              child: EditTeachingPage(
+                teachingId: widget.teachingId,
+                onClose: (result) => Navigator.of(dialogContext).pop(result),
+              ),
+            ),
+          );
+        },
+      );
+      if (result == true) _loadTeachingData();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.editTeaching.replaceAll(':id', widget.teachingId));
+    if (result == true) {
+      _loadTeachingData();
+    }
   }
 
   Widget _buildDetailRow({
@@ -592,8 +729,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
-        const SizedBox(width: AppDimensions.spacingSM),
+        Icon(icon, size: 20, color: context.mic.textSecondary),
+        SizedBox(width: AppDimensions.spacingSM),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -602,7 +739,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                 label,
                 style: Theme.of(
                   context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                ).textTheme.bodySmall?.copyWith(color: context.mic.textSecondary),
               ),
               Text(value, style: Theme.of(context).textTheme.bodyLarge),
             ],
@@ -664,6 +801,184 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(localizations?.cancel ?? 'Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeachingSummaryPanel extends StatelessWidget {
+  final String title;
+  final String speaker;
+  final DateTime? teachingDate;
+  final int listenerCount;
+  final bool canEdit;
+  final bool canDelete;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _TeachingSummaryPanel({
+    required this.title,
+    required this.speaker,
+    required this.teachingDate,
+    required this.listenerCount,
+    required this.canEdit,
+    required this.canDelete,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+      child: Container(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+              ),
+              child: Icon(Icons.menu_book_outlined, color: AppColors.primary),
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            Text(
+              title,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            _TeachingBadge(label: context.tr('Teaching')),
+            SizedBox(height: AppDimensions.spacingLG),
+            _TeachingInfoTile(
+              icon: Icons.calendar_today_outlined,
+              label: context.tr('Date'),
+              value: teachingDate == null
+                  ? context.tr('Not set')
+                  : DateFormat('MMMM d, yyyy').format(teachingDate!),
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            _TeachingInfoTile(
+              icon: Icons.person_outline,
+              label: context.tr('Speaker'),
+              value: speaker.isEmpty ? context.tr('Not set') : speaker,
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            _TeachingInfoTile(
+              icon: Icons.people_outline,
+              label: context.tr('Listeners'),
+              value: listenerCount.toString(),
+            ),
+            if (canEdit || canDelete) ...[
+              SizedBox(height: AppDimensions.spacingXL),
+              Row(
+                children: [
+                  if (canEdit)
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onEdit,
+                        icon: Icon(Icons.edit_outlined),
+                        label: Text(context.tr('Edit')),
+                      ),
+                    ),
+                  if (canEdit && canDelete)
+                    SizedBox(width: AppDimensions.spacingSM),
+                  if (canDelete)
+                    IconButton.outlined(
+                      onPressed: onDelete,
+                      icon: Icon(Icons.delete_outline),
+                      color: AppColors.error,
+                      tooltip: context.tr('Delete'),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TeachingBadge extends StatelessWidget {
+  final String label;
+
+  const _TeachingBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
+
+class _TeachingInfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _TeachingInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.primary),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

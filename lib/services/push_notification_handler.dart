@@ -2,29 +2,24 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../core/navigation/app_navigator.dart';
 import '../firebase_options.dart';
+
+const String _notificationPayload = 'open_notifications';
 
 /// Top-level function for handling background messages
 /// This MUST be a top-level function, not a static method
 /// It runs in a separate isolate, so Firebase must be initialized here
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Ensure Firebase is initialized in the background isolate
-  // This is required because background handlers run in a separate isolate
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
-  // Handle background message
-  // This runs in a separate isolate
+
   debugPrint('Background message received: ${message.messageId}');
   debugPrint('Message data: ${message.data}');
   debugPrint('Message notification: ${message.notification?.title}');
-  
-  // You can add additional processing here, such as:
-  // - Saving notification to local database
-  // - Updating app state
-  // - Triggering local notifications
 }
 
 /// Handler for push notifications (FCM)
@@ -32,19 +27,22 @@ class PushNotificationHandler {
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
+  static const AndroidNotificationChannel _defaultChannel =
+      AndroidNotificationChannel(
+        'mic_notifications',
+        'MIC Notifications',
+        description: 'General notifications from MIC Backoffice',
+        importance: Importance.high,
+      );
+
   /// Initialize push notification handlers
   static Future<void> initialize() async {
-    // Check if Firebase is initialized
     if (Firebase.apps.isEmpty) {
       throw Exception(
         'Firebase is not initialized. Please configure Firebase first.',
       );
     }
-    
-    // Note: Background message handler should already be registered in main.dart
-    // before this method is called. This ensures it's registered before runApp()
-    
-    // Initialize local notifications
+
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
@@ -64,55 +62,47 @@ class PushNotificationHandler {
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
-    // Request permissions for iOS
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(_defaultChannel);
+
     await _localNotifications
         .resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin
         >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
 
-    // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Handle notification taps
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
   }
 
-  /// Handle foreground messages
   static Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    // Show local notification when app is in foreground
     await _localNotifications.show(
       message.hashCode,
       message.notification?.title ?? 'Notification',
       message.notification?.body ?? '',
-      const NotificationDetails(
+      NotificationDetails(
         android: AndroidNotificationDetails(
-          'birthday_channel',
-          'Birthday Notifications',
-          channelDescription: 'Notifications for upcoming birthdays',
+          _defaultChannel.id,
+          _defaultChannel.name,
+          channelDescription: _defaultChannel.description,
           importance: Importance.high,
           priority: Priority.high,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: const DarwinNotificationDetails(),
       ),
-      payload: message.data.toString(),
+      payload: _notificationPayload,
     );
   }
 
-  /// Handle notification tap
   static void _handleNotificationTap(RemoteMessage message) {
-    // Navigate to relevant screen based on notification data
-    final data = message.data;
-    if (data['type'] == 'birthday') {
-      // Navigate to member profile or birthday list
-      // This would typically use a navigation service
-    }
+    AppNavigator.navigateToNotifications();
   }
 
-  /// Handle local notification tap
   static void _onNotificationTapped(NotificationResponse response) {
-    // Handle local notification tap
-    // Navigate to relevant screen
+    AppNavigator.navigateToNotifications();
   }
 
   /// Get initial message (if app was opened from notification)
@@ -120,6 +110,14 @@ class PushNotificationHandler {
     if (Firebase.apps.isEmpty) {
       return null;
     }
-    return await FirebaseMessaging.instance.getInitialMessage();
+    return FirebaseMessaging.instance.getInitialMessage();
+  }
+
+  /// Call after the app shell is ready (post-login navigation).
+  static Future<void> handleLaunchNotification() async {
+    final initialMessage = await getInitialMessage();
+    if (initialMessage != null) {
+      AppNavigator.markPendingNotificationsNavigation();
+    }
   }
 }

@@ -19,7 +19,7 @@ class SettingsPage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const SettingsPage({super.key, this.hideAppBarAndBottomNav = false});
+  SettingsPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -179,7 +179,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(localizations?.exporting ?? 'Exporting data...'),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -195,7 +195,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'Data exported successfully to:\n$filePath',
               ),
               backgroundColor: AppColors.success,
-              duration: const Duration(seconds: 4),
+              duration: Duration(seconds: 4),
             ),
           );
         } else {
@@ -285,7 +285,7 @@ class _SettingsPageState extends State<SettingsPage> {
           content: Text(
             localizations?.syncing ?? 'Syncing users and members...',
           ),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -310,7 +310,7 @@ class _SettingsPageState extends State<SettingsPage> {
           SnackBar(
             content: Text(message),
             backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 6),
+            duration: Duration(seconds: 6),
           ),
         );
       }
@@ -320,7 +320,7 @@ class _SettingsPageState extends State<SettingsPage> {
           SnackBar(
             content: Text(localizations?.syncFailed ?? 'Sync failed: $e'),
             backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
           ),
         );
       }
@@ -335,7 +335,7 @@ class _SettingsPageState extends State<SettingsPage> {
           content: Text(
             localizations?.generatingReport ?? 'Generating report...',
           ),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -351,7 +351,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     'Report saved successfully to:\n$filePath',
               ),
               backgroundColor: AppColors.success,
-              duration: const Duration(seconds: 4),
+              duration: Duration(seconds: 4),
             ),
           );
         } else {
@@ -410,7 +410,7 @@ class _SettingsPageState extends State<SettingsPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(localizations?.importing ?? 'Importing data...'),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
         ),
       );
     }
@@ -429,7 +429,7 @@ class _SettingsPageState extends State<SettingsPage> {
           SnackBar(
             content: Text(message),
             backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 5),
+            duration: Duration(seconds: 5),
           ),
         );
       }
@@ -450,9 +450,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Consumer<SettingsProvider>(
       builder: (context, settingsProvider, _) {
         if (settingsProvider.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
         final localizations = AppLocalizations.of(context);
@@ -461,7 +459,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ? null
               : AppBar(title: Text(localizations?.settings ?? 'Settings')),
           body: ListView(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             children: [
               // Language Settings
               _buildSectionHeader(
@@ -469,7 +467,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.language),
+                  leading: Icon(Icons.language),
                   title: Text(localizations?.language ?? 'Language'),
                   subtitle: Text(
                     settingsProvider.locale?.languageCode == 'fr'
@@ -478,11 +476,11 @@ class _SettingsPageState extends State<SettingsPage> {
                         ? 'Español'
                         : 'English',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Icon(Icons.chevron_right),
                   onTap: () => _showLanguageDialog(settingsProvider.locale),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Appearance Settings
               _buildSectionHeader(localizations?.appearance ?? 'Appearance'),
@@ -490,7 +488,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.brightness_6),
+                      leading: Icon(Icons.brightness_6),
                       title: Text(localizations?.theme ?? 'Theme'),
                       subtitle: Text(
                         settingsProvider.themeMode == ThemeMode.light
@@ -500,13 +498,13 @@ class _SettingsPageState extends State<SettingsPage> {
                             : (localizations?.systemDefault ??
                                   'System Default'),
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: () => _showThemeDialog(settingsProvider.themeMode),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Notifications Settings
               _buildSectionHeader(
@@ -514,7 +512,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               Card(
                 child: SwitchListTile(
-                  secondary: const Icon(Icons.notifications),
+                  secondary: Icon(Icons.notifications),
                   title: Text(
                     localizations?.enableNotifications ??
                         'Enable Notifications',
@@ -527,7 +525,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onChanged: _toggleNotifications,
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Data Management
               _buildSectionHeader(
@@ -537,7 +535,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.upload_file,
                         color: AppColors.primary,
                       ),
@@ -548,12 +546,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         localizations?.exportAllDataSubtitle ??
                             'Export all data to JSON file',
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: _exportAllData,
                     ),
-                    const Divider(),
+                    Divider(),
                     ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.file_download,
                         color: AppColors.primary,
                       ),
@@ -562,15 +560,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         localizations?.importDataSubtitle ??
                             'Import data from JSON file',
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: _importData,
                     ),
-                    const Divider(),
+                    Divider(),
                     ListTile(
-                      leading: const Icon(
-                        Icons.people,
-                        color: AppColors.primary,
-                      ),
+                      leading: Icon(Icons.people, color: AppColors.primary),
                       title: Text(
                         localizations?.exportMembers ?? 'Export Members',
                       ),
@@ -578,12 +573,12 @@ class _SettingsPageState extends State<SettingsPage> {
                         localizations?.exportMembersSubtitle ??
                             'Export members to CSV',
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: _exportMembers,
                     ),
-                    const Divider(),
+                    Divider(),
                     ListTile(
-                      leading: const Icon(Icons.sync, color: AppColors.primary),
+                      leading: Icon(Icons.sync, color: AppColors.primary),
                       title: Text(
                         localizations?.syncUsersMembers ??
                             'Sync Users & Members',
@@ -592,22 +587,19 @@ class _SettingsPageState extends State<SettingsPage> {
                         localizations?.syncUsersMembers ??
                             'Create members for all users and users for all leaders',
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Icon(Icons.chevron_right),
                       onTap: _syncUsersAndMembers,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Reports
               _buildSectionHeader(localizations?.reports ?? 'Reports'),
               Card(
                 child: ListTile(
-                  leading: const Icon(
-                    Icons.assessment,
-                    color: AppColors.primary,
-                  ),
+                  leading: Icon(Icons.assessment, color: AppColors.primary),
                   title: Text(
                     localizations?.generateAllUsersReport ??
                         'Generate All Users Report',
@@ -616,17 +608,17 @@ class _SettingsPageState extends State<SettingsPage> {
                     localizations?.generateReportComprehensive ??
                         'Generate comprehensive report for all users',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Icon(Icons.chevron_right),
                   onTap: _generateAllUsersReport,
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Other Settings
               _buildSectionHeader(localizations?.other ?? 'Other'),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.cake),
+                  leading: Icon(Icons.cake),
                   title: Text(
                     localizations?.birthdayNotifications ??
                         'Birthday Notifications',
@@ -635,7 +627,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     localizations?.configureBirthdayNotifications ??
                         'Configure birthday notification settings',
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(context).pushNamed(
                       RouteNames.notifications,
@@ -644,7 +636,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Admin Settings
               if (_isAdmin) ...[
@@ -653,7 +645,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 Card(
                   child: ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.admin_panel_settings,
                       color: AppColors.primary,
                     ),
@@ -665,7 +657,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       localizations?.defineFeatureAccess ??
                           'Define feature access for each leader',
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Icon(Icons.chevron_right),
                     onTap: () {
                       final scope = DesktopShellScope.maybeOf(context);
                       if (widget.hideAppBarAndBottomNav && scope != null) {
@@ -678,18 +670,15 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Card(
                   child: ListTile(
-                    leading: const Icon(
-                      Icons.person_add,
-                      color: AppColors.primary,
-                    ),
-                    title: const Text('Member Accounts'),
-                    subtitle: const Text(
+                    leading: Icon(Icons.person_add, color: AppColors.primary),
+                    title: Text(context.tr('Member Accounts')),
+                    subtitle: Text(
                       'Create login accounts for members and manage their access',
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Icon(Icons.chevron_right),
                     onTap: () {
                       final scope = DesktopShellScope.maybeOf(context);
                       if (widget.hideAppBarAndBottomNav && scope != null) {
@@ -702,7 +691,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
               ],
 
               // Account
@@ -711,19 +700,19 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   children: [
                     ListTile(
-                      leading: const Icon(Icons.person),
+                      leading: Icon(Icons.person),
                       title: Text(localizations?.currentUser ?? 'Current User'),
                       subtitle: Text(
                         SupabaseService.currentUser?.email ??
                             (localizations?.notLoggedIn ?? 'Not logged in'),
                       ),
                     ),
-                    const Divider(),
+                    Divider(),
                     ListTile(
-                      leading: const Icon(Icons.logout, color: AppColors.error),
+                      leading: Icon(Icons.logout, color: AppColors.error),
                       title: Text(
                         localizations?.logout ?? 'Logout',
-                        style: const TextStyle(color: AppColors.error),
+                        style: TextStyle(color: AppColors.error),
                       ),
                       subtitle: Text(
                         localizations?.signOutAccount ??
@@ -734,15 +723,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // App Info
               _buildSectionHeader(localizations?.about ?? 'About'),
               Card(
                 child: ListTile(
-                  leading: const Icon(Icons.info),
+                  leading: Icon(Icons.info),
                   title: Text(localizations?.appVersion ?? 'App Version'),
-                  subtitle: const Text('1.0.0'),
+                  subtitle: Text('1.0.0'),
                 ),
               ),
             ],
@@ -800,7 +789,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildSectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(
+      padding: EdgeInsets.only(
         top: AppDimensions.spacingMD,
         bottom: AppDimensions.spacingSM,
       ),
@@ -824,21 +813,21 @@ class _SettingsPageState extends State<SettingsPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<Locale>(
-              title: const Text('English'),
-              value: const Locale('en'),
-              groupValue: currentLocale ?? const Locale('en'),
+              title: Text(context.tr('English')),
+              value: Locale('en'),
+              groupValue: currentLocale ?? Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<Locale>(
-              title: const Text('Español'),
-              value: const Locale('es'),
-              groupValue: currentLocale ?? const Locale('en'),
+              title: Text(context.tr('Español')),
+              value: Locale('es'),
+              groupValue: currentLocale ?? Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<Locale>(
-              title: const Text('Français'),
-              value: const Locale('fr'),
-              groupValue: currentLocale ?? const Locale('en'),
+              title: Text(context.tr('Français')),
+              value: Locale('fr'),
+              groupValue: currentLocale ?? Locale('en'),
               onChanged: (value) => Navigator.pop(context, value),
             ),
           ],

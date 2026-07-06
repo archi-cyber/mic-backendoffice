@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/chat_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/department_service.dart';
 import 'add_announcement_page.dart';
 import 'edit_announcement_page.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Chat/Announcements page
 class ChatPage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const ChatPage({super.key, this.hideAppBarAndBottomNav = false});
+  ChatPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -84,7 +86,9 @@ class _ChatPageState extends State<ChatPage> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading announcements: $e')),
+          SnackBar(
+            content: Text(context.tr('Error loading announcements: $e')),
+          ),
         );
       }
     }
@@ -94,19 +98,19 @@ class _ChatPageState extends State<ChatPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Announcement'),
-        content: const Text(
-          'Are you sure you want to delete this announcement?',
+        title: Text(context.tr('Delete Announcement')),
+        content: Text(
+          context.tr('Are you sure you want to delete this announcement?'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -117,8 +121,8 @@ class _ChatPageState extends State<ChatPage> {
         await ChatService.deleteAnnouncement(announcementId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Announcement deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Announcement deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -128,7 +132,7 @@ class _ChatPageState extends State<ChatPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting announcement: $e'),
+              content: Text(context.tr('Error deleting announcement: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -182,9 +186,9 @@ class _ChatPageState extends State<ChatPage> {
     final targetCount = targetMemberIds is List ? targetMemberIds.length : 0;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
+      margin: EdgeInsets.only(bottom: AppDimensions.spacingMD),
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -200,11 +204,11 @@ class _ChatPageState extends State<ChatPage> {
                   PopupMenuButton(
                     itemBuilder: (context) => [
                       PopupMenuItem(
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(Icons.edit, color: AppColors.primary),
                             SizedBox(width: 8),
-                            Text('Edit'),
+                            Text(context.tr('Edit')),
                           ],
                         ),
                         onTap: () async {
@@ -221,11 +225,11 @@ class _ChatPageState extends State<ChatPage> {
                         },
                       ),
                       PopupMenuItem(
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(Icons.delete, color: AppColors.error),
                             SizedBox(width: 8),
-                            Text('Delete'),
+                            Text(context.tr('Delete')),
                           ],
                         ),
                         onTap: () =>
@@ -235,14 +239,14 @@ class _ChatPageState extends State<ChatPage> {
                   ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingXS),
+            SizedBox(height: AppDimensions.spacingXS),
             Wrap(
               spacing: AppDimensions.spacingXS,
               runSpacing: AppDimensions.spacingXS,
               children: [
                 if (isGlobal)
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppDimensions.spacingSM,
                       vertical: AppDimensions.spacingXS,
                     ),
@@ -254,7 +258,7 @@ class _ChatPageState extends State<ChatPage> {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(Icons.public, size: 14, color: AppColors.primary),
                         SizedBox(width: AppDimensions.spacingXS),
                         Text(
@@ -269,7 +273,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 if (!isGlobal && targetCount > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppDimensions.spacingSM,
                       vertical: AppDimensions.spacingXS,
                     ),
@@ -282,15 +286,11 @@ class _ChatPageState extends State<ChatPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.people,
-                          size: 14,
-                          color: AppColors.warning,
-                        ),
-                        const SizedBox(width: AppDimensions.spacingXS),
+                        Icon(Icons.people, size: 14, color: AppColors.warning),
+                        SizedBox(width: AppDimensions.spacingXS),
                         Text(
                           '$targetCount member(s)',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.warning,
                           ),
@@ -300,12 +300,12 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                 if (departmentId != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppDimensions.spacingSM,
                       vertical: AppDimensions.spacingXS,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.textSecondary.withValues(alpha: 0.1),
+                      color: context.mic.textSecondary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSM,
                       ),
@@ -313,12 +313,12 @@ class _ChatPageState extends State<ChatPage> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.group_work,
                           size: 14,
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
-                        const SizedBox(width: AppDimensions.spacingXS),
+                        SizedBox(width: AppDimensions.spacingXS),
                         Text(
                           _departments
                                   .firstWhere(
@@ -327,9 +327,9 @@ class _ChatPageState extends State<ChatPage> {
                                   )['name']
                                   ?.toString() ??
                               'Department',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.textSecondary,
+                            color: context.mic.textSecondary,
                           ),
                         ),
                       ],
@@ -337,18 +337,18 @@ class _ChatPageState extends State<ChatPage> {
                   ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingSM),
             Text(
               announcement['message'] ?? '',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (createdAt != null) ...[
-              const SizedBox(height: AppDimensions.spacingSM),
+              SizedBox(height: AppDimensions.spacingSM),
               Text(
                 _formatDate(createdAt),
                 style: Theme.of(
                   context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+                ).textTheme.bodySmall?.copyWith(color: context.mic.textSecondary),
               ),
             ],
           ],
@@ -363,49 +363,49 @@ class _ChatPageState extends State<ChatPage> {
       appBar: widget.hideAppBarAndBottomNav
           ? null
           : AppBar(
-              title: const Text('Announcements'),
+              title: Text(context.tr('Announcements')),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.filter_list),
+                  icon: Icon(Icons.filter_list),
                   onPressed: () => _showFilterDialog(),
-                  tooltip: 'Filter',
+                  tooltip: context.tr('Filter'),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh),
                   onPressed: _loadAnnouncements,
-                  tooltip: 'Refresh',
+                  tooltip: context.tr('Refresh'),
                 ),
               ],
             ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _announcements.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.campaign,
                     size: 64,
-                    color: AppColors.textSecondary,
+                    color: context.mic.textSecondary,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
-                  const Text('No announcements'),
+                  SizedBox(height: AppDimensions.spacingMD),
+                  Text(context.tr('No announcements')),
                   if (_canCreateAnnouncement) ...[
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     ElevatedButton.icon(
                       onPressed: () async {
                         final result = await Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => const AddAnnouncementPage(),
+                            builder: (_) => AddAnnouncementPage(),
                           ),
                         );
                         if (result == true) {
                           _loadAnnouncements();
                         }
                       },
-                      icon: const Icon(Icons.add),
-                      label: const Text('Create Announcement'),
+                      icon: Icon(Icons.add),
+                      label: Text(context.tr('Create Announcement')),
                     ),
                   ],
                 ],
@@ -414,7 +414,7 @@ class _ChatPageState extends State<ChatPage> {
           : RefreshIndicator(
               onRefresh: _loadAnnouncements,
               child: ListView.builder(
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                padding: EdgeInsets.all(AppDimensions.paddingMD),
                 itemCount: _announcements.length,
                 itemBuilder: (context, index) {
                   return _buildAnnouncementCard(_announcements[index]);
@@ -425,16 +425,14 @@ class _ChatPageState extends State<ChatPage> {
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final result = await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AddAnnouncementPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => AddAnnouncementPage()),
                 );
                 if (result == true) {
                   _loadAnnouncements();
                 }
               },
-              icon: const Icon(Icons.add),
-              label: const Text('New Announcement'),
+              icon: Icon(Icons.add),
+              label: Text(context.tr('New Announcement')),
             )
           : null,
     );
@@ -445,14 +443,14 @@ class _ChatPageState extends State<ChatPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Filter Announcements'),
+          title: Text(context.tr('Filter Announcements')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SwitchListTile(
-                  title: const Text('Global Only'),
-                  subtitle: const Text('Show only global announcements'),
+                  title: Text(context.tr('Global Only')),
+                  subtitle: Text(context.tr('Show only global announcements')),
                   value: _showGlobalOnly,
                   onChanged: (value) {
                     setDialogState(() {
@@ -464,18 +462,18 @@ class _ChatPageState extends State<ChatPage> {
                   },
                 ),
                 if (!_showGlobalOnly) ...[
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   DropdownButtonFormField<String>(
                     initialValue: _selectedDepartmentFilter,
-                    decoration: const InputDecoration(
-                      labelText: 'Department',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Department'),
                       prefixIcon: Icon(Icons.group_work),
                       border: OutlineInputBorder(),
                     ),
                     items: [
-                      const DropdownMenuItem<String>(
+                      DropdownMenuItem<String>(
                         value: null,
-                        child: Text('All Departments'),
+                        child: Text(context.tr('All Departments')),
                       ),
                       ..._departments.map((dept) {
                         return DropdownMenuItem<String>(
@@ -504,18 +502,18 @@ class _ChatPageState extends State<ChatPage> {
                 Navigator.pop(context);
                 _loadAnnouncements();
               },
-              child: const Text('Reset'),
+              child: Text(context.tr('Reset')),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 _loadAnnouncements();
               },
-              child: const Text('Apply'),
+              child: Text(context.tr('Apply')),
             ),
           ],
         ),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../services/tag_service.dart';
 import '../../services/department_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Manage tags page (tags are per department). Pass [departmentId] or select one.
 class ManageTagsPage extends StatefulWidget {
@@ -12,7 +14,7 @@ class ManageTagsPage extends StatefulWidget {
 
   final void Function(bool? result)? onClose;
 
-  const ManageTagsPage({super.key, this.departmentId, this.onClose});
+  ManageTagsPage({super.key, this.departmentId, this.onClose});
 
   @override
   State<ManageTagsPage> createState() => _ManageTagsPageState();
@@ -22,6 +24,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
   List<Map<String, dynamic>> _tags = [];
   List<Map<String, dynamic>> _departments = [];
   String? _selectedDepartmentId;
+  String? _selectedTagId;
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLoadingDepts = true;
@@ -56,36 +59,41 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
     if (_selectedDepartmentId == null) return;
     setState(() => _isLoading = true);
     try {
-      final tags = await TagService.getTags(departmentId: _selectedDepartmentId!, limit: 500);
+      final tags = await TagService.getTags(
+        departmentId: _selectedDepartmentId!,
+        limit: 500,
+      );
       if (!mounted) return;
       setState(() {
         _tags = tags;
+        if (_selectedTagId == null ||
+            !tags.any((tag) => tag['id']?.toString() == _selectedTagId)) {
+          _selectedTagId = tags.isEmpty ? null : tags.first['id']?.toString();
+        }
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading tags: $e')),
+        SnackBar(content: Text(context.tr('Error loading tags: $e'))),
       );
     }
   }
 
-  Future<void> _addTag() async {
-    if (_selectedDepartmentId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a department first')),
-      );
-      return;
-    }
+  Future<Map<String, String>?> _showTagEditorDialog({
+    Map<String, dynamic>? tag,
+  }) async {
     final nameController = TextEditingController();
-    String selectedColor = TagColors.presetHex.first;
+    nameController.text = tag?['name']?.toString() ?? '';
+    String selectedColor =
+        tag?['color']?.toString() ?? TagColors.presetHex.first;
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('New tag'),
+            title: Text(tag == null ? 'Create tag' : 'Edit tag'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -93,19 +101,16 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                 children: [
                   TextField(
                     controller: nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Tag name',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Tag name'),
                       border: OutlineInputBorder(),
                     ),
                     autofocus: true,
                     textCapitalization: TextCapitalization.none,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Color',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 16),
+                  Text('Color', style: Theme.of(context).textTheme.titleSmall),
+                  SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -129,7 +134,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                               BoxShadow(
                                 color: Colors.black26,
                                 blurRadius: 2,
-                                offset: const Offset(0, 1),
+                                offset: Offset(0, 1),
                               ),
                             ],
                           ),
@@ -143,7 +148,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: Text(context.tr('Cancel')),
               ),
               FilledButton(
                 onPressed: () {
@@ -153,13 +158,25 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                     'color': selectedColor,
                   });
                 },
-                child: const Text('Add'),
+                child: Text(tag == null ? 'Create' : 'Update'),
               ),
             ],
           );
         },
       ),
     );
+    nameController.dispose();
+    return result;
+  }
+
+  Future<void> _addTag() async {
+    if (_selectedDepartmentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Select a department first'))),
+      );
+      return;
+    }
+    final result = await _showTagEditorDialog();
     if (result == null || !mounted) return;
     final name = result['name']!;
     final color = result['color'];
@@ -172,8 +189,39 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tag added'),
+        SnackBar(
+          content: Text(context.tr('Tag added')),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _loadTags();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _editTag(Map<String, dynamic> tag) async {
+    final result = await _showTagEditorDialog(tag: tag);
+    if (result == null || !mounted) return;
+    setState(() => _isSaving = true);
+    try {
+      await TagService.updateTag(
+        tagId: tag['id'].toString(),
+        name: result['name'],
+        color: result['color'],
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Tag updated')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -195,19 +243,19 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete tag?'),
+        title: Text(context.tr('Delete tag?')),
         content: Text(
           'Remove tag "${tag['name']}"? Tasks will no longer have this tag.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -218,8 +266,8 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
       await TagService.deleteTag(tag['id'].toString());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tag removed'),
+        SnackBar(
+          content: Text(context.tr('Tag removed')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -238,68 +286,79 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
   }
 
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 720;
+  static const double _kDesktopMaxWidth = 1180;
+
+  bool get _isDesktopShell =>
+      widget.onClose != null &&
+      MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final isDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => widget.onClose!(null),
-              )
-            : null,
-        title: const Text('Manage tags'),
-        actions: [
-          if (isDesktop)
-            Padding(
-              padding: const EdgeInsets.only(right: AppDimensions.paddingSM),
-              child: FilledButton.icon(
-                onPressed: _selectedDepartmentId == null || _isSaving
-                    ? null
-                    : _addTag,
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('Add tag'),
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: _selectedDepartmentId == null || _isSaving
-                  ? null
-                  : _addTag,
-              tooltip: 'Add tag',
+      appBar: _isDesktopShell
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: Icon(Icons.arrow_back),
+                      onPressed: () => widget.onClose!(null),
+                    )
+                  : null,
+              title: Text(context.tr('Manage tags')),
+              actions: [
+                if (isDesktop)
+                  Padding(
+                    padding: EdgeInsets.only(right: AppDimensions.paddingSM),
+                    child: FilledButton.icon(
+                      onPressed: _selectedDepartmentId == null || _isSaving
+                          ? null
+                          : _addTag,
+                      icon: Icon(Icons.add, size: 20),
+                      label: Text(context.tr('Add tag')),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(Icons.add),
+                    onPressed: _selectedDepartmentId == null || _isSaving
+                        ? null
+                        : _addTag,
+                    tooltip: context.tr('Add tag'),
+                  ),
+              ],
             ),
-        ],
-      ),
       body: _isLoadingDepts
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _buildBody(context, isDesktop),
     );
   }
 
   Widget _buildBody(BuildContext context, bool isDesktop) {
+    if (isDesktop) {
+      return _buildDesktopBody(context);
+    }
+
     final column = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: DropdownButtonFormField<String>(
             initialValue: _selectedDepartmentId,
             isExpanded: true,
-            decoration: const InputDecoration(
-              labelText: 'Department',
+            decoration: InputDecoration(
+              labelText: context.tr('Department'),
               border: OutlineInputBorder(),
             ),
             items: _departments
-                .map((d) => DropdownMenuItem<String>(
-                      value: d['id'].toString(),
-                      child: Text(d['name']?.toString() ?? ''),
-                    ))
+                .map(
+                  (d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(),
+                    child: Text(d['name']?.toString() ?? ''),
+                  ),
+                )
                 .toList(),
             onChanged: (v) {
               setState(() => _selectedDepartmentId = v);
@@ -309,47 +368,307 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
         ),
         Expanded(
           child: _selectedDepartmentId == null
-              ? const Center(child: Text('Select a department'))
+              ? Center(child: Text(context.tr('Select a department')))
               : _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _tags.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.label_off_outlined,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.outline),
-                              const SizedBox(height: AppDimensions.spacingMD),
-                              Text(
-                                'No tags in this department',
-                                style: Theme.of(context).textTheme.titleMedium,
+              ? Center(child: CircularProgressIndicator())
+              : _tags.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.label_off_outlined,
+                        size: 64,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(
+                        'No tags in this department',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      SizedBox(height: AppDimensions.spacingSM),
+                      FilledButton.icon(
+                        onPressed: _addTag,
+                        icon: Icon(Icons.add),
+                        label: Text(context.tr('Add tag')),
+                      ),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadTags,
+                  child: ListView.builder(
+                    padding: EdgeInsets.all(AppDimensions.paddingMD),
+                    itemCount: _tags.length,
+                    itemBuilder: (context, index) {
+                      final tag = _tags[index];
+                      final color = TagColors.colorFromHex(
+                        tag['color']?.toString(),
+                      );
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: color.computeLuminance() > 0.5
+                                    ? Colors.black26
+                                    : Colors.white24,
+                                width: 1,
                               ),
-                              const SizedBox(height: AppDimensions.spacingSM),
-                              FilledButton.icon(
-                                onPressed: _addTag,
-                                icon: const Icon(Icons.add),
-                                label: const Text('Add tag'),
-                              ),
-                            ],
+                            ),
                           ),
-                        )
-                      : RefreshIndicator(
-                          onRefresh: _loadTags,
-                          child: ListView.builder(
-                            padding: const EdgeInsets.all(
-                                AppDimensions.paddingMD),
-                            itemCount: _tags.length,
-                            itemBuilder: (context, index) {
-                              final tag = _tags[index];
-                              final color = TagColors.colorFromHex(
-                                  tag['color']?.toString());
-                              return Card(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                child: ListTile(
-                                  leading: Container(
-                                    width: 24,
-                                    height: 24,
+                          title: Text(tag['name']?.toString() ?? ''),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete_outline),
+                            onPressed: () => _deleteTag(tag),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
+    );
+
+    return column;
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final selectedTag = _tags.cast<Map<String, dynamic>?>().firstWhere(
+      (tag) => tag?['id']?.toString() == _selectedTagId,
+      orElse: () => _tags.isEmpty ? null : _tags.first,
+    );
+
+    return Padding(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 390,
+                child: _TagsListPanel(
+                  departments: _departments,
+                  tags: _tags,
+                  selectedDepartmentId: _selectedDepartmentId,
+                  selectedTagId: _selectedTagId,
+                  isLoading: _isLoading,
+                  isSaving: _isSaving,
+                  onDepartmentChanged: (value) {
+                    setState(() {
+                      _selectedDepartmentId = value;
+                      _selectedTagId = null;
+                    });
+                    _loadTags();
+                  },
+                  onSelectTag: (id) => setState(() => _selectedTagId = id),
+                  onAddTag: _selectedDepartmentId == null || _isSaving
+                      ? null
+                      : _addTag,
+                  onRefresh: _selectedDepartmentId == null ? null : _loadTags,
+                ),
+              ),
+              SizedBox(width: AppDimensions.spacingLG),
+              Expanded(
+                child: selectedTag == null
+                    ? Material(
+                        color: theme.colorScheme.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusXL,
+                          ),
+                          side: BorderSide(
+                            color: theme.dividerColor.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _selectedDepartmentId == null
+                                ? 'Select a department'
+                                : 'Select a tag',
+                          ),
+                        ),
+                      )
+                    : _TagDetailsPanel(
+                        tag: selectedTag,
+                        onEdit: () => _editTag(selectedTag),
+                        onDelete: () => _deleteTag(selectedTag),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TagsListPanel extends StatelessWidget {
+  final List<Map<String, dynamic>> departments;
+  final List<Map<String, dynamic>> tags;
+  final String? selectedDepartmentId;
+  final String? selectedTagId;
+  final bool isLoading;
+  final bool isSaving;
+  final ValueChanged<String?> onDepartmentChanged;
+  final ValueChanged<String> onSelectTag;
+  final VoidCallback? onAddTag;
+  final Future<void> Function()? onRefresh;
+
+  _TagsListPanel({
+    required this.departments,
+    required this.tags,
+    required this.selectedDepartmentId,
+    required this.selectedTagId,
+    required this.isLoading,
+    required this.isSaving,
+    required this.onDepartmentChanged,
+    required this.onSelectTag,
+    required this.onAddTag,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Tags',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: onRefresh == null ? null : () => onRefresh!(),
+                      icon: Icon(Icons.refresh),
+                      tooltip: context.tr('Refresh'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: onAddTag,
+                      icon: Icon(Icons.add, size: 18),
+                      label: Text(context.tr('Add')),
+                    ),
+                  ],
+                ),
+                SizedBox(height: AppDimensions.spacingMD),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedDepartmentId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: context.tr('Department'),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: departments
+                      .map(
+                        (department) => DropdownMenuItem<String>(
+                          value: department['id'].toString(),
+                          child: Text(
+                            department['name']?.toString() ?? '',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: isSaving ? null : onDepartmentChanged,
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1),
+          Expanded(
+            child: selectedDepartmentId == null
+                ? Center(child: Text(context.tr('Select a department')))
+                : isLoading
+                ? Center(child: CircularProgressIndicator())
+                : tags.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppDimensions.paddingLG),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.label_off_outlined,
+                            size: 48,
+                            color: theme.colorScheme.outline,
+                          ),
+                          SizedBox(height: AppDimensions.spacingMD),
+                          Text(
+                            'No tags yet',
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          SizedBox(height: AppDimensions.spacingSM),
+                          FilledButton.icon(
+                            onPressed: onAddTag,
+                            icon: Icon(Icons.add),
+                            label: Text(context.tr('Create tag')),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: onRefresh ?? () async {},
+                    child: ListView.separated(
+                      padding: EdgeInsets.all(AppDimensions.paddingMD),
+                      itemCount: tags.length,
+                      separatorBuilder: (_, __) =>
+                          SizedBox(height: AppDimensions.spacingSM),
+                      itemBuilder: (context, index) {
+                        final tag = tags[index];
+                        final id = tag['id']?.toString() ?? '';
+                        final color = TagColors.colorFromHex(
+                          tag['color']?.toString(),
+                        );
+                        final selected = id == selectedTagId;
+                        return Material(
+                          color: selected
+                              ? color.withValues(alpha: 0.14)
+                              : theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusLG,
+                          ),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(
+                              AppDimensions.radiusLG,
+                            ),
+                            onTap: () => onSelectTag(id),
+                            child: Padding(
+                              padding: EdgeInsets.all(AppDimensions.paddingMD),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 28,
+                                    height: 28,
                                     decoration: BoxDecoration(
                                       color: color,
                                       shape: BoxShape.circle,
@@ -357,32 +676,134 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                                         color: color.computeLuminance() > 0.5
                                             ? Colors.black26
                                             : Colors.white24,
-                                        width: 1,
                                       ),
                                     ),
                                   ),
-                                  title: Text(tag['name']?.toString() ?? ''),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () => _deleteTag(tag),
+                                  SizedBox(width: AppDimensions.spacingSM),
+                                  Expanded(
+                                    child: Text(
+                                      tag['name']?.toString() ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-        ),
-      ],
+                        );
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
+  }
+}
 
-    if (isDesktop) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _kDesktopMaxWidth),
-          child: column,
+class _TagDetailsPanel extends StatelessWidget {
+  final Map<String, dynamic> tag;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  _TagDetailsPanel({
+    required this.tag,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = TagColors.colorFromHex(tag['color']?.toString());
+    final name = tag['name']?.toString() ?? 'Tag';
+
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
+      ),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: color.computeLuminance() > 0.5
+                          ? Colors.black26
+                          : Colors.white24,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                SizedBox(width: AppDimensions.spacingMD),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: AppDimensions.spacingXS),
+                      Text(
+                        tag['color']?.toString() ?? 'Default color',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: context.mic.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: onEdit,
+                  icon: Icon(Icons.edit_outlined),
+                  label: Text(context.tr('Edit')),
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(AppDimensions.paddingLG),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+                border: Border.all(color: color.withValues(alpha: 0.35)),
+              ),
+              child: Text(
+                'Use this tag to classify tasks inside the selected department.',
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            OutlinedButton.icon(
+              onPressed: onDelete,
+              icon: Icon(Icons.delete_outline),
+              label: Text(context.tr('Delete tag')),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+            ),
+          ],
         ),
-      );
-    }
-    return column;
+      ),
+    );
   }
 }

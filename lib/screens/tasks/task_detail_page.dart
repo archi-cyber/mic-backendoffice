@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/task_service.dart';
+import '../../services/task_penalty_service.dart';
 import '../../services/member_service.dart';
 import '../../services/department_service.dart';
 import '../../services/role_service.dart';
-import '../desktop/desktop_shell_scope.dart';
+import 'edit_task_page.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Task detail page with assign and remind functionality
 class TaskDetailPage extends StatefulWidget {
@@ -17,7 +21,7 @@ class TaskDetailPage extends StatefulWidget {
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
-  const TaskDetailPage({super.key, required this.taskId, this.onClose});
+  TaskDetailPage({super.key, required this.taskId, this.onClose});
 
   @override
   State<TaskDetailPage> createState() => _TaskDetailPageState();
@@ -64,9 +68,9 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading task: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading task: $e'))),
+        );
       }
     }
   }
@@ -76,8 +80,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       await TaskService.assignTask(taskId: widget.taskId, memberId: memberId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Task assigned successfully'),
+          SnackBar(
+            content: Text(context.tr('Task assigned successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -87,7 +91,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to assign task: $e'),
+            content: Text(context.tr('Failed to assign task: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -100,8 +104,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       await TaskService.remindTask(taskId: widget.taskId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Reminder sent successfully'),
+          SnackBar(
+            content: Text(context.tr('Reminder sent successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -110,7 +114,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send reminder: $e'),
+            content: Text(context.tr('Failed to send reminder: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -126,8 +130,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (departmentId == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Task must be assigned to a department first'),
+            SnackBar(
+              content: Text(
+                context.tr('Task must be assigned to a department first'),
+              ),
               backgroundColor: AppColors.error,
             ),
           );
@@ -148,22 +154,24 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           .where((m) => m != null)
           .cast<Map<String, dynamic>>()
           .toList();
+      final membersWithPenalties =
+          await TaskPenaltyService.annotateMembersWithPenalties(members);
+      if (!mounted) return;
 
-      if (members.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No members found in this department'),
-              backgroundColor: AppColors.warning,
-            ),
-          );
-        }
+      if (membersWithPenalties.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.tr('No members found in this department')),
+            backgroundColor: AppColors.warning,
+          ),
+        );
         return;
       }
 
       final selectedMember = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) => _AssignMemberDialog(members: members),
+        builder: (context) =>
+            _AssignMemberDialog(members: membersWithPenalties),
       );
 
       if (selectedMember != null) {
@@ -173,7 +181,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading members: $e'),
+            content: Text(context.tr('Error loading members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -181,10 +189,149 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     }
   }
 
+  Future<void> _openEditTask() async {
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= _kTaskDetailDesktopBreakpoint &&
+        widget.onClose != null;
+
+    if (isDesktop) {
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return Dialog(
+            clipBehavior: Clip.antiAlias,
+            insetPadding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: SizedBox(
+              width: 1120,
+              height: MediaQuery.sizeOf(dialogContext).height * 0.9,
+              child: EditTaskPage(
+                taskId: widget.taskId,
+                onClose: (result) => Navigator.of(dialogContext).pop(result),
+              ),
+            ),
+          );
+        },
+      );
+      if (result == true && mounted) _loadTaskData();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.editTask.replaceAll(':id', widget.taskId));
+    if (result == true && mounted) _loadTaskData();
+  }
+
+  bool _isCompactTaskDetail(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < _kTaskDetailDesktopBreakpoint;
+
+  static const double _kTaskDetailDesktopBreakpoint = 700;
+  static const double _kTaskDetailDesktopMaxWidth = 900;
+
+  List<Widget> _buildTaskAppBarActions({required bool compact}) {
+    if (compact) {
+      return [
+        PopupMenuButton<String>(
+          onSelected: (action) {
+            switch (action) {
+              case 'edit':
+                _openEditTask();
+              case 'remind':
+                _remindTask();
+              case 'archive':
+                _archiveTask();
+              case 'delete':
+                _deleteTask();
+            }
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'edit',
+              child: ListTile(
+                leading: Icon(Icons.edit_outlined),
+                title: Text(context.tr('Edit task')),
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            PopupMenuItem(
+              value: 'remind',
+              child: ListTile(
+                leading: Icon(Icons.notifications_outlined),
+                title: Text(context.tr('Send reminder')),
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            PopupMenuItem(
+              value: 'archive',
+              child: ListTile(
+                leading: Icon(Icons.archive_outlined),
+                title: Text(context.tr('Archive task')),
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: ListTile(
+                leading: Icon(Icons.delete_outline, color: AppColors.error),
+                title: Text(
+                  'Delete task',
+                  style: TextStyle(color: AppColors.error),
+                ),
+                contentPadding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    return [
+      IconButton(
+        icon: Icon(Icons.edit),
+        onPressed: _openEditTask,
+        tooltip: context.tr('Edit Task'),
+      ),
+      IconButton(
+        icon: Icon(Icons.notifications_outlined),
+        onPressed: _remindTask,
+        tooltip: context.tr('Send Reminder'),
+      ),
+      PopupMenuButton(
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            onTap: _archiveTask,
+            child: Row(
+              children: [
+                Icon(Icons.archive_outlined),
+                SizedBox(width: 8),
+                Text(context.tr('Archive Task')),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            onTap: _deleteTask,
+            child: Row(
+              children: [
+                Icon(Icons.delete, color: AppColors.error),
+                SizedBox(width: 8),
+                Text(context.tr('Delete Task')),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_task == null) {
@@ -192,85 +339,62 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: widget.onClose,
                 )
               : null,
-          title: const Text('Task'),
+          title: Text(context.tr('Task')),
         ),
-        body: const Center(child: Text('Task not found')),
+        body: Center(child: Text(context.tr('Task not found'))),
       );
     }
 
+    final compact = _isCompactTaskDetail(context);
+    final isDesktopShell = !compact && widget.onClose != null;
+    final isMobile =
+        MediaQuery.sizeOf(context).width < _kTaskDetailDesktopBreakpoint;
+
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(_task!['title'] ?? 'Task'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {
-              final scope = DesktopShellScope.maybeOf(context);
-              if (scope != null) {
-                scope.pushDetail(RouteNames.editTask, widget.taskId);
-              } else {
-                Navigator.of(context)
-                    .pushNamed(
-                      RouteNames.editTask.replaceAll(':id', widget.taskId),
+      backgroundColor: isMobile ? context.mic.background : null,
+      appBar: isDesktopShell
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: Icon(Icons.arrow_back),
+                      onPressed: widget.onClose,
                     )
-                    .then((result) {
-                      if (result == true) _loadTaskData();
-                    });
-              }
-            },
-            tooltip: 'Edit Task',
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: _remindTask,
-            tooltip: 'Send Reminder',
-          ),
-          PopupMenuButton(
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                child: const Row(
-                  children: [
-                    Icon(Icons.delete, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Delete Task'),
-                  ],
-                ),
-                onTap: () => _deleteTask(),
+                  : null,
+              title: Text(
+                compact
+                    ? context.tr('Task details')
+                    : (isMobile
+                          ? context.tr('Task')
+                          : (_task!['title'] ?? 'Task')),
               ),
-            ],
-          ),
-        ],
-      ),
+              actions: _buildTaskAppBarActions(compact: compact),
+            ),
       body: _buildBody(context),
     );
   }
-
-  static const double _kTaskDetailDesktopBreakpoint = 700;
-  static const double _kTaskDetailDesktopMaxWidth = 900;
 
   Widget _detailLabel(BuildContext context, String text) {
     return Text(
       text,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-          ),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 
   Widget _buildBody(BuildContext context) {
     final isDesktop =
         MediaQuery.sizeOf(context).width >= _kTaskDetailDesktopBreakpoint;
+    if (!isDesktop) {
+      return _buildMobileBody(context);
+    }
+
     final theme = Theme.of(context);
     final status = _task!['status']?.toString() ?? 'pending';
     final priority = _task!['priority']?.toString() ?? 'medium';
@@ -283,233 +407,1214 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final hasTags = taskTags is List && taskTags.isNotEmpty;
     final dueDateStr = _task!['due_date'];
 
-    final content = SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title
-          Text(
-            _task!['title'] ?? 'Task',
-            style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ) ??
-                theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                ) ??
-                TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.onSurface,
-                ),
-          ),
-          const SizedBox(height: AppDimensions.spacingLG),
-          // Details card: all fields in a consistent layout
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: isDesktop ? _buildDetailsGrid(theme, description, status, priority, departmentName, projectTitle, hasTags, taskTags, dueDateStr) : _buildDetailsColumn(theme, description, status, priority, departmentName, projectTitle, hasTags, taskTags, dueDateStr),
-            ),
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-          // Assignments
-          Text('Assigned To', style: theme.textTheme.titleLarge),
-          const SizedBox(height: AppDimensions.spacingSM),
-          _assignments.isEmpty
-              ? Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                    child: Center(
-                      child: Text(
-                        'No assignments yet',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _assignments.length,
-                  itemBuilder: (context, index) {
-                    final assignment = _assignments[index];
-                    final member =
-                        assignment['members'] as Map<String, dynamic>?;
-                    final memberName = member != null
-                        ? '${member['first_name']} ${member['last_name']}'
-                        : 'Member';
-                    final assignmentStatus =
-                        assignment['status']?.toString() ?? 'pending';
-                    final memberId = assignment['member_id']?.toString() ?? '';
+    return _buildDesktopBody(
+      theme: theme,
+      status: status,
+      priority: priority,
+      description: description,
+      departmentName: departmentName,
+      projectTitle: projectTitle,
+      hasTags: hasTags,
+      taskTags: taskTags,
+      dueDateStr: dueDateStr,
+    );
+  }
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        vertical: AppDimensions.spacingXS,
+  Widget _buildDesktopBody({
+    required ThemeData theme,
+    required String status,
+    required String priority,
+    required String description,
+    required String departmentName,
+    required String? projectTitle,
+    required bool hasTags,
+    required dynamic taskTags,
+    required dynamic dueDateStr,
+  }) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _kTaskDetailDesktopMaxWidth),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+                  border: Border.all(
+                    color: theme.dividerColor.withValues(alpha: 0.45),
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      _getStatusColor(status).withValues(alpha: 0.12),
+                      theme.colorScheme.surface,
+                      theme.colorScheme.surface,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.04),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(AppDimensions.paddingLG),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _task!['title']?.toString() ?? 'Task',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                height: 1.2,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: AppDimensions.spacingMD),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: _buildTaskAppBarActions(compact: false),
+                          ),
+                        ],
                       ),
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(
-                            member?['first_name']?[0]
-                                    ?.toString()
-                                    .toUpperCase() ??
-                                'M',
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Wrap(
+                        spacing: AppDimensions.spacingSM,
+                        runSpacing: AppDimensions.spacingSM,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _statusPriorityChip(status, true),
+                          _statusPriorityChip(priority, false),
+                          if (dueDateStr != null)
+                            _DesktopInfoChip(
+                              icon: Icons.event_outlined,
+                              label:
+                                  'Due ${_formatDate(DateTime.parse(dueDateStr.toString()))}',
+                            ),
+                          _DesktopInfoChip(
+                            icon: Icons.people_outline,
+                            label:
+                                '${_assignments.length} assignee${_assignments.length == 1 ? '' : 's'}',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: AppDimensions.spacingMD),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _DesktopPanel(
+                          title: 'Task information',
+                          icon: Icons.info_outline,
+                          child: _buildDetailsGrid(
+                            theme,
+                            description,
+                            status,
+                            priority,
+                            departmentName,
+                            projectTitle,
+                            hasTags,
+                            taskTags,
+                            dueDateStr,
                           ),
                         ),
-                        title: Text(memberName),
-                        subtitle: Text(member?['email']?.toString() ?? ''),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            PopupMenuButton<String>(
-                              onSelected: (newStatus) async {
-                                final messenger = ScaffoldMessenger.maybeOf(context);
-                                try {
-                                  await TaskService.updateAssignmentStatus(
-                                    taskId: widget.taskId,
-                                    memberId: memberId,
-                                    status: newStatus,
-                                  );
-                                  if (mounted && messenger != null) {
-                                    messenger.showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Status updated'),
-                                        backgroundColor: AppColors.success,
-                                      ),
-                                    );
-                                    _loadTaskData();
-                                  }
-                                } catch (e) {
-                                  if (mounted && messenger != null) {
-                                    messenger.showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: $e'),
-                                        backgroundColor: AppColors.error,
-                                      ),
-                                    );
-                                  }
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'pending',
-                                  child: Text('Pending'),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'in_progress',
-                                  child: Text('In Progress'),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'completed',
-                                  child: Text('Completed'),
-                                ),
-                                const PopupMenuItem(
-                                  value: 'cancelled',
-                                  child: Text('Cancelled'),
-                                ),
-                              ],
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(
-                                    assignmentStatus,
-                                  ).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  assignmentStatus.replaceAll('_', ' '),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getStatusColor(assignmentStatus),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.message, size: 18),
-                              onPressed: () => _showReminderDialog(
-                                member: member,
-                                memberId: memberId,
-                                memberName: memberName,
-                              ),
-                              tooltip: 'Send Reminder',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              onPressed: () =>
-                                  _removeAssignment(memberId, memberName),
-                              tooltip: 'Remove',
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          Navigator.of(context).pushNamed(
-                            RouteNames.memberDetail.replaceAll(
-                              ':id',
-                              member?['id']?.toString() ?? '',
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: AppDimensions.spacingMD),
+                  Expanded(
+                    flex: 2,
+                    child: _DesktopPanel(
+                      title: 'Assigned to',
+                      icon: Icons.people_outline,
+                      trailing: _canAssignMembers
+                          ? TextButton.icon(
+                              onPressed: _showAssignDialog,
+                              icon: Icon(Icons.person_add_outlined),
+                              label: Text(context.tr('Assign')),
+                            )
+                          : null,
+                      child: _buildDesktopAssignmentsList(theme),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopAssignmentsList(ThemeData theme) {
+    if (_assignments.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: AppDimensions.spacingLG),
+        child: Center(
+          child: Text(
+            'No assignments yet',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: context.mic.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: _assignments.map((assignment) {
+        final member = assignment['members'] as Map<String, dynamic>?;
+        final memberName = member != null
+            ? '${member['first_name']} ${member['last_name']}'
+            : 'Member';
+        final assignmentStatus = assignment['status']?.toString() ?? 'pending';
+        final memberId = assignment['member_id']?.toString() ?? '';
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            backgroundColor: _getStatusColor(
+              assignmentStatus,
+            ).withValues(alpha: 0.12),
+            child: Text(
+              member?['first_name']?[0]?.toString().toUpperCase() ?? 'M',
+              style: TextStyle(
+                color: _getStatusColor(assignmentStatus),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          title: Text(memberName),
+          subtitle: Text(
+            assignmentStatus.replaceAll('_', ' '),
+            style: TextStyle(color: _getStatusColor(assignmentStatus)),
+          ),
+          trailing: PopupMenuButton<String>(
+            onSelected: (action) async {
+              if (action.startsWith('status:')) {
+                await _handleMobileAssignmentAction(
+                  action: action,
+                  member: member,
+                  memberId: memberId,
+                  memberName: memberName,
+                );
+              } else if (action == 'remind') {
+                await _showReminderDialog(
+                  member: member,
+                  memberId: memberId,
+                  memberName: memberName,
+                );
+              } else if (action == 'payment') {
+                await _showRecordPaymentDialog(memberId, memberName);
+              } else if (action == 'remove') {
+                await _removeAssignment(memberId, memberName);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'status:pending',
+                child: Text(context.tr('Pending')),
+              ),
+              PopupMenuItem(
+                value: 'status:in_progress',
+                child: Text(context.tr('In progress')),
+              ),
+              PopupMenuItem(
+                value: 'status:completed',
+                child: Text(context.tr('Completed')),
+              ),
+              PopupMenuItem(
+                value: 'status:cancelled',
+                child: Text(context.tr('Cancelled')),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'remind',
+                child: Text(context.tr('Send reminder')),
+              ),
+              PopupMenuItem(
+                value: 'payment',
+                child: Text(context.tr('Record penalty payment')),
+              ),
+              PopupMenuItem(
+                value: 'remove',
+                child: Text('Remove', style: TextStyle(color: AppColors.error)),
+              ),
+            ],
+          ),
+          onTap: member?['id'] == null
+              ? null
+              : () {
+                  Navigator.of(context).pushNamed(
+                    RouteNames.memberDetail.replaceAll(
+                      ':id',
+                      member!['id'].toString(),
+                    ),
+                  );
+                },
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildMobileBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = _task!['status']?.toString() ?? 'pending';
+    final priority = _task!['priority']?.toString() ?? 'medium';
+    final description = (_task!['description']?.toString())?.trim() ?? '';
+    final departmentName = _getDepartmentName();
+    final projectTitle = _task!['projects'] is Map
+        ? (_task!['projects'] as Map)['title']?.toString()
+        : null;
+    final taskTags = _task!['task_tags'];
+    final hasTags = taskTags is List && taskTags.isNotEmpty;
+    final dueDateStr = _task!['due_date'];
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.spacingMD,
+              AppDimensions.spacingSM,
+              AppDimensions.spacingMD,
+              AppDimensions.spacingSM,
+            ),
+            child: _buildMobileTaskHeader(
+              theme: theme,
+              status: status,
+              priority: priority,
+              dueDateStr: dueDateStr,
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppDimensions.spacingMD),
+            child: Container(
+              decoration: BoxDecoration(
+                color: context.mic.surface,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                border: Border.all(color: context.mic.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.terracotta.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TabBar(
+                labelColor: AppColors.primary,
+                unselectedLabelColor: context.mic.textSecondary,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: context.mic.surfaceTint.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                 ),
-          const SizedBox(height: AppDimensions.spacingXL),
-          // Action buttons - only show if user can assign members
-          if (_canAssignMembers)
-            SizedBox(
+                dividerColor: Colors.transparent,
+                labelStyle: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+                tabs: [
+                  Tab(text: context.tr('Details')),
+                  Tab(text: context.tr('Assignees (${_assignments.length})')),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: AppDimensions.spacingSM),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildMobileDetailsTab(
+                  theme: theme,
+                  description: description,
+                  departmentName: departmentName,
+                  projectTitle: projectTitle,
+                  hasTags: hasTags,
+                  taskTags: taskTags,
+                ),
+                _buildMobileAssigneesTab(theme),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileTaskHeader({
+    required ThemeData theme,
+    required String status,
+    required String priority,
+    required dynamic dueDateStr,
+  }) {
+    final title = _task!['title']?.toString() ?? 'Task';
+    final statusColor = _getStatusColor(status);
+    String? dueLabel;
+    Color? dueColor;
+    bool isOverdue = false;
+
+    if (dueDateStr != null) {
+      try {
+        final dueDate = DateTime.parse(dueDateStr.toString());
+        dueLabel = DateFormat('EEE, MMM d').format(dueDate);
+        if (dueDate.isBefore(DateTime.now()) && status != 'completed') {
+          dueColor = AppColors.error;
+          isOverdue = true;
+        }
+      } catch (_) {
+        dueLabel = dueDateStr.toString();
+      }
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            statusColor.withValues(alpha: 0.22),
+            context.mic.surfaceTint,
+            context.mic.surface,
+          ],
+        ),
+        border: Border.all(color: statusColor.withValues(alpha: 0.28)),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withValues(alpha: 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.task_alt,
+                    color: statusColor,
+                    size: 26,
+                  ),
+                ),
+                SizedBox(width: AppDimensions.spacingMD),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      height: 1.25,
+                      color: context.mic.appBarForeground,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            Wrap(
+              spacing: AppDimensions.spacingSM,
+              runSpacing: AppDimensions.spacingSM,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _statusPriorityChip(status, true),
+                _statusPriorityChip(priority, false),
+                if (dueLabel != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppDimensions.paddingSM,
+                      vertical: AppDimensions.paddingXS,
+                    ),
+                    decoration: BoxDecoration(
+                      color: (dueColor ?? AppColors.info)
+                          .withValues(alpha: 0.12),
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusSM),
+                      border: Border.all(
+                        color: (dueColor ?? AppColors.info)
+                            .withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isOverdue
+                              ? Icons.warning_amber_rounded
+                              : Icons.event_outlined,
+                          size: 15,
+                          color: dueColor ?? AppColors.info,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          dueLabel,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: dueColor ?? AppColors.info,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppDimensions.paddingSM,
+                    vertical: AppDimensions.paddingXS,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.15),
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusSM),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.people_outline,
+                        size: 15,
+                        color: AppColors.secondaryDark,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '${_assignments.length}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.secondaryDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileSectionHeader({
+    required String title,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        SizedBox(width: AppDimensions.spacingSM),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: context.mic.appBarForeground,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileDetailsTab({
+    required ThemeData theme,
+    required String description,
+    required String departmentName,
+    required String? projectTitle,
+    required bool hasTags,
+    required dynamic taskTags,
+  }) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.spacingMD,
+        AppDimensions.spacingSM,
+        AppDimensions.spacingMD,
+        AppDimensions.spacingLG,
+      ),
+      children: [
+        Container(
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          decoration: BoxDecoration(
+            color: context.mic.surface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+            border: Border.all(color: context.mic.border),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.sage.withValues(alpha: 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildMobileSectionHeader(
+                title: context.tr('Description'),
+                icon: Icons.notes_outlined,
+                color: AppColors.secondary,
+              ),
+              SizedBox(height: AppDimensions.spacingMD),
+              Text(
+                description.isEmpty
+                    ? context.tr('No description provided.')
+                    : description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: description.isEmpty
+                      ? context.mic.textSecondary
+                      : context.mic.textPrimary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: AppDimensions.spacingMD),
+        _buildMobileInfoCard(
+          theme: theme,
+          accentColor: AppColors.primary,
+          children: [
+            _buildMobileMetaRow(
+              icon: Icons.apartment_outlined,
+              label: context.tr('Department'),
+              value: departmentName,
+              iconColor: AppColors.primary,
+            ),
+            _mobileMetaDivider(theme),
+            _buildMobileMetaRow(
+              icon: Icons.folder_outlined,
+              label: context.tr('Project'),
+              value: projectTitle ?? '—',
+              iconColor: AppColors.accent,
+            ),
+            if (hasTags && taskTags is List) ...[
+              _mobileMetaDivider(theme),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppDimensions.spacingMD,
+                  14,
+                  AppDimensions.spacingMD,
+                  14,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildMobileSectionHeader(
+                      title: context.tr('Tags'),
+                      icon: Icons.sell_outlined,
+                      color: AppColors.terracotta,
+                    ),
+                    SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _buildTagChips(taskTags),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileInfoCard({
+    required ThemeData theme,
+    required List<Widget> children,
+    Color accentColor = AppColors.primary,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: context.mic.border),
+        boxShadow: [
+          BoxShadow(
+            color: accentColor.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingMD,
+              vertical: AppDimensions.spacingSM,
+            ),
+            color: accentColor.withValues(alpha: 0.08),
+            child: Text(
+              context.tr('Task information'),
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.mic.appBarForeground,
+              ),
+            ),
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _mobileMetaDivider(ThemeData theme) {
+    return Divider(
+      height: 1,
+      indent: 58,
+      color: context.mic.border.withValues(alpha: 0.7),
+    );
+  }
+
+  Widget _buildMobileMetaRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color iconColor,
+  }) {
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.spacingMD,
+        vertical: 14,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.mic.appBarForeground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileAssigneesTab(ThemeData theme) {
+    return Column(
+      children: [
+        if (_canAssignMembers)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.spacingMD,
+              AppDimensions.spacingMD,
+              AppDimensions.spacingMD,
+              0,
+            ),
+            child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _showAssignDialog,
-                icon: const Icon(Icons.person_add),
-                label: const Text('Assign to Member'),
+                icon: const Icon(Icons.person_add_outlined, size: 18),
+                label: Text(context.tr('Assign member')),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
-                    double.infinity,
-                    AppDimensions.buttonHeightLG,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textLight,
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                   ),
                 ),
               ),
             ),
+          ),
+        Expanded(
+          child: _assignments.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppDimensions.spacingLG),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: context.mic.surfaceTint.withValues(alpha: 0.6),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.people_outline,
+                            size: 48,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        SizedBox(height: AppDimensions.spacingMD),
+                        Text(
+                          context.tr('No one assigned yet'),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: context.mic.appBarForeground,
+                          ),
+                        ),
+                        SizedBox(height: AppDimensions.spacingXS),
+                        Text(
+                          context.tr(
+                            'Assign members from the department to this task.',
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: context.mic.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.all(AppDimensions.spacingMD),
+                  itemCount: _assignments.length,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: EdgeInsets.only(
+                        bottom: index < _assignments.length - 1
+                            ? AppDimensions.spacingSM
+                            : 0,
+                      ),
+                      child: _buildMobileAssignmentTile(_assignments[index]),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobileAssignmentTile(Map<String, dynamic> assignment) {
+    final member = assignment['members'] as Map<String, dynamic>?;
+    final memberName = member != null
+        ? '${member['first_name']} ${member['last_name']}'
+        : 'Member';
+    final assignmentStatus = assignment['status']?.toString() ?? 'pending';
+    final memberId = assignment['member_id']?.toString() ?? '';
+    final statusColor = _getStatusColor(assignmentStatus);
+    final initials = memberName.trim().isNotEmpty
+        ? memberName.trim()[0].toUpperCase()
+        : 'M';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: statusColor.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        child: InkWell(
+          onTap: member?['id'] == null
+              ? null
+              : () {
+                  Navigator.of(context).pushNamed(
+                    RouteNames.memberDetail.replaceAll(
+                      ':id',
+                      member!['id'].toString(),
+                    ),
+                  );
+                },
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          child: Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: statusColor.withValues(alpha: 0.18),
+                  child: Text(
+                    initials,
+                    style: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        memberName,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: context.mic.appBarForeground,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          assignmentStatus.replaceAll('_', ' ').toUpperCase(),
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      if ((member?['email']?.toString() ?? '').isNotEmpty) ...[
+                        SizedBox(height: 6),
+                        Text(
+                          member!['email'].toString(),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.mic.textSecondary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 20,
+                    color: AppColors.primary,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onSelected: (action) => _handleMobileAssignmentAction(
+                    action: action,
+                    member: member,
+                    memberId: memberId,
+                    memberName: memberName,
+                  ),
+                  itemBuilder: (context) => [
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Text(
+                      'Update status',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: context.mic.textTertiary,
+                      ),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'status:pending',
+                    child: Text(context.tr('Pending')),
+                  ),
+                  PopupMenuItem(
+                    value: 'status:in_progress',
+                    child: Text(context.tr('In progress')),
+                  ),
+                  PopupMenuItem(
+                    value: 'status:completed',
+                    child: Text(context.tr('Completed')),
+                  ),
+                  PopupMenuItem(
+                    value: 'status:cancelled',
+                    child: Text(context.tr('Cancelled')),
+                  ),
+                  PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'remind',
+                    child: Text(context.tr('Send reminder')),
+                  ),
+                  PopupMenuItem(
+                    value: 'payment',
+                    child: Text(context.tr('Record penalty payment')),
+                  ),
+                  PopupMenuItem(
+                    value: 'remove',
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(color: AppColors.error),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      ),
+    );
+  }
+
+  Future<void> _handleMobileAssignmentAction({
+    required String action,
+    required Map<String, dynamic>? member,
+    required String memberId,
+    required String memberName,
+  }) async {
+    if (action.startsWith('status:')) {
+      final newStatus = action.split(':').last;
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      try {
+        await TaskService.updateAssignmentStatus(
+          taskId: widget.taskId,
+          memberId: memberId,
+          status: newStatus,
+        );
+        if (mounted && messenger != null) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(context.tr('Status updated')),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          _loadTaskData();
+        }
+      } catch (e) {
+        if (mounted && messenger != null) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(context.tr('Error: $e')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    if (action == 'remind') {
+      await _showReminderDialog(
+        member: member,
+        memberId: memberId,
+        memberName: memberName,
+      );
+      return;
+    }
+
+    if (action == 'payment') {
+      await _showRecordPaymentDialog(memberId, memberName);
+      return;
+    }
+
+    if (action == 'remove') {
+      await _removeAssignment(memberId, memberName);
+    }
+  }
+
+  Future<void> _showRecordPaymentDialog(
+    String memberId,
+    String memberName,
+  ) async {
+    final amountController = TextEditingController();
+    final noteController = TextEditingController();
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Record payment for $memberName')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: context.tr('Amount paid'),
+                prefixIcon: Icon(Icons.payments_outlined),
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            TextField(
+              controller: noteController,
+              decoration: InputDecoration(
+                labelText: context.tr('Note (optional)'),
+                prefixIcon: Icon(Icons.note_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(context.tr('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              final amount = int.tryParse(amountController.text.trim());
+              if (amount == null || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(context.tr('Enter a valid amount')),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(context, amount);
+            },
+            child: Text(context.tr('Save payment')),
+          ),
         ],
       ),
     );
-    if (isDesktop) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: _kTaskDetailDesktopMaxWidth,
+
+    try {
+      if (result == null) return;
+      await TaskPenaltyService.recordPayment(
+        memberId: memberId,
+        amount: result,
+        note: noteController.text.trim().isEmpty
+            ? null
+            : noteController.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Payment recorded')),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Error recording payment: $e')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      amountController.dispose();
+      noteController.dispose();
+    }
+  }
+
+  Future<void> _archiveTask() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.tr('Archive Task')),
+        content: Text(
+          'Archive this task? It will stop accumulating new penalties.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.tr('Cancel')),
           ),
-          child: content,
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.tr('Archive')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await TaskService.archiveTask(widget.taskId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Task archived')),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      _loadTaskData();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Error archiving task: $e')),
+          backgroundColor: AppColors.error,
         ),
       );
     }
-    return content;
   }
 
   Future<void> _deleteTask() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Task'),
-        content: const Text(
+        title: Text(context.tr('Delete Task')),
+        content: Text(
           'Are you sure you want to delete this task? This action cannot be undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -520,8 +1625,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         await TaskService.deleteTask(widget.taskId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Task deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Task deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -535,7 +1640,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting task: $e'),
+              content: Text(context.tr('Error deleting task: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -548,17 +1653,17 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Assignment'),
-        content: Text('Remove $memberName from this task?'),
+        title: Text(context.tr('Remove Assignment')),
+        content: Text(context.tr('Remove $memberName from this task?')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Remove'),
+            child: Text(context.tr('Remove')),
           ),
         ],
       ),
@@ -572,8 +1677,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Assignment removed successfully'),
+            SnackBar(
+              content: Text(context.tr('Assignment removed successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -583,7 +1688,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error removing assignment: $e'),
+              content: Text(context.tr('Error removing assignment: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -603,7 +1708,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       case 'pending':
         return AppColors.warning;
       default:
-        return AppColors.textSecondary;
+        return context.mic.textSecondary;
     }
   }
 
@@ -612,11 +1717,11 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       case 'urgent':
         return AppColors.error;
       case 'high':
-        return Colors.orange;
+        return AppColors.accent;
       case 'medium':
         return AppColors.primary;
       case 'low':
-        return AppColors.textSecondary;
+        return context.mic.textSecondary;
       default:
         return AppColors.primary;
     }
@@ -635,63 +1740,6 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return departmentId ?? '—';
   }
 
-  Widget _buildDetailsColumn(
-    ThemeData theme,
-    String description,
-    String status,
-    String priority,
-    String departmentName,
-    String? projectTitle,
-    bool hasTags,
-    dynamic taskTags,
-    dynamic dueDateStr,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _detailLabel(context, 'Description'),
-        const SizedBox(height: 4),
-        Text(
-          description.isEmpty ? '—' : description,
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Status'),
-        const SizedBox(height: 4),
-        _statusPriorityChip(status, true),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Priority'),
-        const SizedBox(height: 4),
-        _statusPriorityChip(priority, false),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Department'),
-        const SizedBox(height: 4),
-        Text(departmentName, style: theme.textTheme.bodyMedium),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Project'),
-        const SizedBox(height: 4),
-        Text(projectTitle ?? '—', style: theme.textTheme.bodyMedium),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Due date'),
-        const SizedBox(height: 4),
-        Text(
-          dueDateStr != null ? _formatDate(DateTime.parse(dueDateStr)) : '—',
-          style: theme.textTheme.bodyMedium,
-        ),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, 'Tags'),
-        const SizedBox(height: 4),
-        hasTags && taskTags is List
-            ? Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: _buildTagChips(taskTags),
-              )
-            : Text('—', style: theme.textTheme.bodyMedium),
-      ],
-    );
-  }
-
   Widget _buildDetailsGrid(
     ThemeData theme,
     String description,
@@ -706,86 +1754,67 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _detailLabel(context, 'Description'),
-        const SizedBox(height: 4),
-        Text(
-          description.isEmpty ? '—' : description,
-          style: theme.textTheme.bodyMedium,
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest.withValues(
+              alpha: 0.45,
+            ),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+            border: Border.all(
+              color: theme.dividerColor.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _detailLabel(context, 'Description'),
+              SizedBox(height: AppDimensions.spacingXS),
+              Text(
+                description.isEmpty ? 'No description provided.' : description,
+                style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: AppDimensions.spacingLG),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Wrap(
-              spacing: AppDimensions.spacingLG,
-              runSpacing: AppDimensions.spacingMD,
-              children: [
-                SizedBox(
-                  width: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailLabel(context, 'Status'),
-                      const SizedBox(height: 4),
-                      _statusPriorityChip(status, true),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailLabel(context, 'Priority'),
-                      const SizedBox(height: 4),
-                      _statusPriorityChip(priority, false),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailLabel(context, 'Department'),
-                      const SizedBox(height: 4),
-                      Text(departmentName, style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailLabel(context, 'Project'),
-                      const SizedBox(height: 4),
-                      Text(projectTitle ?? '—', style: theme.textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 200,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _detailLabel(context, 'Due date'),
-                      const SizedBox(height: 4),
-                      Text(
-                        dueDateStr != null
-                            ? _formatDate(DateTime.parse(dueDateStr))
-                            : '—',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          },
+        SizedBox(height: AppDimensions.spacingLG),
+        Wrap(
+          spacing: AppDimensions.spacingMD,
+          runSpacing: AppDimensions.spacingMD,
+          children: [
+            _DesktopDetailTile(
+              icon: Icons.check_circle_outline,
+              label: 'Status',
+              child: _statusPriorityChip(status, true),
+            ),
+            _DesktopDetailTile(
+              icon: Icons.flag_outlined,
+              label: 'Priority',
+              child: _statusPriorityChip(priority, false),
+            ),
+            _DesktopDetailTile(
+              icon: Icons.group_work_outlined,
+              label: 'Department',
+              value: departmentName,
+            ),
+            _DesktopDetailTile(
+              icon: Icons.folder_outlined,
+              label: 'Project',
+              value: projectTitle ?? '—',
+            ),
+            _DesktopDetailTile(
+              icon: Icons.event_outlined,
+              label: 'Due date',
+              value: dueDateStr != null
+                  ? _formatDate(DateTime.parse(dueDateStr))
+                  : '—',
+            ),
+          ],
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         _detailLabel(context, 'Tags'),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         hasTags && taskTags is List
             ? Wrap(
                 spacing: 6,
@@ -801,7 +1830,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final color = isStatus ? _getStatusColor(value) : _getPriorityColor(value);
     final text = (value.replaceAll('_', ' ')).toUpperCase();
     return Container(
-      padding: const EdgeInsets.symmetric(
+      padding: EdgeInsets.symmetric(
         horizontal: AppDimensions.paddingSM,
         vertical: AppDimensions.paddingXS,
       ),
@@ -825,11 +1854,12 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     return taskTags.map<Widget>((e) {
       final tag = e is Map ? e['tags'] : null;
       final name = tag is Map ? tag['name']?.toString() : null;
-      if (name == null) return const SizedBox.shrink();
+      if (name == null) return SizedBox.shrink();
       final color = TagColors.colorFromHex(
-          tag is Map ? tag['color']?.toString() : null);
+        tag is Map ? tag['color']?.toString() : null,
+      );
       return Chip(
-        label: Text(name, style: const TextStyle(fontSize: 12)),
+        label: Text(name, style: TextStyle(fontSize: 12)),
         padding: EdgeInsets.zero,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
         visualDensity: VisualDensity.compact,
@@ -885,8 +1915,8 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Phone number is required'),
+            SnackBar(
+              content: Text(context.tr('Phone number is required')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -956,7 +1986,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Opening $platform...'),
+                content: Text(context.tr('Opening $platform...')),
                 backgroundColor: AppColors.success,
               ),
             );
@@ -968,7 +1998,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Opening $platform...'),
+                  content: Text(context.tr('Opening $platform...')),
                   backgroundColor: AppColors.success,
                 ),
               );
@@ -986,7 +2016,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Opening $platform...'),
+                content: Text(context.tr('Opening $platform...')),
                 backgroundColor: AppColors.success,
               ),
             );
@@ -1001,13 +2031,159 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send reminder: ${e.toString()}'),
+            content: Text(
+              context.tr('Failed to send reminder: ${e.toString()}'),
+            ),
             backgroundColor: AppColors.error,
-            duration: const Duration(seconds: 4),
+            duration: Duration(seconds: 4),
           ),
         );
       }
     }
+  }
+}
+
+class _DesktopPanel extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final Widget child;
+  final Widget? trailing;
+
+  _DesktopPanel({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.55)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 20, color: AppColors.primary),
+                SizedBox(width: AppDimensions.spacingSM),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing!,
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  _DesktopInfoChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.spacingSM,
+        vertical: AppDimensions.spacingXS,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusRound),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: context.mic.textSecondary),
+          SizedBox(width: AppDimensions.spacingXS),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: context.mic.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopDetailTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String? value;
+  final Widget? child;
+
+  _DesktopDetailTile({
+    required this.icon,
+    required this.label,
+    this.value,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 205,
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 17, color: AppColors.primary),
+              SizedBox(width: AppDimensions.spacingXS),
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: context.mic.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingSM),
+          child ??
+              Text(
+                value ?? '—',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1016,7 +2192,7 @@ class _ReminderDialog extends StatefulWidget {
   final String memberName;
   final String taskTitle;
 
-  const _ReminderDialog({
+  _ReminderDialog({
     required this.assignedMemberPhone,
     required this.memberName,
     required this.taskTitle,
@@ -1046,7 +2222,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Send Reminder'),
+      title: Text(context.tr('Send Reminder')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1056,26 +2232,26 @@ class _ReminderDialogState extends State<_ReminderDialog> {
               'Task: ${widget.taskTitle}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             Text(
               'To: ${widget.memberName}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: AppDimensions.spacingLG),
+            SizedBox(height: AppDimensions.spacingLG),
             DropdownButtonFormField<String>(
               initialValue: _selectedPlatform,
-              decoration: const InputDecoration(
-                labelText: 'Platform',
+              decoration: InputDecoration(
+                labelText: context.tr('Platform'),
                 prefixIcon: Icon(Icons.message),
               ),
-              items: const [
+              items: [
                 DropdownMenuItem(
                   value: 'whatsapp',
                   child: Row(
                     children: [
                       Icon(Icons.chat, color: Colors.green),
                       SizedBox(width: 8),
-                      Text('WhatsApp'),
+                      Text(context.tr('WhatsApp')),
                     ],
                   ),
                 ),
@@ -1085,7 +2261,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                     children: [
                       Icon(Icons.send, color: Colors.blue),
                       SizedBox(width: 8),
-                      Text('Telegram'),
+                      Text(context.tr('Telegram')),
                     ],
                   ),
                 ),
@@ -1098,13 +2274,13 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 }
               },
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             TextFormField(
               controller: _receiverController,
               decoration: InputDecoration(
-                labelText: '${widget.memberName}\'s Phone Number *',
-                prefixIcon: const Icon(Icons.phone),
-                helperText: 'The recipient\'s phone number',
+                labelText: context.tr('${widget.memberName}\'s Phone Number *'),
+                prefixIcon: Icon(Icons.phone),
+                helperText: context.tr('The recipient\'s phone number'),
               ),
               keyboardType: TextInputType.phone,
               validator: (value) {
@@ -1120,7 +2296,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.tr('Cancel')),
         ),
         ElevatedButton(
           onPressed: () {
@@ -1131,14 +2307,14 @@ class _ReminderDialogState extends State<_ReminderDialog> {
               });
             } else {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Please enter the phone number'),
+                SnackBar(
+                  content: Text(context.tr('Please enter the phone number')),
                   backgroundColor: AppColors.error,
                 ),
               );
             }
           },
-          child: const Text('Send'),
+          child: Text(context.tr('Send')),
         ),
       ],
     );
@@ -1149,7 +2325,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
 class _AssignMemberDialog extends StatefulWidget {
   final List<Map<String, dynamic>> members;
 
-  const _AssignMemberDialog({required this.members});
+  _AssignMemberDialog({required this.members});
 
   @override
   State<_AssignMemberDialog> createState() => _AssignMemberDialogState();
@@ -1201,38 +2377,38 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
     return Dialog(
       child: Container(
         width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: BoxConstraints(maxHeight: 600),
         child: Column(
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Assign Task to Member',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
             // Search bar
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Search members...',
-                  prefixIcon: const Icon(Icons.search),
+                  hintText: context.tr('Search members...'),
+                  prefixIcon: Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: Icon(Icons.clear),
                           onPressed: () {
                             _searchController.clear();
                           },
@@ -1251,12 +2427,12 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.search_off,
                             size: 48,
-                            color: AppColors.textSecondary,
+                            color: context.mic.textSecondary,
                           ),
-                          const SizedBox(height: AppDimensions.spacingSM),
+                          SizedBox(height: AppDimensions.spacingSM),
                           Text(
                             _searchController.text.isEmpty
                                 ? 'No members available'
@@ -1274,8 +2450,12 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                             '${member['first_name']} ${member['last_name']}';
                         final memberEmail = member['email']?.toString() ?? '';
                         final memberPhone = member['phone']?.toString() ?? '';
+                        final isBlocked =
+                            member['is_assignment_blocked'] == true;
+                        final balance = member['penalty_balance'] as int? ?? 0;
 
                         return ListTile(
+                          enabled: !isBlocked,
                           leading: CircleAvatar(
                             child: Text(
                               member['first_name']?[0]
@@ -1291,24 +2471,38 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                               if (memberEmail.isNotEmpty)
                                 Text(
                                   memberEmail,
-                                  style: const TextStyle(fontSize: 12),
+                                  style: TextStyle(fontSize: 12),
                                 ),
                               if (memberPhone.isNotEmpty)
                                 Text(
                                   memberPhone,
-                                  style: const TextStyle(fontSize: 12),
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              if (isBlocked)
+                                Text(
+                                  'Blocked: ${balance}frs unpaid penalties',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.error,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                             ],
                           ),
-                          onTap: () => Navigator.pop(context, member),
+                          trailing: isBlocked
+                              ? Icon(Icons.lock_outline, color: AppColors.error)
+                              : null,
+                          onTap: isBlocked
+                              ? null
+                              : () => Navigator.pop(context, member),
                         );
                       },
                     ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
             // Footer
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1318,7 +2512,7 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                   ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
+                    child: Text(context.tr('Cancel')),
                   ),
                 ],
               ),

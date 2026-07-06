@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/event_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Add event page
 class AddEventPage extends StatefulWidget {
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const AddEventPage({super.key, this.onClose});
+  AddEventPage({super.key, this.onClose});
 
   @override
   State<AddEventPage> createState() => _AddEventPageState();
@@ -37,7 +38,7 @@ class _AddEventPageState extends State<AddEventPage> {
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 2)),
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -58,8 +59,8 @@ class _AddEventPageState extends State<AddEventPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select an event date'),
+        SnackBar(
+          content: Text(context.tr('Please select an event date')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -89,8 +90,8 @@ class _AddEventPageState extends State<AddEventPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Event created successfully'),
+          SnackBar(
+            content: Text(context.tr('Event created successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -104,7 +105,7 @@ class _AddEventPageState extends State<AddEventPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error creating event: $e'),
+            content: Text(context.tr('Error creating event: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -127,14 +128,14 @@ class _AddEventPageState extends State<AddEventPage> {
   ) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(icon, size: 20, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -143,7 +144,7 @@ class _AddEventPageState extends State<AddEventPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ...children,
           ],
         ),
@@ -159,43 +160,41 @@ class _AddEventPageState extends State<AddEventPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Add Event'),
+        title: Text(context.tr('Add Event')),
         actions: useDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _saveEvent,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.add, size: 20),
-                  label: const Text('Create Event'),
+                      : Icon(Icons.add, size: 20),
+                  label: Text(context.tr('Create Event')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -204,8 +203,8 @@ class _AddEventPageState extends State<AddEventPage> {
                         _desktopSectionCard(context, 'Event details', Icons.event, [
                           TextFormField(
                             controller: _titleController,
-                            decoration: const InputDecoration(
-                              labelText: 'Event Title *',
+                            decoration: InputDecoration(
+                              labelText: context.tr('Event Title *'),
                               prefixIcon: Icon(Icons.event),
                               border: OutlineInputBorder(),
                             ),
@@ -217,23 +216,23 @@ class _AddEventPageState extends State<AddEventPage> {
                             },
                             textCapitalization: TextCapitalization.words,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           TextFormField(
                             controller: _descriptionController,
-                            decoration: const InputDecoration(
-                              labelText: 'Description',
+                            decoration: InputDecoration(
+                              labelText: context.tr('Description'),
                               prefixIcon: Icon(Icons.description),
                               border: OutlineInputBorder(),
                             ),
                             maxLines: 4,
                             textCapitalization: TextCapitalization.sentences,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           InkWell(
                             onTap: _selectDate,
                             child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Event Date *',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Event Date *'),
                                 prefixIcon: Icon(Icons.calendar_today),
                                 border: OutlineInputBorder(),
                               ),
@@ -251,12 +250,12 @@ class _AddEventPageState extends State<AddEventPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           InkWell(
                             onTap: _selectTime,
                             child: InputDecorator(
-                              decoration: const InputDecoration(
-                                labelText: 'Event Time (Optional)',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Event Time (Optional)'),
                                 prefixIcon: Icon(Icons.access_time),
                                 border: OutlineInputBorder(),
                               ),
@@ -274,27 +273,27 @@ class _AddEventPageState extends State<AddEventPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           TextFormField(
                             controller: _locationController,
-                            decoration: const InputDecoration(
-                              labelText: 'Location (Optional)',
+                            decoration: InputDecoration(
+                              labelText: context.tr('Location (Optional)'),
                               prefixIcon: Icon(Icons.location_on),
                               border: OutlineInputBorder(),
                             ),
                             textCapitalization: TextCapitalization.words,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           SwitchListTile(
-                            title: const Text('Repeated Event'),
-                            subtitle: const Text(
+                            title: Text(context.tr('Repeated Event')),
+                            subtitle: Text(
                               'Enable if this event repeats (e.g., weekly meetings)',
                             ),
                             value: _isRepeated,
                             onChanged: (value) {
                               setState(() => _isRepeated = value);
                             },
-                            secondary: const Icon(Icons.repeat),
+                            secondary: Icon(Icons.repeat),
                           ),
                         ]),
                       ],
@@ -304,7 +303,7 @@ class _AddEventPageState extends State<AddEventPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -312,8 +311,8 @@ class _AddEventPageState extends State<AddEventPage> {
                   children: [
                     TextFormField(
                       controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Event Title *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Event Title *'),
                         prefixIcon: Icon(Icons.event),
                         border: OutlineInputBorder(),
                       ),
@@ -325,23 +324,23 @@ class _AddEventPageState extends State<AddEventPage> {
                       },
                       textCapitalization: TextCapitalization.words,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
                         border: OutlineInputBorder(),
                       ),
                       maxLines: 4,
                       textCapitalization: TextCapitalization.sentences,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     InkWell(
                       onTap: _selectDate,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Event Date *',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Event Date *'),
                           prefixIcon: Icon(Icons.calendar_today),
                           border: OutlineInputBorder(),
                         ),
@@ -357,12 +356,12 @@ class _AddEventPageState extends State<AddEventPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     InkWell(
                       onTap: _selectTime,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Event Time (Optional)',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Event Time (Optional)'),
                           prefixIcon: Icon(Icons.access_time),
                           border: OutlineInputBorder(),
                         ),
@@ -378,46 +377,46 @@ class _AddEventPageState extends State<AddEventPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _locationController,
-                      decoration: const InputDecoration(
-                        labelText: 'Location (Optional)',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Location (Optional)'),
                         prefixIcon: Icon(Icons.location_on),
                         border: OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     Card(
                       child: SwitchListTile(
-                        title: const Text('Repeated Event'),
-                        subtitle: const Text(
+                        title: Text(context.tr('Repeated Event')),
+                        subtitle: Text(
                           'Enable if this event repeats (e.g., weekly meetings)',
                         ),
                         value: _isRepeated,
                         onChanged: (value) {
                           setState(() => _isRepeated = value);
                         },
-                        secondary: const Icon(Icons.repeat),
+                        secondary: Icon(Icons.repeat),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _saveEvent,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Create Event'),
+                          : Text(context.tr('Create Event')),
                     ),
                   ],
                 ),

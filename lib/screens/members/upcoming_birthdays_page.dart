@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
@@ -10,7 +11,7 @@ import '../desktop/desktop_shell_scope.dart';
 class UpcomingBirthdaysPage extends StatefulWidget {
   final bool hideAppBarAndBottomNav;
 
-  const UpcomingBirthdaysPage({super.key, this.hideAppBarAndBottomNav = false});
+  UpcomingBirthdaysPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<UpcomingBirthdaysPage> createState() => _UpcomingBirthdaysPageState();
@@ -110,7 +111,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading birthdays: $e'),
+            content: Text(context.tr('Error loading birthdays: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -248,12 +249,10 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
     return RefreshIndicator(
       onRefresh: _loadUpcomingBirthdays,
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: _kBirthdaysDesktopMaxWidth,
-            ),
+            constraints: BoxConstraints(maxWidth: _kBirthdaysDesktopMaxWidth),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -261,15 +260,15 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
+                      constraints: BoxConstraints(maxWidth: 400),
                       child: TextField(
                         controller: _searchController,
                         decoration: InputDecoration(
                           hintText: localizations?.search ?? 'Search',
-                          prefixIcon: const Icon(Icons.search),
-                          border: const OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.search),
+                          border: OutlineInputBorder(),
                           isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(
+                          contentPadding: EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 10,
                           ),
@@ -277,17 +276,17 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                         onChanged: (_) => setState(() {}),
                       ),
                     ),
-                    const SizedBox(width: AppDimensions.spacingMD),
+                    SizedBox(width: AppDimensions.spacingMD),
                     IconButton(
-                      icon: const Icon(Icons.refresh),
+                      icon: Icon(Icons.refresh),
                       onPressed: _isLoading ? null : _loadUpcomingBirthdays,
-                      tooltip: 'Refresh',
+                      tooltip: context.tr('Refresh'),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: AppDimensions.paddingMD,
                     vertical: AppDimensions.spacingSM,
                   ),
@@ -297,8 +296,8 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline, color: AppColors.primary),
-                      const SizedBox(width: AppDimensions.spacingSM),
+                      Icon(Icons.info_outline, color: AppColors.primary),
+                      SizedBox(width: AppDimensions.spacingSM),
                       Expanded(
                         child: Text(
                           'Showing birthdays from ${monthNames[currentMonth - 1]} ${now.day} to ${monthNames[nextMonth - 1]}',
@@ -309,10 +308,10 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 Expanded(
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
+                      ? Center(child: CircularProgressIndicator())
                       : _filteredMembers.isEmpty
                       ? Center(
                           child: Column(
@@ -321,13 +320,13 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                               Icon(
                                 Icons.cake_outlined,
                                 size: 64,
-                                color: AppColors.textSecondary,
+                                color: context.mic.textSecondary,
                               ),
-                              const SizedBox(height: AppDimensions.spacingMD),
+                              SizedBox(height: AppDimensions.spacingMD),
                               Text(
                                 'No upcoming birthdays found',
                                 style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(color: AppColors.textSecondary),
+                                    ?.copyWith(color: context.mic.textSecondary),
                               ),
                             ],
                           ),
@@ -342,99 +341,117 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                   scrollDirection: Axis.vertical,
                                   child: ConstrainedBox(
                                     constraints: BoxConstraints(
-                                        minWidth: constraints.maxWidth),
+                                      minWidth: constraints.maxWidth,
+                                    ),
                                     child: DataTable(
-                                      columns: const [
-                                        DataColumn(label: Text('Name')),
-                                        DataColumn(label: Text('Email')),
-                                        DataColumn(label: Text('Birthday')),
-                                        DataColumn(label: Text('Days')),
+                                      columns: [
+                                        DataColumn(
+                                          label: Text(context.tr('Name')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Email')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Birthday')),
+                                        ),
+                                        DataColumn(
+                                          label: Text(context.tr('Days')),
+                                        ),
                                       ],
                                       rows: _filteredMembers.map((member) {
-                                  final name =
-                                      '${member['first_name']} ${member['last_name']}';
-                                  final email =
-                                      member['email']?.toString() ?? '';
-                                  final birthday =
-                                      _parseBirthday(member['birthday']);
-                                  final birthdayText = birthday != null
-                                      ? _formatBirthday(birthday, now)
-                                      : '—';
-                                  final daysText = birthday != null
-                                      ? _getDaysUntilBirthday(birthday, now)
-                                      : '—';
-                                  return DataRow(
-                                    onSelectChanged: (_) =>
-                                        _openMemberDetail(member),
-                                    cells: [
-                                      DataCell(
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            CircleAvatar(
-                                              radius: 16,
-                                              backgroundColor:
-                                                  AppColors.primary,
-                                              child: Text(
-                                                name.isNotEmpty
-                                                    ? name[0].toUpperCase()
-                                                    : '?',
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  color: Colors.white,
+                                        final name =
+                                            '${member['first_name']} ${member['last_name']}';
+                                        final email =
+                                            member['email']?.toString() ?? '';
+                                        final birthday = _parseBirthday(
+                                          member['birthday'],
+                                        );
+                                        final birthdayText = birthday != null
+                                            ? _formatBirthday(birthday, now)
+                                            : '—';
+                                        final daysText = birthday != null
+                                            ? _getDaysUntilBirthday(
+                                                birthday,
+                                                now,
+                                              )
+                                            : '—';
+                                        return DataRow(
+                                          onSelectChanged: (_) =>
+                                              _openMemberDetail(member),
+                                          cells: [
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 16,
+                                                    backgroundColor:
+                                                        AppColors.primary,
+                                                    child: Text(
+                                                      name.isNotEmpty
+                                                          ? name[0]
+                                                                .toUpperCase()
+                                                          : '?',
+                                                      style: TextStyle(
+                                                        fontSize: 14,
+                                                        color: Colors.white,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    width:
+                                                        AppDimensions.spacingSM,
+                                                  ),
+                                                  Text(name),
+                                                ],
+                                              ),
+                                            ),
+                                            DataCell(Text(email)),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.cake,
+                                                    size: 18,
+                                                    color: AppColors.accent,
+                                                  ),
+                                                  SizedBox(
+                                                    width:
+                                                        AppDimensions.spacingXS,
+                                                  ),
+                                                  Text(
+                                                    birthdayText,
+                                                    style: TextStyle(
+                                                      color: AppColors.accent,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            DataCell(
+                                              Text(
+                                                daysText,
+                                                style: TextStyle(
+                                                  color:
+                                                      context.mic.textSecondary,
+                                                  fontSize: 13,
                                                 ),
                                               ),
                                             ),
-                                            const SizedBox(
-                                              width: AppDimensions.spacingSM,
-                                            ),
-                                            Text(name),
                                           ],
-                                        ),
-                                      ),
-                                      DataCell(Text(email)),
-                                      DataCell(
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.cake,
-                                              size: 18,
-                                              color: AppColors.accent,
-                                            ),
-                                            const SizedBox(
-                                              width: AppDimensions.spacingXS,
-                                            ),
-                                            Text(
-                                              birthdayText,
-                                              style: TextStyle(
-                                                color: AppColors.accent,
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      DataCell(
-                                        Text(
-                                          daysText,
-                                          style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 13,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                }).toList(),
-                                      ),
+                                        );
+                                      }).toList(),
                                     ),
                                   ),
-                                );
+                                ),
+                              );
                             },
+                          ),
                         ),
                 ),
-              ),
               ],
             ),
           ),
@@ -467,12 +484,12 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 labelText: localizations?.search ?? 'Search',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                 ),
@@ -482,18 +499,16 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
           ),
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMD,
-            ),
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            margin: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                Icon(Icons.info_outline, color: AppColors.primary),
+                SizedBox(width: AppDimensions.spacingSM),
                 Expanded(
                   child: Text(
                     'Showing birthdays from ${monthNames[currentMonth - 1]} ${now.day} to ${monthNames[nextMonth - 1]}',
@@ -505,10 +520,10 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
               ],
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(child: CircularProgressIndicator())
                 : _filteredMembers.isEmpty
                 ? Center(
                     child: Column(
@@ -517,19 +532,19 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                         Icon(
                           Icons.cake_outlined,
                           size: 64,
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
-                        const SizedBox(height: AppDimensions.spacingMD),
+                        SizedBox(height: AppDimensions.spacingMD),
                         Text(
                           'No upcoming birthdays found',
                           style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(color: AppColors.textSecondary),
+                              ?.copyWith(color: context.mic.textSecondary),
                         ),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: AppDimensions.paddingMD,
                     ),
                     itemCount: _filteredMembers.length,
@@ -541,15 +556,13 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                       final birthday = _parseBirthday(member['birthday']);
 
                       return Card(
-                        margin: const EdgeInsets.only(
+                        margin: EdgeInsets.only(
                           bottom: AppDimensions.spacingSM,
                         ),
                         child: InkWell(
                           onTap: () => _openMemberDetail(member),
                           child: Padding(
-                            padding: const EdgeInsets.all(
-                              AppDimensions.paddingMD,
-                            ),
+                            padding: EdgeInsets.all(AppDimensions.paddingMD),
                             child: Row(
                               children: [
                                 CircleAvatar(
@@ -560,7 +573,7 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                         : '?',
                                   ),
                                 ),
-                                const SizedBox(width: AppDimensions.spacingMD),
+                                SizedBox(width: AppDimensions.spacingMD),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -568,35 +581,35 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                     children: [
                                       Text(
                                         name,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
                                         ),
                                       ),
                                       if (email.isNotEmpty) ...[
-                                        const SizedBox(
+                                        SizedBox(
                                           height: AppDimensions.spacingXS,
                                         ),
                                         Text(
                                           email,
                                           style: TextStyle(
-                                            color: AppColors.textSecondary,
+                                            color: context.mic.textSecondary,
                                             fontSize: 14,
                                           ),
                                         ),
                                       ],
                                       if (birthday != null) ...[
-                                        const SizedBox(
+                                        SizedBox(
                                           height: AppDimensions.spacingXS,
                                         ),
                                         Row(
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               Icons.cake,
                                               size: 16,
                                               color: AppColors.accent,
                                             ),
-                                            const SizedBox(
+                                            SizedBox(
                                               width: AppDimensions.spacingXS,
                                             ),
                                             Text(
@@ -606,13 +619,13 @@ class _UpcomingBirthdaysPageState extends State<UpcomingBirthdaysPage> {
                                                 fontWeight: FontWeight.w500,
                                               ),
                                             ),
-                                            const SizedBox(
+                                            SizedBox(
                                               width: AppDimensions.spacingSM,
                                             ),
                                             Text(
                                               '(${_getDaysUntilBirthday(birthday, now)})',
                                               style: TextStyle(
-                                                color: AppColors.textSecondary,
+                                                color: context.mic.textSecondary,
                                                 fontSize: 12,
                                               ),
                                             ),

@@ -30,8 +30,9 @@ class NewComerService {
             'last_name': lastName,
             'email': email,
             'phone': phone,
-            'newcomer_join_date':
-                newcomerJoinDate.toIso8601String().split('T')[0],
+            'newcomer_join_date': newcomerJoinDate.toIso8601String().split(
+              'T',
+            )[0],
             'newcomer_intention': newcomerIntention,
             'created_by': currentUser.id,
             'created_at': DateTime.now().toIso8601String(),
@@ -61,8 +62,7 @@ class NewComerService {
         lastName: member['last_name']?.toString() ?? '',
         email: member['email']?.toString(),
         phone: member['phone']?.toString(),
-        newcomerJoinDate:
-            member['newcomer_join_date'] != null
+        newcomerJoinDate: member['newcomer_join_date'] != null
             ? DateTime.parse(member['newcomer_join_date'].toString())
             : DateTime.now(),
         newcomerIntention:
@@ -78,6 +78,55 @@ class NewComerService {
     DateTime? startDate,
     DateTime? endDate,
     String? currentStatus, // new_comer | member | visitor
+    int? limit,
+    int? offset,
+  }) async {
+    try {
+      final historyRecords = await _getHistoryRecords(
+        startDate: startDate,
+        endDate: endDate,
+        limit: limit,
+        offset: offset,
+      );
+      final currentMemberRecords = await _getCurrentNewComerMemberRecords(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      final seenMemberIds = historyRecords
+          .map((record) => record['member_id']?.toString())
+          .whereType<String>()
+          .toSet();
+      final mergedRecords = <Map<String, dynamic>>[
+        ...historyRecords,
+        ...currentMemberRecords.where((record) {
+          final memberId = record['member_id']?.toString();
+          return memberId == null || !seenMemberIds.contains(memberId);
+        }),
+      ];
+
+      mergedRecords.sort((a, b) {
+        final dateA = a['newcomer_join_date']?.toString() ?? '';
+        final dateB = b['newcomer_join_date']?.toString() ?? '';
+        return dateB.compareTo(dateA);
+      });
+
+      final withStatus = await _attachCurrentStatus(mergedRecords);
+
+      if (currentStatus == null) {
+        return withStatus;
+      }
+      return withStatus
+          .where((r) => r['current_status']?.toString() == currentStatus)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to get newcomer records: $e');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _getHistoryRecords({
+    DateTime? startDate,
+    DateTime? endDate,
     int? limit,
     int? offset,
   }) async {
@@ -100,10 +149,9 @@ class NewComerService {
         );
       }
 
-      query = query.order('newcomer_join_date', ascending: false).order(
-        'created_at',
-        ascending: false,
-      );
+      query = query
+          .order('newcomer_join_date', ascending: false)
+          .order('created_at', ascending: false);
 
       if (limit != null) {
         query = query.limit(limit);
@@ -113,25 +161,81 @@ class NewComerService {
       }
 
       final response = await query;
-      final records = List<Map<String, dynamic>>.from(response);
-      final withStatus = await _attachCurrentStatus(records);
-
-      if (currentStatus == null) {
-        return withStatus;
-      }
-      return withStatus
-          .where((r) => r['current_status']?.toString() == currentStatus)
-          .toList();
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      throw Exception('Failed to get newcomer records: $e');
+      debugPrint('[NewComerService] Falling back from new_comers table: $e');
+      return [];
     }
   }
 
-  static Future<Map<String, dynamic>> getWeeklyReport({DateTime? referenceDate}) {
+  static Future<List<Map<String, dynamic>>> _getCurrentNewComerMemberRecords({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      final response = await _client
+          .from('members')
+          .select(
+            'id, first_name, last_name, email, phone, newcomer_intention, created_at, updated_at',
+          )
+          .eq('is_new_comer', true)
+          .eq('is_active', true);
+
+      final records = <Map<String, dynamic>>[];
+      for (final member in List<Map<String, dynamic>>.from(response)) {
+        final createdAt = member['created_at']?.toString();
+        final joinDate = createdAt != null && createdAt.isNotEmpty
+            ? DateTime.tryParse(createdAt)
+            : null;
+        if (startDate != null &&
+            joinDate != null &&
+            joinDate.isBefore(
+              DateTime(startDate.year, startDate.month, startDate.day),
+            )) {
+          continue;
+        }
+        if (endDate != null &&
+            joinDate != null &&
+            joinDate.isAfter(
+              DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59),
+            )) {
+          continue;
+        }
+
+        final memberId = member['id']?.toString();
+        if (memberId == null || memberId.isEmpty) continue;
+        records.add({
+          'id': 'member_$memberId',
+          'member_id': memberId,
+          'first_name': member['first_name'],
+          'last_name': member['last_name'],
+          'email': member['email'],
+          'phone': member['phone'],
+          'newcomer_join_date':
+              joinDate?.toIso8601String().split('T')[0] ??
+              DateTime.now().toIso8601String().split('T')[0],
+          'newcomer_intention':
+              member['newcomer_intention']?.toString() ?? 'does_not_know_yet',
+          'created_at': member['created_at'],
+          'updated_at': member['updated_at'],
+        });
+      }
+      return records;
+    } catch (e) {
+      debugPrint('[NewComerService] Member newcomer fallback failed: $e');
+      return [];
+    }
+  }
+
+  static Future<Map<String, dynamic>> getWeeklyReport({
+    DateTime? referenceDate,
+  }) {
     final ref = referenceDate ?? DateTime.now();
-    final start = DateTime(ref.year, ref.month, ref.day).subtract(
-      Duration(days: ref.weekday - DateTime.monday),
-    );
+    final start = DateTime(
+      ref.year,
+      ref.month,
+      ref.day,
+    ).subtract(Duration(days: ref.weekday - DateTime.monday));
     final end = start.add(const Duration(days: 6));
     return getReport(startDate: start, endDate: end);
   }
@@ -169,11 +273,18 @@ class NewComerService {
     final newComers = records
         .where((r) => r['current_status'] == 'new_comer')
         .length;
-    final members =
-        records.where((r) => r['current_status'] == 'member').length;
-    final visitors =
-        records.where((r) => r['current_status'] == 'visitor').length;
+    final members = records
+        .where((r) => r['current_status'] == 'member')
+        .length;
+    final visitors = records
+        .where((r) => r['current_status'] == 'visitor')
+        .length;
     final intentionOutcomeSummary = _buildIntentionOutcomeSummary(records);
+    final attendanceReport = await _buildAttendanceReport(
+      records,
+      startDate: startDate,
+      endDate: endDate,
+    );
 
     return {
       'period': {
@@ -187,9 +298,149 @@ class NewComerService {
         'visitor': visitors,
       },
       'intention_outcome_summary': intentionOutcomeSummary,
+      'attendance_report': attendanceReport,
       'records': records,
       'generated_at': DateTime.now().toIso8601String(),
     };
+  }
+
+  static Future<Map<String, dynamic>> _buildAttendanceReport(
+    List<Map<String, dynamic>> records, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final memberIds = records
+        .map((record) => record['member_id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (memberIds.isEmpty) {
+      return {
+        'total_records': 0,
+        'onsite': 0,
+        'online': 0,
+        'absent': 0,
+        'attended': 0,
+        'unique_services': 0,
+        'member_rows': <Map<String, dynamic>>[],
+        'records': <Map<String, dynamic>>[],
+      };
+    }
+
+    try {
+      dynamic query = _client
+          .from('church_attendance')
+          .select('id, member_id, service_date, service_type, attendance_type')
+          .inFilter('member_id', memberIds)
+          .isFilter('deleted_at', null);
+
+      if (startDate != null) {
+        query = query.gte(
+          'service_date',
+          startDate.toIso8601String().split('T')[0],
+        );
+      }
+      if (endDate != null) {
+        query = query.lte(
+          'service_date',
+          endDate.toIso8601String().split('T')[0],
+        );
+      }
+
+      query = query.order('service_date', ascending: false);
+      final attendanceRecords = List<Map<String, dynamic>>.from(await query);
+      final memberById = {
+        for (final record in records)
+          if (record['member_id'] != null)
+            record['member_id'].toString(): record,
+      };
+      final rowsByMember = <String, Map<String, dynamic>>{};
+
+      for (final memberId in memberIds) {
+        final member = memberById[memberId];
+        rowsByMember[memberId] = {
+          'member_id': memberId,
+          'name': '${member?['first_name'] ?? ''} ${member?['last_name'] ?? ''}'
+              .trim(),
+          'status': member?['current_status'] ?? 'new_comer',
+          'onsite': 0,
+          'online': 0,
+          'absent': 0,
+          'attended': 0,
+          'total': 0,
+          'last_attended': null,
+        };
+      }
+
+      var onsite = 0;
+      var online = 0;
+      var absent = 0;
+      final serviceKeys = <String>{};
+
+      for (final attendance in attendanceRecords) {
+        final memberId = attendance['member_id']?.toString();
+        if (memberId == null) continue;
+        final type = attendance['attendance_type']?.toString() ?? 'absent';
+        final serviceDate = attendance['service_date']?.toString();
+        final serviceType = attendance['service_type']?.toString() ?? '';
+        if (serviceDate != null) serviceKeys.add('$serviceDate|$serviceType');
+
+        final row = rowsByMember[memberId];
+        if (row == null) continue;
+        row['total'] = (row['total'] as int) + 1;
+        if (type == 'onsite') {
+          onsite++;
+          row['onsite'] = (row['onsite'] as int) + 1;
+          row['attended'] = (row['attended'] as int) + 1;
+          row['last_attended'] ??= serviceDate;
+        } else if (type == 'online') {
+          online++;
+          row['online'] = (row['online'] as int) + 1;
+          row['attended'] = (row['attended'] as int) + 1;
+          row['last_attended'] ??= serviceDate;
+        } else {
+          absent++;
+          row['absent'] = (row['absent'] as int) + 1;
+        }
+      }
+
+      final memberRows = rowsByMember.values.toList()
+        ..sort((a, b) {
+          final attendedCompare = (b['attended'] as int).compareTo(
+            a['attended'] as int,
+          );
+          if (attendedCompare != 0) return attendedCompare;
+          return (a['name']?.toString() ?? '').compareTo(
+            b['name']?.toString() ?? '',
+          );
+        });
+
+      return {
+        'total_records': attendanceRecords.length,
+        'onsite': onsite,
+        'online': online,
+        'absent': absent,
+        'attended': onsite + online,
+        'unique_services': serviceKeys.length,
+        'member_rows': memberRows,
+        'records': attendanceRecords,
+      };
+    } catch (e) {
+      debugPrint('[NewComerService] Attendance report failed: $e');
+      return {
+        'total_records': 0,
+        'onsite': 0,
+        'online': 0,
+        'absent': 0,
+        'attended': 0,
+        'unique_services': 0,
+        'member_rows': <Map<String, dynamic>>[],
+        'records': <Map<String, dynamic>>[],
+        'error': e.toString(),
+      };
+    }
   }
 
   static Map<String, Map<String, int>> _buildIntentionOutcomeSummary(
@@ -251,10 +502,7 @@ class NewComerService {
           ? memberStatusById[memberId]!
           : 'visitor';
 
-      return {
-        ...record,
-        'current_status': status,
-      };
+      return {...record, 'current_status': status};
     }).toList();
   }
 

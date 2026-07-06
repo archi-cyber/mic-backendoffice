@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/class_service.dart';
 import '../../services/member_service.dart';
 import '../desktop/desktop_shell_scope.dart';
 import 'attendance_page.dart';
+import 'edit_class_page.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Training detail page with sessions and attendance
 class ClassDetailPage extends StatefulWidget {
@@ -21,7 +24,7 @@ class ClassDetailPage extends StatefulWidget {
 }
 
 const double _kClassDetailDesktopBreakpoint = 700;
-const double _kClassDetailDesktopMaxWidth = 900;
+const double _kClassDetailDesktopMaxWidth = 1180;
 
 class _ClassDetailPageState extends State<ClassDetailPage> {
   Map<String, dynamic>? _classData;
@@ -46,103 +49,46 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading training: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading training: $e'))),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop =
+        widget.onClose != null &&
+        MediaQuery.sizeOf(context).width >= _kClassDetailDesktopBreakpoint;
+
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_classData == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Training'),
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-        ),
-        body: const Center(child: Text('Training not found')),
+        appBar: isDesktop
+            ? null
+            : AppBar(
+                title: Text(context.tr('Training')),
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.arrow_back),
+                        onPressed: widget.onClose,
+                      )
+                    : null,
+              ),
+        body: Center(child: Text(context.tr('Training not found'))),
       );
     }
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                )
-              : null,
-          title: Text(_classData!['name'] ?? 'Training'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () {
-                final scope = DesktopShellScope.maybeOf(context);
-                if (scope != null) {
-                  scope.pushDetail(RouteNames.editClass, widget.classId);
-                } else {
-                  Navigator.of(context)
-                      .pushNamed(
-                        RouteNames.editClass.replaceAll(':id', widget.classId),
-                      )
-                      .then((result) {
-                        if (result == true) _loadClassData();
-                      });
-                }
-              },
-              tooltip: 'Edit Training',
-            ),
-            PopupMenuButton(
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  child: const Row(
-                    children: [
-                      Icon(Icons.delete, color: AppColors.error),
-                      SizedBox(width: 8),
-                      Text('Delete Class'),
-                    ],
-                  ),
-                  onTap: () => _deleteClass(),
-                ),
-              ],
-            ),
-          ],
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Sessions'),
-              Tab(text: 'Members'),
-            ],
-          ),
-        ),
-        body: MediaQuery.sizeOf(context).width >= _kClassDetailDesktopBreakpoint
-            ? Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kClassDetailDesktopMaxWidth,
-                  ),
-                  child: TabBarView(
-                    children: [
-                      _SessionsTab(
-                        classId: widget.classId,
-                        onSessionsUpdated: _loadClassData,
-                      ),
-                      _MembersTab(classId: widget.classId),
-                    ],
-                  ),
-                ),
-              )
+        appBar: isDesktop ? null : _buildMobileAppBar(),
+        body: isDesktop
+            ? _buildDesktopBody(context)
             : TabBarView(
                 children: [
                   _SessionsTab(
@@ -156,23 +102,188 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     );
   }
 
+  PreferredSizeWidget _buildMobileAppBar() {
+    return AppBar(
+      leading: widget.onClose != null
+          ? IconButton(icon: Icon(Icons.arrow_back), onPressed: widget.onClose)
+          : null,
+      title: Text(_classData!['name'] ?? context.tr('Training')),
+      actions: [
+        IconButton(
+          icon: Icon(Icons.edit),
+          onPressed: _openEditClass,
+          tooltip: context.tr('Edit Training'),
+        ),
+        PopupMenuButton(
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              child: Row(
+                children: [
+                  Icon(Icons.delete, color: AppColors.error),
+                  SizedBox(width: 8),
+                  Text(context.tr('Delete Class')),
+                ],
+              ),
+              onTap: () => _deleteClass(),
+            ),
+          ],
+        ),
+      ],
+      bottom: TabBar(
+        tabs: [
+          Tab(text: context.tr('Sessions')),
+          Tab(text: context.tr('Members')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    final theme = Theme.of(context);
+    final className = _classData!['name']?.toString() ?? context.tr('Training');
+    final description = _classData!['description']?.toString();
+    final isActive = _classData!['is_active'] == true;
+    final startDate = _classData!['start_date']?.toString();
+    final endDate = _classData!['end_date']?.toString();
+
+    return Padding(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _kClassDetailDesktopMaxWidth),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 340,
+                child: SingleChildScrollView(
+                  child: _TrainingSummaryPanel(
+                    className: className,
+                    description: description,
+                    isActive: isActive,
+                    startDate: startDate,
+                    endDate: endDate,
+                    onEdit: _openEditClass,
+                    onDelete: _deleteClass,
+                  ),
+                ),
+              ),
+              SizedBox(width: AppDimensions.spacingLG),
+              Expanded(
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(
+                        AppDimensions.radiusXL,
+                      ),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            AppDimensions.paddingLG,
+                            AppDimensions.paddingMD,
+                            AppDimensions.paddingLG,
+                            0,
+                          ),
+                          child: TabBar(
+                            labelColor: AppColors.primary,
+                            unselectedLabelColor: context.mic.textSecondary,
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            tabs: [
+                              Tab(
+                                icon: Icon(Icons.event_note_outlined),
+                                text: context.tr('Sessions'),
+                              ),
+                              Tab(
+                                icon: Icon(Icons.people_outline),
+                                text: context.tr('Members'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Divider(height: 1),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              _SessionsTab(
+                                classId: widget.classId,
+                                onSessionsUpdated: _loadClassData,
+                              ),
+                              _MembersTab(classId: widget.classId),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openEditClass() {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      showDialog<bool>(
+        context: context,
+        builder: (dialogContext) {
+          final height = MediaQuery.sizeOf(dialogContext).height;
+          return Dialog(
+            insetPadding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingXL,
+              vertical: AppDimensions.paddingLG,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SizedBox(
+              width: 760,
+              height: height * 0.86,
+              child: EditClassPage(
+                classId: widget.classId,
+                onClose: (result) => Navigator.of(dialogContext).pop(result),
+              ),
+            ),
+          );
+        },
+      ).then((result) {
+        if (result == true) _loadClassData();
+      });
+      return;
+    }
+
+    Navigator.of(context)
+        .pushNamed(RouteNames.editClass.replaceAll(':id', widget.classId))
+        .then((result) {
+          if (result == true) _loadClassData();
+        });
+  }
+
   Future<void> _deleteClass() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Class'),
-        content: const Text(
+        title: Text(context.tr('Delete Class')),
+        content: Text(
           'Are you sure you want to delete this class? This will deactivate it.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -183,8 +294,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         await ClassService.deleteClass(widget.classId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Training deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Training deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -198,13 +309,198 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting class: $e'),
+              content: Text(context.tr('Error deleting class: $e')),
               backgroundColor: AppColors.error,
             ),
           );
         }
       }
     }
+  }
+}
+
+class _TrainingSummaryPanel extends StatelessWidget {
+  final String className;
+  final String? description;
+  final bool isActive;
+  final String? startDate;
+  final String? endDate;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _TrainingSummaryPanel({
+    required this.className,
+    required this.description,
+    required this.isActive,
+    required this.startDate,
+    required this.endDate,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+      child: Container(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+              ),
+              child: Icon(Icons.school_outlined, color: AppColors.primary),
+            ),
+            SizedBox(height: AppDimensions.spacingLG),
+            Text(
+              className,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            _TrainingStatusPill(isActive: isActive),
+            if (description != null && description!.trim().isNotEmpty) ...[
+              SizedBox(height: AppDimensions.spacingLG),
+              Text(
+                description!,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: context.mic.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+            ],
+            SizedBox(height: AppDimensions.spacingLG),
+            _TrainingInfoTile(
+              icon: Icons.play_circle_outline,
+              label: context.tr('Start Date'),
+              value: startDate == null || startDate!.isEmpty
+                  ? context.tr('Not set')
+                  : startDate!,
+            ),
+            SizedBox(height: AppDimensions.spacingSM),
+            _TrainingInfoTile(
+              icon: Icons.flag_outlined,
+              label: context.tr('End Date'),
+              value: endDate == null || endDate!.isEmpty
+                  ? context.tr('Not set')
+                  : endDate!,
+            ),
+            SizedBox(height: AppDimensions.spacingXL),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onEdit,
+                    icon: Icon(Icons.edit_outlined),
+                    label: Text(context.tr('Edit')),
+                  ),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.outlined(
+                  onPressed: onDelete,
+                  icon: Icon(Icons.delete_outline),
+                  color: AppColors.error,
+                  tooltip: context.tr('Delete'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingStatusPill extends StatelessWidget {
+  final bool isActive;
+
+  const _TrainingStatusPill({required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? AppColors.success : context.mic.textSecondary;
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 10, color: color),
+          SizedBox(width: 6),
+          Text(
+            isActive ? context.tr('Active') : context.tr('Inactive'),
+            style: TextStyle(color: color, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrainingInfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _TrainingInfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.primary),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -274,7 +570,7 @@ class _SessionsTabState extends State<_SessionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Generated $numberOfSessions sessions'),
+            content: Text(context.tr('Generated $numberOfSessions sessions')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -285,7 +581,7 @@ class _SessionsTabState extends State<_SessionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error generating sessions: $e'),
+            content: Text(context.tr('Error generating sessions: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -303,45 +599,42 @@ class _SessionsTabState extends State<_SessionsTab> {
       children: [
         // Generate sessions button
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: ElevatedButton.icon(
             onPressed: _isGenerating ? null : _generateSessions,
             icon: _isGenerating
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.add),
-            label: const Text('Generate Next Sessions'),
+                : Icon(Icons.add),
+            label: Text(context.tr('Generate Next Sessions')),
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size(
-                double.infinity,
-                AppDimensions.buttonHeightMD,
-              ),
+              minimumSize: Size(double.infinity, AppDimensions.buttonHeightMD),
             ),
           ),
         ),
         // Sessions list
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _sessions.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.event_busy,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Text('No sessions yet'),
-                      const SizedBox(height: AppDimensions.spacingSM),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(context.tr('No sessions yet')),
+                      SizedBox(height: AppDimensions.spacingSM),
                       TextButton(
                         onPressed: _generateSessions,
-                        child: const Text('Generate Sessions'),
+                        child: Text(context.tr('Generate Sessions')),
                       ),
                     ],
                   ),
@@ -356,28 +649,30 @@ class _SessionsTabState extends State<_SessionsTab> {
                           ? DateTime.parse(session['session_date'])
                           : null;
                       return Card(
-                        margin: const EdgeInsets.symmetric(
+                        margin: EdgeInsets.symmetric(
                           horizontal: AppDimensions.paddingMD,
                           vertical: AppDimensions.spacingXS,
                         ),
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                            backgroundColor: AppColors.primary.withValues(
+                              alpha: 0.1,
+                            ),
                             child: Icon(Icons.event, color: AppColors.primary),
                           ),
                           title: Text(
                             sessionDate != null
                                 ? _formatDate(sessionDate)
                                 : 'Session ${index + 1}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: sessionDate != null
                               ? Text(
                                   _formatDateLong(sessionDate),
                                   style: Theme.of(context).textTheme.bodySmall,
                                 )
-                              : const Text('Date TBD'),
-                          trailing: const Icon(Icons.chevron_right),
+                              : Text(context.tr('Date TBD')),
+                          trailing: Icon(Icons.chevron_right),
                           onTap: () => _navigateToAttendance(
                             context,
                             session['id'].toString(),
@@ -426,7 +721,7 @@ class _SessionsTabState extends State<_SessionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading members: $e'),
+            content: Text(context.tr('Error loading members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -502,17 +797,17 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Generate Sessions'),
+      title: Text(context.tr('Generate Sessions')),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'How many sessions would you like to generate?',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             // Preset options
             Wrap(
               spacing: AppDimensions.spacingSM,
@@ -564,7 +859,7 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             // Custom option
             Row(
               children: [
@@ -579,16 +874,18 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
                     });
                   },
                 ),
-                const Expanded(child: Text('Enter custom number of sessions')),
+                Expanded(
+                  child: Text(context.tr('Enter custom number of sessions')),
+                ),
               ],
             ),
             if (_useCustom) ...[
-              const SizedBox(height: AppDimensions.spacingSM),
+              SizedBox(height: AppDimensions.spacingSM),
               TextField(
                 controller: _customSessionsController,
-                decoration: const InputDecoration(
-                  labelText: 'Number of Sessions',
-                  hintText: 'e.g., 20',
+                decoration: InputDecoration(
+                  labelText: context.tr('Number of Sessions'),
+                  hintText: context.tr('e.g., 20'),
                   prefixIcon: Icon(Icons.numbers),
                   border: OutlineInputBorder(),
                 ),
@@ -596,22 +893,22 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
                 onChanged: (_) => setState(() {}),
               ),
             ],
-            const SizedBox(height: AppDimensions.spacingMD),
-            const Divider(),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
+            Divider(),
+            SizedBox(height: AppDimensions.spacingMD),
             // Weeks between sessions
-            const Text(
+            Text(
               'Weeks between sessions:',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingSM),
             TextField(
               controller: _weeksBetweenController,
-              decoration: const InputDecoration(
-                labelText: 'Weeks',
+              decoration: InputDecoration(
+                labelText: context.tr('Weeks'),
                 hintText: '1',
                 prefixIcon: Icon(Icons.calendar_view_week),
-                helperText: 'How many weeks between each session',
+                helperText: context.tr('How many weeks between each session'),
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
@@ -623,7 +920,7 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(context.tr('Cancel')),
         ),
         ElevatedButton(
           onPressed: _isValid()
@@ -636,7 +933,7 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
                   });
                 }
               : null,
-          child: const Text('Generate'),
+          child: Text(context.tr('Generate')),
         ),
       ],
     );
@@ -663,7 +960,7 @@ class _PresetButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
       child: Container(
-        padding: const EdgeInsets.symmetric(
+        padding: EdgeInsets.symmetric(
           horizontal: AppDimensions.paddingMD,
           vertical: AppDimensions.paddingSM,
         ),
@@ -721,9 +1018,9 @@ class _MembersTabState extends State<_MembersTab> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading members: $e'))),
+        );
       }
     }
   }
@@ -731,7 +1028,7 @@ class _MembersTabState extends State<_MembersTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     if (_members.isEmpty) {
@@ -739,18 +1036,18 @@ class _MembersTabState extends State<_MembersTab> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.people_outline,
               size: 64,
-              color: AppColors.textSecondary,
+              color: context.mic.textSecondary,
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            const Text('No members enrolled'),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingMD),
+            Text(context.tr('No members enrolled')),
+            SizedBox(height: AppDimensions.spacingSM),
             ElevatedButton.icon(
               onPressed: _addMember,
-              icon: const Icon(Icons.person_add),
-              label: const Text('Add Members'),
+              icon: Icon(Icons.person_add),
+              label: Text(context.tr('Add Members')),
             ),
           ],
         ),
@@ -765,7 +1062,7 @@ class _MembersTabState extends State<_MembersTab> {
           itemBuilder: (context, index) {
             final enrollment = _members[index];
             final member = enrollment['members'] as Map<String, dynamic>?;
-            if (member == null) return const SizedBox.shrink();
+            if (member == null) return SizedBox.shrink();
 
             return ListTile(
               leading: CircleAvatar(
@@ -776,9 +1073,9 @@ class _MembersTabState extends State<_MembersTab> {
               title: Text('${member['first_name']} ${member['last_name']}'),
               subtitle: Text(member['email']?.toString() ?? ''),
               trailing: IconButton(
-                icon: const Icon(Icons.close, color: AppColors.error),
+                icon: Icon(Icons.close, color: AppColors.error),
                 onPressed: () => _removeMember(member['id'].toString()),
-                tooltip: 'Remove from training',
+                tooltip: context.tr('Remove from training'),
               ),
               onTap: () {
                 Navigator.of(context).pushNamed(
@@ -794,8 +1091,8 @@ class _MembersTabState extends State<_MembersTab> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addMember,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Members'),
+        icon: Icon(Icons.person_add),
+        label: Text(context.tr('Add Members')),
       ),
     );
   }
@@ -825,8 +1122,10 @@ class _MembersTabState extends State<_MembersTab> {
       if (availableMembers.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('All members are already enrolled in this class'),
+            SnackBar(
+              content: Text(
+                context.tr('All members are already enrolled in this class'),
+              ),
               backgroundColor: AppColors.warning,
             ),
           );
@@ -841,15 +1140,15 @@ class _MembersTabState extends State<_MembersTab> {
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Add Members to Training'),
+            title: Text(context.tr('Add Members to Training')),
             content: SizedBox(
               width: double.maxFinite,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Select members to add:'),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    Text(context.tr('Select members to add:')),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Select all / Deselect all buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -882,7 +1181,7 @@ class _MembersTabState extends State<_MembersTab> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     // Member list with checkboxes
                     ...availableMembers.map((member) {
                       final memberId = member['id'].toString();
@@ -914,7 +1213,7 @@ class _MembersTabState extends State<_MembersTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: Text(context.tr('Cancel')),
               ),
               ElevatedButton(
                 onPressed: selectedMemberIds.isEmpty
@@ -970,7 +1269,7 @@ class _MembersTabState extends State<_MembersTab> {
                   '$successCount members added, $errorCount failed',
                 ),
                 backgroundColor: AppColors.warning,
-                duration: const Duration(seconds: 5),
+                duration: Duration(seconds: 5),
               ),
             );
           }
@@ -980,7 +1279,7 @@ class _MembersTabState extends State<_MembersTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error adding members: $e'),
+            content: Text(context.tr('Error adding members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -992,19 +1291,19 @@ class _MembersTabState extends State<_MembersTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Member'),
-        content: const Text(
+        title: Text(context.tr('Remove Member')),
+        content: Text(
           'Are you sure you want to remove this member from the class?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Remove'),
+            child: Text(context.tr('Remove')),
           ),
         ],
       ),
@@ -1020,8 +1319,8 @@ class _MembersTabState extends State<_MembersTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Member removed successfully'),
+          SnackBar(
+            content: Text(context.tr('Member removed successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -1031,7 +1330,7 @@ class _MembersTabState extends State<_MembersTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error removing member: $e'),
+            content: Text(context.tr('Error removing member: $e')),
             backgroundColor: AppColors.error,
           ),
         );

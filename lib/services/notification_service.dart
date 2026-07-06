@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'device_token_service.dart';
+import 'push_notification_service.dart';
 import 'supabase_service.dart';
 
 /// Notification service for managing user notifications
@@ -253,6 +255,15 @@ class NotificationService {
           .select()
           .single();
 
+      await _sendPushToMembers(
+        memberIds: [memberId],
+        title: title,
+        message: message,
+        type: type,
+        relatedId: relatedId,
+        relatedType: relatedType,
+      );
+
       return response;
     } catch (e) {
       throw Exception('Failed to create notification: $e');
@@ -289,9 +300,69 @@ class NotificationService {
 
       if (notifications.isNotEmpty) {
         await _client.from('notifications').insert(notifications);
+        await _sendPushToMembers(
+          memberIds: memberIds,
+          title: title,
+          message: message,
+          type: type,
+          relatedId: relatedId,
+          relatedType: relatedType,
+        );
       }
     } catch (e) {
       throw Exception('Failed to create bulk notifications: $e');
+    }
+  }
+
+  static Future<void> _sendPushToMembers({
+    required List<String> memberIds,
+    required String title,
+    required String message,
+    required String type,
+    String? relatedId,
+    String? relatedType,
+  }) async {
+    try {
+      final uniqueMemberIds = memberIds
+          .where((id) => id.trim().isNotEmpty)
+          .toSet()
+          .toList();
+      if (uniqueMemberIds.isEmpty) return;
+
+      final users = await _client
+          .from('users')
+          .select('id')
+          .inFilter('member_id', uniqueMemberIds)
+          .eq('is_active', true);
+
+      final userIds = List<Map<String, dynamic>>.from(
+        users,
+      ).map((user) => user['id']?.toString()).whereType<String>().toList();
+      if (userIds.isEmpty) return;
+
+      final tokensByUser = await DeviceTokenService.getDeviceTokensForUsers(
+        userIds,
+      );
+      final tokens = <String>{};
+      for (final userTokens in tokensByUser.values) {
+        tokens.addAll(userTokens);
+      }
+      if (tokens.isEmpty) return;
+
+      await PushNotificationService.sendPushNotification(
+        deviceTokens: tokens.toList(),
+        title: title,
+        body: message,
+        data: {
+          'type': type,
+          if (relatedId != null) 'related_id': relatedId,
+          if (relatedType != null) 'related_type': relatedType,
+          if (relatedType == 'task' && relatedId != null) 'taskId': relatedId,
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        },
+      );
+    } catch (e) {
+      debugPrint('[NotificationService] Push delivery failed: $e');
     }
   }
 }

@@ -1,6 +1,5 @@
 import 'supabase_service.dart';
-import 'device_token_service.dart';
-import 'fcm_service.dart';
+import 'notification_service.dart';
 
 /// Birthday scheduler service - runs daily to compute and send birthday notifications
 /// This should be called by a scheduled job (server-side) or background task
@@ -67,17 +66,12 @@ class BirthdaySchedulerService {
       final config = await _getNotificationConfig();
       final target = config['target'] as String;
 
-      // Get target user IDs based on configuration
-      final targetUserIds = await _getTargetUserIds(target);
+      // Get target member IDs based on configuration
+      final targetMemberIds = await _getTargetMemberIds(target);
 
-      if (targetUserIds.isEmpty) {
-        return; // No target users
+      if (targetMemberIds.isEmpty) {
+        return; // No target members
       }
-
-      // Get device tokens for target users
-      final deviceTokensMap = await DeviceTokenService.getDeviceTokensForUsers(
-        targetUserIds,
-      );
 
       // Process each birthday member
       for (final birthdayMember in birthdayMembers) {
@@ -102,20 +96,17 @@ class BirthdaySchedulerService {
               '${birthdayMember['first_name']} ${birthdayMember['last_name']} has a birthday in $daysUntil days!';
         }
 
-        // Create notification for each target user
-        final notifications = <Map<String, dynamic>>[];
-        final pushTokens = <String>[];
-
-        for (final userId in targetUserIds) {
+        // Create notification for each target member
+        for (final targetMemberId in targetMemberIds) {
           // Skip if user has opted out
-          if (await _hasUserOptedOut(userId)) {
+          if (await _hasMemberOptedOut(targetMemberId)) {
             continue;
           }
 
           // Check for duplicates: same type + target user + related_id + scheduled_for
           final isDuplicate = await _checkDuplicateNotification(
             type: 'birthday',
-            targetUserId: userId,
+            targetMemberId: targetMemberId,
             relatedId: memberId,
             scheduledFor: scheduledFor,
           );
@@ -124,40 +115,14 @@ class BirthdaySchedulerService {
             continue; // Skip if duplicate exists for this user
           }
 
-          notifications.add({
-            'member_id': userId,
-            'type': 'birthday',
-            'title': title,
-            'message': message,
-            'related_id': memberId,
-            'related_type': 'member',
-            'scheduled_for': scheduledFor,
-            'is_read': false,
-            'created_at': DateTime.now().toIso8601String(),
-          });
-
-          // Collect device tokens for push notifications
-          final tokens = deviceTokensMap[userId] ?? [];
-          pushTokens.addAll(tokens);
-        }
-
-        // Insert notifications (batch insert)
-        if (notifications.isNotEmpty) {
-          await _client.from('notifications').insert(notifications);
-        }
-
-        // Send FCM push notifications (deduplicate tokens)
-        final uniqueTokens = pushTokens.toSet().toList();
-        if (uniqueTokens.isNotEmpty) {
-          await FCMService.sendPushNotification(
-            tokens: uniqueTokens,
+          await NotificationService.createNotification(
+            memberId: targetMemberId,
+            type: 'birthday',
             title: title,
-            body: message,
-            data: {
-              'type': 'birthday',
-              'member_id': memberId,
-              'scheduled_for': scheduledFor,
-            },
+            message: message,
+            relatedId: memberId,
+            relatedType: 'member',
+            scheduledFor: DateTime.tryParse(scheduledFor),
           );
         }
       }
@@ -170,7 +135,7 @@ class BirthdaySchedulerService {
   /// Avoid duplicates: check notifications for same type + target user + related_id + scheduled_for
   static Future<bool> _checkDuplicateNotification({
     required String type,
-    required String targetUserId,
+    required String targetMemberId,
     required String relatedId,
     required String scheduledFor,
   }) async {
@@ -181,8 +146,8 @@ class BirthdaySchedulerService {
           .eq('type', type)
           .eq(
             'member_id',
-            targetUserId,
-          ) // Target user (who receives notification)
+            targetMemberId,
+          ) // Target member (who receives notification)
           .eq('related_id', relatedId) // Birthday member
           .eq('scheduled_for', scheduledFor) // Scheduled date
           .limit(1)
@@ -214,20 +179,18 @@ class BirthdaySchedulerService {
     }
   }
 
-  /// Get target user IDs based on configuration
-  static Future<List<String>> _getTargetUserIds(String target) async {
+  /// Get target member IDs based on configuration
+  static Future<List<String>> _getTargetMemberIds(String target) async {
     try {
       if (target == 'all') {
         // Get all active members who haven't opted out
         final allMembers = await _client
             .from('members')
-            .select('id,user_id')
+            .select('id')
             .eq('is_active', true)
             .eq('birthday_notifications_opt_out', false);
 
-        return (allMembers as List)
-            .map((m) => m['user_id']?.toString() ?? m['id'].toString())
-            .toList();
+        return (allMembers as List).map((m) => m['id'].toString()).toList();
       } else if (target == 'leaders_only') {
         // Get only leaders/admins
         final leaders = await _client
@@ -240,18 +203,15 @@ class BirthdaySchedulerService {
             .toSet()
             .toList();
 
-        // Get user IDs for leaders
         if (leaderMemberIds.isEmpty) return [];
 
         final leaderMembers = await _client
             .from('members')
-            .select('id,user_id')
+            .select('id')
             .inFilter('id', leaderMemberIds)
             .eq('birthday_notifications_opt_out', false);
 
-        return (leaderMembers as List)
-            .map((m) => m['user_id']?.toString() ?? m['id'].toString())
-            .toList();
+        return (leaderMembers as List).map((m) => m['id'].toString()).toList();
       }
 
       // 'opt_out' means no notifications
@@ -261,13 +221,13 @@ class BirthdaySchedulerService {
     }
   }
 
-  /// Check if user has opted out
-  static Future<bool> _hasUserOptedOut(String userId) async {
+  /// Check if member has opted out
+  static Future<bool> _hasMemberOptedOut(String memberId) async {
     try {
       final member = await _client
           .from('members')
           .select('birthday_notifications_opt_out')
-          .eq('user_id', userId)
+          .eq('id', memberId)
           .maybeSingle();
 
       return member?['birthday_notifications_opt_out'] == true;

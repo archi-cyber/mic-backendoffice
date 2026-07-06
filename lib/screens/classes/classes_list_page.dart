@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/class_service.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../core/localization/app_localizations.dart';
+import 'add_class_page.dart';
+import 'edit_class_page.dart';
 
 /// Trainings list page
 class ClassesListPage extends StatefulWidget {
@@ -60,9 +64,9 @@ class _ClassesListPageState extends State<ClassesListPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading trainings: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading trainings: $e'))),
+        );
       }
     }
   }
@@ -74,8 +78,10 @@ class _ClassesListPageState extends State<ClassesListPage> {
 
   List<Map<String, dynamic>> get _paginatedClasses {
     final start = _classesPage * _kClassesRowsPerPage;
-    final end =
-        (start + _kClassesRowsPerPage).clamp(0, _filteredClasses.length);
+    final end = (start + _kClassesRowsPerPage).clamp(
+      0,
+      _filteredClasses.length,
+    );
     if (start >= _filteredClasses.length) return [];
     return _filteredClasses.sublist(start, end);
   }
@@ -87,6 +93,64 @@ class _ClassesListPageState extends State<ClassesListPage> {
     } else {
       Navigator.pushNamed(context, '${RouteNames.classes}/$classId');
     }
+  }
+
+  Future<void> _openAddClass() async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await _showClassFormDialog(
+        builder: (dialogContext) => AddClassPage(
+          onClose: (result) => Navigator.of(dialogContext).pop(result),
+        ),
+      );
+      if (result == true) _loadClasses();
+      return;
+    }
+
+    final result = await Navigator.of(context).pushNamed(RouteNames.addClass);
+    if (result == true) _loadClasses();
+  }
+
+  Future<void> _openEditClass(String classId) async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await _showClassFormDialog(
+        builder: (dialogContext) => EditClassPage(
+          classId: classId,
+          onClose: (result) => Navigator.of(dialogContext).pop(result),
+        ),
+      );
+      if (result == true) _loadClasses();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.editClass.replaceAll(':id', classId));
+    if (result == true) _loadClasses();
+  }
+
+  Future<bool?> _showClassFormDialog({
+    required Widget Function(BuildContext dialogContext) builder,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final height = MediaQuery.sizeOf(dialogContext).height;
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingXL,
+            vertical: AppDimensions.paddingLG,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: 760,
+            height: height * 0.86,
+            child: builder(dialogContext),
+          ),
+        );
+      },
+    );
   }
 
   List<Map<String, dynamic>> get _filteredClasses {
@@ -107,45 +171,34 @@ class _ClassesListPageState extends State<ClassesListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = widget.hideAppBarAndBottomNav &&
+    final isDesktop =
+        widget.hideAppBarAndBottomNav &&
         MediaQuery.sizeOf(context).width >= _kClassesDesktopBreakpoint;
 
     return Scaffold(
       appBar: widget.hideAppBarAndBottomNav
           ? null
           : AppBar(
-              title: const Text('Trainings'),
+              title: Text(context.tr('Trainings')),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh),
                   onPressed: _loadClasses,
-                  tooltip: 'Refresh',
+                  tooltip: context.tr('Refresh'),
                 ),
               ],
             ),
-      body: isDesktop
-          ? _buildDesktopBody(context)
-          : _buildMobileBody(context),
+      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
       floatingActionButton: isDesktop
           ? null
           : FutureBuilder<bool>(
               future: PermissionHelper.canCreate('trainings'),
               builder: (context, snapshot) {
                 final canCreate = snapshot.data ?? false;
-                if (!canCreate) return const SizedBox.shrink();
+                if (!canCreate) return SizedBox.shrink();
                 return FloatingActionButton(
-                  onPressed: () async {
-                    final scope = DesktopShellScope.maybeOf(context);
-                    if (scope != null) {
-                      scope.pushDetail(RouteNames.addClass, '');
-                    } else {
-                      final result = await Navigator.of(
-                        context,
-                      ).pushNamed(RouteNames.addClass);
-                      if (result == true) _loadClasses();
-                    }
-                  },
-                  child: const Icon(Icons.add),
+                  onPressed: _openAddClass,
+                  child: Icon(Icons.add),
                 );
               },
             ),
@@ -155,10 +208,10 @@ class _ClassesListPageState extends State<ClassesListPage> {
   Widget _buildDesktopBody(BuildContext context) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _kClassesDesktopMaxWidth),
+          constraints: BoxConstraints(maxWidth: _kClassesDesktopMaxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -166,11 +219,11 @@ class _ClassesListPageState extends State<ClassesListPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400),
+                    constraints: BoxConstraints(maxWidth: 400),
                     child: TextField(
                       controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Search trainings...',
+                      decoration: InputDecoration(
+                        hintText: context.tr('Search trainings...'),
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                         isDense: true,
@@ -182,47 +235,36 @@ class _ClassesListPageState extends State<ClassesListPage> {
                       onChanged: (_) => setState(() => _classesPage = 0),
                     ),
                   ),
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   IconButton(
-                    icon: const Icon(Icons.refresh),
+                    icon: Icon(Icons.refresh),
                     onPressed: _isLoading ? null : _loadClasses,
-                    tooltip: 'Refresh',
+                    tooltip: context.tr('Refresh'),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   if (_canCreate)
                     FilledButton.icon(
-                      onPressed: () {
-                        final scope = DesktopShellScope.maybeOf(context);
-                        if (scope != null) {
-                          scope.pushDetail(RouteNames.addClass, '');
-                        } else {
-                          Navigator.of(context)
-                              .pushNamed(RouteNames.addClass)
-                              .then((result) {
-                            if (result == true) _loadClasses();
-                          });
-                        }
-                      },
-                      icon: const Icon(Icons.add, size: 20),
-                      label: const Text('Add Training'),
+                      onPressed: _openAddClass,
+                      icon: Icon(Icons.add, size: 20),
+                      label: Text(context.tr('Add Training')),
                     ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? Center(child: CircularProgressIndicator())
                     : _filteredClasses.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.class_outlined,
                               size: 64,
-                              color: AppColors.textSecondary,
+                              color: context.mic.textSecondary,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? 'No trainings found'
@@ -241,100 +283,98 @@ class _ClassesListPageState extends State<ClassesListPage> {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
                                   child: DataTable(
                                     headingRowColor: WidgetStateProperty.all(
                                       theme.colorScheme.surfaceContainerHighest,
                                     ),
-                                    columns: const [
-                                      DataColumn(label: Text('Name')),
-                                DataColumn(label: Text('Description')),
-                                DataColumn(label: Text('Status')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _paginatedClasses.map((cls) {
-                                final id = cls['id']?.toString() ?? '';
-                                final name =
-                                    cls['name']?.toString() ?? 'Unnamed';
-                                final desc = cls['description']?.toString() ?? '—';
-                                final isActive = cls['is_active'] == true;
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      InkWell(
-                                        onTap: () => _openClassDetail(id),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                          child: Text(
-                                            name,
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
+                                    columns: [
+                                      DataColumn(
+                                        label: Text(context.tr('Name')),
                                       ),
-                                    ),
-                                    DataCell(
-                                      Text(
-                                        desc,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
+                                      DataColumn(
+                                        label: Text(context.tr('Description')),
                                       ),
-                                    ),
-                                    DataCell(Text(
-                                        isActive ? 'Active' : 'Inactive')),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                _openClassDetail(id),
-                                            child: const Text('View'),
+                                      DataColumn(
+                                        label: Text(context.tr('Status')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Actions')),
+                                      ),
+                                    ],
+                                    rows: _paginatedClasses.map((cls) {
+                                      final id = cls['id']?.toString() ?? '';
+                                      final name =
+                                          cls['name']?.toString() ?? 'Unnamed';
+                                      final desc =
+                                          cls['description']?.toString() ?? '—';
+                                      final isActive = cls['is_active'] == true;
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            InkWell(
+                                              onTap: () => _openClassDetail(id),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  vertical: 8,
+                                                ),
+                                                child: Text(
+                                                  name,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                          TextButton(
-                                            onPressed: () {
-                                              final scope =
-                                                  DesktopShellScope.maybeOf(
-                                                      context);
-                                              if (scope != null) {
-                                                scope.pushDetail(
-                                                    RouteNames.editClass, id);
-                                              } else {
-                                                Navigator.of(context)
-                                                    .pushNamed(
-                                                      RouteNames.editClass
-                                                          .replaceAll(
-                                                            ':id',
-                                                            id,
-                                                          ),
-                                                    )
-                                                    .then((result) {
-                                                  if (result == true) {
-                                                    _loadClasses();
-                                                  }
-                                                });
-                                              }
-                                            },
-                                            child: const Text('Edit'),
+                                          DataCell(
+                                            Text(
+                                              desc,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Text(
+                                              isActive ? 'Active' : 'Inactive',
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      _openClassDetail(id),
+                                                  child: Text(
+                                                    context.tr('View'),
+                                                  ),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      _openEditClass(id),
+                                                  child: Text(
+                                                    context.tr('Edit'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                                    ),
+                                      );
+                                    }).toList(),
                                   ),
-                                );
+                                ),
+                              );
                             },
                           ),
                         ),
                       ),
               ),
               if (_filteredClasses.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -348,21 +388,21 @@ class _ClassesListPageState extends State<ClassesListPage> {
                           'Page ${_classesPage + 1} of $_totalClassesPages',
                           style: theme.textTheme.bodySmall,
                         ),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        SizedBox(width: AppDimensions.spacingSM),
                         IconButton(
-                          icon: const Icon(Icons.chevron_left),
+                          icon: Icon(Icons.chevron_left),
                           onPressed: _classesPage > 0
                               ? () => setState(
-                                    () => _classesPage = _classesPage - 1,
-                                  )
+                                  () => _classesPage = _classesPage - 1,
+                                )
                               : null,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.chevron_right),
+                          icon: Icon(Icons.chevron_right),
                           onPressed: _classesPage < _totalClassesPages - 1
                               ? () => setState(
-                                    () => _classesPage = _classesPage + 1,
-                                  )
+                                  () => _classesPage = _classesPage + 1,
+                                )
                               : null,
                         ),
                       ],
@@ -381,15 +421,15 @@ class _ClassesListPageState extends State<ClassesListPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Search trainings...',
-              prefixIcon: const Icon(Icons.search),
+              hintText: context.tr('Search trainings...'),
+              prefixIcon: Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
                         setState(() {});
@@ -405,18 +445,18 @@ class _ClassesListPageState extends State<ClassesListPage> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _filteredClasses.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.class_outlined,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
                       Text(
                         _searchController.text.isNotEmpty
                             ? 'No trainings found'
@@ -448,7 +488,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
     final classId = classItem['id'].toString();
 
     return Card(
-      margin: const EdgeInsets.symmetric(
+      margin: EdgeInsets.symmetric(
         horizontal: AppDimensions.paddingMD,
         vertical: AppDimensions.spacingSM,
       ),
@@ -460,7 +500,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
         onTap: () => _openClassDetail(classId),
         borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Row(
             children: [
               // Training icon
@@ -473,7 +513,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                 ),
                 child: Icon(Icons.class_, color: AppColors.primary, size: 32),
               ),
-              const SizedBox(width: AppDimensions.spacingMD),
+              SizedBox(width: AppDimensions.spacingMD),
               // Training info
               Expanded(
                 child: Column(
@@ -492,7 +532,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                         ),
                         if (!isActive)
                           Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding: EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
@@ -512,11 +552,11 @@ class _ClassesListPageState extends State<ClassesListPage> {
                       ],
                     ),
                     if (description != null && description.isNotEmpty) ...[
-                      const SizedBox(height: AppDimensions.spacingXS),
+                      SizedBox(height: AppDimensions.spacingXS),
                       Text(
                         description,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -526,7 +566,7 @@ class _ClassesListPageState extends State<ClassesListPage> {
                 ),
               ),
               // Chevron
-              Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              Icon(Icons.chevron_right, color: context.mic.textSecondary),
             ],
           ),
         ),

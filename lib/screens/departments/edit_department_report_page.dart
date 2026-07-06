@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/department_report_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Edit department report page
 class EditDepartmentReportPage extends StatefulWidget {
   final String reportId;
 
-  const EditDepartmentReportPage({super.key, required this.reportId});
+  EditDepartmentReportPage({super.key, required this.reportId});
 
   @override
   State<EditDepartmentReportPage> createState() =>
@@ -22,7 +23,6 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
   final _difficultiesController = TextEditingController();
   final _suggestionsController = TextEditingController();
   final _commentsController = TextEditingController();
-  Map<String, dynamic>? _report;
   bool _isLoading = false;
   bool _isLoadingData = true;
 
@@ -50,7 +50,6 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
         widget.reportId,
       );
       setState(() {
-        _report = report;
         _titleController.text = report['title'] ?? '';
         _definedObjectivesController.text = report['defined_objectives'] ?? '';
         _positivePointsController.text = report['positive_points'] ?? '';
@@ -64,7 +63,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading report: $e'),
+            content: Text(context.tr('Error loading report: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -93,8 +92,8 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Report updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -105,7 +104,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating report: ${e.toString()}'),
+            content: Text(context.tr('Error updating report: ${e.toString()}')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -117,15 +116,15 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
   Widget build(BuildContext context) {
     if (_isLoadingData) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Edit Report')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: Text(context.tr('Edit Report'))),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Report')),
+      appBar: AppBar(title: Text(context.tr('Edit Report'))),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
           key: _formKey,
           child: Column(
@@ -133,8 +132,8 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
             children: [
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Report Title *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Report Title *'),
                   prefixIcon: Icon(Icons.title),
                 ),
                 validator: (value) {
@@ -144,11 +143,11 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _definedObjectivesController,
-                decoration: const InputDecoration(
-                  labelText: 'Defined Objectives *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Defined Objectives *'),
                   prefixIcon: Icon(Icons.flag),
                 ),
                 maxLines: 5,
@@ -159,11 +158,11 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _positivePointsController,
-                decoration: const InputDecoration(
-                  labelText: 'Positive Points *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Positive Points *'),
                   prefixIcon: Icon(Icons.check_circle),
                 ),
                 maxLines: 5,
@@ -174,11 +173,11 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _difficultiesController,
-                decoration: const InputDecoration(
-                  labelText: 'Difficulties Encountered *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Difficulties Encountered *'),
                   prefixIcon: Icon(Icons.warning),
                 ),
                 maxLines: 5,
@@ -189,11 +188,11 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _suggestionsController,
-                decoration: const InputDecoration(
-                  labelText: 'Suggestions *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Suggestions *'),
                   prefixIcon: Icon(Icons.lightbulb),
                 ),
                 maxLines: 5,
@@ -204,31 +203,31 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                   return null;
                 },
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextFormField(
                 controller: _commentsController,
-                decoration: const InputDecoration(
-                  labelText: 'Comments',
+                decoration: InputDecoration(
+                  labelText: context.tr('Comments'),
                   prefixIcon: Icon(Icons.comment),
                 ),
                 maxLines: 4,
               ),
-              const SizedBox(height: AppDimensions.spacingXL),
+              SizedBox(height: AppDimensions.spacingXL),
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
+                  minimumSize: Size(
                     double.infinity,
                     AppDimensions.buttonHeightLG,
                   ),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Update Report'),
+                    : Text(context.tr('Update Report')),
               ),
             ],
           ),

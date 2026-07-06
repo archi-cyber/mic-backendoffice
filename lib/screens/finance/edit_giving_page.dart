@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/finance_service.dart';
@@ -11,7 +12,7 @@ class EditGivingPage extends StatefulWidget {
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final void Function([dynamic result])? onClose;
 
-  const EditGivingPage({super.key, required this.givingId, this.onClose});
+  EditGivingPage({super.key, required this.givingId, this.onClose});
 
   @override
   State<EditGivingPage> createState() => _EditGivingPageState();
@@ -66,7 +67,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
   }
 
   // Tag icons mapping
-  static const Map<String, IconData> _tagIcons = {
+  static Map<String, IconData> _tagIcons = {
     'construction': Icons.construction,
     'special_op': Icons.stars,
     'tithe': Icons.church,
@@ -313,7 +314,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
     if (_isLoading) {
       return Scaffold(
         appBar: AppBar(title: Text(localizations.givingRecord)),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -327,13 +328,13 @@ class _EditGivingPageState extends State<EditGivingPage> {
               Icon(
                 Icons.error_outline,
                 size: 64,
-                color: AppColors.textSecondary,
+                color: context.mic.textSecondary,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               Text(
                 localizations.givingRecordNotFound,
                 style: theme.textTheme.titleMedium?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: context.mic.textSecondary,
                 ),
               ),
             ],
@@ -350,20 +351,20 @@ class _EditGivingPageState extends State<EditGivingPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Giving Record'),
+        title: Text(context.tr('Giving Record')),
         elevation: 0,
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () => widget.onClose!(),
               )
             : null,
         actions: _canEdit
             ? [
                 IconButton(
-                  icon: const Icon(Icons.save),
+                  icon: Icon(Icons.save),
                   onPressed: _isSaving ? null : _handleSave,
-                  tooltip: 'Save Changes',
+                  tooltip: context.tr('Save Changes'),
                 ),
               ]
             : null,
@@ -371,7 +372,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
       body: widget.onClose != null
           ? Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
+                constraints: BoxConstraints(maxWidth: 600),
                 child: _canEdit
                     ? _buildEditableView(theme, localizations)
                     : _buildReadOnlyView(
@@ -399,7 +400,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
 
   Widget _buildEditableView(ThemeData theme, AppLocalizations localizations) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Form(
         key: _formKey,
         child: Column(
@@ -407,17 +408,19 @@ class _EditGivingPageState extends State<EditGivingPage> {
           children: [
             // Info banner
             Container(
-              margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              margin: EdgeInsets.only(bottom: AppDimensions.spacingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               decoration: BoxDecoration(
                 color: AppColors.success.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.success.withValues(alpha: 0.3),
+                ),
               ),
               child: Row(
                 children: [
                   Icon(Icons.edit, color: AppColors.success, size: 24),
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   Expanded(
                     child: Text(
                       localizations.recordCanBeEdited,
@@ -433,7 +436,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
             // Transaction Type Toggle
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                padding: EdgeInsets.all(AppDimensions.paddingMD),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -441,7 +444,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                       '${localizations.transactionType} *',
                       style: theme.textTheme.titleMedium,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     Row(
                       children: [
                         Expanded(
@@ -449,8 +452,8 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             label: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.arrow_downward, size: 18),
-                                const SizedBox(width: 4),
+                                Icon(Icons.arrow_downward, size: 18),
+                                SizedBox(width: 4),
                                 Text(localizations.receiving),
                               ],
                             ),
@@ -462,14 +465,14 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             },
                           ),
                         ),
-                        const SizedBox(width: AppDimensions.spacingMD),
+                        SizedBox(width: AppDimensions.spacingMD),
                         Expanded(
                           child: ChoiceChip(
                             label: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.arrow_upward, size: 18),
-                                const SizedBox(width: 4),
+                                Icon(Icons.arrow_upward, size: 18),
+                                SizedBox(width: 4),
                                 Text(localizations.expense),
                               ],
                             ),
@@ -487,12 +490,12 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 ),
               ),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
 
             // Giver Type Toggle
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                padding: EdgeInsets.all(AppDimensions.paddingMD),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -500,7 +503,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                       localizations.giverType,
                       style: theme.textTheme.titleMedium,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     Row(
                       children: [
                         Expanded(
@@ -519,7 +522,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             },
                           ),
                         ),
-                        const SizedBox(width: AppDimensions.spacingMD),
+                        SizedBox(width: AppDimensions.spacingMD),
                         Expanded(
                           child: ChoiceChip(
                             label: Text(localizations.externalPerson),
@@ -542,22 +545,25 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 ),
               ),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
 
             // Member Selection or Giver Name
             if (!_isExternalGiver)
               _isLoadingMembers
-                  ? const Card(
+                  ? Card(
                       child: Padding(
                         padding: EdgeInsets.all(AppDimensions.paddingMD),
                         child: Center(child: CircularProgressIndicator()),
                       ),
                     )
                   : DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _selectedMemberId,
                       decoration: InputDecoration(
-                        labelText: '${localizations.selectMember} *',
-                        prefixIcon: const Icon(Icons.person),
+                        labelText: context.tr(
+                          '${localizations.selectMember} *',
+                        ),
+                        prefixIcon: Icon(Icons.person),
                         helperText: localizations.selectMember,
                       ),
                       items: _members.map((member) {
@@ -565,7 +571,10 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             '${member['first_name']} ${member['last_name']}';
                         return DropdownMenuItem<String>(
                           value: member['id'].toString(),
-                          child: Text(fullName),
+                          child: Text(
+                            fullName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
                       onChanged: (value) {
@@ -592,8 +601,8 @@ class _EditGivingPageState extends State<EditGivingPage> {
               TextFormField(
                 controller: _giverNameController,
                 decoration: InputDecoration(
-                  labelText: '${localizations.giverName} *',
-                  prefixIcon: const Icon(Icons.person_outline),
+                  labelText: context.tr('${localizations.giverName} *'),
+                  prefixIcon: Icon(Icons.person_outline),
                   helperText: localizations.externalPerson,
                 ),
                 validator: (value) {
@@ -603,17 +612,15 @@ class _EditGivingPageState extends State<EditGivingPage> {
                   return null;
                 },
               ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
 
             // Amount
             TextFormField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: '${localizations.amount} *',
-                prefixIcon: const Icon(Icons.attach_money),
+                labelText: context.tr('${localizations.amount} *'),
+                prefixIcon: Icon(Icons.attach_money),
                 helperText: localizations.amount,
               ),
               validator: (value) {
@@ -627,20 +634,24 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 return null;
               },
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
 
             // Tag Selection
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _selectedTag,
               decoration: InputDecoration(
-                labelText: '${localizations.tag} *',
-                prefixIcon: const Icon(Icons.label),
+                labelText: context.tr('${localizations.tag} *'),
+                prefixIcon: Icon(Icons.label),
                 helperText: localizations.category,
               ),
               items: _getTagOptions(localizations).map((tag) {
                 return DropdownMenuItem<String>(
                   value: tag['value'],
-                  child: Text(tag['label']!),
+                  child: Text(
+                    tag['label']!,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 );
               }).toList(),
               onChanged: (value) {
@@ -655,7 +666,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 return null;
               },
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
 
             // Notes
             TextFormField(
@@ -663,24 +674,24 @@ class _EditGivingPageState extends State<EditGivingPage> {
               maxLines: 4,
               decoration: InputDecoration(
                 labelText: localizations.notes,
-                prefixIcon: const Icon(Icons.description),
+                prefixIcon: Icon(Icons.description),
                 helperText: localizations.description,
                 alignLabelWithHint: true,
               ),
             ),
-            const SizedBox(height: AppDimensions.spacingXL),
+            SizedBox(height: AppDimensions.spacingXL),
 
             // Save Button
             ElevatedButton(
               onPressed: _isSaving ? null : _handleSave,
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(
+                minimumSize: Size(
                   double.infinity,
                   AppDimensions.buttonHeightLG,
                 ),
               ),
               child: _isSaving
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
@@ -725,12 +736,12 @@ class _EditGivingPageState extends State<EditGivingPage> {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingXL),
+                padding: EdgeInsets.all(AppDimensions.paddingXL),
                 child: Column(
                   children: [
                     // Transaction Type Badge
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: AppDimensions.paddingMD,
                         vertical: AppDimensions.spacingSM,
                       ),
@@ -748,7 +759,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             color: Colors.white,
                             size: 18,
                           ),
-                          const SizedBox(width: AppDimensions.spacingXS),
+                          SizedBox(width: AppDimensions.spacingXS),
                           Text(
                             isExpense
                                 ? localizations.expense
@@ -761,7 +772,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     // Amount
                     Text(
                       '\$${absoluteAmount.toStringAsFixed(2)}',
@@ -771,7 +782,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                         fontSize: 48,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Giver Name
                     Text(
                       record['giver_name']?.toString() ?? 'Unknown',
@@ -788,17 +799,19 @@ class _EditGivingPageState extends State<EditGivingPage> {
 
         // Main Content
         SliverPadding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Info banner if cannot edit
               Container(
-                margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                margin: EdgeInsets.only(bottom: AppDimensions.spacingMD),
+                padding: EdgeInsets.all(AppDimensions.paddingMD),
                 decoration: BoxDecoration(
                   color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -807,7 +820,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                       color: AppColors.warning,
                       size: 24,
                     ),
-                    const SizedBox(width: AppDimensions.spacingMD),
+                    SizedBox(width: AppDimensions.spacingMD),
                     Expanded(
                       child: Text(
                         localizations.recordCannotBeEdited,
@@ -827,7 +840,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  padding: EdgeInsets.all(AppDimensions.paddingMD),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -837,9 +850,9 @@ class _EditGivingPageState extends State<EditGivingPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Divider(),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Divider(),
+                      SizedBox(height: AppDimensions.spacingMD),
                       // Tag
                       _buildDetailRow(
                         icon: _getTagIcon(tag),
@@ -847,7 +860,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                         value: _getTagLabel(tag, localizations),
                         theme: theme,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
                       // Date
                       _buildDetailRow(
                         icon: Icons.calendar_today,
@@ -859,7 +872,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Notes Card (if exists)
               if (record['notes'] != null &&
@@ -870,7 +883,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    padding: EdgeInsets.all(AppDimensions.paddingMD),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -881,7 +894,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                               color: AppColors.primary,
                               size: 20,
                             ),
-                            const SizedBox(width: AppDimensions.spacingSM),
+                            SizedBox(width: AppDimensions.spacingSM),
                             Text(
                               localizations.notes,
                               style: theme.textTheme.titleLarge?.copyWith(
@@ -890,7 +903,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppDimensions.spacingMD),
+                        SizedBox(height: AppDimensions.spacingMD),
                         Text(
                           record['notes']?.toString() ?? 'N/A',
                           style: theme.textTheme.bodyLarge,
@@ -901,7 +914,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                 ),
               if (record['notes'] != null &&
                   record['notes'].toString().isNotEmpty)
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
 
               // Record Information Card
               Card(
@@ -910,7 +923,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  padding: EdgeInsets.all(AppDimensions.paddingMD),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -920,9 +933,9 @@ class _EditGivingPageState extends State<EditGivingPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Divider(),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Divider(),
+                      SizedBox(height: AppDimensions.spacingMD),
                       // Created At
                       _buildDetailRow(
                         icon: Icons.access_time,
@@ -934,7 +947,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                       ),
                       if (record['updated_at'] != null &&
                           record['updated_at'] != record['created_at']) ...[
-                        const SizedBox(height: AppDimensions.spacingMD),
+                        SizedBox(height: AppDimensions.spacingMD),
                         _buildDetailRow(
                           icon: Icons.update,
                           label: localizations.lastUpdated,
@@ -948,7 +961,7 @@ class _EditGivingPageState extends State<EditGivingPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingXL),
+              SizedBox(height: AppDimensions.spacingXL),
             ]),
           ),
         ),
@@ -966,14 +979,14 @@ class _EditGivingPageState extends State<EditGivingPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: AppColors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, size: 20, color: AppColors.primary),
         ),
-        const SizedBox(width: AppDimensions.spacingMD),
+        SizedBox(width: AppDimensions.spacingMD),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,10 +994,10 @@ class _EditGivingPageState extends State<EditGivingPage> {
               Text(
                 label,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
+                  color: context.mic.textSecondary,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 value,
                 style: theme.textTheme.bodyLarge?.copyWith(

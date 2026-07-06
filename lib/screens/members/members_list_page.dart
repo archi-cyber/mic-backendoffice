@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/member_constants.dart';
 import '../../core/localization/app_localizations.dart';
@@ -7,6 +8,7 @@ import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
 import 'add_member_page.dart';
 import 'edit_member_page.dart';
+import 'member_form_ui.dart';
 import 'member_profile_page.dart';
 
 /// Members list with search and filters
@@ -14,7 +16,7 @@ class MembersListPage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const MembersListPage({super.key, this.hideAppBarAndBottomNav = false});
+  MembersListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<MembersListPage> createState() => _MembersListPageState();
@@ -84,9 +86,9 @@ class _MembersListPageState extends State<MembersListPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading members: $e'))),
+        );
       }
     }
   }
@@ -161,215 +163,472 @@ class _MembersListPageState extends State<MembersListPage> {
     return filtered;
   }
 
-  Widget _buildMemberCard(Map<String, dynamic> member) {
-    final firstName = member['first_name']?.toString() ?? '';
-    final lastName = member['last_name']?.toString() ?? '';
-    final fullName = '$firstName $lastName'.trim();
-    final email = member['email']?.toString() ?? '';
-    final role = member['role']?.toString() ?? 'member';
-    final isActive = member['is_active'] == true;
-    final memberId = member['id'].toString();
+  int get _activeCount =>
+      _members.where((m) => m['is_active'] == true).length;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.paddingMD,
-        vertical: AppDimensions.spacingSM,
+  int get _newcomerCount =>
+      _members.where((m) => m['is_new_comer'] == true).length;
+
+  void _openMember(String memberId) {
+    if (widget.hideAppBarAndBottomNav) {
+      setState(() => _selectedMemberId = memberId);
+    } else {
+      Navigator.of(context).pushNamed(
+        RouteNames.memberDetail.replaceAll(':id', memberId),
+      );
+    }
+  }
+
+  Widget _buildHeaderBanner(AppLocalizations? localizations) {
+    return MemberFormUi.listHeaderBanner(
+      context: context,
+      title: localizations?.members ?? context.tr('Members'),
+      subtitle: context.tr('Manage church members, roles, and profiles'),
+      icon: Icons.people_outline,
+      compactTop: widget.hideAppBarAndBottomNav,
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return SizedBox(
+      height: 96,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        children: [
+          MemberFormUi.statChip(
+            context: context,
+            label: context.tr('Total'),
+            value: _isLoading ? '…' : '${_members.length}',
+            icon: Icons.groups_outlined,
+            color: AppColors.primary,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          MemberFormUi.statChip(
+            context: context,
+            label: context.tr('Active'),
+            value: _isLoading ? '…' : '$_activeCount',
+            icon: Icons.check_circle_outline,
+            color: AppColors.success,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          MemberFormUi.statChip(
+            context: context,
+            label: context.tr('Newcomers'),
+            value: _isLoading ? '…' : '$_newcomerCount',
+            icon: Icons.person_add_alt_1_outlined,
+            color: AppColors.accent,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          MemberFormUi.statChip(
+            context: context,
+            label: context.tr('Showing'),
+            value: _isLoading ? '…' : '${_filteredMembers.length}',
+            icon: Icons.filter_list_outlined,
+            color: AppColors.secondary,
+          ),
+        ],
       ),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+    );
+  }
+
+  Widget _buildSearchToolbar(AppLocalizations? localizations) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        AppDimensions.spacingMD,
+        AppDimensions.paddingMD,
+        AppDimensions.spacingSM,
       ),
-      child: InkWell(
-        onTap: () {
-          Navigator.of(
-            context,
-          ).pushNamed(RouteNames.memberDetail.replaceAll(':id', memberId));
-        },
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: Row(
-            children: [
-              // Avatar with status indicator
-              Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: _getRoleColor(role).withValues(alpha: 0.2),
-                    child: Text(
-                      firstName.isNotEmpty ? firstName[0].toUpperCase() : 'M',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: _getRoleColor(role),
-                      ),
-                    ),
-                  ),
-                  // Active status indicator
-                  if (isActive)
-                    Positioned(
-                      right: 0,
-                      bottom: 0,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          color: AppColors.success,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Theme.of(context).scaffoldBackgroundColor,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: AppDimensions.spacingMD),
-              // Member info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Name and role
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            fullName.isEmpty ? 'Unnamed Member' : fullName,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppDimensions.spacingXS),
-                    // Contact info
-                    if (email.isNotEmpty)
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.email_outlined,
-                            size: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              email,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.textSecondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                    const SizedBox(height: 8),
-
-                    if (!isActive)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Inactive',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.error,
-                          ),
-                        ),
-                      ),
-                  ],
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: localizations?.search ?? context.tr('Search members...'),
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: context.mic.surface,
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _membersPage = 0;
+                          });
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  borderSide: BorderSide(color: context.mic.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  borderSide: BorderSide(color: context.mic.border),
                 ),
               ),
-
-              _buildRoleChip(role),
-            ],
+              onChanged: (_) => setState(() => _membersPage = 0),
+            ),
           ),
+          SizedBox(width: AppDimensions.spacingSM),
+          IconButton.filledTonal(
+            onPressed: _showFilterDialog,
+            icon: const Icon(Icons.filter_list),
+            tooltip: context.tr('Filter'),
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          IconButton.filledTonal(
+            onPressed: _isLoading ? null : _loadMembers,
+            icon: const Icon(Icons.refresh),
+            tooltip: localizations?.refresh ?? context.tr('Refresh'),
+          ),
+          if (widget.hideAppBarAndBottomNav) ...[
+            SizedBox(width: AppDimensions.spacingSM),
+            FilledButton.icon(
+              onPressed: () => setState(() => _showAddMember = true),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(localizations?.addMember ?? context.tr('Add Member')),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(AppLocalizations? localizations) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: context.mic.surfaceTint.withValues(alpha: 0.55),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.people_outline,
+                size: 56,
+                color: AppColors.primary,
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            Text(
+              localizations?.noData ?? context.tr('No members found'),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: context.mic.appBarForeground,
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            if (!widget.hideAppBarAndBottomNav)
+              FilledButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.of(context).pushNamed(
+                    RouteNames.addMember,
+                  );
+                  if (result == true) _loadMembers();
+                },
+                icon: const Icon(Icons.add),
+                label: Text(localizations?.addMember ?? context.tr('Add Member')),
+              )
+            else
+              FilledButton.icon(
+                onPressed: () => setState(() => _showAddMember = true),
+                icon: const Icon(Icons.add),
+                label: Text(localizations?.addMember ?? context.tr('Add Member')),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  Color _getRoleColor(String role) {
-    switch (role) {
-      case 'admin':
-        return AppColors.error;
-      case 'leader':
-        return AppColors.warning;
-      case 'worker':
-        return AppColors.primary;
-      case 'sympathiser':
-        return AppColors.textSecondary;
-      case 'member':
-      default:
-        return AppColors.textSecondary;
-    }
+  String _memberInitials(String firstName, String lastName) {
+    final f = firstName.isNotEmpty ? firstName[0].toUpperCase() : '';
+    final l = lastName.isNotEmpty ? lastName[0].toUpperCase() : '';
+    final initials = '$f$l';
+    return initials.isEmpty ? 'M' : initials;
   }
 
-  Widget _buildRoleChip(String role) {
-    Color chipColor;
-    String label;
-    IconData icon;
-    switch (role) {
-      case 'admin':
-        chipColor = AppColors.error;
-        label = 'Admin';
-        icon = Icons.admin_panel_settings;
-        break;
-      case 'leader':
-        chipColor = AppColors.warning;
-        label = 'Leader';
-        icon = Icons.leaderboard;
-        break;
-      case 'worker':
-        chipColor = AppColors.primary;
-        label = 'Worker';
-        icon = Icons.work;
-        break;
-      case 'sympathiser':
-        chipColor = AppColors.textSecondary;
-        label = 'Sympathiser';
-        icon = Icons.favorite;
-        break;
-      case 'member':
-      default:
-        chipColor = AppColors.textSecondary;
-        label = 'Member';
-        icon = Icons.person;
-    }
-
+  Widget _memberContactChip({
+    required IconData icon,
+    required String text,
+    required Color color,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chipColor.withValues(alpha: 0.4), width: 1),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: chipColor),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: chipColor,
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: context.mic.textSecondary,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMemberCard(Map<String, dynamic> member) {
+    final firstName = member['first_name']?.toString() ?? '';
+    final lastName = member['last_name']?.toString() ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final email = member['email']?.toString() ?? '';
+    final phone = member['phone']?.toString() ?? '';
+    final role = member['role']?.toString() ?? 'member';
+    final isActive = member['is_active'] == true;
+    final isNewComer = member['is_new_comer'] == true;
+    final memberId = member['id'].toString();
+    final photoUrl = member['photo_url']?.toString();
+    final hasPhoto = photoUrl != null && photoUrl.isNotEmpty;
+    final roleColor = MemberFormUi.roleColor(role);
+    final initials = _memberInitials(firstName, lastName);
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        0,
+        AppDimensions.paddingMD,
+        AppDimensions.spacingSM,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            roleColor.withValues(alpha: 0.14),
+            context.mic.surfaceTint.withValues(alpha: 0.35),
+            context.mic.surface,
+          ],
+        ),
+        border: Border.all(color: roleColor.withValues(alpha: 0.22)),
+        boxShadow: [
+          BoxShadow(
+            color: roleColor.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openMember(memberId),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ColoredBox(color: roleColor, child: const SizedBox(width: 5)),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppDimensions.paddingMD),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    roleColor,
+                                    roleColor.withValues(alpha: 0.45),
+                                  ],
+                                ),
+                              ),
+                              child: CircleAvatar(
+                                radius: 30,
+                                backgroundColor: context.mic.surface,
+                                backgroundImage:
+                                    hasPhoto ? NetworkImage(photoUrl) : null,
+                                child: hasPhoto
+                                    ? null
+                                    : Text(
+                                        initials,
+                                        style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.w800,
+                                          color: roleColor,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                            if (isActive)
+                              Positioned(
+                                right: 2,
+                                bottom: 2,
+                                child: Container(
+                                  width: 16,
+                                  height: 16,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: context.mic.surface,
+                                      width: 2.5,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.check,
+                                    size: 9,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(width: AppDimensions.spacingMD),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      fullName.isEmpty
+                                          ? context.tr('Unnamed Member')
+                                          : fullName,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: context.mic.appBarForeground,
+                                            letterSpacing: -0.2,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: roleColor.withValues(alpha: 0.7),
+                                    size: 22,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  MemberFormUi.roleChip(context, role),
+                                  if (isNewComer)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.accent
+                                            .withValues(alpha: 0.14),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: AppColors.accent
+                                              .withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.fiber_new_rounded,
+                                            size: 14,
+                                            color: AppColors.accent,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            context.tr('Newcomer'),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.accent,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (!isActive)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.error
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: Text(
+                                        context.tr('Inactive'),
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              if (email.isNotEmpty || phone.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 6,
+                                  children: [
+                                    if (email.isNotEmpty)
+                                      _memberContactChip(
+                                        icon: Icons.email_outlined,
+                                        text: email,
+                                        color: AppColors.info,
+                                      ),
+                                    if (phone.isNotEmpty)
+                                      _memberContactChip(
+                                        icon: Icons.phone_outlined,
+                                        text: phone,
+                                        color: AppColors.secondaryDark,
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -380,7 +639,7 @@ class _MembersListPageState extends State<MembersListPage> {
     final rowsPerPage = _membersRowsPerPage;
 
     if (total == 0) {
-      return const SizedBox.shrink();
+      return SizedBox.shrink();
     }
 
     final maxPage = (total - 1) ~/ rowsPerPage;
@@ -394,98 +653,41 @@ class _MembersListPageState extends State<MembersListPage> {
     return Column(
       children: [
         Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.vertical,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMD,
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: DataTable(
-                      headingRowColor: WidgetStateProperty.all(
-                        Theme.of(context).colorScheme.surfaceContainerHighest,
-                      ),
-                      columns: const [
-                        DataColumn(label: Text('Name')),
-                        DataColumn(label: Text('Email')),
-                        DataColumn(label: Text('Phone')),
-                        DataColumn(label: Text('Role')),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: pageItems.map((member) {
-                        final firstName = member['first_name']?.toString() ?? '';
-                        final lastName = member['last_name']?.toString() ?? '';
-                        final fullName = '$firstName $lastName'.trim();
-                        final email = member['email']?.toString() ?? '';
-                        final phone = member['phone']?.toString() ?? '';
-                        final role = member['role']?.toString() ?? 'member';
-                        final isActive = member['is_active'] == true;
-                        final memberId = member['id'].toString();
-
-                        return DataRow(
-                          onSelectChanged: (_) {
-                            if (widget.hideAppBarAndBottomNav) {
-                              setState(() => _selectedMemberId = memberId);
-                            } else {
-                              Navigator.of(context).pushNamed(
-                                RouteNames.memberDetail.replaceAll(':id', memberId),
-                              );
-                            }
-                          },
-                          cells: [
-                            DataCell(
-                              Text(
-                                fullName.isEmpty ? 'Unnamed Member' : fullName,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            DataCell(Text(email, overflow: TextOverflow.ellipsis)),
-                            DataCell(Text(phone, overflow: TextOverflow.ellipsis)),
-                            DataCell(_buildRoleChip(role)),
-                            DataCell(Text(isActive ? 'Active' : 'Inactive')),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                );
-            },
+          child: ListView.builder(
+            padding: EdgeInsets.only(top: AppDimensions.spacingSM),
+            itemCount: pageItems.length,
+            itemBuilder: (context, index) =>
+                _buildMemberCard(pageItems[index]),
           ),
         ),
-      ),
-        Padding(
-          padding: const EdgeInsets.symmetric(
+        Container(
+          margin: EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.symmetric(
             horizontal: AppDimensions.paddingMD,
             vertical: AppDimensions.spacingSM,
+          ),
+          decoration: BoxDecoration(
+            color: context.mic.surface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+            border: Border.all(color: context.mic.border),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Text('Rows per page: $rowsPerPage'),
-              const SizedBox(width: AppDimensions.spacingMD),
-              Text('Page ${currentPage + 1} of ${maxPage + 1}'),
+              Text(
+                context.tr('Page ${currentPage + 1} of ${maxPage + 1}'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               IconButton(
                 icon: const Icon(Icons.chevron_left),
                 onPressed: currentPage > 0
-                    ? () {
-                        setState(() {
-                          _membersPage = currentPage - 1;
-                        });
-                      }
+                    ? () => setState(() => _membersPage = currentPage - 1)
                     : null,
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 onPressed: currentPage < maxPage
-                    ? () {
-                        setState(() {
-                          _membersPage = currentPage + 1;
-                        });
-                      }
+                    ? () => setState(() => _membersPage = currentPage + 1)
                     : null,
               ),
             ],
@@ -499,146 +701,46 @@ class _MembersListPageState extends State<MembersListPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
 
-    final memberCount = _filteredMembers.length;
-
     return Scaffold(
+      backgroundColor: context.mic.background,
       appBar: widget.hideAppBarAndBottomNav
           ? null
           : AppBar(
-              title: Text(
-                '${localizations?.members ?? 'Members'} ($memberCount)',
-              ),
+              title: Text(localizations?.members ?? context.tr('Members')),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.filter_list),
                   onPressed: _showFilterDialog,
+                  tooltip: context.tr('Filter'),
                 ),
               ],
             ),
       body: Stack(
         children: [
           Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Top row: search, filter (desktop), Add (desktop) — same line, aligned to table
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimensions.paddingMD,
-                  vertical: AppDimensions.paddingMD,
-                ),
-                child: widget.hideAppBarAndBottomNav
-                    ? Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 400,
-                            child: TextField(
-                              controller: _searchController,
-                              decoration: InputDecoration(
-                                hintText:
-                                    localizations?.search ??
-                                    'Search members...',
-                                prefixIcon: const Icon(Icons.search),
-                                suffixIcon: _searchController.text.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(Icons.clear),
-                                        onPressed: () {
-                                          setState(() {
-                                            _searchController.clear();
-                                            _membersPage = 0;
-                                          });
-                                        },
-                                      )
-                                    : null,
-                              ),
-                              onChanged: (_) {
-                                setState(() {
-                                  _membersPage = 0;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppDimensions.spacingSM),
-                          IconButton(
-                            icon: const Icon(Icons.filter_list),
-                            onPressed: _showFilterDialog,
-                            tooltip: 'Filter',
-                          ),
-                          const Spacer(),
-                          ElevatedButton.icon(
-                            onPressed: () {
-                              setState(() => _showAddMember = true);
-                            },
-                            icon: const Icon(Icons.add),
-                            label: Text(
-                              localizations?.addMember ?? 'Add Member',
-                            ),
-                          ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 400,
-                                ),
-                                child: TextField(
-                                  controller: _searchController,
-                                  decoration: InputDecoration(
-                                    hintText:
-                                        localizations?.search ??
-                                        'Search members...',
-                                    prefixIcon: const Icon(Icons.search),
-                                    suffixIcon:
-                                        _searchController.text.isNotEmpty
-                                        ? IconButton(
-                                            icon: const Icon(Icons.clear),
-                                            onPressed: () {
-                                              setState(() {
-                                                _searchController.clear();
-                                                _membersPage = 0;
-                                              });
-                                            },
-                                          )
-                                        : null,
-                                  ),
-                                  onChanged: (_) {
-                                    setState(() {
-                                      _membersPage = 0;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.filter_list),
-                            onPressed: _showFilterDialog,
-                            tooltip: 'Filter',
-                          ),
-                        ],
-                      ),
-              ),
-              // Members list or table
+              _buildHeaderBanner(localizations),
+              SizedBox(height: AppDimensions.spacingMD),
+              _buildStatsRow(),
+              _buildSearchToolbar(localizations),
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _filteredMembers.isEmpty
-                    ? Center(
-                        child: Text(
-                          localizations?.noData ?? 'No members found',
-                        ),
-                      )
+                    ? _buildEmptyState(localizations)
                     : widget.hideAppBarAndBottomNav
                     ? _buildMembersTable()
-                    : ListView.builder(
-                        itemCount: _filteredMembers.length,
-                        itemBuilder: (context, index) {
-                          final member = _filteredMembers[index];
-                          return _buildMemberCard(member);
-                        },
+                    : RefreshIndicator(
+                        onRefresh: _loadMembers,
+                        child: ListView.builder(
+                          padding: EdgeInsets.only(
+                            bottom: AppDimensions.spacingXL,
+                          ),
+                          itemCount: _filteredMembers.length,
+                          itemBuilder: (context, index) =>
+                              _buildMemberCard(_filteredMembers[index]),
+                        ),
                       ),
               ),
             ],
@@ -691,18 +793,16 @@ class _MembersListPageState extends State<MembersListPage> {
       ),
       floatingActionButton: widget.hideAppBarAndBottomNav
           ? null
-          : FloatingActionButton(
+          : FloatingActionButton.extended(
               onPressed: () async {
                 final result = await Navigator.of(
                   context,
                   rootNavigator: widget.hideAppBarAndBottomNav,
                 ).pushNamed(RouteNames.addMember);
-                // If member was created (result is true), reload the list
-                if (result == true) {
-                  _loadMembers();
-                }
+                if (result == true) _loadMembers();
               },
-              child: const Icon(Icons.add),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: Text(localizations?.addMember ?? context.tr('Add Member')),
             ),
     );
   }
@@ -712,13 +812,13 @@ class _MembersListPageState extends State<MembersListPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Filter Members'),
+          title: Text(context.tr('Filter Members')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CheckboxListTile(
-                  title: const Text('Active Only'),
+                  title: Text(context.tr('Active Only')),
                   value: _isActiveFilter == true,
                   onChanged: (value) {
                     setDialogState(() {
@@ -727,7 +827,7 @@ class _MembersListPageState extends State<MembersListPage> {
                   },
                 ),
                 CheckboxListTile(
-                  title: const Text('Newcomers Only'),
+                  title: Text(context.tr('Newcomers Only')),
                   value: _isNewcomerFilter == true,
                   onChanged: (value) {
                     setDialogState(() {
@@ -735,59 +835,59 @@ class _MembersListPageState extends State<MembersListPage> {
                     });
                   },
                 ),
-                const Divider(),
+                Divider(),
                 // Role filter
                 ListTile(
-                  title: const Text('Role'),
+                  title: Text(context.tr('Role')),
                   subtitle: Text(
                     _selectedRole != null
                         ? _selectedRole!.substring(0, 1).toUpperCase() +
                               _selectedRole!.substring(1)
                         : 'All roles',
                   ),
-                  trailing: const Icon(Icons.arrow_drop_down),
+                  trailing: Icon(Icons.arrow_drop_down),
                   onTap: () {
                     _showRolePicker(context, setDialogState);
                   },
                 ),
                 if (_selectedRole != null)
                   ListTile(
-                    leading: const Icon(Icons.clear),
-                    title: const Text('Clear Role Filter'),
+                    leading: Icon(Icons.clear),
+                    title: Text(context.tr('Clear Role Filter')),
                     onTap: () {
                       setDialogState(() {
                         _selectedRole = null;
                       });
                     },
                   ),
-                const Divider(),
+                Divider(),
                 // Birthday month picker
                 ListTile(
-                  title: const Text('Birthday Month'),
+                  title: Text(context.tr('Birthday Month')),
                   subtitle: Text(
                     _selectedBirthdayMonth != null
                         ? _getMonthName(int.parse(_selectedBirthdayMonth!))
                         : 'All months',
                   ),
-                  trailing: const Icon(Icons.arrow_drop_down),
+                  trailing: Icon(Icons.arrow_drop_down),
                   onTap: () {
                     _showBirthdayMonthPicker(context, setDialogState);
                   },
                 ),
                 if (_selectedBirthdayMonth != null)
                   ListTile(
-                    leading: const Icon(Icons.clear),
-                    title: const Text('Clear Birthday Filter'),
+                    leading: Icon(Icons.clear),
+                    title: Text(context.tr('Clear Birthday Filter')),
                     onTap: () {
                       setDialogState(() {
                         _selectedBirthdayMonth = null;
                       });
                     },
                   ),
-                const Divider(),
+                Divider(),
                 // Profession filter
                 ListTile(
-                  title: const Text('Profession'),
+                  title: Text(context.tr('Profession')),
                   subtitle: Text(
                     _selectedProfession != null
                         ? MemberConstants.getProfessionLabel(
@@ -795,15 +895,15 @@ class _MembersListPageState extends State<MembersListPage> {
                           )
                         : 'All professions',
                   ),
-                  trailing: const Icon(Icons.arrow_drop_down),
+                  trailing: Icon(Icons.arrow_drop_down),
                   onTap: () {
                     _showProfessionPicker(context, setDialogState);
                   },
                 ),
                 if (_selectedProfession != null)
                   ListTile(
-                    leading: const Icon(Icons.clear),
-                    title: const Text('Clear Profession Filter'),
+                    leading: Icon(Icons.clear),
+                    title: Text(context.tr('Clear Profession Filter')),
                     onTap: () {
                       setDialogState(() {
                         _selectedProfession = null;
@@ -827,18 +927,18 @@ class _MembersListPageState extends State<MembersListPage> {
                 Navigator.pop(context);
                 _loadMembers();
               },
-              child: const Text('Clear All'),
+              child: Text(context.tr('Clear All')),
             ),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 _loadMembers();
               },
-              child: const Text('Apply'),
+              child: Text(context.tr('Apply')),
             ),
           ],
         ),
@@ -853,18 +953,18 @@ class _MembersListPageState extends State<MembersListPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Select Birthday Month',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             GridView.builder(
               shrinkWrap: true,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 childAspectRatio: 2.5,
               ),
@@ -880,15 +980,15 @@ class _MembersListPageState extends State<MembersListPage> {
                     Navigator.pop(context);
                   },
                   child: Container(
-                    margin: const EdgeInsets.all(4),
+                    margin: EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? AppColors.primary
-                          : AppColors.background,
+                          : context.mic.background,
                       border: Border.all(
                         color: isSelected
                             ? AppColors.primary
-                            : AppColors.border,
+                            : context.mic.border,
                       ),
                       borderRadius: BorderRadius.circular(
                         AppDimensions.radiusSM,
@@ -900,7 +1000,7 @@ class _MembersListPageState extends State<MembersListPage> {
                         style: TextStyle(
                           color: isSelected
                               ? AppColors.textLight
-                              : AppColors.textPrimary,
+                              : context.mic.textPrimary,
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
@@ -939,18 +1039,18 @@ class _MembersListPageState extends State<MembersListPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Select Role',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ListTile(
-              title: const Text('All Roles'),
-              leading: const Icon(Icons.clear_all),
+              title: Text(context.tr('All Roles')),
+              leading: Icon(Icons.clear_all),
               onTap: () {
                 setDialogState(() {
                   _selectedRole = null;
@@ -958,16 +1058,11 @@ class _MembersListPageState extends State<MembersListPage> {
                 Navigator.pop(context);
               },
             ),
-            const Divider(),
+            Divider(),
             ListTile(
-              title: const Text('Admin'),
-              leading: const Icon(
-                Icons.admin_panel_settings,
-                color: AppColors.error,
-              ),
-              trailing: _selectedRole == 'admin'
-                  ? const Icon(Icons.check)
-                  : null,
+              title: Text(context.tr('Admin')),
+              leading: Icon(Icons.admin_panel_settings, color: AppColors.error),
+              trailing: _selectedRole == 'admin' ? Icon(Icons.check) : null,
               onTap: () {
                 setDialogState(() {
                   _selectedRole = 'admin';
@@ -976,11 +1071,9 @@ class _MembersListPageState extends State<MembersListPage> {
               },
             ),
             ListTile(
-              title: const Text('Leader'),
-              leading: const Icon(Icons.leaderboard, color: AppColors.warning),
-              trailing: _selectedRole == 'leader'
-                  ? const Icon(Icons.check)
-                  : null,
+              title: Text(context.tr('Leader')),
+              leading: Icon(Icons.leaderboard, color: AppColors.warning),
+              trailing: _selectedRole == 'leader' ? Icon(Icons.check) : null,
               onTap: () {
                 setDialogState(() {
                   _selectedRole = 'leader';
@@ -989,11 +1082,9 @@ class _MembersListPageState extends State<MembersListPage> {
               },
             ),
             ListTile(
-              title: const Text('Member'),
-              leading: const Icon(Icons.person, color: AppColors.textSecondary),
-              trailing: _selectedRole == 'member'
-                  ? const Icon(Icons.check)
-                  : null,
+              title: Text(context.tr('Member')),
+              leading: Icon(Icons.person, color: context.mic.textSecondary),
+              trailing: _selectedRole == 'member' ? Icon(Icons.check) : null,
               onTap: () {
                 setDialogState(() {
                   _selectedRole = 'member';
@@ -1002,11 +1093,9 @@ class _MembersListPageState extends State<MembersListPage> {
               },
             ),
             ListTile(
-              title: const Text('Worker'),
-              leading: const Icon(Icons.work, color: AppColors.primary),
-              trailing: _selectedRole == 'worker'
-                  ? const Icon(Icons.check)
-                  : null,
+              title: Text(context.tr('Worker')),
+              leading: Icon(Icons.work, color: AppColors.primary),
+              trailing: _selectedRole == 'worker' ? Icon(Icons.check) : null,
               onTap: () {
                 setDialogState(() {
                   _selectedRole = 'worker';
@@ -1015,10 +1104,10 @@ class _MembersListPageState extends State<MembersListPage> {
               },
             ),
             ListTile(
-              title: const Text('Sympathiser'),
-              leading: const Icon(Icons.favorite, color: AppColors.accent),
+              title: Text(context.tr('Sympathiser')),
+              leading: Icon(Icons.favorite, color: AppColors.accent),
               trailing: _selectedRole == 'sympathiser'
-                  ? const Icon(Icons.check)
+                  ? Icon(Icons.check)
                   : null,
               onTap: () {
                 setDialogState(() {
@@ -1039,18 +1128,18 @@ class _MembersListPageState extends State<MembersListPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               'Select Profession',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ListTile(
-              title: const Text('All Professions'),
-              leading: const Icon(Icons.clear_all),
+              title: Text(context.tr('All Professions')),
+              leading: Icon(Icons.clear_all),
               onTap: () {
                 setDialogState(() {
                   _selectedProfession = null;
@@ -1058,7 +1147,7 @@ class _MembersListPageState extends State<MembersListPage> {
                 Navigator.pop(context);
               },
             ),
-            const Divider(),
+            Divider(),
             ...professionOptions.map((option) {
               final value = option['value']!;
               final label = option['label']!;
@@ -1066,11 +1155,8 @@ class _MembersListPageState extends State<MembersListPage> {
 
               return ListTile(
                 title: Text(label),
-                leading: const Icon(
-                  Icons.work_outline,
-                  color: AppColors.primary,
-                ),
-                trailing: isSelected ? const Icon(Icons.check) : null,
+                leading: Icon(Icons.work_outline, color: AppColors.primary),
+                trailing: isSelected ? Icon(Icons.check) : null,
                 onTap: () {
                   setDialogState(() {
                     _selectedProfession = isSelected ? null : value;

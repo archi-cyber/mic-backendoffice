@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/teaching_service.dart';
@@ -42,7 +43,7 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
       context: context,
       initialDate: _teachingDate ?? DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: 365)),
     );
     if (picked != null) {
       setState(() => _teachingDate = picked);
@@ -106,16 +107,31 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
     IconData icon,
     List<Widget> children,
   ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+      child: Container(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  child: Icon(icon, size: 20, color: AppColors.primary),
+                ),
+                SizedBox(width: AppDimensions.spacingMD),
                 Text(
                   title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -124,10 +140,71 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ...children,
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _desktopIntroCard(
+    BuildContext context,
+    AppLocalizations? localizations,
+  ) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            AppColors.primary.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+            ),
+            child: Icon(Icons.menu_book_outlined, color: AppColors.primary),
+          ),
+          SizedBox(width: AppDimensions.spacingLG),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  localizations?.addTeaching ?? 'Add Teaching',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  context.tr(
+                    'Capture a teaching with its date, speaker, and notes.',
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _closeWithoutResult,
+            icon: Icon(Icons.close),
+            tooltip: localizations?.cancel ?? 'Cancel',
+          ),
+        ],
       ),
     );
   }
@@ -136,53 +213,58 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final useDesktopShell = widget.onClose != null && useDesktop;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => widget.onClose!(null),
-              )
-            : null,
-        title: Text(localizations?.addTeaching ?? 'Add Teaching'),
-        actions: useDesktop
-            ? [
-                TextButton(
-                  onPressed: () => widget.onClose != null
-                      ? widget.onClose!(null)
-                      : Navigator.of(context).pop(),
-                  child: Text(localizations?.cancel ?? 'Cancel'),
-                ),
-                const SizedBox(width: AppDimensions.spacingSM),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _handleSave,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add, size: 20),
-                  label: Text(localizations?.addTeaching ?? 'Add Teaching'),
-                ),
-                const SizedBox(width: AppDimensions.paddingMD),
-              ]
-            : null,
-      ),
+      appBar: useDesktopShell
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: Icon(Icons.arrow_back),
+                      onPressed: () => widget.onClose!(null),
+                    )
+                  : null,
+              title: Text(localizations?.addTeaching ?? 'Add Teaching'),
+              actions: useDesktop
+                  ? [
+                      TextButton(
+                        onPressed: _closeWithoutResult,
+                        child: Text(localizations?.cancel ?? 'Cancel'),
+                      ),
+                      SizedBox(width: AppDimensions.spacingSM),
+                      FilledButton.icon(
+                        onPressed: _isLoading ? null : _handleSave,
+                        icon: _isLoading
+                            ? SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(Icons.add, size: 20),
+                        label: Text(
+                          localizations?.addTeaching ?? 'Add Teaching',
+                        ),
+                      ),
+                      SizedBox(width: AppDimensions.paddingMD),
+                    ]
+                  : null,
+            ),
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        _desktopIntroCard(context, localizations),
+                        SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
                           localizations?.teachingDetails ?? 'Teaching details',
@@ -193,8 +275,8 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                               decoration: InputDecoration(
                                 labelText:
                                     '${localizations?.teachingTitle ?? 'Title'} *',
-                                prefixIcon: const Icon(Icons.title),
-                                border: const OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.title),
+                                border: OutlineInputBorder(),
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
@@ -205,15 +287,15 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                               },
                               textCapitalization: TextCapitalization.words,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             InkWell(
                               onTap: _selectTeachingDate,
                               child: InputDecorator(
                                 decoration: InputDecoration(
                                   labelText:
                                       '${localizations?.teachingDate ?? 'Teaching Date'} *',
-                                  prefixIcon: const Icon(Icons.calendar_today),
-                                  border: const OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.calendar_today),
+                                  border: OutlineInputBorder(),
                                 ),
                                 child: Text(
                                   _teachingDate != null
@@ -230,28 +312,59 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _speakerController,
                               decoration: InputDecoration(
                                 labelText:
                                     '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
-                                prefixIcon: const Icon(Icons.person),
-                                border: const OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.person),
+                                border: OutlineInputBorder(),
                               ),
                               textCapitalization: TextCapitalization.words,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _descriptionController,
                               decoration: InputDecoration(
                                 labelText:
                                     '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
-                                prefixIcon: const Icon(Icons.description),
-                                border: const OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.description),
+                                border: OutlineInputBorder(),
                               ),
                               maxLines: 4,
                               textCapitalization: TextCapitalization.sentences,
+                            ),
+                            SizedBox(height: AppDimensions.spacingLG),
+                            Divider(),
+                            SizedBox(height: AppDimensions.spacingMD),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton(
+                                  onPressed: _closeWithoutResult,
+                                  child: Text(
+                                    localizations?.cancel ?? 'Cancel',
+                                  ),
+                                ),
+                                SizedBox(width: AppDimensions.spacingSM),
+                                FilledButton.icon(
+                                  onPressed: _isLoading ? null : _handleSave,
+                                  icon: _isLoading
+                                      ? SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Icon(Icons.add, size: 20),
+                                  label: Text(
+                                    localizations?.addTeaching ??
+                                        'Add Teaching',
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -262,7 +375,7 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -273,8 +386,8 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                       decoration: InputDecoration(
                         labelText:
                             '${localizations?.teachingTitle ?? 'Title'} *',
-                        prefixIcon: const Icon(Icons.title),
-                        border: const OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.title),
+                        border: OutlineInputBorder(),
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
@@ -285,15 +398,15 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                       },
                       textCapitalization: TextCapitalization.words,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     InkWell(
                       onTap: _selectTeachingDate,
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText:
                               '${localizations?.teachingDate ?? 'Teaching Date'} *',
-                          prefixIcon: const Icon(Icons.calendar_today),
-                          border: const OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.calendar_today),
+                          border: OutlineInputBorder(),
                         ),
                         child: Text(
                           _teachingDate != null
@@ -308,40 +421,40 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _speakerController,
                       decoration: InputDecoration(
                         labelText:
                             '${localizations?.speaker ?? 'Speaker'} ${localizations?.optional ?? '(Optional)'}',
-                        prefixIcon: const Icon(Icons.person),
-                        border: const OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.person),
+                        border: OutlineInputBorder(),
                       ),
                       textCapitalization: TextCapitalization.words,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
                       decoration: InputDecoration(
                         labelText:
                             '${localizations?.teachingDescription ?? 'Description'} ${localizations?.optional ?? '(Optional)'}',
-                        prefixIcon: const Icon(Icons.description),
-                        border: const OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.description),
+                        border: OutlineInputBorder(),
                       ),
                       maxLines: 4,
                       textCapitalization: TextCapitalization.sentences,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
@@ -353,5 +466,13 @@ class _AddTeachingPageState extends State<AddTeachingPage> {
               ),
             ),
     );
+  }
+
+  void _closeWithoutResult() {
+    if (widget.onClose != null) {
+      widget.onClose!(null);
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }

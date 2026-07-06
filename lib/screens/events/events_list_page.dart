@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
@@ -11,7 +12,7 @@ import '../desktop/desktop_shell_scope.dart';
 class EventsListPage extends StatefulWidget {
   final bool hideAppBarAndBottomNav;
 
-  const EventsListPage({super.key, this.hideAppBarAndBottomNav = false});
+  EventsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<EventsListPage> createState() => _EventsListPageState();
@@ -59,7 +60,7 @@ class _EventsListPageState extends State<EventsListPage> {
     setState(() => _isLoading = true);
     try {
       final events = await EventService.getEvents(
-        fromDate: DateTime.now().subtract(const Duration(days: 30)),
+        fromDate: DateTime.now().subtract(Duration(days: 30)),
         limit: 100,
       );
       if (!mounted) return;
@@ -72,9 +73,9 @@ class _EventsListPageState extends State<EventsListPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading events: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading events: $e'))),
+        );
       }
     }
   }
@@ -160,17 +161,19 @@ class _EventsListPageState extends State<EventsListPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: Text('Are you sure you want to delete "$eventTitle"?'),
+        title: Text(context.tr('Delete Event')),
+        content: Text(
+          context.tr('Are you sure you want to delete "$eventTitle"?'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -181,8 +184,8 @@ class _EventsListPageState extends State<EventsListPage> {
         await EventService.deleteEvent(eventId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Event deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Event deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -192,7 +195,7 @@ class _EventsListPageState extends State<EventsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting event: $e'),
+              content: Text(context.tr('Error deleting event: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -211,14 +214,14 @@ class _EventsListPageState extends State<EventsListPage> {
     final eventTitle = event['title'] ?? 'Event';
 
     return Card(
-      margin: const EdgeInsets.symmetric(
+      margin: EdgeInsets.symmetric(
         horizontal: AppDimensions.paddingMD,
         vertical: AppDimensions.paddingSM,
       ),
       child: InkWell(
         onTap: () => _openEventDetail(eventId),
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -232,7 +235,7 @@ class _EventsListPageState extends State<EventsListPage> {
                   ),
                   if (isRepeated)
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: AppDimensions.spacingSM,
                         vertical: AppDimensions.spacingXS,
                       ),
@@ -244,7 +247,7 @@ class _EventsListPageState extends State<EventsListPage> {
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
+                        children: [
                           Icon(
                             Icons.repeat,
                             size: 14,
@@ -263,10 +266,10 @@ class _EventsListPageState extends State<EventsListPage> {
                     ),
                   // Edit and Delete buttons for upcoming events
                   if (isUpcoming && (_canEdit || _canDelete)) ...[
-                    const SizedBox(width: AppDimensions.spacingXS),
+                    SizedBox(width: AppDimensions.spacingXS),
                     if (_canEdit)
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
+                        icon: Icon(Icons.edit, size: 20),
                         color: AppColors.primary,
                         onPressed: () {
                           final scope = DesktopShellScope.maybeOf(context);
@@ -287,30 +290,30 @@ class _EventsListPageState extends State<EventsListPage> {
                                 });
                           }
                         },
-                        tooltip: 'Edit Event',
+                        tooltip: context.tr('Edit Event'),
                       ),
                     if (_canDelete)
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 20),
+                        icon: Icon(Icons.delete, size: 20),
                         color: AppColors.error,
                         onPressed: () {
                           _deleteEvent(eventId, eventTitle);
                         },
-                        tooltip: 'Delete Event',
+                        tooltip: context.tr('Delete Event'),
                       ),
                   ],
                 ],
               ),
               if (eventDate != null) ...[
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_today,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
-                    const SizedBox(width: AppDimensions.spacingXS),
+                    SizedBox(width: AppDimensions.spacingXS),
                     Text(
                       _formatDate(eventDate),
                       style: Theme.of(context).textTheme.bodyMedium,
@@ -319,15 +322,15 @@ class _EventsListPageState extends State<EventsListPage> {
                 ),
               ],
               if (event['location'] != null) ...[
-                const SizedBox(height: AppDimensions.spacingXS),
+                SizedBox(height: AppDimensions.spacingXS),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.location_on,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
-                    const SizedBox(width: AppDimensions.spacingXS),
+                    SizedBox(width: AppDimensions.spacingXS),
                     Expanded(
                       child: Text(
                         event['location'],
@@ -360,9 +363,9 @@ class _EventsListPageState extends State<EventsListPage> {
               title: Text(localizations?.events ?? 'Events'),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh),
                   onPressed: _loadEvents,
-                  tooltip: 'Refresh',
+                  tooltip: context.tr('Refresh'),
                 ),
               ],
             ),
@@ -373,7 +376,7 @@ class _EventsListPageState extends State<EventsListPage> {
               future: PermissionHelper.canCreate('events'),
               builder: (context, snapshot) {
                 final canCreate = snapshot.data ?? false;
-                if (!canCreate) return const SizedBox.shrink();
+                if (!canCreate) return SizedBox.shrink();
                 return FloatingActionButton.extended(
                   onPressed: () async {
                     final scope = DesktopShellScope.maybeOf(context);
@@ -388,8 +391,8 @@ class _EventsListPageState extends State<EventsListPage> {
                       }
                     }
                   },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add Event'),
+                  icon: Icon(Icons.add),
+                  label: Text(context.tr('Add Event')),
                 );
               },
             ),
@@ -400,10 +403,10 @@ class _EventsListPageState extends State<EventsListPage> {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _kEventsDesktopMaxWidth),
+          constraints: BoxConstraints(maxWidth: _kEventsDesktopMaxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -411,11 +414,11 @@ class _EventsListPageState extends State<EventsListPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400),
+                    constraints: BoxConstraints(maxWidth: 400),
                     child: TextField(
                       controller: _searchController,
-                      decoration: const InputDecoration(
-                        hintText: 'Search events...',
+                      decoration: InputDecoration(
+                        hintText: context.tr('Search events...'),
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                         isDense: true,
@@ -429,13 +432,13 @@ class _EventsListPageState extends State<EventsListPage> {
                       }),
                     ),
                   ),
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   IconButton(
-                    icon: const Icon(Icons.refresh),
+                    icon: Icon(Icons.refresh),
                     onPressed: _isLoading ? null : _loadEvents,
-                    tooltip: 'Refresh',
+                    tooltip: context.tr('Refresh'),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   if (_canCreate)
                     FilledButton.icon(
                       onPressed: () {
@@ -450,32 +453,32 @@ class _EventsListPageState extends State<EventsListPage> {
                           });
                         }
                       },
-                      icon: const Icon(Icons.add, size: 20),
-                      label: const Text('Add Event'),
+                      icon: Icon(Icons.add, size: 20),
+                      label: Text(context.tr('Add Event')),
                     ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? Center(child: CircularProgressIndicator())
                     : _filteredEvents.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.event_busy,
                               size: 64,
-                              color: AppColors.textSecondary,
+                              color: context.mic.textSecondary,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? 'No events found matching your search'
                                   : 'No events found',
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: context.mic.textSecondary,
                               ),
                             ),
                           ],
@@ -490,122 +493,144 @@ class _EventsListPageState extends State<EventsListPage> {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
                                   child: DataTable(
                                     headingRowColor: WidgetStateProperty.all(
                                       theme.colorScheme.surfaceContainerHighest,
                                     ),
-                                    columns: const [
-                                      DataColumn(label: Text('Title')),
-                                DataColumn(label: Text('Date')),
-                                DataColumn(label: Text('Location')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _paginatedEvents.map((event) {
-                                final id = event['id']?.toString() ?? '';
-                                final title =
-                                    event['title']?.toString() ?? 'Event';
-                                final dateStr = event['event_date'];
-                                final dateFormatted = dateStr != null
-                                    ? _formatDate(DateTime.parse(dateStr))
-                                    : '—';
-                                final location =
-                                    event['location']?.toString() ?? '—';
-                                final isUpcoming = _isUpcomingEvent(event);
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      InkWell(
-                                        onTap: () => _openEventDetail(id),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                          child: Text(
-                                            title,
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
+                                    columns: [
+                                      DataColumn(
+                                        label: Text(context.tr('Title')),
                                       ),
-                                    ),
-                                    DataCell(Text(dateFormatted)),
-                                    DataCell(
-                                      Text(
-                                        location,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
+                                      DataColumn(
+                                        label: Text(context.tr('Date')),
                                       ),
-                                    ),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                _openEventDetail(id),
-                                            child: const Text('View'),
-                                          ),
-                                          if (_canEdit && isUpcoming) ...[
-                                            const SizedBox(width: 4),
-                                            TextButton(
-                                              onPressed: () {
-                                                final scope =
-                                                    DesktopShellScope.maybeOf(
-                                                      context,
-                                                    );
-                                                if (scope != null) {
-                                                  scope.pushDetail(
-                                                    RouteNames.editEvent,
-                                                    id,
-                                                  );
-                                                } else {
-                                                  Navigator.of(context)
-                                                      .pushNamed(
-                                                        RouteNames.editEvent
-                                                            .replaceAll(
-                                                              ':id',
-                                                              id,
-                                                            ),
-                                                      )
-                                                      .then((result) {
-                                                        if (result == true) {
-                                                          _loadEvents();
-                                                        }
-                                                      });
-                                                }
-                                              },
-                                              child: const Text('Edit'),
-                                            ),
-                                          ],
-                                          if (_canDelete && isUpcoming) ...[
-                                            const SizedBox(width: 4),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  _deleteEvent(id, title),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.error,
+                                      DataColumn(
+                                        label: Text(context.tr('Location')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Actions')),
+                                      ),
+                                    ],
+                                    rows: _paginatedEvents.map((event) {
+                                      final id = event['id']?.toString() ?? '';
+                                      final title =
+                                          event['title']?.toString() ?? 'Event';
+                                      final dateStr = event['event_date'];
+                                      final dateFormatted = dateStr != null
+                                          ? _formatDate(DateTime.parse(dateStr))
+                                          : '—';
+                                      final location =
+                                          event['location']?.toString() ?? '—';
+                                      final isUpcoming = _isUpcomingEvent(
+                                        event,
+                                      );
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            InkWell(
+                                              onTap: () => _openEventDetail(id),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  vertical: 8,
+                                                ),
+                                                child: Text(
+                                                  title,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
                                               ),
-                                              child: const Text('Delete'),
                                             ),
-                                          ],
+                                          ),
+                                          DataCell(Text(dateFormatted)),
+                                          DataCell(
+                                            Text(
+                                              location,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      _openEventDetail(id),
+                                                  child: Text(
+                                                    context.tr('View'),
+                                                  ),
+                                                ),
+                                                if (_canEdit && isUpcoming) ...[
+                                                  SizedBox(width: 4),
+                                                  TextButton(
+                                                    onPressed: () {
+                                                      final scope =
+                                                          DesktopShellScope.maybeOf(
+                                                            context,
+                                                          );
+                                                      if (scope != null) {
+                                                        scope.pushDetail(
+                                                          RouteNames.editEvent,
+                                                          id,
+                                                        );
+                                                      } else {
+                                                        Navigator.of(context)
+                                                            .pushNamed(
+                                                              RouteNames
+                                                                  .editEvent
+                                                                  .replaceAll(
+                                                                    ':id',
+                                                                    id,
+                                                                  ),
+                                                            )
+                                                            .then((result) {
+                                                              if (result ==
+                                                                  true) {
+                                                                _loadEvents();
+                                                              }
+                                                            });
+                                                      }
+                                                    },
+                                                    child: Text(
+                                                      context.tr('Edit'),
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (_canDelete &&
+                                                    isUpcoming) ...[
+                                                  SizedBox(width: 4),
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        _deleteEvent(id, title),
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor:
+                                                          AppColors.error,
+                                                    ),
+                                                    child: Text(
+                                                      context.tr('Delete'),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
                                         ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                                    ),
+                                      );
+                                    }).toList(),
                                   ),
-                                );
+                                ),
+                              );
                             },
                           ),
                         ),
                       ),
               ),
               if (_filteredEvents.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -619,9 +644,9 @@ class _EventsListPageState extends State<EventsListPage> {
                           'Page ${_eventsPage + 1} of $_totalEventsPages',
                           style: theme.textTheme.bodySmall,
                         ),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        SizedBox(width: AppDimensions.spacingSM),
                         IconButton(
-                          icon: const Icon(Icons.chevron_left),
+                          icon: Icon(Icons.chevron_left),
                           onPressed: _eventsPage > 0
                               ? () => setState(
                                   () => _eventsPage = _eventsPage - 1,
@@ -629,7 +654,7 @@ class _EventsListPageState extends State<EventsListPage> {
                               : null,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.chevron_right),
+                          icon: Icon(Icons.chevron_right),
                           onPressed: _eventsPage < _totalEventsPages - 1
                               ? () => setState(
                                   () => _eventsPage = _eventsPage + 1,
@@ -652,16 +677,16 @@ class _EventsListPageState extends State<EventsListPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: TextField(
             controller: _searchController,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: 'Search events...',
-              prefixIcon: const Icon(Icons.search),
+              hintText: context.tr('Search events...'),
+              prefixIcon: Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
                         setState(() {});
@@ -676,18 +701,18 @@ class _EventsListPageState extends State<EventsListPage> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _filteredEvents.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.event_busy,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
                       Text(
                         _searchController.text.isNotEmpty
                             ? 'No events found matching your search'

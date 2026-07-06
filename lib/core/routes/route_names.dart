@@ -82,6 +82,8 @@ class RouteNames {
   // Report Routes
   static const String reports = '/reports';
   static const String memberReport = '/reports/member/:id';
+  static const String membersReport = '/reports/members';
+  static const String trainingsReport = '/reports/trainings';
   static const String classReport = '/reports/training/:id';
   static const String newComerReport = '/reports/new-comers';
 

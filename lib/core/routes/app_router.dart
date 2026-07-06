@@ -35,6 +35,8 @@ import '../../screens/classes/add_class_page.dart';
 import '../../screens/classes/edit_class_page.dart';
 import '../../screens/reports/reports_page.dart';
 import '../../screens/reports/member_report_page.dart';
+import '../../screens/reports/members_report_page.dart';
+import '../../screens/reports/trainings_report_page.dart';
 import '../../screens/reports/class_report_page.dart';
 import '../../screens/reports/new_comer_report_page.dart';
 import '../../screens/chat/chat_page.dart';
@@ -73,19 +75,19 @@ class AppRouter {
     switch (settings.name) {
       case AppStrings.routeSplash:
         return MaterialPageRoute(
-          builder: (_) => const SplashScreen(),
+          builder: (_) => SplashScreen(),
           settings: settings,
         );
 
       case AppStrings.routeLogin:
         return MaterialPageRoute(
-          builder: (_) => const LoginPage(),
+          builder: (_) => LoginPage(),
           settings: settings,
         );
 
       case RouteNames.forgotPassword:
         return MaterialPageRoute(
-          builder: (_) => const ForgotPasswordPage(),
+          builder: (_) => ForgotPasswordPage(),
           settings: settings,
         );
 
@@ -98,24 +100,24 @@ class AppRouter {
 
       case RouteNames.changePassword:
         return MaterialPageRoute(
-          builder: (_) => const ChangePasswordPage(),
+          builder: (_) => ChangePasswordPage(),
           settings: settings,
         );
 
       // Desktop/Web (width >= 500px) - auth
       case RouteNames.desktopLogin:
         return MaterialPageRoute(
-          builder: (_) => const DesktopLoginPage(),
+          builder: (_) => DesktopLoginPage(),
           settings: settings,
         );
       case RouteNames.desktopSignup:
         return MaterialPageRoute(
-          builder: (_) => const DesktopSignupPage(),
+          builder: (_) => DesktopSignupPage(),
           settings: settings,
         );
       case RouteNames.desktopForgotPassword:
         return MaterialPageRoute(
-          builder: (_) => const DesktopForgotPasswordPage(),
+          builder: (_) => DesktopForgotPasswordPage(),
           settings: settings,
         );
       case RouteNames.desktopResetPassword:
@@ -126,39 +128,40 @@ class AppRouter {
           settings: settings,
         );
       case RouteNames.desktopMain:
+        final initialRoute =
+            settings.arguments as String? ?? RouteNames.desktopHome;
         return MaterialPageRoute(
-          builder: (_) =>
-              const DesktopShell(initialRoute: RouteNames.desktopHome),
+          builder: (_) => DesktopShell(initialRoute: initialRoute),
           settings: settings,
         );
 
       case AppStrings.routeDashboard:
       case AppStrings.routeHome:
         return MaterialPageRoute(
-          builder: (_) => const DashboardPage(),
+          builder: (_) => DashboardPage(),
           settings: settings,
         );
 
       case RouteNames.members:
         return MaterialPageRoute(
-          builder: (_) => const MembersListPage(),
+          builder: (_) => MembersListPage(),
           settings: settings,
         );
       case RouteNames.upcomingBirthdays:
         return MaterialPageRoute(
-          builder: (_) => const UpcomingBirthdaysPage(),
+          builder: (_) => UpcomingBirthdaysPage(),
           settings: settings,
         );
 
       case RouteNames.departments:
         return MaterialPageRoute(
-          builder: (_) => const DepartmentsListPage(),
+          builder: (_) => DepartmentsListPage(),
           settings: settings,
         );
 
       case RouteNames.events:
         return MaterialPageRoute(
-          builder: (_) => const EventsListPage(),
+          builder: (_) => EventsListPage(),
           settings: settings,
         );
 
@@ -173,30 +176,40 @@ class AppRouter {
 
       case RouteNames.giving:
         return MaterialPageRoute(
-          builder: (_) => const FinancePage(),
+          builder: (_) => FinancePage(),
           settings: settings,
         );
 
       case RouteNames.classes:
         return MaterialPageRoute(
-          builder: (_) => const ClassesListPage(),
+          builder: (_) => ClassesListPage(),
           settings: settings,
         );
 
       case RouteNames.reports:
         return MaterialPageRoute(
-          builder: (_) => const ReportsPage(),
+          builder: (_) => ReportsPage(),
           settings: settings,
         );
       case RouteNames.newComerReport:
         return MaterialPageRoute(
-          builder: (_) => const NewComerReportPage(),
+          builder: (_) => NewComerReportPage(),
+          settings: settings,
+        );
+      case RouteNames.membersReport:
+        return MaterialPageRoute(
+          builder: (_) => const MembersReportPage(),
+          settings: settings,
+        );
+      case RouteNames.trainingsReport:
+        return MaterialPageRoute(
+          builder: (_) => const TrainingsReportPage(),
           settings: settings,
         );
 
       case RouteNames.churchAttendanceList:
         return MaterialPageRoute(
-          builder: (_) => const ChurchAttendanceListPage(),
+          builder: (_) => ChurchAttendanceListPage(),
           settings: settings,
         );
 
@@ -213,7 +226,7 @@ class AppRouter {
 
       case RouteNames.sundaySchoolAttendanceList:
         return MaterialPageRoute(
-          builder: (_) => const SundaySchoolAttendanceListPage(),
+          builder: (_) => SundaySchoolAttendanceListPage(),
           settings: settings,
         );
 
@@ -229,73 +242,55 @@ class AppRouter {
 
       case RouteNames.visitors:
         return MaterialPageRoute(
-          builder: (_) => const VisitorsListPage(),
+          builder: (_) => VisitorsListPage(),
           settings: settings,
         );
 
       case RouteNames.addVisitor:
         return MaterialPageRoute(
-          builder: (_) => const AddVisitorPage(),
-          settings: settings,
-        );
-
-      case RouteNames.editVisitor:
-        // Extract visitor ID from route
-        if (settings.name?.startsWith('/visitors/') == true) {
-          final parts = settings.name!.split('/');
-          if (parts.length >= 4 && parts[2] != 'add') {
-            final visitorId = parts[2];
-            return MaterialPageRoute(
-              builder: (_) => EditVisitorPage(visitorId: visitorId),
-              settings: settings,
-            );
-          }
-        }
-        // Fallback if route parsing fails
-        return MaterialPageRoute(
-          builder: (_) => const VisitorsListPage(),
+          builder: (_) => AddVisitorPage(),
           settings: settings,
         );
 
       case RouteNames.teachings:
         return MaterialPageRoute(
-          builder: (_) => const TeachingsListPage(),
+          builder: (_) => TeachingsListPage(),
           settings: settings,
         );
 
       case RouteNames.addTeaching:
         return MaterialPageRoute(
-          builder: (_) => const AddTeachingPage(),
+          builder: (_) => AddTeachingPage(),
           settings: settings,
         );
 
       case RouteNames.chat:
         return MaterialPageRoute(
-          builder: (_) => const ChatPage(),
+          builder: (_) => ChatPage(),
           settings: settings,
         );
 
       case RouteNames.admin:
         return MaterialPageRoute(
-          builder: (_) => const AdminPanelPage(),
+          builder: (_) => AdminPanelPage(),
           settings: settings,
         );
 
       case RouteNames.addMember:
         return MaterialPageRoute(
-          builder: (_) => const AddMemberPage(),
+          builder: (_) => AddMemberPage(),
           settings: settings,
         );
 
       case RouteNames.addClass:
         return MaterialPageRoute(
-          builder: (_) => const AddClassPage(),
+          builder: (_) => AddClassPage(),
           settings: settings,
         );
 
       case RouteNames.addDepartment:
         return MaterialPageRoute(
-          builder: (_) => const AddDepartmentPage(),
+          builder: (_) => AddDepartmentPage(),
           settings: settings,
         );
 
@@ -317,7 +312,7 @@ class AppRouter {
 
       case RouteNames.addProject:
         return MaterialPageRoute(
-          builder: (_) => const AddProjectPage(),
+          builder: (_) => AddProjectPage(),
           settings: settings,
         );
 
@@ -330,31 +325,31 @@ class AppRouter {
 
       case RouteNames.addEvent:
         return MaterialPageRoute(
-          builder: (_) => const AddEventPage(),
+          builder: (_) => AddEventPage(),
           settings: settings,
         );
 
       case RouteNames.addGiving:
         return MaterialPageRoute(
-          builder: (_) => const AddGivingPage(),
+          builder: (_) => AddGivingPage(),
           settings: settings,
         );
 
       case RouteNames.settings:
         return MaterialPageRoute(
-          builder: (_) => const SettingsPage(),
+          builder: (_) => SettingsPage(),
           settings: settings,
         );
 
       case RouteNames.leaderAccess:
         return MaterialPageRoute(
-          builder: (_) => const LeaderAccessPage(),
+          builder: (_) => LeaderAccessPage(),
           settings: settings,
         );
 
       case RouteNames.memberAccounts:
         return MaterialPageRoute(
-          builder: (_) => const MemberAccountsPage(),
+          builder: (_) => MemberAccountsPage(),
           settings: settings,
         );
 
@@ -362,13 +357,13 @@ class AppRouter {
         // Birthday notifications settings
         if (settings.arguments == 'birthday') {
           return MaterialPageRoute(
-            builder: (_) => const BirthdayNotificationsSettingsPage(),
+            builder: (_) => BirthdayNotificationsSettingsPage(),
             settings: settings,
           );
         }
         // Regular notifications list page
         return MaterialPageRoute(
-          builder: (_) => const NotificationsListPage(),
+          builder: (_) => NotificationsListPage(),
           settings: settings,
         );
 
@@ -400,7 +395,7 @@ class AppRouter {
           // Check if it's an add route
           if (parts.length >= 3 && parts.last == 'add') {
             return MaterialPageRoute(
-              builder: (_) => const AddMemberPage(),
+              builder: (_) => AddMemberPage(),
               settings: settings,
             );
           }
@@ -498,13 +493,13 @@ class AppRouter {
           // /tasks/projects -> manage, /tasks/projects/add -> add, /tasks/projects/:id/edit -> edit
           if (parts.length == 3) {
             return MaterialPageRoute(
-              builder: (_) => const ManageProjectsPage(),
+              builder: (_) => ManageProjectsPage(),
               settings: settings,
             );
           }
           if (parts.length == 4 && parts[3] == 'add') {
             return MaterialPageRoute(
-              builder: (_) => const AddProjectPage(),
+              builder: (_) => AddProjectPage(),
               settings: settings,
             );
           }
@@ -590,7 +585,7 @@ class AppRouter {
           // Skip if it's the add route (handled by case statement)
           if (parts.length >= 3 && parts[2] == 'add') {
             return MaterialPageRoute(
-              builder: (_) => const AddTeachingPage(),
+              builder: (_) => AddTeachingPage(),
               settings: settings,
             );
           }
@@ -612,6 +607,24 @@ class AppRouter {
             settings: settings,
           );
         }
+        if (settings.name?.startsWith('/visitors/') == true) {
+          final parts = settings.name!.split('/');
+
+          if (parts.length >= 3 && parts[2] == 'add') {
+            return MaterialPageRoute(
+              builder: (_) => AddVisitorPage(),
+              settings: settings,
+            );
+          }
+
+          if (parts.length >= 4 && parts.last == 'edit') {
+            final visitorId = parts[parts.length - 2];
+            return MaterialPageRoute(
+              builder: (_) => EditVisitorPage(visitorId: visitorId),
+              settings: settings,
+            );
+          }
+        }
         if (settings.name?.startsWith('/reports/member/') == true) {
           final parts = settings.name!.split('/');
           final memberId = parts.last;
@@ -632,18 +645,18 @@ class AppRouter {
   static Route<dynamic>? onUnknownRoute(RouteSettings settings) {
     return MaterialPageRoute(
       builder: (context) => Scaffold(
-        appBar: AppBar(title: const Text('Page Not Found')),
+        appBar: AppBar(title: Text('Page Not Found')),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.grey),
-              const SizedBox(height: 16),
+              Icon(Icons.error_outline, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
               Text(
                 'Page not found',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'The page you are looking for does not exist.',
                 style: Theme.of(context).textTheme.bodyMedium,

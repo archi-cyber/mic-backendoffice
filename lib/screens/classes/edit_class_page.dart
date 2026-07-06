@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/class_service.dart';
 import '../../services/department_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Edit training page
 class EditClassPage extends StatefulWidget {
@@ -67,9 +69,9 @@ class _EditClassPageState extends State<EditClassPage> {
         _isLoadingDepartments = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading data: $e'))),
+        );
         if (widget.onClose != null) {
           widget.onClose!(null);
         } else {
@@ -98,8 +100,8 @@ class _EditClassPageState extends State<EditClassPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Training updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Training updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -125,145 +127,269 @@ class _EditClassPageState extends State<EditClassPage> {
   static const double _kDesktopBreakpoint = 700;
   static const double _kDesktopMaxWidth = 800;
 
-  @override
-  Widget build(BuildContext context) {
-    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
-
-    if (_isLoadingData) {
-      return Scaffold(
-        appBar: AppBar(
-          leading: widget.onClose != null
-              ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () => widget.onClose!(null),
-                )
-              : null,
-          title: const Text('Edit Training'),
+  Widget _desktopIntroCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            AppColors.primary.withValues(alpha: 0.04),
+          ],
         ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => widget.onClose!(null),
-              )
-            : null,
-        title: const Text('Edit Training'),
-        actions: useDesktop
-            ? [
-                TextButton(
-                  onPressed: () => widget.onClose != null
-                      ? widget.onClose!(null)
-                      : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+            ),
+            child: Icon(Icons.edit_note_outlined, color: AppColors.primary),
+          ),
+          SizedBox(width: AppDimensions.spacingLG),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('Edit Training'),
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  context.tr(
+                    'Update the training details without leaving the current workspace.',
+                  ),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _closeWithoutResult,
+            icon: Icon(Icons.close),
+            tooltip: context.tr('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopBody(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _desktopIntroCard(context),
+                SizedBox(height: AppDimensions.spacingLG),
+                _desktopFormCard(context),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopFormCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+      child: Container(
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  child: Icon(
+                    Icons.class_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: AppDimensions.spacingMD),
+                Text(
+                  context.tr('Training details'),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            TextFormField(
+              controller: _nameController,
+              decoration: InputDecoration(
+                labelText: context.tr('Training Name *'),
+                prefixIcon: Icon(Icons.class_),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Training name is required';
+                }
+                return null;
+              },
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: InputDecoration(
+                labelText: context.tr('Description'),
+                prefixIcon: Icon(Icons.description),
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 4,
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
+            if (_isLoadingDepartments)
+              Center(child: CircularProgressIndicator())
+            else
+              DropdownButtonFormField<String>(
+                initialValue: _selectedDepartmentId,
+                decoration: InputDecoration(
+                  labelText: context.tr('Department'),
+                  prefixIcon: Icon(Icons.group_work),
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem<String>(
+                    value: null,
+                    child: Text(context.tr('No Department')),
+                  ),
+                  ..._departments.map((dept) {
+                    return DropdownMenuItem<String>(
+                      value: dept['id'].toString(),
+                      child: Text(dept['name']?.toString() ?? 'Unnamed'),
+                    );
+                  }),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedDepartmentId = value;
+                  });
+                },
+              ),
+            SizedBox(height: AppDimensions.spacingLG),
+            Divider(),
+            SizedBox(height: AppDimensions.spacingMD),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: _closeWithoutResult,
+                  child: Text(context.tr('Cancel')),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 20),
-                  label: const Text('Update Training'),
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Update Training')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
-              ]
-            : null,
+              ],
+            ),
+          ],
+        ),
       ),
-      body: useDesktop
-          ? Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Training details',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Training Name *',
-                                prefixIcon: Icon(Icons.class_),
-                                border: OutlineInputBorder(),
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Training name is required';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            TextFormField(
-                              controller: _descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
-                                prefixIcon: Icon(Icons.description),
-                                border: OutlineInputBorder(),
-                              ),
-                              maxLines: 4,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            if (_isLoadingDepartments)
-                              const Center(child: CircularProgressIndicator())
-                            else
-                              DropdownButtonFormField<String>(
-                                initialValue: _selectedDepartmentId,
-                                decoration: const InputDecoration(
-                                  labelText: 'Department',
-                                  prefixIcon: Icon(Icons.group_work),
-                                  border: OutlineInputBorder(),
-                                ),
-                                items: [
-                                  const DropdownMenuItem<String>(
-                                    value: null,
-                                    child: Text('No Department'),
-                                  ),
-                                  ..._departments.map((dept) {
-                                    return DropdownMenuItem<String>(
-                                      value: dept['id'].toString(),
-                                      child: Text(
-                                        dept['name']?.toString() ?? 'Unnamed',
-                                      ),
-                                    );
-                                  }),
-                                ],
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedDepartmentId = value;
-                                  });
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final useDesktopShell = widget.onClose != null && useDesktop;
+
+    if (_isLoadingData) {
+      return Scaffold(
+        appBar: useDesktopShell
+            ? null
+            : AppBar(
+                leading: widget.onClose != null
+                    ? IconButton(
+                        icon: Icon(Icons.arrow_back),
+                        onPressed: () => widget.onClose!(null),
+                      )
+                    : null,
+                title: Text(context.tr('Edit Training')),
               ),
-            )
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: useDesktopShell
+          ? null
+          : AppBar(
+              leading: widget.onClose != null
+                  ? IconButton(
+                      icon: Icon(Icons.arrow_back),
+                      onPressed: () => widget.onClose!(null),
+                    )
+                  : null,
+              title: Text(context.tr('Edit Training')),
+              actions: useDesktop
+                  ? [
+                      TextButton(
+                        onPressed: _closeWithoutResult,
+                        child: Text(context.tr('Cancel')),
+                      ),
+                      SizedBox(width: AppDimensions.spacingSM),
+                      FilledButton.icon(
+                        onPressed: _isLoading ? null : _handleSave,
+                        icon: _isLoading
+                            ? SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(Icons.save, size: 20),
+                        label: Text(context.tr('Update Training')),
+                      ),
+                      SizedBox(width: AppDimensions.paddingMD),
+                    ]
+                  : null,
+            ),
+      body: useDesktop
+          ? _buildDesktopBody(context)
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -271,8 +397,8 @@ class _EditClassPageState extends State<EditClassPage> {
                   children: [
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Training Name *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Training Name *'),
                         prefixIcon: Icon(Icons.class_),
                       ),
                       validator: (value) {
@@ -282,29 +408,29 @@ class _EditClassPageState extends State<EditClassPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
                       ),
                       maxLines: 4,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     if (_isLoadingDepartments)
-                      const Center(child: CircularProgressIndicator())
+                      Center(child: CircularProgressIndicator())
                     else
                       DropdownButtonFormField<String>(
                         initialValue: _selectedDepartmentId,
-                        decoration: const InputDecoration(
-                          labelText: 'Department',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Department'),
                           prefixIcon: Icon(Icons.group_work),
                         ),
                         items: [
-                          const DropdownMenuItem<String>(
+                          DropdownMenuItem<String>(
                             value: null,
-                            child: Text('No Department'),
+                            child: Text(context.tr('No Department')),
                           ),
                           ..._departments.map((dept) {
                             return DropdownMenuItem<String>(
@@ -321,27 +447,35 @@ class _EditClassPageState extends State<EditClassPage> {
                           });
                         },
                       ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Update Class'),
+                          : Text(context.tr('Update Class')),
                     ),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  void _closeWithoutResult() {
+    if (widget.onClose != null) {
+      widget.onClose!(null);
+    } else {
+      Navigator.of(context).pop();
+    }
   }
 }

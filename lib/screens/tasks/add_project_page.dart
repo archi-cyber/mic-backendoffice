@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/project_service.dart';
 import '../../services/department_service.dart';
 import '../../services/member_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Add project page (from Tasks → menu or from Manage projects with optional departmentId).
 class AddProjectPage extends StatefulWidget {
@@ -12,7 +14,7 @@ class AddProjectPage extends StatefulWidget {
 
   final void Function(bool? result)? onClose;
 
-  const AddProjectPage({super.key, this.departmentId, this.onClose});
+  AddProjectPage({super.key, this.departmentId, this.onClose});
 
   @override
   State<AddProjectPage> createState() => _AddProjectPageState();
@@ -63,7 +65,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
       setState(() => _isLoadingData = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading data: $e')),
+          SnackBar(content: Text(context.tr('Error loading data: $e'))),
         );
       }
     }
@@ -74,7 +76,9 @@ class _AddProjectPageState extends State<AddProjectPage> {
     try {
       List<Map<String, dynamic>> members;
       if (departmentId != null && departmentId.isNotEmpty) {
-        final dmList = await DepartmentService.getDepartmentMembers(departmentId);
+        final dmList = await DepartmentService.getDepartmentMembers(
+          departmentId,
+        );
         members = dmList
             .map((dm) => dm['members'] as Map<String, dynamic>?)
             .whereType<Map<String, dynamic>>()
@@ -88,7 +92,8 @@ class _AddProjectPageState extends State<AddProjectPage> {
         _isLoadingMembers = false;
         if (_selectedPersonInChargeId != null) {
           final stillValid = members.any(
-              (m) => m['id'].toString() == _selectedPersonInChargeId);
+            (m) => m['id'].toString() == _selectedPersonInChargeId,
+          );
           if (!stillValid) _selectedPersonInChargeId = null;
         }
       });
@@ -101,9 +106,9 @@ class _AddProjectPageState extends State<AddProjectPage> {
   String _getPersonName(String? memberId) {
     if (memberId == null) return '';
     final m = _members.cast<Map<String, dynamic>?>().firstWhere(
-          (x) => x?['id'].toString() == memberId,
-          orElse: () => null,
-        );
+      (x) => x?['id'].toString() == memberId,
+      orElse: () => null,
+    );
     if (m == null) return 'Unknown';
     return '${m['first_name']} ${m['last_name']}';
   }
@@ -117,7 +122,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Person in charge'),
+            title: Text(context.tr('Person in charge')),
             content: SizedBox(
               width: double.maxFinite,
               child: Column(
@@ -125,10 +130,10 @@ class _AddProjectPageState extends State<AddProjectPage> {
                 children: [
                   TextField(
                     controller: _personSearchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Search'),
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Type to search...',
+                      hintText: context.tr('Type to search...'),
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) {
@@ -153,44 +158,48 @@ class _AddProjectPageState extends State<AddProjectPage> {
                       });
                     },
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Flexible(
                     child: _members.isEmpty
-                        ? const Center(child: Text('Select a department first'))
+                        ? Center(
+                            child: Text(
+                              context.tr('Select a department first'),
+                            ),
+                          )
                         : filtered.isEmpty
-                            ? const Center(child: Text('No members found'))
-                            : ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: filtered.length + 1,
-                                itemBuilder: (context, index) {
-                                  if (index == 0) {
-                                    return ListTile(
-                                      title: const Text('None'),
-                                      onTap: () {
-                                        setState(() =>
-                                            _selectedPersonInChargeId = null);
-                                        Navigator.pop(context);
-                                      },
+                        ? Center(child: Text(context.tr('No members found')))
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: filtered.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == 0) {
+                                return ListTile(
+                                  title: Text(context.tr('None')),
+                                  onTap: () {
+                                    setState(
+                                      () => _selectedPersonInChargeId = null,
                                     );
-                                  }
-                                  final m = filtered[index - 1];
-                                  final id = m['id'].toString();
-                                  final name =
-                                      '${m['first_name']} ${m['last_name']}';
-                                  final email = m['email']?.toString() ?? '';
-                                  return ListTile(
-                                    title: Text(name),
-                                    subtitle: email.isNotEmpty
-                                        ? Text(email)
-                                        : null,
-                                    onTap: () {
-                                      setState(() =>
-                                          _selectedPersonInChargeId = id);
-                                      Navigator.pop(context);
-                                    },
+                                    Navigator.pop(context);
+                                  },
+                                );
+                              }
+                              final m = filtered[index - 1];
+                              final id = m['id'].toString();
+                              final name =
+                                  '${m['first_name']} ${m['last_name']}';
+                              final email = m['email']?.toString() ?? '';
+                              return ListTile(
+                                title: Text(name),
+                                subtitle: email.isNotEmpty ? Text(email) : null,
+                                onTap: () {
+                                  setState(
+                                    () => _selectedPersonInChargeId = id,
                                   );
+                                  Navigator.pop(context);
                                 },
-                              ),
+                              );
+                            },
+                          ),
                   ),
                 ],
               ),
@@ -206,7 +215,7 @@ class _AddProjectPageState extends State<AddProjectPage> {
       context: context,
       initialDate: _endDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 5)),
     );
     if (picked != null) setState(() => _endDate = picked);
   }
@@ -215,8 +224,8 @@ class _AddProjectPageState extends State<AddProjectPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDepartmentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a department'),
+        SnackBar(
+          content: Text(context.tr('Please select a department')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -240,8 +249,8 @@ class _AddProjectPageState extends State<AddProjectPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Project created successfully'),
+        SnackBar(
+          content: Text(context.tr('Project created successfully')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -263,48 +272,107 @@ class _AddProjectPageState extends State<AddProjectPage> {
   }
 
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 560;
+  static const double _kDesktopMaxWidth = 680;
+
+  Widget _desktopIntroCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            theme.colorScheme.surface,
+          ],
+        ),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.folder_special_outlined,
+              color: AppColors.primary,
+              size: 30,
+            ),
+          ),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Create a project',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  'Define the project owner, department, deadline, and priority.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+    final isDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     return Scaffold(
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(isDesktop ? Icons.close : Icons.arrow_back),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Add Project'),
+        title: Text(context.tr('Add Project')),
         actions: isDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.add, size: 20),
-                  label: const Text('Create Project'),
+                      : Icon(Icons.add, size: 20),
+                  label: Text(context.tr('Create Project')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
+      backgroundColor: isDesktop
+          ? Theme.of(context).colorScheme.surfaceContainerLowest
+          : null,
       body: _isLoadingData
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _buildForm(context, isDesktop),
     );
   }
@@ -317,120 +385,121 @@ class _AddProjectPageState extends State<AddProjectPage> {
         children: [
           TextFormField(
             controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Project title *',
+            decoration: InputDecoration(
+              labelText: context.tr('Project title *'),
               border: OutlineInputBorder(),
             ),
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Required' : null,
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           DropdownButtonFormField<String>(
             initialValue: _selectedDepartmentId,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: _isLoadingMembers
-                            ? 'Department * (loading members…)'
-                            : 'Department *',
-                        border: const OutlineInputBorder(),
-                      ),
-                      items: _departments
-                          .map((d) => DropdownMenuItem<String>(
-                                value: d['id'].toString(),
-                                child: Text(
-                                  d['name']?.toString() ?? '',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ))
-                          .toList(),
-                      onChanged: (v) async {
-                        setState(() => _selectedDepartmentId = v);
-                        await _loadMembersForDepartment(v);
-                      },
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: _isLoadingMembers
+                  ? 'Department * (loading members…)'
+                  : 'Department *',
+              border: OutlineInputBorder(),
+            ),
+            items: _departments
+                .map(
+                  (d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(),
+                    child: Text(
+                      d['name']?.toString() ?? '',
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    InkWell(
-                      onTap: _isLoadingMembers
-                          ? null
-                          : () => _showPersonInChargePicker(),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Person in charge',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.search),
-                        ),
-                        child: Text(
-                          _selectedPersonInChargeId != null
-                              ? _getPersonName(_selectedPersonInChargeId)
-                              : 'Tap to search and select',
-                          style: TextStyle(
-                            color: _selectedPersonInChargeId != null
-                                ? null
-                                : Theme.of(context).hintColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    InkWell(
-                      onTap: _selectEndDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'End date',
-                          border: OutlineInputBorder(),
-                        ),
-                        child: Text(
-                          _endDate != null
-                              ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
-                              : 'Select end date (optional)',
-                          style: TextStyle(
-                            color: _endDate != null
-                                ? null
-                                : Theme.of(context).hintColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    DropdownButtonFormField<String>(
-                      initialValue: _priority,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'low', child: Text('Low')),
-                        DropdownMenuItem(
-                            value: 'medium', child: Text('Medium')),
-                        DropdownMenuItem(value: 'high', child: Text('High')),
-                        DropdownMenuItem(
-                            value: 'urgent', child: Text('Urgent')),
-                      ],
-                      onChanged: (v) =>
-                          setState(() => _priority = v ?? 'medium'),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    TextFormField(
-                      controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 4,
-                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (v) async {
+              setState(() => _selectedDepartmentId = v);
+              await _loadMembersForDepartment(v);
+            },
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          InkWell(
+            onTap: _isLoadingMembers ? null : () => _showPersonInChargePicker(),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: context.tr('Person in charge'),
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.search),
+              ),
+              child: Text(
+                _selectedPersonInChargeId != null
+                    ? _getPersonName(_selectedPersonInChargeId)
+                    : 'Tap to search and select',
+                style: TextStyle(
+                  color: _selectedPersonInChargeId != null
+                      ? null
+                      : Theme.of(context).hintColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          InkWell(
+            onTap: _selectEndDate,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: context.tr('End date'),
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                _endDate != null
+                    ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                    : 'Select end date (optional)',
+                style: TextStyle(
+                  color: _endDate != null ? null : Theme.of(context).hintColor,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          DropdownButtonFormField<String>(
+            initialValue: _priority,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: context.tr('Priority'),
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              DropdownMenuItem(value: 'low', child: Text(context.tr('Low'))),
+              DropdownMenuItem(
+                value: 'medium',
+                child: Text(context.tr('Medium')),
+              ),
+              DropdownMenuItem(value: 'high', child: Text(context.tr('High'))),
+              DropdownMenuItem(
+                value: 'urgent',
+                child: Text(context.tr('Urgent')),
+              ),
+            ],
+            onChanged: (v) => setState(() => _priority = v ?? 'medium'),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          TextFormField(
+            controller: _descriptionController,
+            decoration: InputDecoration(
+              labelText: context.tr('Description'),
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 4,
+          ),
           if (!isDesktop) ...[
-            const SizedBox(height: AppDimensions.spacingLG),
+            SizedBox(height: AppDimensions.spacingLG),
             FilledButton(
               onPressed: _isLoading ? null : _handleSave,
               child: _isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 24,
                       width: 24,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Create Project'),
+                  : Text(context.tr('Create Project')),
             ),
           ],
         ],
@@ -440,21 +509,38 @@ class _AddProjectPageState extends State<AddProjectPage> {
     if (isDesktop) {
       return Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingLG),
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: _kDesktopMaxWidth),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
-                child: form,
-              ),
+            constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _desktopIntroCard(context),
+                SizedBox(height: AppDimensions.spacingLG),
+                Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+                    side: BorderSide(
+                      color: Theme.of(
+                        context,
+                      ).dividerColor.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(AppDimensions.paddingLG),
+                    child: form,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       );
     }
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: form,
     );
   }

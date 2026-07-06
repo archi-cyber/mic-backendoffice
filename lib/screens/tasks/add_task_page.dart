@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/task_service.dart';
+import '../../services/task_penalty_service.dart';
 import '../../services/department_service.dart';
 import '../../services/member_service.dart';
 import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
 import '../../core/constants/tag_colors.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Add task page
 class AddTaskPage extends StatefulWidget {
@@ -15,7 +18,7 @@ class AddTaskPage extends StatefulWidget {
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const AddTaskPage({super.key, this.departmentId, this.onClose});
+  AddTaskPage({super.key, this.departmentId, this.onClose});
 
   @override
   State<AddTaskPage> createState() => _AddTaskPageState();
@@ -25,6 +28,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _penaltyAmountController = TextEditingController();
   String? _selectedDepartmentId;
   String? _selectedMemberId;
   DateTime? _dueDate;
@@ -69,7 +73,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
     if (deptId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Select a department to add tags')),
+          SnackBar(
+            content: Text(context.tr('Select a department to add tags')),
+          ),
         );
       }
       return;
@@ -89,9 +95,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
       _newTagController.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not add tag: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Could not add tag: $e'))),
+        );
       }
     }
   }
@@ -112,6 +118,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _penaltyAmountController.dispose();
     _memberSearchController.dispose();
     _newTagController.dispose();
     super.dispose();
@@ -128,7 +135,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       setState(() => _isLoadingDepartments = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading departments: $e')),
+          SnackBar(content: Text(context.tr('Error loading departments: $e'))),
         );
       }
     }
@@ -138,16 +145,18 @@ class _AddTaskPageState extends State<AddTaskPage> {
     setState(() => _isLoadingMembers = true);
     try {
       final members = await MemberService.getMembers(limit: 100);
+      final membersWithPenalties =
+          await TaskPenaltyService.annotateMembersWithPenalties(members);
       setState(() {
-        _members = members;
+        _members = membersWithPenalties;
         _isLoadingMembers = false;
       });
     } catch (e) {
       setState(() => _isLoadingMembers = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading members: $e'))),
+        );
       }
     }
   }
@@ -195,7 +204,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       context: context,
       initialDate: _dueDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 2)),
     );
     if (picked != null) {
       setState(() {
@@ -210,8 +219,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
     // Validate based on assignment type
     if (!_assignToIndividual && _selectedDepartmentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a department'),
+        SnackBar(
+          content: Text(context.tr('Please select a department')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -220,8 +229,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
     if (_assignToIndividual && _selectedMemberId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a member'),
+        SnackBar(
+          content: Text(context.tr('Please select a member')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -243,6 +252,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
           'due_date': _dueDate?.toIso8601String().split('T')[0],
           'priority': _priority,
           'status': _status,
+          if (_penaltyAmountController.text.trim().isNotEmpty)
+            'penalty_amount_per_day': int.parse(
+              _penaltyAmountController.text.trim(),
+            ),
           if (_selectedProjectId != null) 'project_id': _selectedProjectId,
         },
       );
@@ -264,8 +277,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Task created successfully'),
+          SnackBar(
+            content: Text(context.tr('Task created successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -306,7 +319,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Select Member'),
+            title: Text(context.tr('Select Member')),
             content: SizedBox(
               width: double.maxFinite,
               child: Column(
@@ -314,10 +327,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                 children: [
                   TextField(
                     controller: _memberSearchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search members',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Search members'),
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Type to search...',
+                      hintText: context.tr('Type to search...'),
                     ),
                     onChanged: (value) {
                       setDialogState(() {
@@ -345,13 +358,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       });
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   Flexible(
                     child: filteredMembers.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Padding(
                               padding: EdgeInsets.all(AppDimensions.paddingMD),
-                              child: Text('No members found'),
+                              child: Text(context.tr('No members found')),
                             ),
                           )
                         : ListView.builder(
@@ -362,23 +375,51 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               final name =
                                   '${member['first_name']} ${member['last_name']}';
                               final email = member['email']?.toString() ?? '';
+                              final isBlocked =
+                                  member['is_assignment_blocked'] == true;
+                              final balance =
+                                  member['penalty_balance'] as int? ?? 0;
                               return ListTile(
+                                enabled: !isBlocked,
                                 title: Text(
                                   name,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                subtitle: email.isNotEmpty
-                                    ? Text(
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (email.isNotEmpty)
+                                      Text(
                                         email,
                                         overflow: TextOverflow.ellipsis,
+                                      ),
+                                    if (isBlocked)
+                                      Text(
+                                        'Blocked: ${balance}frs unpaid penalties',
+                                        style: TextStyle(
+                                          color: AppColors.error,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                trailing: isBlocked
+                                    ? Icon(
+                                        Icons.lock_outline,
+                                        color: AppColors.error,
                                       )
                                     : null,
-                                onTap: () {
-                                  setState(() {
-                                    _selectedMemberId = member['id'].toString();
-                                  });
-                                  Navigator.of(context).pop();
-                                },
+                                onTap: isBlocked
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _selectedMemberId = member['id']
+                                              .toString();
+                                        });
+                                        Navigator.of(context).pop();
+                                      },
                               );
                             },
                           ),
@@ -389,7 +430,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
+                child: Text(context.tr('Cancel')),
               ),
             ],
           );
@@ -399,7 +440,31 @@ class _AddTaskPageState extends State<AddTaskPage> {
   }
 
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 800;
+  static const double _kDesktopMaxWidth = 1040;
+
+  Widget _buildPenaltyAmountField({bool outlined = false}) {
+    return TextFormField(
+      controller: _penaltyAmountController,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: context.tr('Daily penalty amount'),
+        prefixIcon: Icon(Icons.payments_outlined),
+        helperText: context.tr(
+          'Optional. Leave empty to use the department/global default.',
+        ),
+        border: outlined ? OutlineInputBorder() : null,
+      ),
+      validator: (value) {
+        final trimmed = value?.trim() ?? '';
+        if (trimmed.isEmpty) return null;
+        final amount = int.tryParse(trimmed);
+        if (amount == null || amount < 0) {
+          return 'Enter a valid amount';
+        }
+        return null;
+      },
+    );
+  }
 
   Widget _desktopSectionCard(
     BuildContext context,
@@ -407,28 +472,100 @@ class _AddTaskPageState extends State<AddTaskPage> {
     IconData icon,
     List<Widget> children,
   ) {
-    return Card(
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  child: Icon(icon, size: 20, color: AppColors.primary),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ...children,
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _desktopIntroCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            theme.colorScheme.surface,
+          ],
+        ),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.add_task_outlined,
+              color: AppColors.primary,
+              size: 30,
+            ),
+          ),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Create a new task',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  'Set the task details, delivery expectations, and assignment in one place.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -441,48 +578,51 @@ class _AddTaskPageState extends State<AddTaskPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(useDesktop ? Icons.close : Icons.arrow_back),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Add Task'),
+        title: Text(context.tr('Add Task')),
         actions: useDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.add, size: 20),
-                  label: const Text('Create Task'),
+                      : Icon(Icons.add, size: 20),
+                  label: Text(context.tr('Create Task')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
+      backgroundColor: useDesktop
+          ? Theme.of(context).colorScheme.surfaceContainerLowest
+          : null,
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        _desktopIntroCard(context),
+                        SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
                           'Task details',
@@ -490,8 +630,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           [
                             TextFormField(
                               controller: _titleController,
-                              decoration: const InputDecoration(
-                                labelText: 'Task Title *',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Task Title *'),
                                 prefixIcon: Icon(Icons.title),
                                 border: OutlineInputBorder(),
                               ),
@@ -502,22 +642,22 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Description'),
                                 prefixIcon: Icon(Icons.description),
                                 border: OutlineInputBorder(),
                               ),
                               maxLines: 4,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             InkWell(
                               onTap: _selectDueDate,
                               child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'Due Date',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('Due Date'),
                                   prefixIcon: Icon(Icons.calendar_today),
                                   border: OutlineInputBorder(),
                                 ),
@@ -535,69 +675,71 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
+                            _buildPenaltyAmountField(outlined: true),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
                               initialValue: _priority,
                               isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Priority',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Priority'),
                                 prefixIcon: Icon(Icons.flag),
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
+                              items: [
                                 DropdownMenuItem(
                                   value: 'low',
-                                  child: Text('Low'),
+                                  child: Text(context.tr('Low')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'medium',
-                                  child: Text('Medium'),
+                                  child: Text(context.tr('Medium')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'high',
-                                  child: Text('High'),
+                                  child: Text(context.tr('High')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'urgent',
-                                  child: Text('Urgent'),
+                                  child: Text(context.tr('Urgent')),
                                 ),
                               ],
                               onChanged: (value) {
                                 setState(() => _priority = value ?? 'medium');
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
                               initialValue: _status,
                               isExpanded: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Status'),
                                 prefixIcon: Icon(Icons.check_circle),
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
+                              items: [
                                 DropdownMenuItem(
                                   value: 'pending',
-                                  child: Text('Pending'),
+                                  child: Text(context.tr('Pending')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'in_progress',
-                                  child: Text('In Progress'),
+                                  child: Text(context.tr('In Progress')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'completed',
-                                  child: Text('Completed'),
+                                  child: Text(context.tr('Completed')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'cancelled',
-                                  child: Text('Cancelled'),
+                                  child: Text(context.tr('Cancelled')),
                                 ),
                               ],
                               onChanged: (value) {
                                 setState(() => _status = value ?? 'pending');
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String?>(
                               initialValue: _selectedProjectId,
                               isExpanded: true,
@@ -605,13 +747,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 labelText: _isLoadingProjects
                                     ? 'Project (loading…)'
                                     : 'Project (optional)',
-                                prefixIcon: const Icon(Icons.folder_outlined),
-                                border: const OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.folder_outlined),
+                                border: OutlineInputBorder(),
                               ),
                               items: [
-                                const DropdownMenuItem<String?>(
+                                DropdownMenuItem<String?>(
                                   value: null,
-                                  child: Text('None'),
+                                  child: Text(context.tr('None')),
                                 ),
                                 ..._projects.map(
                                   (p) => DropdownMenuItem<String?>(
@@ -628,7 +770,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               },
                             ),
                             if (_isLoadingTags && _tags.isEmpty)
-                              const Padding(
+                              Padding(
                                 padding: EdgeInsets.only(top: 8.0),
                                 child: Text(
                                   'Tags (loading…)',
@@ -638,22 +780,24 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   ),
                                 ),
                               ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            const Text(
+                            SizedBox(height: AppDimensions.spacingMD),
+                            Text(
                               'Tags (optional)',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Row(
                               children: [
                                 Expanded(
                                   child: TextField(
                                     controller: _newTagController,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Type a tag and add',
+                                    decoration: InputDecoration(
+                                      hintText: context.tr(
+                                        'Type a tag and add',
+                                      ),
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -661,16 +805,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                     onSubmitted: (v) => _addTagByName(v),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 IconButton.filled(
                                   onPressed: () =>
                                       _addTagByName(_newTagController.text),
-                                  icon: const Icon(Icons.add),
-                                  tooltip: 'Add tag',
+                                  icon: Icon(Icons.add),
+                                  tooltip: context.tr('Add tag'),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
                               runSpacing: 4,
@@ -702,7 +846,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           ],
                         ),
                         if (widget.departmentId == null) ...[
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           _desktopSectionCard(
                             context,
                             'Assignment',
@@ -733,15 +877,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                               if (!_assignToIndividual) ...[
                                 if (_isLoadingDepartments)
-                                  const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
+                                  Center(child: CircularProgressIndicator())
                                 else
                                   DropdownButtonFormField<String>(
                                     initialValue: _selectedDepartmentId,
                                     isExpanded: true,
-                                    decoration: const InputDecoration(
-                                      labelText: 'Department *',
+                                    decoration: InputDecoration(
+                                      labelText: context.tr('Department *'),
                                       prefixIcon: Icon(Icons.group_work),
                                       border: OutlineInputBorder(),
                                     ),
@@ -768,12 +910,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       : _showMemberSearchDialog,
                                   child: InputDecorator(
                                     decoration: InputDecoration(
-                                      labelText: 'Member *',
-                                      prefixIcon: const Icon(Icons.person),
-                                      suffixIcon: const Icon(
-                                        Icons.arrow_drop_down,
-                                      ),
-                                      border: const OutlineInputBorder(),
+                                      labelText: context.tr('Member *'),
+                                      prefixIcon: Icon(Icons.person),
+                                      suffixIcon: Icon(Icons.arrow_drop_down),
+                                      border: OutlineInputBorder(),
                                       errorText:
                                           _assignToIndividual &&
                                               _selectedMemberId == null
@@ -806,7 +946,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -814,8 +954,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   children: [
                     TextFormField(
                       controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Task Title *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Task Title *'),
                         prefixIcon: Icon(Icons.title),
                       ),
                       validator: (value) {
@@ -825,30 +965,25 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
                       ),
                       maxLines: 4,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Switch between department and individual assignment - only show if not accessed from department detail page
                     if (widget.departmentId == null)
                       Card(
                         child: Padding(
-                          padding: const EdgeInsets.all(
-                            AppDimensions.paddingMD,
-                          ),
+                          padding: EdgeInsets.all(AppDimensions.paddingMD),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.group_work,
-                                color: AppColors.primary,
-                              ),
-                              const SizedBox(width: AppDimensions.spacingSM),
+                              Icon(Icons.group_work, color: AppColors.primary),
+                              SizedBox(width: AppDimensions.spacingSM),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -869,7 +1004,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: AppColors.textSecondary,
+                                            color: context.mic.textSecondary,
                                           ),
                                     ),
                                   ],
@@ -894,19 +1029,19 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         ),
                       ),
                     if (widget.departmentId == null)
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
                     // Show department or member selection based on switch
                     // If departmentId is provided (from department detail page), don't show department dropdown
                     if (!_assignToIndividual &&
                         widget.departmentId == null) ...[
                       if (_isLoadingDepartments)
-                        const Center(child: CircularProgressIndicator())
+                        Center(child: CircularProgressIndicator())
                       else
                         DropdownButtonFormField<String>(
                           initialValue: _selectedDepartmentId,
                           isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Department *',
+                          decoration: InputDecoration(
+                            labelText: context.tr('Department *'),
                             prefixIcon: Icon(Icons.group_work),
                           ),
                           items: _departments.map((dept) {
@@ -938,9 +1073,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             : _showMemberSearchDialog,
                         child: InputDecorator(
                           decoration: InputDecoration(
-                            labelText: 'Member *',
-                            prefixIcon: const Icon(Icons.person),
-                            suffixIcon: const Icon(Icons.arrow_drop_down),
+                            labelText: context.tr('Member *'),
+                            prefixIcon: Icon(Icons.person),
+                            suffixIcon: Icon(Icons.arrow_drop_down),
                             errorText:
                                 _assignToIndividual && _selectedMemberId == null
                                 ? 'Member is required'
@@ -960,13 +1095,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Due date
                     InkWell(
                       onTap: _selectDueDate,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Due Date',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Due Date'),
                           prefixIcon: Icon(Icons.calendar_today),
                         ),
                         child: Text(
@@ -975,31 +1110,39 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               : 'Select due date (optional)',
                           style: TextStyle(
                             color: _dueDate != null
-                                ? AppColors.textPrimary
-                                : AppColors.textSecondary,
+                                ? context.mic.textPrimary
+                                : context.mic.textSecondary,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    _buildPenaltyAmountField(),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Priority
                     DropdownButtonFormField<String>(
                       initialValue: _priority,
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Priority'),
                         prefixIcon: Icon(Icons.flag),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'low', child: Text('Low')),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'low',
+                          child: Text(context.tr('Low')),
+                        ),
                         DropdownMenuItem(
                           value: 'medium',
-                          child: Text('Medium'),
+                          child: Text(context.tr('Medium')),
                         ),
-                        DropdownMenuItem(value: 'high', child: Text('High')),
+                        DropdownMenuItem(
+                          value: 'high',
+                          child: Text(context.tr('High')),
+                        ),
                         DropdownMenuItem(
                           value: 'urgent',
-                          child: Text('Urgent'),
+                          child: Text(context.tr('Urgent')),
                         ),
                       ],
                       onChanged: (value) {
@@ -1008,31 +1151,31 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Status
                     DropdownButtonFormField<String>(
                       initialValue: _status,
                       isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Status'),
                         prefixIcon: Icon(Icons.check_circle),
                       ),
-                      items: const [
+                      items: [
                         DropdownMenuItem(
                           value: 'pending',
-                          child: Text('Pending'),
+                          child: Text(context.tr('Pending')),
                         ),
                         DropdownMenuItem(
                           value: 'in_progress',
-                          child: Text('In Progress'),
+                          child: Text(context.tr('In Progress')),
                         ),
                         DropdownMenuItem(
                           value: 'completed',
-                          child: Text('Completed'),
+                          child: Text(context.tr('Completed')),
                         ),
                         DropdownMenuItem(
                           value: 'cancelled',
-                          child: Text('Cancelled'),
+                          child: Text(context.tr('Cancelled')),
                         ),
                       ],
                       onChanged: (value) {
@@ -1041,7 +1184,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String?>(
                       initialValue: _selectedProjectId,
                       isExpanded: true,
@@ -1049,12 +1192,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         labelText: _isLoadingProjects
                             ? 'Project (loading…)'
                             : 'Project (optional)',
-                        prefixIcon: const Icon(Icons.folder_outlined),
+                        prefixIcon: Icon(Icons.folder_outlined),
                       ),
                       items: [
-                        const DropdownMenuItem<String?>(
+                        DropdownMenuItem<String?>(
                           value: null,
-                          child: Text('None'),
+                          child: Text(context.tr('None')),
                         ),
                         ..._projects.map(
                           (p) => DropdownMenuItem<String?>(
@@ -1071,7 +1214,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       },
                     ),
                     if (_isLoadingTags && _tags.isEmpty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.only(top: 8.0),
                         child: Text(
                           'Tags (loading…)',
@@ -1081,22 +1224,22 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           ),
                         ),
                       ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    const Text(
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Text(
                       'Tags (optional)',
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _newTagController,
-                            decoration: const InputDecoration(
-                              hintText: 'Type a tag and add',
+                            decoration: InputDecoration(
+                              hintText: context.tr('Type a tag and add'),
                               border: OutlineInputBorder(),
                               isDense: true,
                             ),
@@ -1104,16 +1247,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             onSubmitted: (v) => _addTagByName(v),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         IconButton.filled(
                           onPressed: () =>
                               _addTagByName(_newTagController.text),
-                          icon: const Icon(Icons.add),
-                          tooltip: 'Add tag',
+                          icon: Icon(Icons.add),
+                          tooltip: context.tr('Add tag'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
@@ -1142,22 +1285,22 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Create Task'),
+                          : Text(context.tr('Create Task')),
                     ),
                   ],
                 ),

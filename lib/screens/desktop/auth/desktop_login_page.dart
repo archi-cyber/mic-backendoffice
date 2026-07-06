@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/mic_theme.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/utils/error_message_helper.dart';
@@ -9,7 +10,7 @@ import '../../../providers/auth_provider.dart';
 
 /// Desktop/Web login (width >= 500px). Same behaviour as [LoginPage], desktop layout.
 class DesktopLoginPage extends StatefulWidget {
-  const DesktopLoginPage({super.key});
+  DesktopLoginPage({super.key});
 
   @override
   State<DesktopLoginPage> createState() => _DesktopLoginPageState();
@@ -67,11 +68,12 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: context.mic.background,
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingLG),
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: BoxConstraints(maxWidth: 420),
             child: Form(
               key: _formKey,
               child: Column(
@@ -79,28 +81,28 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Icon(Icons.church, size: 64, color: AppColors.primary),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     localizations?.welcome ?? 'Welcome',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Text(
                     localizations?.signIn ?? 'Sign In',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: localizations?.email ?? 'Email or Phone',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -110,13 +112,13 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: localizations?.password ?? 'Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -127,7 +129,7 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                           () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -137,7 +139,7 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -151,29 +153,29 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.spacingLG),
+                  SizedBox(height: AppDimensions.spacingLG),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(localizations?.signIn ?? 'Sign In'),
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pushNamed(RouteNames.desktopSignup);
                     },
-                    child: const Text('Create an account'),
+                    child: Text(context.tr('Create an account')),
                   ),
                 ],
               ),

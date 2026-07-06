@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/member_constants.dart';
 import '../../services/member_service.dart';
+import '../../core/localization/app_localizations.dart';
+import 'member_form_ui.dart';
 
 /// Edit member page with pre-filled form
 class EditMemberPage extends StatefulWidget {
@@ -11,7 +14,7 @@ class EditMemberPage extends StatefulWidget {
   /// When set (e.g. desktop stack overlay), close and result use this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const EditMemberPage({super.key, required this.memberId, this.onClose});
+  EditMemberPage({super.key, required this.memberId, this.onClose});
 
   @override
   State<EditMemberPage> createState() => _EditMemberPageState();
@@ -77,7 +80,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
       context: context,
       initialDate:
           _selectedBirthday ??
-          DateTime.now().subtract(const Duration(days: 365 * 25)),
+          DateTime.now().subtract(Duration(days: 365 * 25)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       helpText: 'Select Birthday',
@@ -165,7 +168,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading member: $e'),
+            content: Text(context.tr('Error loading member: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -185,7 +188,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
     if (_emailController.text.trim().isEmpty &&
         _phoneController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Member must have at least email or phone for password reset capability. '
             'Email is strongly recommended.',
@@ -258,8 +261,8 @@ class _EditMemberPageState extends State<EditMemberPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Member updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Member updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -289,16 +292,17 @@ class _EditMemberPageState extends State<EditMemberPage> {
   Widget build(BuildContext context) {
     if (_isLoadingData) {
       return Scaffold(
+        backgroundColor: context.mic.background,
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => widget.onClose!(null),
                 )
               : null,
-          title: const Text('Edit Member'),
+          title: Text(context.tr('Edit Member')),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -306,52 +310,51 @@ class _EditMemberPageState extends State<EditMemberPage> {
     final useDesktopLayout = width >= _kDesktopBreakpoint;
 
     return Scaffold(
+      backgroundColor: context.mic.background,
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Edit Member'),
+        title: Text(context.tr('Edit Member')),
         actions: useDesktopLayout
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 20),
-                  label: const Text('Update Member'),
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Update Member')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
       body: useDesktopLayout
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopFormMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopFormMaxWidth),
                   child: Form(key: _formKey, child: _buildDesktopForm(context)),
                 ),
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -367,33 +370,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
     BuildContext context,
     String title,
     IconData icon,
-    List<Widget> children,
-  ) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingLG),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingLG),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 22, color: theme.colorScheme.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            ...children,
-          ],
-        ),
-      ),
+    List<Widget> children, {
+    Color accent = AppColors.primary,
+  }) {
+    return MemberFormUi.sectionCard(
+      context: context,
+      title: title,
+      icon: icon,
+      accent: accent,
+      children: children,
     );
   }
 
@@ -401,41 +386,54 @@ class _EditMemberPageState extends State<EditMemberPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        MemberFormUi.heroBanner(
+          context: context,
+          isEdit: true,
+          title: context.tr('Edit Member'),
+          subtitle: context.tr('Update member profile and details'),
+        ),
+        SizedBox(height: AppDimensions.spacingLG),
         _desktopSectionCard(
           context,
-          'Personal information',
+          context.tr('Personal information'),
           Icons.person,
           _buildPersonalSection(context),
+          accent: AppColors.primary,
         ),
         _desktopSectionCard(
           context,
-          'Contact',
+          context.tr('Contact'),
           Icons.contact_phone,
           _buildContactSection(context),
+          accent: AppColors.accent,
         ),
         _desktopSectionCard(
           context,
-          'Address',
+          context.tr('Address'),
           Icons.home,
           _buildAddressSection(context),
+          accent: AppColors.secondary,
         ),
         _desktopSectionCard(
           context,
-          'Professional details',
+          context.tr('Professional details'),
           Icons.work,
           _buildProfessionalSection(context),
+          accent: AppColors.info,
         ),
         _desktopSectionCard(
           context,
-          'Role & status',
+          context.tr('Role & status'),
           Icons.badge,
           _buildRoleStatusSection(context),
+          accent: AppColors.warning,
         ),
         _desktopSectionCard(
           context,
-          'Newcomer',
+          context.tr('Newcomer'),
           Icons.person_add,
           _buildNewcomerSection(context),
+          accent: AppColors.primary,
         ),
       ],
     );
@@ -449,20 +447,20 @@ class _EditMemberPageState extends State<EditMemberPage> {
           Expanded(
             child: TextFormField(
               controller: _firstNameController,
-              decoration: const InputDecoration(
-                labelText: 'First Name *',
+              decoration: InputDecoration(
+                labelText: context.tr('First Name *'),
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
                   (v == null || v.isEmpty) ? 'First name is required' : null,
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: TextFormField(
               controller: _lastNameController,
-              decoration: const InputDecoration(
-                labelText: 'Last Name *',
+              decoration: InputDecoration(
+                labelText: context.tr('Last Name *'),
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
@@ -471,15 +469,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       InkWell(
         onTap: _selectBirthday,
         child: InputDecorator(
           decoration: InputDecoration(
-            labelText: 'Birthday',
-            prefixIcon: const Icon(Icons.cake),
-            suffixIcon: const Icon(Icons.calendar_today),
-            helperText: 'Tap to select date',
+            labelText: context.tr('Birthday'),
+            prefixIcon: Icon(Icons.cake),
+            suffixIcon: Icon(Icons.calendar_today),
+            helperText: context.tr('Tap to select date'),
           ),
           child: Text(
             _selectedBirthday != null
@@ -501,10 +499,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
       TextFormField(
         controller: _emailController,
         keyboardType: TextInputType.emailAddress,
-        decoration: const InputDecoration(
-          labelText: 'Email (recommended)',
+        decoration: InputDecoration(
+          labelText: context.tr('Email (recommended)'),
           prefixIcon: Icon(Icons.email),
-          helperText: 'At least email or phone is required',
+          helperText: context.tr('At least email or phone is required'),
         ),
         validator: (v) {
           if (v != null && v.isNotEmpty && !v.contains('@')) {
@@ -513,12 +511,12 @@ class _EditMemberPageState extends State<EditMemberPage> {
           return null;
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _phoneController,
         keyboardType: TextInputType.phone,
-        decoration: const InputDecoration(
-          labelText: 'Phone',
+        decoration: InputDecoration(
+          labelText: context.tr('Phone'),
           prefixIcon: Icon(Icons.phone),
         ),
       ),
@@ -529,64 +527,64 @@ class _EditMemberPageState extends State<EditMemberPage> {
     return [
       TextFormField(
         controller: _addressController,
-        decoration: const InputDecoration(
-          labelText: 'Address',
+        decoration: InputDecoration(
+          labelText: context.tr('Address'),
           prefixIcon: Icon(Icons.home),
         ),
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       Row(
         children: [
           Expanded(
             child: TextFormField(
               controller: _cityController,
-              decoration: const InputDecoration(
-                labelText: 'City',
+              decoration: InputDecoration(
+                labelText: context.tr('City'),
                 prefixIcon: Icon(Icons.location_city),
               ),
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: TextFormField(
               controller: _stateController,
-              decoration: const InputDecoration(
-                labelText: 'State',
+              decoration: InputDecoration(
+                labelText: context.tr('State'),
                 prefixIcon: Icon(Icons.map),
               ),
             ),
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       Row(
         children: [
           Expanded(
             child: TextFormField(
               controller: _zipCodeController,
-              decoration: const InputDecoration(
-                labelText: 'Zip Code',
+              decoration: InputDecoration(
+                labelText: context.tr('Zip Code'),
                 prefixIcon: Icon(Icons.pin),
               ),
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: TextFormField(
               controller: _countryController,
-              decoration: const InputDecoration(
-                labelText: 'Country',
+              decoration: InputDecoration(
+                labelText: context.tr('Country'),
                 prefixIcon: Icon(Icons.public),
               ),
             ),
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _quarterController,
-        decoration: const InputDecoration(
-          labelText: 'Quarter',
+        decoration: InputDecoration(
+          labelText: context.tr('Quarter'),
           prefixIcon: Icon(Icons.calendar_view_month),
         ),
       ),
@@ -597,15 +595,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
     final list = <Widget>[
       DropdownButtonFormField<String>(
         initialValue: _selectedProfession,
-        decoration: const InputDecoration(
-          labelText: 'Profession',
+        decoration: InputDecoration(
+          labelText: context.tr('Profession'),
           prefixIcon: Icon(Icons.work),
-          helperText: 'Select your current profession/status',
+          helperText: context.tr('Select your current profession/status'),
         ),
         items: [
-          const DropdownMenuItem<String>(
+          DropdownMenuItem<String>(
             value: null,
-            child: Text('Not specified'),
+            child: Text(context.tr('Not specified')),
           ),
           ...MemberConstants.getProfessionOptions().map((option) {
             return DropdownMenuItem<String>(
@@ -643,11 +641,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
     ];
     if (MemberConstants.requiresLevelOfStudy(_selectedProfession)) {
       list.addAll([
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _selectedLevelOfStudy,
-          decoration: const InputDecoration(
-            labelText: 'Level of Study *',
+          decoration: InputDecoration(
+            labelText: context.tr('Level of Study *'),
             prefixIcon: Icon(Icons.school),
           ),
           items: MemberConstants.getLevelsOfStudy(_selectedProfession)
@@ -669,11 +667,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
     if (MemberConstants.requiresSectorOfStudies(_selectedProfession)) {
       list.addAll([
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         TextFormField(
           controller: _sectorOfStudiesController,
-          decoration: const InputDecoration(
-            labelText: 'Sector of Studies *',
+          decoration: InputDecoration(
+            labelText: context.tr('Sector of Studies *'),
             prefixIcon: Icon(Icons.category),
           ),
           validator: (value) {
@@ -688,11 +686,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
     if (MemberConstants.requiresDomainOfActivity(_selectedProfession)) {
       list.addAll([
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         TextFormField(
           controller: _domainOfActivityController,
-          decoration: const InputDecoration(
-            labelText: 'Domain of Activity *',
+          decoration: InputDecoration(
+            labelText: context.tr('Domain of Activity *'),
             prefixIcon: Icon(Icons.business),
           ),
           validator: (value) {
@@ -707,11 +705,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
     }
     if (MemberConstants.requiresLastDiplomas(_selectedProfession)) {
       list.addAll([
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _selectedLastDiploma,
-          decoration: const InputDecoration(
-            labelText: 'Last Diplomas *',
+          decoration: InputDecoration(
+            labelText: context.tr('Last Diplomas *'),
             prefixIcon: Icon(Icons.workspace_premium),
           ),
           items: MemberConstants.getDiplomaOptions()
@@ -729,7 +727,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ]);
     }
     list.addAll([
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       _buildKeySkillsField(),
     ]);
     return list;
@@ -743,18 +741,30 @@ class _EditMemberPageState extends State<EditMemberPage> {
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _selectedRole,
-              decoration: const InputDecoration(
-                labelText: 'Role *',
+              decoration: InputDecoration(
+                labelText: context.tr('Role *'),
                 prefixIcon: Icon(Icons.person_outline),
               ),
-              items: const [
-                DropdownMenuItem(value: 'member', child: Text('Member')),
-                DropdownMenuItem(value: 'leader', child: Text('Leader')),
-                DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                DropdownMenuItem(value: 'worker', child: Text('Worker')),
+              items: [
+                DropdownMenuItem(
+                  value: 'member',
+                  child: Text(context.tr('Member')),
+                ),
+                DropdownMenuItem(
+                  value: 'leader',
+                  child: Text(context.tr('Leader')),
+                ),
+                DropdownMenuItem(
+                  value: 'admin',
+                  child: Text(context.tr('Admin')),
+                ),
+                DropdownMenuItem(
+                  value: 'worker',
+                  child: Text(context.tr('Worker')),
+                ),
                 DropdownMenuItem(
                   value: 'sympathiser',
-                  child: Text('Sympathiser'),
+                  child: Text(context.tr('Sympathiser')),
                 ),
               ],
               onChanged: (value) {
@@ -762,35 +772,56 @@ class _EditMemberPageState extends State<EditMemberPage> {
               },
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _selectedGender,
-              decoration: const InputDecoration(
-                labelText: 'Gender',
+              decoration: InputDecoration(
+                labelText: context.tr('Gender'),
                 prefixIcon: Icon(Icons.person),
               ),
-              items: const [
-                DropdownMenuItem(value: 'male', child: Text('Male')),
-                DropdownMenuItem(value: 'female', child: Text('Female')),
-                DropdownMenuItem(value: 'other', child: Text('Other')),
+              items: [
+                DropdownMenuItem(
+                  value: 'male',
+                  child: Text(context.tr('Male')),
+                ),
+                DropdownMenuItem(
+                  value: 'female',
+                  child: Text(context.tr('Female')),
+                ),
+                DropdownMenuItem(
+                  value: 'other',
+                  child: Text(context.tr('Other')),
+                ),
               ],
               onChanged: (value) => setState(() => _selectedGender = value),
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: DropdownButtonFormField<String>(
               initialValue: _selectedMaritalStatus,
-              decoration: const InputDecoration(
-                labelText: 'Marital Status',
+              decoration: InputDecoration(
+                labelText: context.tr('Marital Status'),
                 prefixIcon: Icon(Icons.favorite),
               ),
-              items: const [
-                DropdownMenuItem(value: 'single', child: Text('Single')),
-                DropdownMenuItem(value: 'married', child: Text('Married')),
-                DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
-                DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+              items: [
+                DropdownMenuItem(
+                  value: 'single',
+                  child: Text(context.tr('Single')),
+                ),
+                DropdownMenuItem(
+                  value: 'married',
+                  child: Text(context.tr('Married')),
+                ),
+                DropdownMenuItem(
+                  value: 'divorced',
+                  child: Text(context.tr('Divorced')),
+                ),
+                DropdownMenuItem(
+                  value: 'widowed',
+                  child: Text(context.tr('Widowed')),
+                ),
               ],
               onChanged: (value) =>
                   setState(() => _selectedMaritalStatus = value),
@@ -798,16 +829,18 @@ class _EditMemberPageState extends State<EditMemberPage> {
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       SwitchListTile(
-        title: const Text('Active'),
-        subtitle: const Text('Is this member active?'),
+        title: Text(context.tr('Active')),
+        subtitle: Text(context.tr('Is this member active?')),
         value: _isActive ?? true,
         onChanged: (value) => setState(() => _isActive = value),
       ),
       SwitchListTile(
-        title: const Text('Opt out of birthday notifications'),
-        subtitle: const Text('Disable birthday notifications for this member'),
+        title: Text(context.tr('Opt out of birthday notifications')),
+        subtitle: Text(
+          context.tr('Disable birthday notifications for this member'),
+        ),
         value: _birthdayNotificationsOptOut ?? false,
         onChanged: (value) =>
             setState(() => _birthdayNotificationsOptOut = value),
@@ -818,8 +851,8 @@ class _EditMemberPageState extends State<EditMemberPage> {
   List<Widget> _buildNewcomerSection(BuildContext context) {
     final list = <Widget>[
       CheckboxListTile(
-        title: const Text('New Comer'),
-        subtitle: const Text(
+        title: Text(context.tr('New Comer')),
+        subtitle: Text(
           'Status will change to member after 9+ service attendances in 3 months.',
         ),
         value: _isNewComer,
@@ -837,14 +870,14 @@ class _EditMemberPageState extends State<EditMemberPage> {
     ];
     if (_isNewComer) {
       list.addAll([
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         InkWell(
           onTap: _selectNewcomerJoinDate,
           child: InputDecorator(
             decoration: InputDecoration(
-              labelText: 'Newcomer Join Date',
-              prefixIcon: const Icon(Icons.event_available),
-              suffixIcon: const Icon(Icons.calendar_today),
+              labelText: context.tr('Newcomer Join Date'),
+              prefixIcon: Icon(Icons.event_available),
+              suffixIcon: Icon(Icons.calendar_today),
             ),
             child: Text(
               _newcomerJoinDate != null
@@ -858,25 +891,25 @@ class _EditMemberPageState extends State<EditMemberPage> {
             ),
           ),
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _newcomerIntention,
-          decoration: const InputDecoration(
-            labelText: 'Newcomer Intention',
+          decoration: InputDecoration(
+            labelText: context.tr('Newcomer Intention'),
             prefixIcon: Icon(Icons.help_outline),
           ),
-          items: const [
+          items: [
             DropdownMenuItem<String>(
               value: 'wants_to_stay',
-              child: Text('Wants to stay'),
+              child: Text(context.tr('Wants to stay')),
             ),
             DropdownMenuItem<String>(
               value: 'does_not_know_yet',
-              child: Text('Does not know yet'),
+              child: Text(context.tr('Does not know yet')),
             ),
             DropdownMenuItem<String>(
               value: 'just_passing',
-              child: Text('Just passing'),
+              child: Text(context.tr('Just passing')),
             ),
           ],
           onChanged: (value) => setState(() => _newcomerIntention = value),
@@ -890,8 +923,8 @@ class _EditMemberPageState extends State<EditMemberPage> {
     return [
       TextFormField(
         controller: _firstNameController,
-        decoration: const InputDecoration(
-          labelText: 'First Name *',
+        decoration: InputDecoration(
+          labelText: context.tr('First Name *'),
           prefixIcon: Icon(Icons.person),
         ),
         validator: (value) {
@@ -901,11 +934,11 @@ class _EditMemberPageState extends State<EditMemberPage> {
           return null;
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _lastNameController,
-        decoration: const InputDecoration(
-          labelText: 'Last Name *',
+        decoration: InputDecoration(
+          labelText: context.tr('Last Name *'),
           prefixIcon: Icon(Icons.person),
         ),
         validator: (value) {
@@ -915,14 +948,14 @@ class _EditMemberPageState extends State<EditMemberPage> {
           return null;
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _emailController,
         keyboardType: TextInputType.emailAddress,
-        decoration: const InputDecoration(
-          labelText: 'Email (recommended)',
+        decoration: InputDecoration(
+          labelText: context.tr('Email (recommended)'),
           prefixIcon: Icon(Icons.email),
-          helperText: 'At least email or phone is required',
+          helperText: context.tr('At least email or phone is required'),
         ),
         validator: (value) {
           if (value != null && value.isNotEmpty && !value.contains('@')) {
@@ -931,25 +964,25 @@ class _EditMemberPageState extends State<EditMemberPage> {
           return null;
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _phoneController,
         keyboardType: TextInputType.phone,
-        decoration: const InputDecoration(
-          labelText: 'Phone',
+        decoration: InputDecoration(
+          labelText: context.tr('Phone'),
           prefixIcon: Icon(Icons.phone),
-          helperText: 'At least email or phone is required',
+          helperText: context.tr('At least email or phone is required'),
         ),
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       InkWell(
         onTap: _selectBirthday,
         child: InputDecorator(
           decoration: InputDecoration(
-            labelText: 'Birthday',
-            prefixIcon: const Icon(Icons.cake),
-            suffixIcon: const Icon(Icons.calendar_today),
-            helperText: 'Tap to select date',
+            labelText: context.tr('Birthday'),
+            prefixIcon: Icon(Icons.cake),
+            suffixIcon: Icon(Icons.calendar_today),
+            helperText: context.tr('Tap to select date'),
           ),
           child: Text(
             _selectedBirthday != null
@@ -963,82 +996,82 @@ class _EditMemberPageState extends State<EditMemberPage> {
           ),
         ),
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _addressController,
-        decoration: const InputDecoration(
-          labelText: 'Address',
+        decoration: InputDecoration(
+          labelText: context.tr('Address'),
           prefixIcon: Icon(Icons.home),
         ),
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       Row(
         children: [
           Expanded(
             child: TextFormField(
               controller: _cityController,
-              decoration: const InputDecoration(
-                labelText: 'City',
+              decoration: InputDecoration(
+                labelText: context.tr('City'),
                 prefixIcon: Icon(Icons.location_city),
               ),
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: TextFormField(
               controller: _stateController,
-              decoration: const InputDecoration(
-                labelText: 'State',
+              decoration: InputDecoration(
+                labelText: context.tr('State'),
                 prefixIcon: Icon(Icons.map),
               ),
             ),
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       Row(
         children: [
           Expanded(
             child: TextFormField(
               controller: _zipCodeController,
-              decoration: const InputDecoration(
-                labelText: 'Zip Code',
+              decoration: InputDecoration(
+                labelText: context.tr('Zip Code'),
                 prefixIcon: Icon(Icons.pin),
               ),
             ),
           ),
-          const SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: TextFormField(
               controller: _countryController,
-              decoration: const InputDecoration(
-                labelText: 'Country',
+              decoration: InputDecoration(
+                labelText: context.tr('Country'),
                 prefixIcon: Icon(Icons.public),
               ),
             ),
           ),
         ],
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       TextFormField(
         controller: _quarterController,
-        decoration: const InputDecoration(
-          labelText: 'Quarter',
+        decoration: InputDecoration(
+          labelText: context.tr('Quarter'),
           prefixIcon: Icon(Icons.calendar_view_month),
         ),
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       DropdownButtonFormField<String>(
         initialValue: _selectedProfession,
-        decoration: const InputDecoration(
-          labelText: 'Profession',
+        decoration: InputDecoration(
+          labelText: context.tr('Profession'),
           prefixIcon: Icon(Icons.work),
-          helperText: 'Select your current profession/status',
+          helperText: context.tr('Select your current profession/status'),
         ),
         items: [
-          const DropdownMenuItem<String>(
+          DropdownMenuItem<String>(
             value: null,
-            child: Text('Not specified'),
+            child: Text(context.tr('Not specified')),
           ),
           ...MemberConstants.getProfessionOptions().map((option) {
             return DropdownMenuItem<String>(
@@ -1078,13 +1111,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ),
       // Conditionally show level_of_study
       if (MemberConstants.requiresLevelOfStudy(_selectedProfession)) ...[
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _selectedLevelOfStudy,
-          decoration: const InputDecoration(
-            labelText: 'Level of Study *',
+          decoration: InputDecoration(
+            labelText: context.tr('Level of Study *'),
             prefixIcon: Icon(Icons.school),
-            helperText: 'Required for students, job seeking, and workers',
+            helperText: context.tr(
+              'Required for students, job seeking, and workers',
+            ),
           ),
           items: MemberConstants.getLevelsOfStudy(_selectedProfession).map((
             level,
@@ -1107,14 +1142,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ],
       // Conditionally show sector_of_studies
       if (MemberConstants.requiresSectorOfStudies(_selectedProfession)) ...[
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         TextFormField(
           controller: _sectorOfStudiesController,
-          decoration: const InputDecoration(
-            labelText: 'Sector of Studies *',
+          decoration: InputDecoration(
+            labelText: context.tr('Sector of Studies *'),
             prefixIcon: Icon(Icons.category),
-            helperText:
-                'Required for secondary and university students, job seeking, and workers',
+            helperText: context.tr(
+              'Required for secondary and university students, job seeking, and workers',
+            ),
           ),
           validator: (value) {
             if (MemberConstants.requiresSectorOfStudies(_selectedProfession) &&
@@ -1127,13 +1163,13 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ],
       // Conditionally show domain_of_activity
       if (MemberConstants.requiresDomainOfActivity(_selectedProfession)) ...[
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         TextFormField(
           controller: _domainOfActivityController,
-          decoration: const InputDecoration(
-            labelText: 'Domain of Activity *',
+          decoration: InputDecoration(
+            labelText: context.tr('Domain of Activity *'),
             prefixIcon: Icon(Icons.business),
-            helperText: 'Required for job seeking and workers',
+            helperText: context.tr('Required for job seeking and workers'),
           ),
           validator: (value) {
             if (MemberConstants.requiresDomainOfActivity(_selectedProfession) &&
@@ -1146,14 +1182,15 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ],
       // Conditionally show last_diplomas
       if (MemberConstants.requiresLastDiplomas(_selectedProfession)) ...[
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _selectedLastDiploma,
-          decoration: const InputDecoration(
-            labelText: 'Last Diplomas *',
+          decoration: InputDecoration(
+            labelText: context.tr('Last Diplomas *'),
             prefixIcon: Icon(Icons.workspace_premium),
-            helperText:
-                'Required for secondary and university students, job seeking, and workers',
+            helperText: context.tr(
+              'Required for secondary and university students, job seeking, and workers',
+            ),
           ),
           items: MemberConstants.getDiplomaOptions().map((diploma) {
             return DropdownMenuItem<String>(
@@ -1175,22 +1212,25 @@ class _EditMemberPageState extends State<EditMemberPage> {
           },
         ),
       ],
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       _buildKeySkillsField(),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       DropdownButtonFormField<String>(
         initialValue: _selectedRole,
-        decoration: const InputDecoration(
-          labelText: 'Role *',
+        decoration: InputDecoration(
+          labelText: context.tr('Role *'),
           prefixIcon: Icon(Icons.person_outline),
-          helperText: 'Select member role',
+          helperText: context.tr('Select member role'),
         ),
-        items: const [
-          DropdownMenuItem(value: 'member', child: Text('Member')),
-          DropdownMenuItem(value: 'leader', child: Text('Leader')),
-          DropdownMenuItem(value: 'admin', child: Text('Admin')),
-          DropdownMenuItem(value: 'worker', child: Text('Worker')),
-          DropdownMenuItem(value: 'sympathiser', child: Text('Sympathiser')),
+        items: [
+          DropdownMenuItem(value: 'member', child: Text(context.tr('Member'))),
+          DropdownMenuItem(value: 'leader', child: Text(context.tr('Leader'))),
+          DropdownMenuItem(value: 'admin', child: Text(context.tr('Admin'))),
+          DropdownMenuItem(value: 'worker', child: Text(context.tr('Worker'))),
+          DropdownMenuItem(
+            value: 'sympathiser',
+            child: Text(context.tr('Sympathiser')),
+          ),
         ],
         onChanged: (value) {
           if (value != null) {
@@ -1200,17 +1240,17 @@ class _EditMemberPageState extends State<EditMemberPage> {
           }
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       DropdownButtonFormField<String>(
         initialValue: _selectedGender,
-        decoration: const InputDecoration(
-          labelText: 'Gender',
+        decoration: InputDecoration(
+          labelText: context.tr('Gender'),
           prefixIcon: Icon(Icons.person),
         ),
-        items: const [
-          DropdownMenuItem(value: 'male', child: Text('Male')),
-          DropdownMenuItem(value: 'female', child: Text('Female')),
-          DropdownMenuItem(value: 'other', child: Text('Other')),
+        items: [
+          DropdownMenuItem(value: 'male', child: Text(context.tr('Male'))),
+          DropdownMenuItem(value: 'female', child: Text(context.tr('Female'))),
+          DropdownMenuItem(value: 'other', child: Text(context.tr('Other'))),
         ],
         onChanged: (value) {
           setState(() {
@@ -1218,18 +1258,27 @@ class _EditMemberPageState extends State<EditMemberPage> {
           });
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       DropdownButtonFormField<String>(
         initialValue: _selectedMaritalStatus,
-        decoration: const InputDecoration(
-          labelText: 'Marital Status',
+        decoration: InputDecoration(
+          labelText: context.tr('Marital Status'),
           prefixIcon: Icon(Icons.favorite),
         ),
-        items: const [
-          DropdownMenuItem(value: 'single', child: Text('Single')),
-          DropdownMenuItem(value: 'married', child: Text('Married')),
-          DropdownMenuItem(value: 'divorced', child: Text('Divorced')),
-          DropdownMenuItem(value: 'widowed', child: Text('Widowed')),
+        items: [
+          DropdownMenuItem(value: 'single', child: Text(context.tr('Single'))),
+          DropdownMenuItem(
+            value: 'married',
+            child: Text(context.tr('Married')),
+          ),
+          DropdownMenuItem(
+            value: 'divorced',
+            child: Text(context.tr('Divorced')),
+          ),
+          DropdownMenuItem(
+            value: 'widowed',
+            child: Text(context.tr('Widowed')),
+          ),
         ],
         onChanged: (value) {
           setState(() {
@@ -1237,10 +1286,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
           });
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       SwitchListTile(
-        title: const Text('Active'),
-        subtitle: const Text('Is this member active?'),
+        title: Text(context.tr('Active')),
+        subtitle: Text(context.tr('Is this member active?')),
         value: _isActive ?? true,
         onChanged: (value) {
           setState(() {
@@ -1249,8 +1298,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
         },
       ),
       SwitchListTile(
-        title: const Text('Opt out of birthday notifications'),
-        subtitle: const Text('Disable birthday notifications for this member'),
+        title: Text(context.tr('Opt out of birthday notifications')),
+        subtitle: Text(
+          context.tr('Disable birthday notifications for this member'),
+        ),
         value: _birthdayNotificationsOptOut ?? false,
         onChanged: (value) {
           setState(() {
@@ -1258,10 +1309,10 @@ class _EditMemberPageState extends State<EditMemberPage> {
           });
         },
       ),
-      const SizedBox(height: AppDimensions.spacingMD),
+      SizedBox(height: AppDimensions.spacingMD),
       CheckboxListTile(
-        title: const Text('New Comer'),
-        subtitle: const Text(
+        title: Text(context.tr('New Comer')),
+        subtitle: Text(
           'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
         ),
         value: _isNewComer,
@@ -1279,15 +1330,17 @@ class _EditMemberPageState extends State<EditMemberPage> {
       ),
       // Show join date field only when new comer is checked
       if (_isNewComer) ...[
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         InkWell(
           onTap: _selectNewcomerJoinDate,
           child: InputDecorator(
             decoration: InputDecoration(
-              labelText: 'Newcomer Join Date',
-              prefixIcon: const Icon(Icons.event_available),
-              suffixIcon: const Icon(Icons.calendar_today),
-              helperText: 'Select the date when the newcomer joined',
+              labelText: context.tr('Newcomer Join Date'),
+              prefixIcon: Icon(Icons.event_available),
+              suffixIcon: Icon(Icons.calendar_today),
+              helperText: context.tr(
+                'Select the date when the newcomer joined',
+              ),
             ),
             child: Text(
               _newcomerJoinDate != null
@@ -1301,26 +1354,26 @@ class _EditMemberPageState extends State<EditMemberPage> {
             ),
           ),
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
+        SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
           initialValue: _newcomerIntention,
-          decoration: const InputDecoration(
-            labelText: 'Newcomer Intention',
+          decoration: InputDecoration(
+            labelText: context.tr('Newcomer Intention'),
             prefixIcon: Icon(Icons.help_outline),
-            helperText: 'Select the newcomer\'s intention',
+            helperText: context.tr('Select the newcomer\'s intention'),
           ),
-          items: const [
+          items: [
             DropdownMenuItem<String>(
               value: 'wants_to_stay',
-              child: Text('Wants to stay'),
+              child: Text(context.tr('Wants to stay')),
             ),
             DropdownMenuItem<String>(
               value: 'does_not_know_yet',
-              child: Text('Does not know yet'),
+              child: Text(context.tr('Does not know yet')),
             ),
             DropdownMenuItem<String>(
               value: 'just_passing',
-              child: Text('Just passing'),
+              child: Text(context.tr('Just passing')),
             ),
           ],
           onChanged: (value) {
@@ -1330,22 +1383,19 @@ class _EditMemberPageState extends State<EditMemberPage> {
           },
         ),
       ],
-      const SizedBox(height: AppDimensions.spacingXL),
+      SizedBox(height: AppDimensions.spacingXL),
       ElevatedButton(
         onPressed: _isLoading ? null : _handleSave,
         style: ElevatedButton.styleFrom(
-          minimumSize: const Size(
-            double.infinity,
-            AppDimensions.buttonHeightLG,
-          ),
+          minimumSize: Size(double.infinity, AppDimensions.buttonHeightLG),
         ),
         child: _isLoading
-            ? const SizedBox(
+            ? SizedBox(
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : const Text('Update Member'),
+            : Text(context.tr('Update Member')),
       ),
     ];
   }
@@ -1356,22 +1406,22 @@ class _EditMemberPageState extends State<EditMemberPage> {
       children: [
         Row(
           children: [
-            const Icon(Icons.star, size: 20),
-            const SizedBox(width: AppDimensions.spacingSM),
-            const Text(
+            Icon(Icons.star, size: 20),
+            SizedBox(width: AppDimensions.spacingSM),
+            Text(
               'Key Skills',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],
         ),
-        const SizedBox(height: AppDimensions.spacingSM),
+        SizedBox(height: AppDimensions.spacingSM),
         Row(
           children: [
             Expanded(
               child: TextFormField(
                 controller: _keySkillInputController,
-                decoration: const InputDecoration(
-                  hintText: 'Enter a skill',
+                decoration: InputDecoration(
+                  hintText: context.tr('Enter a skill'),
                   border: OutlineInputBorder(),
                 ),
                 onFieldSubmitted: (value) {
@@ -1384,9 +1434,9 @@ class _EditMemberPageState extends State<EditMemberPage> {
                 },
               ),
             ),
-            const SizedBox(width: AppDimensions.spacingSM),
+            SizedBox(width: AppDimensions.spacingSM),
             IconButton(
-              icon: const Icon(Icons.add),
+              icon: Icon(Icons.add),
               onPressed: () {
                 final skill = _keySkillInputController.text.trim();
                 if (skill.isNotEmpty) {
@@ -1396,12 +1446,12 @@ class _EditMemberPageState extends State<EditMemberPage> {
                   });
                 }
               },
-              tooltip: 'Add skill',
+              tooltip: context.tr('Add skill'),
             ),
           ],
         ),
         if (_keySkillsList.isNotEmpty) ...[
-          const SizedBox(height: AppDimensions.spacingSM),
+          SizedBox(height: AppDimensions.spacingSM),
           Wrap(
             spacing: AppDimensions.spacingSM,
             runSpacing: AppDimensions.spacingSM,
@@ -1413,7 +1463,7 @@ class _EditMemberPageState extends State<EditMemberPage> {
                     _keySkillsList.remove(skill);
                   });
                 },
-                deleteIcon: const Icon(Icons.close, size: 18),
+                deleteIcon: Icon(Icons.close, size: 18),
               );
             }).toList(),
           ),

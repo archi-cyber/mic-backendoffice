@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_dimensions.dart';
+import '../core/theme/mic_theme.dart';
 
 /// Fast toggle widget for attendance status
 class AttendanceToggle extends StatelessWidget {
@@ -98,7 +99,7 @@ class _StatusButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? color : Colors.transparent,
           border: Border.all(
-            color: isSelected ? color : AppColors.border,
+            color: isSelected ? color : context.mic.border,
             width: 2,
           ),
           borderRadius: BorderRadius.circular(AppDimensions.radiusSM),

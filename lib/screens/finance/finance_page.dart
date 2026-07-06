@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
@@ -13,7 +14,7 @@ class FinancePage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const FinancePage({super.key, this.hideAppBarAndBottomNav = false});
+  FinancePage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<FinancePage> createState() => _FinancePageState();
@@ -86,7 +87,7 @@ class _FinancePageState extends State<FinancePage> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: DateTimeRange(
-        start: DateTime.now().subtract(const Duration(days: 30)),
+        start: DateTime.now().subtract(Duration(days: 30)),
         end: DateTime.now(),
       ),
       helpText: 'Select Date Range for Report',
@@ -99,7 +100,7 @@ class _FinancePageState extends State<FinancePage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
+      builder: (context) => Center(
         child: Card(
           child: Padding(
             padding: EdgeInsets.all(20.0),
@@ -108,7 +109,7 @@ class _FinancePageState extends State<FinancePage> {
               children: [
                 CircularProgressIndicator(),
                 SizedBox(height: 16),
-                Text('Generating PDF report...'),
+                Text(context.tr('Generating PDF report...')),
               ],
             ),
           ),
@@ -124,8 +125,8 @@ class _FinancePageState extends State<FinancePage> {
       if (mounted) {
         Navigator.of(context).pop(); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF report saved successfully'),
+          SnackBar(
+            content: Text(context.tr('PDF report saved successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -135,7 +136,7 @@ class _FinancePageState extends State<FinancePage> {
         Navigator.of(context).pop(); // Close loading dialog
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving report: $e'),
+            content: Text(context.tr('Error saving report: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -180,12 +181,12 @@ class _FinancePageState extends State<FinancePage> {
               title: Text(localizations?.finance ?? 'Finance'),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.picture_as_pdf),
+                  icon: Icon(Icons.picture_as_pdf),
                   onPressed: _generatePdfReport,
-                  tooltip: 'Generate PDF Report',
+                  tooltip: context.tr('Generate PDF Report'),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.add),
+                  icon: Icon(Icons.add),
                   onPressed: () => _openAddGiving(context),
                   tooltip:
                       localizations?.addGivingRecord ?? 'Add Giving Record',
@@ -193,7 +194,7 @@ class _FinancePageState extends State<FinancePage> {
               ],
             ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: _loadGivingRecords,
               child: _givingRecords.isEmpty
@@ -204,20 +205,20 @@ class _FinancePageState extends State<FinancePage> {
                           Icon(
                             Icons.account_balance_wallet_outlined,
                             size: 64,
-                            color: AppColors.textSecondary,
+                            color: context.mic.textSecondary,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           Text(
                             localizations?.noGivingRecords ??
                                 'No giving records yet',
                             style: theme.textTheme.titleMedium?.copyWith(
-                              color: AppColors.textSecondary,
+                              color: context.mic.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: AppDimensions.spacingSM),
+                          SizedBox(height: AppDimensions.spacingSM),
                           ElevatedButton.icon(
                             onPressed: () => _openAddGiving(context),
-                            icon: const Icon(Icons.add),
+                            icon: Icon(Icons.add),
                             label: Text(
                               localizations?.addFirstRecord ??
                                   'Add First Record',
@@ -235,7 +236,7 @@ class _FinancePageState extends State<FinancePage> {
           : FloatingActionButton(
               onPressed: () => _openAddGiving(context),
               tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
-              child: const Icon(Icons.add),
+              child: Icon(Icons.add),
             ),
     );
   }
@@ -248,7 +249,7 @@ class _FinancePageState extends State<FinancePage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: constraints.maxWidth),
             child: Column(
@@ -258,42 +259,36 @@ class _FinancePageState extends State<FinancePage> {
                   children: [
                     ElevatedButton.icon(
                       onPressed: _generatePdfReport,
-                      icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Generate PDF Report'),
+                      icon: Icon(Icons.picture_as_pdf),
+                      label: Text(context.tr('Generate PDF Report')),
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
-                          0,
-                          AppDimensions.buttonHeightMD,
-                        ),
+                        minimumSize: Size(0, AppDimensions.buttonHeightMD),
                       ),
                     ),
-                    const SizedBox(width: AppDimensions.spacingMD),
+                    SizedBox(width: AppDimensions.spacingMD),
                     ElevatedButton.icon(
                       onPressed: () => _openAddGiving(context),
-                      icon: const Icon(Icons.add),
+                      icon: Icon(Icons.add),
                       label: Text(
                         localizations?.addGivingRecord ?? 'Add Giving Record',
                       ),
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
-                          0,
-                          AppDimensions.buttonHeightMD,
-                        ),
+                        minimumSize: Size(0, AppDimensions.buttonHeightMD),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 DataTable(
                   columns: [
-                    const DataColumn(label: Text('Giver')),
+                    DataColumn(label: Text(context.tr('Giver'))),
                     DataColumn(
                       label: Text(localizations?.transactionType ?? 'Type'),
                     ),
                     DataColumn(label: Text(localizations?.tag ?? 'Tag')),
                     DataColumn(label: Text(localizations?.date ?? 'Date')),
-                    const DataColumn(label: Text('Amount')),
-                    const DataColumn(label: Text('')),
+                    DataColumn(label: Text(context.tr('Amount'))),
+                    DataColumn(label: Text('')),
                   ],
                   rows: _givingRecords.map((record) {
                     final canEdit = _canEditRecord(record);
@@ -335,7 +330,7 @@ class _FinancePageState extends State<FinancePage> {
                         DataCell(
                           canEdit
                               ? IconButton(
-                                  icon: const Icon(Icons.edit),
+                                  icon: Icon(Icons.edit),
                                   onPressed: () => _openEditGiving(
                                     context,
                                     record['id'].toString(),
@@ -343,7 +338,7 @@ class _FinancePageState extends State<FinancePage> {
                                   tooltip: localizations?.edit ?? 'Edit Record',
                                   iconSize: 20,
                                 )
-                              : const SizedBox.shrink(),
+                              : SizedBox.shrink(),
                         ),
                       ],
                     );
@@ -373,14 +368,14 @@ class _FinancePageState extends State<FinancePage> {
     AppLocalizations? localizations,
   ) {
     return ListView.builder(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       itemCount: _givingRecords.length,
       itemBuilder: (context, index) {
         final record = _givingRecords[index];
         final canEdit = _canEditRecord(record);
 
         return Card(
-          margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
+          margin: EdgeInsets.only(bottom: AppDimensions.spacingMD),
           child: ListTile(
             leading: CircleAvatar(
               backgroundColor: AppColors.primary.withValues(alpha: 0.1),
@@ -425,9 +420,9 @@ class _FinancePageState extends State<FinancePage> {
                   ),
                 ),
                 if (canEdit) ...[
-                  const SizedBox(width: AppDimensions.spacingSM),
+                  SizedBox(width: AppDimensions.spacingSM),
                   IconButton(
-                    icon: const Icon(Icons.edit),
+                    icon: Icon(Icons.edit),
                     onPressed: () =>
                         _openEditGiving(context, record['id'].toString()),
                     tooltip: localizations?.edit ?? 'Edit Record',

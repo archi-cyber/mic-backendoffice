@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/navigation/app_navigator.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/supabase_service.dart';
 import '../../screens/events/event_detail_page.dart';
@@ -22,7 +25,10 @@ import '../../screens/visitors/edit_visitor_page.dart';
 import '../../screens/finance/add_giving_page.dart';
 import '../../screens/finance/edit_giving_page.dart';
 import '../../screens/reports/member_report_page.dart';
+import '../../screens/reports/members_report_page.dart';
+import '../../screens/reports/trainings_report_page.dart';
 import '../../screens/reports/class_report_page.dart';
+import '../../screens/reports/new_comer_report_page.dart';
 import '../../screens/members/member_profile_page.dart';
 import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
@@ -64,7 +70,7 @@ class _DesktopViewEntry {
   final String route;
   final String? id;
 
-  const _DesktopViewEntry({required this.isList, required this.route, this.id});
+  _DesktopViewEntry({required this.isList, required this.route, this.id});
 }
 
 /// Desktop shell: sidebar + content area. Shown when screen width >= [kDesktopBreakpoint].
@@ -89,6 +95,18 @@ class _DesktopShellState extends State<DesktopShell> {
     _stack = [
       _DesktopViewEntry(isList: true, route: widget.initialRoute, id: null),
     ];
+    AppNavigator.desktopNavigateToList = _navigate;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      AppNavigator.consumePendingNotificationsNavigation();
+    });
+  }
+
+  @override
+  void dispose() {
+    if (AppNavigator.desktopNavigateToList == _navigate) {
+      AppNavigator.desktopNavigateToList = null;
+    }
+    super.dispose();
   }
 
   void _pushList(String route) {
@@ -127,123 +145,192 @@ class _DesktopShellState extends State<DesktopShell> {
   String _getTitleForRoute(String route) {
     switch (route) {
       case RouteNames.desktopHome:
-        return 'Home';
+        return context.tr('Home');
       case RouteNames.desktopMembers:
-        return 'Members';
+        return context.tr('Members');
       case RouteNames.desktopFinance:
-        return 'Finance';
+        return context.tr('Finance');
       case RouteNames.desktopChat:
-        return 'Chat';
+        return context.tr('Chat');
       case RouteNames.desktopSettings:
-        return 'Settings';
+        return context.tr('Settings');
       case RouteNames.desktopNotifications:
-        return 'Notifications';
+        return context.tr('Notifications');
       case RouteNames.desktopBirthdays:
-        return 'Birthdays';
+        return context.tr('Birthdays');
       case RouteNames.desktopEvents:
-        return 'Events';
+        return context.tr('Events');
       case RouteNames.desktopTasks:
-        return 'Tasks';
+        return context.tr('Tasks');
       case RouteNames.desktopTrainings:
-        return 'Trainings';
+        return context.tr('Trainings');
       case RouteNames.desktopDepartments:
-        return 'Departments';
+        return context.tr('Departments');
       case RouteNames.desktopReports:
-        return 'Reports';
+        return context.tr('Reports');
       case RouteNames.desktopChurchAttendance:
-        return 'Church Attendance';
+        return context.tr('Church Attendance');
       case RouteNames.desktopSundaySchool:
-        return 'Sunday School';
+        return context.tr('Sunday School');
       case RouteNames.desktopVisitors:
-        return 'Visitors';
+        return context.tr('Visitors');
       case RouteNames.desktopTeachings:
-        return 'Teachings';
+        return context.tr('Teachings');
       case RouteNames.desktopSessions:
-        return 'Sessions';
+        return context.tr('Sessions');
       default:
-        return 'Backoffice';
+        return context.tr('Backoffice');
     }
   }
 
   String _getTitleForEntry(_DesktopViewEntry entry) {
-    if (entry.isList) return _getTitleForRoute(entry.route);
+    if (entry.isList) {
+      return _getTitleForRoute(entry.route);
+    }
     // Detail titles
-    if (entry.route == RouteNames.eventDetail) return 'Event';
-    if (entry.route == RouteNames.addEvent) return 'Add Event';
-    if (entry.route == RouteNames.editEvent) return 'Edit Event';
-    if (entry.route == RouteNames.teachingDetail) return 'Teaching';
-    if (entry.route == RouteNames.classDetail) return 'Training';
-    if (entry.route == RouteNames.memberDetail) return 'Member';
-    if (entry.route == RouteNames.departmentDetail) return 'Department';
-    if (entry.route == RouteNames.addDepartment) return 'Add Department';
-    if (entry.route == RouteNames.editDepartment) return 'Edit Department';
-    if (entry.route == RouteNames.leaderAccess) return 'Leader Access';
-    if (entry.route == RouteNames.memberAccounts) return 'Member Accounts';
-    if (entry.route == RouteNames.addTeaching) return 'Add Teaching';
-    if (entry.route == RouteNames.editTeaching) return 'Edit Teaching';
-    if (entry.route == RouteNames.taskDetail) return 'Task';
-    if (entry.route == RouteNames.addTask) return 'Add Task';
-    if (entry.route == RouteNames.editTask) return 'Edit Task';
-    if (entry.route == RouteNames.addProject) return 'Add Project';
+    if (entry.route == RouteNames.eventDetail) {
+      return context.tr('Event');
+    }
+    if (entry.route == RouteNames.addEvent) {
+      return context.tr('Add Event');
+    }
+    if (entry.route == RouteNames.editEvent) {
+      return context.tr('Edit Event');
+    }
+    if (entry.route == RouteNames.teachingDetail) {
+      return context.tr('Teaching');
+    }
+    if (entry.route == RouteNames.classDetail) {
+      return context.tr('Training');
+    }
+    if (entry.route == RouteNames.memberDetail) {
+      return context.tr('Member');
+    }
+    if (entry.route == RouteNames.departmentDetail) {
+      return context.tr('Department');
+    }
+    if (entry.route == RouteNames.addDepartment) {
+      return context.tr('Add Department');
+    }
+    if (entry.route == RouteNames.editDepartment) {
+      return context.tr('Edit Department');
+    }
+    if (entry.route == RouteNames.leaderAccess) {
+      return context.tr('Leader Access');
+    }
+    if (entry.route == RouteNames.memberAccounts) {
+      return context.tr('Member Accounts');
+    }
+    if (entry.route == RouteNames.addTeaching) {
+      return context.tr('Add Teaching');
+    }
+    if (entry.route == RouteNames.editTeaching) {
+      return context.tr('Edit Teaching');
+    }
+    if (entry.route == RouteNames.taskDetail) {
+      return context.tr('Task');
+    }
+    if (entry.route == RouteNames.addTask) {
+      return context.tr('Add Task');
+    }
+    if (entry.route == RouteNames.editTask) {
+      return context.tr('Edit Task');
+    }
+    if (entry.route == RouteNames.addProject) {
+      return context.tr('Add Project');
+    }
     if (entry.route == RouteNames.tasks && (entry.id ?? '').isNotEmpty) {
-      return 'Manage Tasks';
+      return context.tr('Manage Tasks');
     }
-    if (entry.route == RouteNames.addClass) return 'Add Training';
-    if (entry.route == RouteNames.editClass) return 'Edit Training';
-    if (entry.route == RouteNames.churchAttendance) return 'Church Attendance';
+    if (entry.route == RouteNames.addClass) {
+      return context.tr('Add Training');
+    }
+    if (entry.route == RouteNames.editClass) {
+      return context.tr('Edit Training');
+    }
+    if (entry.route == RouteNames.churchAttendance) {
+      return context.tr('Church Attendance');
+    }
     if (entry.route == RouteNames.sundaySchoolAttendance) {
-      return 'Sunday School';
+      return context.tr('Sunday School');
     }
-    if (entry.route == RouteNames.addVisitor) return 'Add Visitor';
-    if (entry.route == RouteNames.editVisitor) return 'Edit Visitor';
-    if (entry.route == RouteNames.addGiving) return 'Add Giving Record';
-    if (entry.route == RouteNames.editGiving) return 'Edit Giving Record';
-    if (entry.route == RouteNames.memberReport) return 'Member Report';
-    if (entry.route == RouteNames.classReport) return 'Training Report';
-    if (entry.route == RouteNames.takeAttendance) return 'Take Attendance';
-    if (entry.route == RouteNames.manageProjects) return 'Manage Projects';
-    if (entry.route == RouteNames.manageTags) return 'Manage Tags';
-    return 'Details';
+    if (entry.route == RouteNames.addVisitor) {
+      return context.tr('Add Visitor');
+    }
+    if (entry.route == RouteNames.editVisitor) {
+      return context.tr('Edit Visitor');
+    }
+    if (entry.route == RouteNames.addGiving) {
+      return context.tr('Add Giving Record');
+    }
+    if (entry.route == RouteNames.editGiving) {
+      return context.tr('Edit Giving Record');
+    }
+    if (entry.route == RouteNames.memberReport) {
+      return context.tr('Member Report');
+    }
+    if (entry.route == RouteNames.membersReport) {
+      return context.tr('Member Report');
+    }
+    if (entry.route == RouteNames.trainingsReport) {
+      return context.tr('Training Report');
+    }
+    if (entry.route == RouteNames.classReport) {
+      return context.tr('Training Report');
+    }
+    if (entry.route == RouteNames.newComerReport) {
+      return context.tr('New Comers Report');
+    }
+    if (entry.route == RouteNames.takeAttendance) {
+      return context.tr('Take Attendance');
+    }
+    if (entry.route == RouteNames.manageProjects) {
+      return context.tr('Manage Projects');
+    }
+    if (entry.route == RouteNames.manageTags) {
+      return context.tr('Manage Tags');
+    }
+    return context.tr('Details');
   }
 
   Widget _buildListPage(String route) {
     switch (route) {
       case RouteNames.desktopHome:
-        return const DesktopHomePage();
+        return DesktopHomePage();
       case RouteNames.desktopMembers:
-        return const DesktopMembersPage();
+        return DesktopMembersPage();
       case RouteNames.desktopFinance:
-        return const DesktopFinancePage();
+        return DesktopFinancePage();
       case RouteNames.desktopChat:
-        return const DesktopChatPage();
+        return DesktopChatPage();
       case RouteNames.desktopSettings:
-        return const DesktopSettingsPage();
+        return DesktopSettingsPage();
       case RouteNames.desktopNotifications:
-        return const DesktopNotificationsPage();
+        return DesktopNotificationsPage();
       case RouteNames.desktopBirthdays:
-        return const DesktopBirthdaysPage();
+        return DesktopBirthdaysPage();
       case RouteNames.desktopEvents:
-        return const DesktopEventsPage();
+        return DesktopEventsPage();
       case RouteNames.desktopTasks:
-        return const DesktopTasksPage();
+        return DesktopTasksPage();
       case RouteNames.desktopTrainings:
-        return const DesktopTrainingsPage();
+        return DesktopTrainingsPage();
       case RouteNames.desktopDepartments:
-        return const DesktopDepartmentsPage();
+        return DesktopDepartmentsPage();
       case RouteNames.desktopReports:
-        return const DesktopReportsPage();
+        return DesktopReportsPage();
       case RouteNames.desktopChurchAttendance:
-        return const DesktopChurchAttendancePage();
+        return DesktopChurchAttendancePage();
       case RouteNames.desktopSundaySchool:
-        return const DesktopSundaySchoolPage();
+        return DesktopSundaySchoolPage();
       case RouteNames.desktopVisitors:
-        return const DesktopVisitorsPage();
+        return DesktopVisitorsPage();
       case RouteNames.desktopTeachings:
-        return const DesktopTeachingsPage();
+        return DesktopTeachingsPage();
       case RouteNames.desktopSessions:
-        return const DesktopSessionsPage();
+        return DesktopSessionsPage();
       default:
-        return const DesktopHomePage();
+        return DesktopHomePage();
     }
   }
 
@@ -345,8 +432,17 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.memberReport && id.isNotEmpty) {
       return MemberReportPage(memberId: id, onClose: onClose);
     }
+    if (entry.route == RouteNames.membersReport) {
+      return const MembersReportPage();
+    }
+    if (entry.route == RouteNames.trainingsReport) {
+      return const TrainingsReportPage();
+    }
     if (entry.route == RouteNames.classReport && id.isNotEmpty) {
       return ClassReportPage(classId: id, onClose: onClose);
+    }
+    if (entry.route == RouteNames.newComerReport) {
+      return NewComerReportPage();
     }
     if (entry.route == RouteNames.takeAttendance && id.isNotEmpty) {
       return AttendancePage(sessionId: id, members: null, onClose: onClose);
@@ -364,12 +460,9 @@ class _DesktopShellState extends State<DesktopShell> {
       );
     }
     if (entry.route == RouteNames.tasks && id.isNotEmpty) {
-      return TasksListPage(
-        departmentId: id,
-        hideAppBarAndBottomNav: true,
-      );
+      return TasksListPage(departmentId: id, hideAppBarAndBottomNav: true);
     }
-    return const SizedBox.shrink();
+    return SizedBox.shrink();
   }
 
   Widget _buildContent(_DesktopViewEntry entry) {
@@ -389,7 +482,7 @@ class _DesktopShellState extends State<DesktopShell> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Logout failed: $e'),
+            content: Text(context.tr('Logout failed: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -410,17 +503,17 @@ class _DesktopShellState extends State<DesktopShell> {
           Container(
             width: 240,
             decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
+              color: context.mic.sidebar,
               border: Border(
-                right: BorderSide(color: theme.dividerColor, width: 1),
+                right: BorderSide(color: context.mic.border, width: 1),
               ),
             ),
             child: Column(
               children: [
-                const SizedBox(height: AppDimensions.spacingLG),
+                SizedBox(height: AppDimensions.spacingLG),
                 // Logo / title
                 Padding(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: AppDimensions.paddingMD,
                   ),
                   child: Row(
@@ -430,9 +523,9 @@ class _DesktopShellState extends State<DesktopShell> {
                         size: 28,
                         color: theme.colorScheme.primary,
                       ),
-                      const SizedBox(width: AppDimensions.spacingSM),
+                      SizedBox(width: AppDimensions.spacingSM),
                       Text(
-                        'Backoffice',
+                        context.tr('Backoffice'),
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -440,8 +533,8 @@ class _DesktopShellState extends State<DesktopShell> {
                     ],
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingXL),
-                const Divider(height: 1),
+                SizedBox(height: AppDimensions.spacingXL),
+                Divider(height: 1),
                 // Nav items (scrollable)
                 Expanded(
                   child: SingleChildScrollView(
@@ -451,49 +544,49 @@ class _DesktopShellState extends State<DesktopShell> {
                         _NavTile(
                           icon: Icons.dashboard_outlined,
                           activeIcon: Icons.dashboard,
-                          label: 'Home',
+                          label: context.tr('Home'),
                           isActive: _isActive(RouteNames.desktopHome),
                           onTap: () => _navigate(RouteNames.desktopHome),
                         ),
                         _NavTile(
                           icon: Icons.people_outline,
                           activeIcon: Icons.people,
-                          label: 'Members',
+                          label: context.tr('Members'),
                           isActive: _isActive(RouteNames.desktopMembers),
                           onTap: () => _navigate(RouteNames.desktopMembers),
                         ),
                         _NavTile(
                           icon: Icons.business_outlined,
                           activeIcon: Icons.business,
-                          label: 'Departments',
+                          label: context.tr('Departments'),
                           isActive: _isActive(RouteNames.desktopDepartments),
                           onTap: () => _navigate(RouteNames.desktopDepartments),
                         ),
                         _NavTile(
                           icon: Icons.attach_money_outlined,
                           activeIcon: Icons.attach_money,
-                          label: 'Finance',
+                          label: context.tr('Finance'),
                           isActive: _isActive(RouteNames.desktopFinance),
                           onTap: () => _navigate(RouteNames.desktopFinance),
                         ),
                         _NavTile(
                           icon: Icons.chat_bubble_outline,
                           activeIcon: Icons.chat_bubble,
-                          label: 'Chat',
+                          label: context.tr('Chat'),
                           isActive: _isActive(RouteNames.desktopChat),
                           onTap: () => _navigate(RouteNames.desktopChat),
                         ),
                         _NavTile(
                           icon: Icons.settings_outlined,
                           activeIcon: Icons.settings,
-                          label: 'Settings',
+                          label: context.tr('Settings'),
                           isActive: _isActive(RouteNames.desktopSettings),
                           onTap: () => _navigate(RouteNames.desktopSettings),
                         ),
                         _NavTile(
                           icon: Icons.notifications_outlined,
                           activeIcon: Icons.notifications,
-                          label: 'Notifications',
+                          label: context.tr('Notifications'),
                           isActive: _isActive(RouteNames.desktopNotifications),
                           onTap: () =>
                               _navigate(RouteNames.desktopNotifications),
@@ -501,42 +594,42 @@ class _DesktopShellState extends State<DesktopShell> {
                         _NavTile(
                           icon: Icons.cake_outlined,
                           activeIcon: Icons.cake,
-                          label: 'Birthdays',
+                          label: context.tr('Birthdays'),
                           isActive: _isActive(RouteNames.desktopBirthdays),
                           onTap: () => _navigate(RouteNames.desktopBirthdays),
                         ),
                         _NavTile(
                           icon: Icons.event_outlined,
                           activeIcon: Icons.event,
-                          label: 'Events',
+                          label: context.tr('Events'),
                           isActive: _isActive(RouteNames.desktopEvents),
                           onTap: () => _navigate(RouteNames.desktopEvents),
                         ),
                         _NavTile(
                           icon: Icons.task_alt_outlined,
                           activeIcon: Icons.task_alt,
-                          label: 'Tasks',
+                          label: context.tr('Tasks'),
                           isActive: _isActive(RouteNames.desktopTasks),
                           onTap: () => _navigate(RouteNames.desktopTasks),
                         ),
                         _NavTile(
                           icon: Icons.school_outlined,
                           activeIcon: Icons.school,
-                          label: 'Trainings',
+                          label: context.tr('Trainings'),
                           isActive: _isActive(RouteNames.desktopTrainings),
                           onTap: () => _navigate(RouteNames.desktopTrainings),
                         ),
                         _NavTile(
                           icon: Icons.assessment_outlined,
                           activeIcon: Icons.assessment,
-                          label: 'Reports',
+                          label: context.tr('Reports'),
                           isActive: _isActive(RouteNames.desktopReports),
                           onTap: () => _navigate(RouteNames.desktopReports),
                         ),
                         _NavTile(
                           icon: Icons.church_outlined,
                           activeIcon: Icons.church,
-                          label: 'Church Attendance',
+                          label: context.tr('Church Attendance'),
                           isActive: _isActive(
                             RouteNames.desktopChurchAttendance,
                           ),
@@ -546,7 +639,7 @@ class _DesktopShellState extends State<DesktopShell> {
                         _NavTile(
                           icon: Icons.menu_book_outlined,
                           activeIcon: Icons.menu_book,
-                          label: 'Sunday School',
+                          label: context.tr('Sunday School'),
                           isActive: _isActive(RouteNames.desktopSundaySchool),
                           onTap: () =>
                               _navigate(RouteNames.desktopSundaySchool),
@@ -554,21 +647,21 @@ class _DesktopShellState extends State<DesktopShell> {
                         _NavTile(
                           icon: Icons.person_add_outlined,
                           activeIcon: Icons.person_add,
-                          label: 'Visitors',
+                          label: context.tr('Visitors'),
                           isActive: _isActive(RouteNames.desktopVisitors),
                           onTap: () => _navigate(RouteNames.desktopVisitors),
                         ),
                         _NavTile(
                           icon: Icons.menu_book_outlined,
                           activeIcon: Icons.menu_book,
-                          label: 'Teachings',
+                          label: context.tr('Teachings'),
                           isActive: _isActive(RouteNames.desktopTeachings),
                           onTap: () => _navigate(RouteNames.desktopTeachings),
                         ),
                         _NavTile(
                           icon: Icons.event_note_outlined,
                           activeIcon: Icons.event_note,
-                          label: 'Sessions',
+                          label: context.tr('Sessions'),
                           isActive: _isActive(RouteNames.desktopSessions),
                           onTap: () => _navigate(RouteNames.desktopSessions),
                         ),
@@ -576,10 +669,10 @@ class _DesktopShellState extends State<DesktopShell> {
                     ),
                   ),
                 ),
-                const Divider(height: 1),
+                Divider(height: 1),
                 // Current user + logout
                 Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  padding: EdgeInsets.all(AppDimensions.paddingMD),
                   child: Row(
                     children: [
                       CircleAvatar(
@@ -594,7 +687,7 @@ class _DesktopShellState extends State<DesktopShell> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: AppDimensions.spacingSM),
+                      SizedBox(width: AppDimensions.spacingSM),
                       Expanded(
                         child: Text(
                           email,
@@ -603,8 +696,8 @@ class _DesktopShellState extends State<DesktopShell> {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.logout),
-                        tooltip: 'Logout',
+                        icon: Icon(Icons.logout),
+                        tooltip: context.tr('Logout'),
                         onPressed: () => _handleLogout(context),
                         color: theme.colorScheme.error,
                       ),
@@ -625,26 +718,32 @@ class _DesktopShellState extends State<DesktopShell> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    padding: EdgeInsets.all(AppDimensions.paddingMD),
                     alignment: Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: context.mic.surfaceTint.withValues(alpha: 0.45),
+                      border: Border(
+                        bottom: BorderSide(color: context.mic.border, width: 1),
+                      ),
+                    ),
                     child: Row(
                       children: [
                         if (_stack.length > 1)
                           Padding(
-                            padding: const EdgeInsets.only(
+                            padding: EdgeInsets.only(
                               right: AppDimensions.spacingMD,
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.arrow_back),
+                              icon: Icon(Icons.arrow_back),
                               onPressed: _pop,
-                              tooltip: 'Back',
+                              tooltip: context.tr('Back'),
                             ),
                           ),
                         Expanded(
                           child: Text(
                             _stack.isNotEmpty
                                 ? _getTitleForEntry(_stack.last)
-                                : 'Backoffice',
+                                : context.tr('Backoffice'),
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -653,10 +752,10 @@ class _DesktopShellState extends State<DesktopShell> {
                       ],
                     ),
                   ),
-                  const Divider(height: 1),
+                  Divider(height: 1),
                   Expanded(
                     child: _stack.isEmpty
-                        ? const SizedBox.shrink()
+                        ? SizedBox.shrink()
                         : KeyedSubtree(
                             key: ValueKey<String>(
                               '${_stack.last.route}_${_stack.last.id}_$_refreshSeed',

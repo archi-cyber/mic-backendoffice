@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
-import 'push_notification_service.dart';
 
 /// Chat service for global announcements
 class ChatService {
@@ -108,18 +107,14 @@ class ChatService {
 
           if (user != null && user['id'] != null) {
             createdByUserId = user['id'].toString();
-            debugPrint(
-              '[ChatService] Found creator user ID: $createdByUserId',
-            );
+            debugPrint('[ChatService] Found creator user ID: $createdByUserId');
           } else {
             debugPrint(
               '[ChatService] Creator user not found in users table (auth ID: ${currentAuthUser.id})',
             );
           }
         } catch (e) {
-          debugPrint(
-            '[ChatService] Error getting creator user ID: $e',
-          );
+          debugPrint('[ChatService] Error getting creator user ID: $e');
           // If user not found in users table or any error occurs,
           // set to null (foreign key constraint allows NULL)
           createdByUserId = null;
@@ -245,34 +240,6 @@ class ChatService {
               '[ChatService] WARNING: No valid member_ids found in target list',
             );
           }
-        }
-
-        // Send push notifications to all users (excluding creator)
-        try {
-          debugPrint(
-            '[ChatService] Sending push notifications for announcement: ${response['id']}',
-          );
-          debugPrint(
-            '[ChatService] Announcement title: $title, message: ${message.substring(0, message.length > 50 ? 50 : message.length)}...',
-          );
-          debugPrint(
-            '[ChatService] Creator user ID (to exclude): ${createdByUserId ?? "null"}',
-          );
-          
-          // Send to every active user, including the creator.
-          await PushNotificationService.sendAnnouncementPushNotification(
-            title: title,
-            message: message,
-            announcementId: response['id']?.toString() ?? '',
-            excludeUserId: null,
-          );
-          debugPrint('[ChatService] ✅ Successfully sent push notifications');
-        } catch (e, stackTrace) {
-          debugPrint(
-            '[ChatService] ❌ ERROR: Failed to send push notifications: $e',
-          );
-          debugPrint('[ChatService] Stack trace: $stackTrace');
-          // Don't throw - push notifications are secondary
         }
       } catch (e, stackTrace) {
         // Log error but don't fail announcement creation

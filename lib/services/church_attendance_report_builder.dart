@@ -240,6 +240,14 @@ class ChurchAttendanceReportBuilder {
     final pctDiligent = (kDiligenceDiligentMin * 100).round();
     final pctModerate = (kDiligenceModerateMin * 100).round();
 
+    final memberSpecificObservations = <String, String>{};
+    for (final id in memberIds) {
+      final joined = _joinedMemberSpecificObservations(id, slots, l10n);
+      if (joined.isNotEmpty) {
+        memberSpecificObservations[id] = joined;
+      }
+    }
+
     return [
       pw.Text(
         monthTitle,
@@ -262,6 +270,7 @@ class ChurchAttendanceReportBuilder {
         memberIds: memberIds,
         memberNames: memberNames,
         memberStatusBySlot: memberStatusBySlot,
+        memberSpecificObservations: memberSpecificObservations,
         visitorIds: visitorIds,
         visitorNames: visitorNames,
         onsite: onsite,
@@ -508,12 +517,31 @@ class ChurchAttendanceReportBuilder {
     return null;
   }
 
+  static String _joinedMemberSpecificObservations(
+    String memberId,
+    List<_ServiceSlot> slots,
+    AppLocalizations l10n,
+  ) {
+    final parts = <String>[];
+    for (final slot in slots) {
+      for (final record in slot.records) {
+        if (record['member_id']?.toString() != memberId) continue;
+        final observation = record['specific_observation']?.toString().trim();
+        if (observation == null || observation.isEmpty) continue;
+        parts.add('${slot.shortHeader(l10n)}: $observation');
+        break;
+      }
+    }
+    return parts.join('; ');
+  }
+
   static pw.Widget _memberTable({
     required AppLocalizations l10n,
     required List<_ServiceSlot> slots,
     required List<String> memberIds,
     required Map<String, String> memberNames,
     required Map<String, Map<String, String>> memberStatusBySlot,
+    required Map<String, String> memberSpecificObservations,
     required List<String> visitorIds,
     required Map<String, String> visitorNames,
     required Map<String, int> onsite,
@@ -577,7 +605,7 @@ class ChurchAttendanceReportBuilder {
         cell('$off', align: pw.Alignment.center),
         cell('$tot', align: pw.Alignment.center),
         cell(obs),
-        cell(''),
+        cell(memberSpecificObservations[id] ?? ''),
       ];
 
       for (final s in slots) {

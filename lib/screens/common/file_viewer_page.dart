@@ -1,31 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Webview page to display files (PDFs, images, etc.)
 class FileViewerPage extends StatefulWidget {
   final String fileUrl;
   final String fileName;
 
-  const FileViewerPage({
-    super.key,
-    required this.fileUrl,
-    required this.fileName,
-  });
+  FileViewerPage({super.key, required this.fileUrl, required this.fileName});
 
   @override
   State<FileViewerPage> createState() => _FileViewerPageState();
 }
 
 class _FileViewerPageState extends State<FileViewerPage> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _initializeWebView();
+    if (_canUseWebView) {
+      _initializeWebView();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  bool get _canUseWebView {
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
   }
 
   bool _isPdfFile() {
@@ -38,8 +49,9 @@ class _FileViewerPageState extends State<FileViewerPage> {
     final fileName = widget.fileName.toLowerCase();
     final fileUrl = widget.fileUrl.toLowerCase();
     final imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-    return imageExtensions.any((ext) => 
-      fileName.endsWith(ext) || fileUrl.contains(ext));
+    return imageExtensions.any(
+      (ext) => fileName.endsWith(ext) || fileUrl.contains(ext),
+    );
   }
 
   String _getHtmlContent() {
@@ -130,7 +142,7 @@ class _FileViewerPageState extends State<FileViewerPage> {
   }
 
   void _initializeWebView() {
-    _controller = WebViewController()
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.grey[850]!)
       ..setNavigationDelegate(
@@ -154,7 +166,7 @@ class _FileViewerPageState extends State<FileViewerPage> {
           },
           onNavigationRequest: (NavigationRequest request) {
             // Allow navigation to the file URL and Google Docs Viewer
-            if (request.url == widget.fileUrl || 
+            if (request.url == widget.fileUrl ||
                 request.url.contains('docs.google.com/viewer') ||
                 request.url.startsWith('data:') ||
                 request.url.contains(widget.fileUrl)) {
@@ -167,14 +179,90 @@ class _FileViewerPageState extends State<FileViewerPage> {
 
     // Load HTML content that embeds the file
     if (_isPdfFile() || _isImageFile()) {
-      _controller.loadHtmlString(
-        _getHtmlContent(),
-        baseUrl: widget.fileUrl,
-      );
+      controller.loadHtmlString(_getHtmlContent(), baseUrl: widget.fileUrl);
     } else {
       // For other files, use Google Docs Viewer
-      _controller.loadHtmlString(_getHtmlContent());
+      controller.loadHtmlString(_getHtmlContent());
     }
+    _controller = controller;
+  }
+
+  Future<void> _openExternally() async {
+    final uri = Uri.tryParse(widget.fileUrl);
+    if (uri == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Invalid file URL')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Could not open file')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Widget _buildFallbackViewer(BuildContext context) {
+    if (_isImageFile()) {
+      return Container(
+        color: Colors.grey[850],
+        alignment: Alignment.center,
+        child: InteractiveViewer(
+          child: Image.network(
+            widget.fileUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildOpenExternallyFallback(context);
+            },
+          ),
+        ),
+      );
+    }
+
+    return _buildOpenExternallyFallback(context);
+  }
+
+  Widget _buildOpenExternallyFallback(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.open_in_new, size: 64, color: context.mic.textSecondary),
+            SizedBox(height: 16),
+            Text(
+              'Preview unavailable in this browser',
+              style: Theme.of(context).textTheme.titleLarge,
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Open the file in a new tab to view or download it.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: context.mic.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _openExternally,
+              icon: Icon(Icons.open_in_new),
+              label: Text(context.tr('Open file')),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -187,8 +275,13 @@ class _FileViewerPageState extends State<FileViewerPage> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.open_in_new),
+            onPressed: _openExternally,
+            tooltip: context.tr('Open file'),
+          ),
           if (_isLoading)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16.0),
               child: SizedBox(
                 width: 20,
@@ -203,49 +296,45 @@ class _FileViewerPageState extends State<FileViewerPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: AppColors.error,
-                  ),
-                  const SizedBox(height: 16),
+                  Icon(Icons.error_outline, size: 64, color: AppColors.error),
+                  SizedBox(height: 16),
                   Text(
                     'Error loading file',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    padding: EdgeInsets.symmetric(horizontal: 32.0),
                     child: Text(
                       _error ?? 'Unknown error',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
+                        color: context.mic.textSecondary,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   ElevatedButton.icon(
                     onPressed: () {
                       setState(() {
                         _error = null;
                         _isLoading = true;
                       });
-                      _controller.reload();
+                      _controller?.reload();
                     },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
+                    icon: Icon(Icons.refresh),
+                    label: Text(context.tr('Retry')),
                   ),
                 ],
               ),
             )
+          : !_canUseWebView
+          ? _buildFallbackViewer(context)
           : Stack(
               children: [
-                WebViewWidget(controller: _controller),
-                if (_isLoading)
-                  const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                if (_controller != null)
+                  WebViewWidget(controller: _controller!),
+                if (_isLoading) Center(child: CircularProgressIndicator()),
               ],
             ),
     );

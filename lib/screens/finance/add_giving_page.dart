@@ -9,7 +9,7 @@ class AddGivingPage extends StatefulWidget {
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final void Function([dynamic result])? onClose;
 
-  const AddGivingPage({super.key, this.onClose});
+  AddGivingPage({super.key, this.onClose});
 
   @override
   State<AddGivingPage> createState() => _AddGivingPageState();
@@ -188,13 +188,13 @@ class _AddGivingPageState extends State<AddGivingPage> {
         title: Text(localizations.addGivingRecord),
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: () => widget.onClose!(),
               )
             : null,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -208,7 +208,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                   // Transaction Type Toggle
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                      padding: EdgeInsets.all(AppDimensions.paddingMD),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -216,7 +216,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                             '${localizations.transactionType} *',
                             style: theme.textTheme.titleMedium,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           Row(
                             children: [
                               Expanded(
@@ -224,11 +224,8 @@ class _AddGivingPageState extends State<AddGivingPage> {
                                   label: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(
-                                        Icons.arrow_downward,
-                                        size: 18,
-                                      ),
-                                      const SizedBox(width: 4),
+                                      Icon(Icons.arrow_downward, size: 18),
+                                      SizedBox(width: 4),
                                       Text(localizations.receiving),
                                     ],
                                   ),
@@ -240,14 +237,14 @@ class _AddGivingPageState extends State<AddGivingPage> {
                                   },
                                 ),
                               ),
-                              const SizedBox(width: AppDimensions.spacingMD),
+                              SizedBox(width: AppDimensions.spacingMD),
                               Expanded(
                                 child: ChoiceChip(
                                   label: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.arrow_upward, size: 18),
-                                      const SizedBox(width: 4),
+                                      Icon(Icons.arrow_upward, size: 18),
+                                      SizedBox(width: 4),
                                       Text(localizations.expense),
                                     ],
                                   ),
@@ -265,12 +262,12 @@ class _AddGivingPageState extends State<AddGivingPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
 
                   // Giver Type Toggle
                   Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                      padding: EdgeInsets.all(AppDimensions.paddingMD),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -278,7 +275,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                             localizations.giverType,
                             style: theme.textTheme.titleMedium,
                           ),
-                          const SizedBox(height: AppDimensions.spacingMD),
+                          SizedBox(height: AppDimensions.spacingMD),
                           Row(
                             children: [
                               Expanded(
@@ -297,7 +294,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                                   },
                                 ),
                               ),
-                              const SizedBox(width: AppDimensions.spacingMD),
+                              SizedBox(width: AppDimensions.spacingMD),
                               Expanded(
                                 child: ChoiceChip(
                                   label: Text(localizations.externalPerson),
@@ -320,22 +317,25 @@ class _AddGivingPageState extends State<AddGivingPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
 
                   // Member Selection or Giver Name
                   if (!_isExternalGiver)
                     _isLoadingMembers
-                        ? const Card(
+                        ? Card(
                             child: Padding(
                               padding: EdgeInsets.all(AppDimensions.paddingMD),
                               child: Center(child: CircularProgressIndicator()),
                             ),
                           )
                         : DropdownButtonFormField<String>(
+                            isExpanded: true,
                             initialValue: _selectedMemberId,
                             decoration: InputDecoration(
-                              labelText: '${localizations.selectMember} *',
-                              prefixIcon: const Icon(Icons.person),
+                              labelText: context.tr(
+                                '${localizations.selectMember} *',
+                              ),
+                              prefixIcon: Icon(Icons.person),
                               helperText: localizations.selectMember,
                             ),
                             items: _members.map((member) {
@@ -343,7 +343,10 @@ class _AddGivingPageState extends State<AddGivingPage> {
                                   '${member['first_name']} ${member['last_name']}';
                               return DropdownMenuItem<String>(
                                 value: member['id'].toString(),
-                                child: Text(fullName),
+                                child: Text(
+                                  fullName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -370,8 +373,8 @@ class _AddGivingPageState extends State<AddGivingPage> {
                     TextFormField(
                       controller: _giverNameController,
                       decoration: InputDecoration(
-                        labelText: '${localizations.giverName} *',
-                        prefixIcon: const Icon(Icons.person_outline),
+                        labelText: context.tr('${localizations.giverName} *'),
+                        prefixIcon: Icon(Icons.person_outline),
                         helperText: localizations.externalPerson,
                       ),
                       validator: (value) {
@@ -381,17 +384,17 @@ class _AddGivingPageState extends State<AddGivingPage> {
                         return null;
                       },
                     ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
 
                   // Amount
                   TextFormField(
                     controller: _amountController,
-                    keyboardType: const TextInputType.numberWithOptions(
+                    keyboardType: TextInputType.numberWithOptions(
                       decimal: true,
                     ),
                     decoration: InputDecoration(
-                      labelText: '${localizations.amount} *',
-                      prefixIcon: const Icon(Icons.attach_money),
+                      labelText: context.tr('${localizations.amount} *'),
+                      prefixIcon: Icon(Icons.attach_money),
                       helperText: localizations.amount,
                     ),
                     validator: (value) {
@@ -405,20 +408,24 @@ class _AddGivingPageState extends State<AddGivingPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
 
                   // Tag Selection
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: _selectedTag,
                     decoration: InputDecoration(
-                      labelText: '${localizations.tag} *',
-                      prefixIcon: const Icon(Icons.label),
+                      labelText: context.tr('${localizations.tag} *'),
+                      prefixIcon: Icon(Icons.label),
                       helperText: localizations.category,
                     ),
                     items: _getTagOptions(localizations).map((tag) {
                       return DropdownMenuItem<String>(
                         value: tag['value'],
-                        child: Text(tag['label']!),
+                        child: Text(
+                          tag['label']!,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     }).toList(),
                     onChanged: (value) {
@@ -433,7 +440,7 @@ class _AddGivingPageState extends State<AddGivingPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
 
                   // Description
                   TextFormField(
@@ -441,24 +448,24 @@ class _AddGivingPageState extends State<AddGivingPage> {
                     maxLines: 4,
                     decoration: InputDecoration(
                       labelText: localizations.notes,
-                      prefixIcon: const Icon(Icons.description),
+                      prefixIcon: Icon(Icons.description),
                       helperText: localizations.description,
                       alignLabelWithHint: true,
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
 
                   // Save Button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),

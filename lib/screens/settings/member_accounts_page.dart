@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../services/member_account_service.dart';
 import '../../services/role_service.dart';
 import '../../services/supabase_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Member accounts management page (admin only).
 /// Admins can create login accounts for members and manage their access.
@@ -14,7 +16,7 @@ class MemberAccountsPage extends StatefulWidget {
   /// When provided (e.g. desktop stack), back button calls this instead of Navigator.pop.
   final VoidCallback? onClose;
 
-  const MemberAccountsPage({super.key, this.onClose});
+  MemberAccountsPage({super.key, this.onClose});
 
   @override
   State<MemberAccountsPage> createState() => _MemberAccountsPageState();
@@ -62,7 +64,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading members: $e'),
+            content: Text(context.tr('Error loading members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -113,23 +115,23 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Add email for member'),
+          title: Text(context.tr('Add email for member')),
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              hintText: 'member@example.com',
+            decoration: InputDecoration(
+              labelText: context.tr('Email'),
+              hintText: context.tr('member@example.com'),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Save & create account'),
+              child: Text(context.tr('Save & create account')),
             ),
           ],
         ),
@@ -142,8 +144,8 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       final newEmail = controller.text.trim();
       if (newEmail.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Email cannot be empty.'),
+          SnackBar(
+            content: Text(context.tr('Email cannot be empty.')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -153,8 +155,8 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       // Optionally do a very simple email format check
       if (!newEmail.contains('@')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid email address.'),
+          SnackBar(
+            content: Text(context.tr('Please enter a valid email address.')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -178,7 +180,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to update member email: $e'),
+              content: Text(context.tr('Failed to update member email: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -190,7 +192,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Create account'),
+        title: Text(context.tr('Create account')),
         content: Text(
           'Create a login account for ${member['first_name']} ${member['last_name']}?\n\n'
           'Email: $email\n'
@@ -200,11 +202,11 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Create'),
+            child: Text(context.tr('Create')),
           ),
         ],
       ),
@@ -219,8 +221,10 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Account created. Member can now log in.'),
+          SnackBar(
+            content: Text(
+              context.tr('Account created. Member can now log in.'),
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -255,14 +259,16 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: widget.onClose,
                 )
               : null,
-          title: const Text('Member Accounts'),
+          title: Text(context.tr('Member Accounts')),
         ),
-        body: const Center(
-          child: Text('You do not have permission to access this page.'),
+        body: Center(
+          child: Text(
+            context.tr('You do not have permission to access this page.'),
+          ),
         ),
       );
     }
@@ -274,16 +280,16 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: widget.onClose,
               )
             : null,
-        title: const Text('Member Accounts'),
+        title: Text(context.tr('Member Accounts')),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh),
             onPressed: _isLoading ? null : _loadMembers,
-            tooltip: 'Refresh',
+            tooltip: context.tr('Refresh'),
           ),
         ],
       ),
@@ -293,10 +299,10 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
 
   Widget _buildDesktopBody(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
+          constraints: BoxConstraints(
             maxWidth: _kMemberAccountsDesktopMaxWidth,
           ),
           child: Column(
@@ -306,15 +312,18 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'all', label: Text('All')),
+                    segments: [
+                      ButtonSegment(
+                        value: 'all',
+                        label: Text(context.tr('All')),
+                      ),
                       ButtonSegment(
                         value: 'with_account',
-                        label: Text('With account'),
+                        label: Text(context.tr('With account')),
                       ),
                       ButtonSegment(
                         value: 'without_account',
-                        label: Text('No account'),
+                        label: Text(context.tr('No account')),
                       ),
                     ],
                     selected: {_filter},
@@ -322,12 +331,12 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                       setState(() => _filter = selected.first);
                     },
                   ),
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400),
+                    constraints: BoxConstraints(maxWidth: 400),
                     child: TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search by name or email',
+                      decoration: InputDecoration(
+                        hintText: context.tr('Search by name or email'),
                         prefixIcon: Icon(Icons.search),
                         border: OutlineInputBorder(),
                         isDense: true,
@@ -340,18 +349,18 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                           setState(() => _searchQuery = value),
                     ),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.refresh),
+                    icon: Icon(Icons.refresh),
                     onPressed: _isLoading ? null : _loadMembers,
-                    tooltip: 'Refresh',
+                    tooltip: context.tr('Refresh'),
                   ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? Center(child: CircularProgressIndicator())
                     : _filteredMembers.isEmpty
                     ? Center(
                         child: Text(
@@ -361,7 +370,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                               ? 'No members with accounts.'
                               : 'No members without accounts.',
                           style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(color: AppColors.textSecondary),
+                              ?.copyWith(color: context.mic.textSecondary),
                         ),
                       )
                     : Card(
@@ -377,11 +386,19 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                     minWidth: constraints.maxWidth,
                                   ),
                                   child: DataTable(
-                                    columns: const [
-                                      DataColumn(label: Text('Name')),
-                                      DataColumn(label: Text('Email')),
-                                      DataColumn(label: Text('Status')),
-                                      DataColumn(label: Text('Actions')),
+                                    columns: [
+                                      DataColumn(
+                                        label: Text(context.tr('Name')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Email')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Status')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Actions')),
+                                      ),
                                     ],
                                     rows: _filteredMembers.map((m) {
                                       final hasAccount =
@@ -415,9 +432,9 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                                   size: 18,
                                                   color: hasAccount
                                                       ? AppColors.success
-                                                      : AppColors.textSecondary,
+                                                      : context.mic.textSecondary,
                                                 ),
-                                                const SizedBox(width: 6),
+                                                SizedBox(width: 6),
                                                 Text(statusText),
                                               ],
                                             ),
@@ -425,23 +442,23 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                           DataCell(
                                             hasAccount
                                                 ? TextButton.icon(
-                                                    icon: const Icon(
+                                                    icon: Icon(
                                                       Icons.settings,
                                                       size: 18,
                                                     ),
-                                                    label: const Text(
+                                                    label: Text(
                                                       'Manage access',
                                                     ),
                                                     onPressed: () =>
                                                         _manageAccess(m),
                                                   )
                                                 : TextButton.icon(
-                                                    icon: const Icon(
+                                                    icon: Icon(
                                                       Icons
                                                           .person_add_alt_1_outlined,
                                                       size: 18,
                                                     ),
-                                                    label: const Text(
+                                                    label: Text(
                                                       'Create account',
                                                     ),
                                                     onPressed: () =>
@@ -470,7 +487,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -478,15 +495,18 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                 children: [
                   Expanded(
                     child: SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'all', label: Text('All')),
+                      segments: [
+                        ButtonSegment(
+                          value: 'all',
+                          label: Text(context.tr('All')),
+                        ),
                         ButtonSegment(
                           value: 'with_account',
-                          label: Text('With account'),
+                          label: Text(context.tr('With account')),
                         ),
                         ButtonSegment(
                           value: 'without_account',
-                          label: Text('No account'),
+                          label: Text(context.tr('No account')),
                         ),
                       ],
                       selected: {_filter},
@@ -497,11 +517,11 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                   ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingSM),
+              SizedBox(height: AppDimensions.spacingSM),
               TextField(
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   prefixIcon: Icon(Icons.search),
-                  hintText: 'Search members by name or email',
+                  hintText: context.tr('Search members by name or email'),
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -514,7 +534,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _filteredMembers.isEmpty
               ? Center(
                   child: Text(
@@ -526,7 +546,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: AppDimensions.paddingMD,
                   ),
                   itemCount: _filteredMembers.length,
@@ -546,11 +566,9 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                         : 'No account – tap “Create account” to enable login';
 
                     return Card(
-                      margin: const EdgeInsets.only(
-                        bottom: AppDimensions.paddingSM,
-                      ),
+                      margin: EdgeInsets.only(bottom: AppDimensions.paddingSM),
                       child: Padding(
-                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        padding: EdgeInsets.all(AppDimensions.paddingMD),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -563,7 +581,7 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                       ? AppColors.success.withValues(
                                           alpha: 0.12,
                                         )
-                                      : AppColors.textSecondary.withValues(
+                                      : context.mic.textSecondary.withValues(
                                           alpha: 0.08,
                                         ),
                                   child: Icon(
@@ -572,10 +590,10 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                         : Icons.person_outline,
                                     color: hasAccount
                                         ? AppColors.success
-                                        : AppColors.textSecondary,
+                                        : context.mic.textSecondary,
                                   ),
                                 ),
-                                const SizedBox(width: AppDimensions.spacingMD),
+                                SizedBox(width: AppDimensions.spacingMD),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -590,15 +608,13 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                       ),
                                       if (email.isNotEmpty)
                                         Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 2,
-                                          ),
+                                          padding: EdgeInsets.only(top: 2),
                                           child: Text(
                                             email,
                                             style: theme.textTheme.bodySmall
                                                 ?.copyWith(
                                                   color:
-                                                      AppColors.textSecondary,
+                                                      context.mic.textSecondary,
                                                 ),
                                           ),
                                         ),
@@ -607,31 +623,28 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             Text(
                               statusText,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: context.mic.textSecondary,
                               ),
                             ),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             Align(
                               alignment: Alignment.centerRight,
                               child: hasAccount
                                   ? TextButton.icon(
-                                      icon: const Icon(
-                                        Icons.settings,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Manage access'),
+                                      icon: Icon(Icons.settings, size: 18),
+                                      label: Text(context.tr('Manage access')),
                                       onPressed: () => _manageAccess(m),
                                     )
                                   : TextButton.icon(
-                                      icon: const Icon(
+                                      icon: Icon(
                                         Icons.person_add_alt_1_outlined,
                                         size: 18,
                                       ),
-                                      label: const Text('Create account'),
+                                      label: Text(context.tr('Create account')),
                                       onPressed: () => _createAccount(m),
                                     ),
                             ),

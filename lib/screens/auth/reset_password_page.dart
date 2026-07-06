@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
@@ -9,7 +10,7 @@ import '../../services/auth_service.dart';
 class ResetPasswordPage extends StatefulWidget {
   final String? email;
 
-  const ResetPasswordPage({super.key, this.email});
+  ResetPasswordPage({super.key, this.email});
 
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -74,9 +75,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              e.toString().replaceFirst('Exception: ', ''),
-            ),
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -91,13 +90,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
     if (_passwordReset) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Password Reset'),
-        ),
+        appBar: AppBar(title: Text(context.tr('Password Reset'))),
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingLG),
+              padding: EdgeInsets.all(AppDimensions.paddingLG),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -107,19 +104,19 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     size: 80,
                     color: AppColors.success,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     'Password Reset Successful!',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   Text(
                     'Your password has been successfully reset. You can now log in with your new password.',
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXXL),
+                  SizedBox(height: AppDimensions.spacingXXL),
                   ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -128,12 +125,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
-                    child: const Text('Go to Login'),
+                    child: Text(context.tr('Go to Login')),
                   ),
                 ],
               ),
@@ -144,13 +141,11 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Reset Password'),
-      ),
+      appBar: AppBar(title: Text(context.tr('Reset Password'))),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimensions.paddingLG),
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
             child: Form(
               key: _formKey,
               child: Column(
@@ -162,28 +157,30 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     size: 80,
                     color: AppColors.primary,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     'Set New Password',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Text(
                     'Enter the token from your email and your new password.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXXL),
+                  SizedBox(height: AppDimensions.spacingXXL),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: localizations?.email ?? 'Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      helperText: 'Enter the email address you used to request password reset',
+                      prefixIcon: Icon(Icons.email_outlined),
+                      helperText: context.tr(
+                        'Enter the email address you used to request password reset',
+                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -197,13 +194,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _tokenController,
                     decoration: InputDecoration(
-                      labelText: 'Reset Token',
-                      prefixIcon: const Icon(Icons.vpn_key_outlined),
-                      helperText: 'Enter the token you received in your email',
+                      labelText: context.tr('Reset Token'),
+                      prefixIcon: Icon(Icons.vpn_key_outlined),
+                      helperText: context.tr(
+                        'Enter the token you received in your email',
+                      ),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -212,13 +211,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: localizations?.password ?? 'New Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -243,14 +242,14 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
-                      labelText: localizations?.confirmPassword ??
-                          'Confirm Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      labelText:
+                          localizations?.confirmPassword ?? 'Confirm Password',
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirmPassword
@@ -274,24 +273,24 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleResetPassword,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Reset Password'),
+                        : Text(context.tr('Reset Password')),
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -299,7 +298,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         (route) => false,
                       );
                     },
-                    child: const Text('Back to Login'),
+                    child: Text(context.tr('Back to Login')),
                   ),
                 ],
               ),

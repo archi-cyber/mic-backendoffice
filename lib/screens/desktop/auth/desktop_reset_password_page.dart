@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/mic_theme.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/routes/route_names.dart';
@@ -9,7 +10,7 @@ import '../../../services/auth_service.dart';
 class DesktopResetPasswordPage extends StatefulWidget {
   final String? email;
 
-  const DesktopResetPasswordPage({super.key, this.email});
+  DesktopResetPasswordPage({super.key, this.email});
 
   @override
   State<DesktopResetPasswordPage> createState() =>
@@ -81,9 +82,9 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
       return Scaffold(
         body: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimensions.paddingLG),
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: BoxConstraints(maxWidth: 420),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -93,19 +94,19 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     size: 80,
                     color: AppColors.success,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     'Password Reset Successful!',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   Text(
                     'You can now sign in with your new password.',
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXXL),
+                  SizedBox(height: AppDimensions.spacingXXL),
                   ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pushNamedAndRemoveUntil(
@@ -114,12 +115,12 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
-                    child: const Text('Go to Login'),
+                    child: Text(context.tr('Go to Login')),
                   ),
                 ],
               ),
@@ -132,9 +133,9 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingLG),
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: BoxConstraints(maxWidth: 420),
             child: Form(
               key: _formKey,
               child: Column(
@@ -146,26 +147,26 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     size: 80,
                     color: AppColors.primary,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     'Set New Password',
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Text(
                     'Enter the token from your email and your new password.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXXL),
+                  SizedBox(height: AppDimensions.spacingXXL),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Email'),
                       prefixIcon: Icon(Icons.email_outlined),
                       border: OutlineInputBorder(),
                     ),
@@ -180,11 +181,11 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _tokenController,
-                    decoration: const InputDecoration(
-                      labelText: 'Reset Token',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Reset Token'),
                       prefixIcon: Icon(Icons.vpn_key_outlined),
                       border: OutlineInputBorder(),
                     ),
@@ -195,13 +196,13 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: localizations?.password ?? 'New Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -212,7 +213,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                           () => _obscurePassword = !_obscurePassword,
                         ),
                       ),
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -225,14 +226,14 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
                       labelText:
                           localizations?.confirmPassword ?? 'Confirm Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirmPassword
@@ -244,7 +245,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                               !_obscureConfirmPassword,
                         ),
                       ),
-                      border: const OutlineInputBorder(),
+                      border: OutlineInputBorder(),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -256,29 +257,29 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleResetPassword,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Reset Password'),
+                        : Text(context.tr('Reset Password')),
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   TextButton(
                     onPressed: () => Navigator.of(
                       context,
                     ).pushReplacementNamed(RouteNames.desktopLogin),
-                    child: const Text('Back to Login'),
+                    child: Text(context.tr('Back to Login')),
                   ),
                 ],
               ),

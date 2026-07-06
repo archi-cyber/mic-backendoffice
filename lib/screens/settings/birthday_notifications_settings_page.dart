@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/birthday_notification_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Settings page for birthday notification configuration
 class BirthdayNotificationsSettingsPage extends StatefulWidget {
-  const BirthdayNotificationsSettingsPage({super.key});
+  BirthdayNotificationsSettingsPage({super.key});
 
   @override
   State<BirthdayNotificationsSettingsPage> createState() =>
@@ -34,9 +35,9 @@ class _BirthdayNotificationsSettingsPageState
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading config: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading config: $e'))),
+        );
       }
     }
   }
@@ -48,8 +49,8 @@ class _BirthdayNotificationsSettingsPageState
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Settings saved successfully'),
+          SnackBar(
+            content: Text(context.tr('Settings saved successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -58,7 +59,7 @@ class _BirthdayNotificationsSettingsPageState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving config: $e'),
+            content: Text(context.tr('Error saving config: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -69,17 +70,17 @@ class _BirthdayNotificationsSettingsPageState
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Birthday Notifications')),
+      appBar: AppBar(title: Text(context.tr('Birthday Notifications'))),
       body: ListView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         children: [
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -87,10 +88,10 @@ class _BirthdayNotificationsSettingsPageState
                     'Notification Target',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   RadioListTile<String>(
-                    title: const Text('All Church App Users'),
-                    subtitle: const Text('Default: All active members'),
+                    title: Text(context.tr('All Church App Users')),
+                    subtitle: Text(context.tr('Default: All active members')),
                     value: 'all',
                     groupValue: _target,
                     onChanged: (value) {
@@ -98,8 +99,10 @@ class _BirthdayNotificationsSettingsPageState
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Leaders Only'),
-                    subtitle: const Text('Only department leaders and admins'),
+                    title: Text(context.tr('Leaders Only')),
+                    subtitle: Text(
+                      context.tr('Only department leaders and admins'),
+                    ),
                     value: 'leaders_only',
                     groupValue: _target,
                     onChanged: (value) {
@@ -107,8 +110,8 @@ class _BirthdayNotificationsSettingsPageState
                     },
                   ),
                   RadioListTile<String>(
-                    title: const Text('Opt-Out (No Notifications)'),
-                    subtitle: const Text('Users can opt-in individually'),
+                    title: Text(context.tr('Opt-Out (No Notifications)')),
+                    subtitle: Text(context.tr('Users can opt-in individually')),
                     value: 'opt_out',
                     groupValue: _target,
                     onChanged: (value) {
@@ -119,15 +122,15 @@ class _BirthdayNotificationsSettingsPageState
               ),
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Note', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Text(
                     'Individual members can opt-out of birthday notifications '
                     'regardless of this setting. This setting controls the default '
@@ -138,16 +141,13 @@ class _BirthdayNotificationsSettingsPageState
               ),
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingXL),
+          SizedBox(height: AppDimensions.spacingXL),
           ElevatedButton(
             onPressed: _saveConfig,
             style: ElevatedButton.styleFrom(
-              minimumSize: const Size(
-                double.infinity,
-                AppDimensions.buttonHeightLG,
-              ),
+              minimumSize: Size(double.infinity, AppDimensions.buttonHeightLG),
             ),
-            child: const Text('Save Settings'),
+            child: Text(context.tr('Save Settings')),
           ),
         ],
       ),

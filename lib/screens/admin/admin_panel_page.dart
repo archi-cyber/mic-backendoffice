@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/admin_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Admin panel for user management
 class AdminPanelPage extends StatelessWidget {
-  const AdminPanelPage({super.key});
+  AdminPanelPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin Panel')),
+      appBar: AppBar(title: Text(context.tr('Admin Panel'))),
       body: ListView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         children: [
           _AdminCard(
             title: 'Create User',
@@ -20,7 +22,7 @@ class AdminPanelPage extends StatelessWidget {
             icon: Icons.person_add_outlined,
             onTap: () => _showCreateUserDialog(context),
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           _AdminCard(
             title: 'Role Assignment',
             description: 'Assign roles to users',
@@ -29,7 +31,7 @@ class AdminPanelPage extends StatelessWidget {
               // Navigate to role assignment
             },
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           _AdminCard(
             title: 'Activity Logs',
             description: 'View system activity logs',
@@ -52,37 +54,43 @@ class AdminPanelPage extends StatelessWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('Create User'),
+          title: Text(context.tr('Create User')),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
+                decoration: InputDecoration(
+                  labelText: context.tr('Email'),
                   prefixIcon: Icon(Icons.email),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
+                decoration: InputDecoration(
+                  labelText: context.tr('Password'),
                   prefixIcon: Icon(Icons.lock),
                 ),
                 obscureText: true,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               DropdownButtonFormField<String>(
                 initialValue: selectedRole,
-                decoration: const InputDecoration(
-                  labelText: 'Role',
+                decoration: InputDecoration(
+                  labelText: context.tr('Role'),
                   prefixIcon: Icon(Icons.admin_panel_settings),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                  DropdownMenuItem(value: 'pastor', child: Text('Pastor')),
+                items: [
+                  DropdownMenuItem(
+                    value: 'admin',
+                    child: Text(context.tr('Admin')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pastor',
+                    child: Text(context.tr('Pastor')),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) {
@@ -95,7 +103,7 @@ class AdminPanelPage extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(context.tr('Cancel')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -108,8 +116,8 @@ class AdminPanelPage extends StatelessWidget {
                   if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('User created successfully'),
+                      SnackBar(
+                        content: Text(context.tr('User created successfully')),
                         backgroundColor: AppColors.success,
                       ),
                     );
@@ -118,14 +126,14 @@ class AdminPanelPage extends StatelessWidget {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Error: $e'),
+                        content: Text(context.tr('Error: $e')),
                         backgroundColor: AppColors.error,
                       ),
                     );
                   }
                 }
               },
-              child: const Text('Create'),
+              child: Text(context.tr('Create')),
             ),
           ],
         ),
@@ -140,7 +148,7 @@ class _AdminCard extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _AdminCard({
+  _AdminCard({
     required this.title,
     required this.description,
     required this.icon,
@@ -154,27 +162,27 @@ class _AdminCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Row(
             children: [
               Icon(icon, size: 48, color: AppColors.primary),
-              const SizedBox(width: AppDimensions.spacingMD),
+              SizedBox(width: AppDimensions.spacingMD),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: AppDimensions.spacingXS),
+                    SizedBox(height: AppDimensions.spacingXS),
                     Text(
                       description,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right),
+              Icon(Icons.chevron_right),
             ],
           ),
         ),

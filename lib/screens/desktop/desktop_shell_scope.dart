@@ -8,7 +8,7 @@ class DesktopShellScope extends InheritedWidget {
   final void Function() pop;
   final bool canPop;
 
-  const DesktopShellScope({
+  DesktopShellScope({
     super.key,
     required super.child,
     required this.pushList,

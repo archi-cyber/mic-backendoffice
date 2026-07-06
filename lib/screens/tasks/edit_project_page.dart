@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/project_service.dart';
 import '../../services/department_service.dart';
 import '../../services/member_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Edit project page (from Manage projects → tap project).
 class EditProjectPage extends StatefulWidget {
@@ -11,7 +13,7 @@ class EditProjectPage extends StatefulWidget {
 
   final void Function(bool? result)? onClose;
 
-  const EditProjectPage({super.key, required this.projectId, this.onClose});
+  EditProjectPage({super.key, required this.projectId, this.onClose});
 
   @override
   State<EditProjectPage> createState() => _EditProjectPageState();
@@ -97,7 +99,7 @@ class _EditProjectPageState extends State<EditProjectPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text('Person in charge'),
+            title: Text(context.tr('Person in charge')),
             content: SizedBox(
               width: double.maxFinite,
               child: Column(
@@ -105,10 +107,10 @@ class _EditProjectPageState extends State<EditProjectPage> {
                 children: [
                   TextField(
                     controller: _personSearchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Search',
+                    decoration: InputDecoration(
+                      labelText: context.tr('Search'),
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Type to search...',
+                      hintText: context.tr('Type to search...'),
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) {
@@ -133,19 +135,23 @@ class _EditProjectPageState extends State<EditProjectPage> {
                       });
                     },
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Flexible(
                     child: _members.isEmpty
-                        ? const Center(child: Text('Select a department first'))
+                        ? Center(
+                            child: Text(
+                              context.tr('Select a department first'),
+                            ),
+                          )
                         : filtered.isEmpty
-                        ? const Center(child: Text('No members found'))
+                        ? Center(child: Text(context.tr('No members found')))
                         : ListView.builder(
                             shrinkWrap: true,
                             itemCount: filtered.length + 1,
                             itemBuilder: (context, index) {
                               if (index == 0) {
                                 return ListTile(
-                                  title: const Text('None'),
+                                  title: Text(context.tr('None')),
                                   onTap: () {
                                     setState(
                                       () => _selectedPersonInChargeId = null,
@@ -211,9 +217,9 @@ class _EditProjectPageState extends State<EditProjectPage> {
       if (!mounted) return;
       setState(() => _isLoadingData = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading project: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading project: $e'))),
+        );
         if (widget.onClose != null) {
           widget.onClose!(null);
         } else {
@@ -228,7 +234,7 @@ class _EditProjectPageState extends State<EditProjectPage> {
       context: context,
       initialDate: _endDate ?? DateTime.now(),
       firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 5)),
     );
     if (picked != null) setState(() => _endDate = picked);
   }
@@ -237,8 +243,8 @@ class _EditProjectPageState extends State<EditProjectPage> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDepartmentId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select a department'),
+        SnackBar(
+          content: Text(context.tr('Please select a department')),
           backgroundColor: AppColors.error,
         ),
       );
@@ -265,8 +271,8 @@ class _EditProjectPageState extends State<EditProjectPage> {
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Project updated successfully'),
+        SnackBar(
+          content: Text(context.tr('Project updated successfully')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -287,153 +293,276 @@ class _EditProjectPageState extends State<EditProjectPage> {
     }
   }
 
+  static const double _kDesktopBreakpoint = 700;
+  static const double _kDesktopMaxWidth = 680;
+
+  Widget _desktopIntroCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            theme.colorScheme.surface,
+          ],
+        ),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.edit_note_outlined,
+              color: AppColors.primary,
+              size: 32,
+            ),
+          ),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit project',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  'Update the project owner, department, deadline, and priority.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
+
     return Scaffold(
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(isDesktop ? Icons.close : Icons.arrow_back),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Edit Project'),
+        title: Text(context.tr('Edit Project')),
+        actions: isDesktop
+            ? [
+                TextButton(
+                  onPressed: () => widget.onClose != null
+                      ? widget.onClose!(null)
+                      : Navigator.of(context).pop(),
+                  child: Text(context.tr('Cancel')),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _handleSave,
+                  icon: _isLoading
+                      ? SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Update Project')),
+                ),
+                SizedBox(width: AppDimensions.paddingMD),
+              ]
+            : null,
       ),
+      backgroundColor: isDesktop
+          ? Theme.of(context).colorScheme.surfaceContainerLowest
+          : null,
       body: _isLoadingData
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
+          : isDesktop
+          ? Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _desktopIntroCard(context),
+                      SizedBox(height: AppDimensions.spacingLG),
+                      Material(
+                        color: Theme.of(context).colorScheme.surface,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusXL,
+                          ),
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).dividerColor.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.all(AppDimensions.paddingLG),
+                          child: _buildForm(context, showButton: false),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Project title *',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Required' : null,
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
+              child: _buildForm(context, showButton: true),
+            ),
+    );
+  }
+
+  Widget _buildForm(BuildContext context, {required bool showButton}) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: _titleController,
+            decoration: InputDecoration(
+              labelText: context.tr('Project title *'),
+              border: OutlineInputBorder(),
+            ),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedDepartmentId,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: _isLoadingMembers
+                  ? 'Department * (loading members…)'
+                  : 'Department *',
+              border: OutlineInputBorder(),
+            ),
+            items: _departments
+                .map(
+                  (d) => DropdownMenuItem<String>(
+                    value: d['id'].toString(),
+                    child: Text(
+                      d['name']?.toString() ?? '',
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedDepartmentId,
-                      isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText: _isLoadingMembers
-                            ? 'Department * (loading members…)'
-                            : 'Department *',
-                        border: const OutlineInputBorder(),
-                      ),
-                      items: _departments
-                          .map(
-                            (d) => DropdownMenuItem<String>(
-                              value: d['id'].toString(),
-                              child: Text(
-                                d['name']?.toString() ?? '',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) async {
-                        setState(() => _selectedDepartmentId = v);
-                        await _loadMembersForDepartment(v);
-                      },
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    InkWell(
-                      onTap: _isLoadingMembers
-                          ? null
-                          : () => _showPersonInChargePicker(),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Person in charge',
-                          border: OutlineInputBorder(),
-                          suffixIcon: Icon(Icons.search),
-                        ),
-                        child: Text(
-                          _selectedPersonInChargeId != null
-                              ? _getPersonName(_selectedPersonInChargeId)
-                              : 'Tap to search and select',
-                          style: TextStyle(
-                            color: _selectedPersonInChargeId != null
-                                ? null
-                                : Theme.of(context).hintColor,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    InkWell(
-                      onTap: _selectEndDate,
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'End date',
-                          border: OutlineInputBorder(),
-                        ),
-                        child: Text(
-                          _endDate != null
-                              ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
-                              : 'Select end date (optional)',
-                          style: TextStyle(
-                            color: _endDate != null
-                                ? null
-                                : Theme.of(context).hintColor,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    DropdownButtonFormField<String>(
-                      initialValue: _priority,
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'low', child: Text('Low')),
-                        DropdownMenuItem(
-                          value: 'medium',
-                          child: Text('Medium'),
-                        ),
-                        DropdownMenuItem(value: 'high', child: Text('High')),
-                        DropdownMenuItem(
-                          value: 'urgent',
-                          child: Text('Urgent'),
-                        ),
-                      ],
-                      onChanged: (v) =>
-                          setState(() => _priority = v ?? 'medium'),
-                    ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    TextFormField(
-                      controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 4,
-                    ),
-                    const SizedBox(height: AppDimensions.spacingLG),
-                    FilledButton(
-                      onPressed: _isLoading ? null : _handleSave,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Update Project'),
-                    ),
-                  ],
+                  ),
+                )
+                .toList(),
+            onChanged: (v) async {
+              setState(() => _selectedDepartmentId = v);
+              await _loadMembersForDepartment(v);
+            },
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          InkWell(
+            onTap: _isLoadingMembers ? null : () => _showPersonInChargePicker(),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: context.tr('Person in charge'),
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.search),
+              ),
+              child: Text(
+                _selectedPersonInChargeId != null
+                    ? _getPersonName(_selectedPersonInChargeId)
+                    : 'Tap to search and select',
+                style: TextStyle(
+                  color: _selectedPersonInChargeId != null
+                      ? null
+                      : Theme.of(context).hintColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          InkWell(
+            onTap: _selectEndDate,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: context.tr('End date'),
+                border: OutlineInputBorder(),
+              ),
+              child: Text(
+                _endDate != null
+                    ? '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'
+                    : 'Select end date (optional)',
+                style: TextStyle(
+                  color: _endDate != null ? null : Theme.of(context).hintColor,
                 ),
               ),
             ),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          DropdownButtonFormField<String>(
+            initialValue: _priority,
+            isExpanded: true,
+            decoration: InputDecoration(
+              labelText: context.tr('Priority'),
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              DropdownMenuItem(value: 'low', child: Text(context.tr('Low'))),
+              DropdownMenuItem(
+                value: 'medium',
+                child: Text(context.tr('Medium')),
+              ),
+              DropdownMenuItem(value: 'high', child: Text(context.tr('High'))),
+              DropdownMenuItem(
+                value: 'urgent',
+                child: Text(context.tr('Urgent')),
+              ),
+            ],
+            onChanged: (v) => setState(() => _priority = v ?? 'medium'),
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          TextFormField(
+            controller: _descriptionController,
+            decoration: InputDecoration(
+              labelText: context.tr('Description'),
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 4,
+          ),
+          if (showButton) ...[
+            SizedBox(height: AppDimensions.spacingLG),
+            FilledButton(
+              onPressed: _isLoading ? null : _handleSave,
+              child: _isLoading
+                  ? SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(context.tr('Update Project')),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

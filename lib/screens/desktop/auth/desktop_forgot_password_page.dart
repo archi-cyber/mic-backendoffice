@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/mic_theme.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/routes/route_names.dart';
@@ -7,7 +8,7 @@ import '../../../services/auth_service.dart';
 
 /// Desktop/Web forgot password. Same behaviour as [ForgotPasswordPage].
 class DesktopForgotPasswordPage extends StatefulWidget {
-  const DesktopForgotPasswordPage({super.key});
+  DesktopForgotPasswordPage({super.key});
 
   @override
   State<DesktopForgotPasswordPage> createState() =>
@@ -63,9 +64,9 @@ class _DesktopForgotPasswordPageState extends State<DesktopForgotPasswordPage> {
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingLG),
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: BoxConstraints(maxWidth: 420),
             child: Form(
               key: _formKey,
               child: Column(
@@ -78,19 +79,19 @@ class _DesktopForgotPasswordPageState extends State<DesktopForgotPasswordPage> {
                       size: 80,
                       color: AppColors.success,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     Text(
                       'Email Sent!',
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     Text(
                       'Please check your email for the password reset token. You\'ll need to enter it on the next screen.',
                       style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXXL),
+                    SizedBox(height: AppDimensions.spacingXXL),
                     ElevatedButton(
                       onPressed: () {
                         Navigator.of(context).pushReplacementNamed(
@@ -99,19 +100,19 @@ class _DesktopForgotPasswordPageState extends State<DesktopForgotPasswordPage> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
-                      child: const Text('Enter Reset Token'),
+                      child: Text(context.tr('Enter Reset Token')),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextButton(
                       onPressed: () => Navigator.of(
                         context,
                       ).pushReplacementNamed(RouteNames.desktopLogin),
-                      child: const Text('Back to Login'),
+                      child: Text(context.tr('Back to Login')),
                     ),
                   ] else ...[
                     Icon(
@@ -119,26 +120,26 @@ class _DesktopForgotPasswordPageState extends State<DesktopForgotPasswordPage> {
                       size: 80,
                       color: AppColors.primary,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     Text(
                       localizations?.forgotPassword ?? 'Forgot Password',
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     Text(
                       'Enter your email and we\'ll send you a token to reset your password.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXXL),
+                    SizedBox(height: AppDimensions.spacingXXL),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Email'),
                         prefixIcon: Icon(Icons.email_outlined),
                         border: OutlineInputBorder(),
                       ),
@@ -153,29 +154,29 @@ class _DesktopForgotPasswordPageState extends State<DesktopForgotPasswordPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleForgotPassword,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Send Reset Link'),
+                          : Text(context.tr('Send Reset Link')),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextButton(
                       onPressed: () => Navigator.of(
                         context,
                       ).pushReplacementNamed(RouteNames.desktopLogin),
-                      child: const Text('Back to Login'),
+                      child: Text(context.tr('Back to Login')),
                     ),
                   ],
                 ],

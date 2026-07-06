@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/sunday_school_attendance_service.dart';
 import '../../services/member_service.dart';
 import '../../utils/member_utils.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Page for marking Sunday school attendance (for children only)
 class SundaySchoolAttendancePage extends StatefulWidget {
   final String? sessionDate;
+
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
@@ -36,16 +39,20 @@ class _SundaySchoolAttendancePageState
   @override
   void initState() {
     super.initState();
-    // Initialize from arguments if provided
     if (widget.sessionDate != null) {
       _selectedDate = DateTime.parse(widget.sessionDate!);
-      _isViewMode = true; // Existing sessions start in view mode
+      _isViewMode = true;
     } else {
       _selectedDate = DateTime.now();
-      _isViewMode = false; // New sessions start in edit mode
+      _isViewMode = false;
     }
     _loadMembers();
     _loadExistingAttendance();
+  }
+
+  double get _attendanceProgress {
+    if (_members.isEmpty) return 0;
+    return _attendedMemberIds.length / _members.length;
   }
 
   Future<void> _loadMembers() async {
@@ -57,10 +64,9 @@ class _SundaySchoolAttendancePageState
         ascending: true,
       );
 
-      // Filter to only show children
       final childrenMembers = allMembers.where((member) {
         final birthday = member['birthday'];
-        if (birthday == null) return false; // Exclude if no birthday
+        if (birthday == null) return false;
 
         DateTime? birthdayDate;
         try {
@@ -70,12 +76,10 @@ class _SundaySchoolAttendancePageState
             birthdayDate = birthday;
           }
         } catch (e) {
-          return false; // Exclude if can't parse birthday
+          return false;
         }
 
-        final ageCategory = MemberUtils.getAgeCategory(birthdayDate);
-        // Only include children
-        return ageCategory == 'child';
+        return MemberUtils.getAgeCategory(birthdayDate) == 'child';
       }).toList();
 
       setState(() {
@@ -87,7 +91,7 @@ class _SundaySchoolAttendancePageState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading members: $e'),
+            content: Text(context.tr('Error loading members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -119,7 +123,7 @@ class _SundaySchoolAttendancePageState
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
-      helpText: 'Select Session Date',
+      helpText: context.tr('Select Session Date'),
     );
     if (picked != null) {
       setState(() {
@@ -143,8 +147,8 @@ class _SundaySchoolAttendancePageState
   Future<void> _saveAttendance() async {
     if (_attendedMemberIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one child'),
+        SnackBar(
+          content: Text(context.tr('Please select at least one child')),
           backgroundColor: AppColors.warning,
         ),
       );
@@ -154,42 +158,37 @@ class _SundaySchoolAttendancePageState
     setState(() => _isSaving = true);
 
     try {
-      // Check if this is an existing session (has attendance records)
       final hasExistingAttendance = _attendanceRecords.isNotEmpty;
 
       if (hasExistingAttendance) {
-        // Update existing session
         await SundaySchoolAttendanceService.updateSessionAttendance(
           attendanceDate: _selectedDate,
           memberIds: _attendedMemberIds.toList(),
         );
       } else {
-        // Create new session
         await SundaySchoolAttendanceService.markBulkAttendance(
           memberIds: _attendedMemberIds.toList(),
           attendanceDate: _selectedDate,
         );
       }
 
-      // Reload attendance to reflect changes
       await _loadExistingAttendance();
 
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _isViewMode = true; // Switch back to view mode after saving
+          _isViewMode = true;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
               hasExistingAttendance
-                  ? 'Attendance updated successfully'
-                  : 'Attendance saved successfully',
+                  ? context.tr('Attendance updated successfully')
+                  : context.tr('Attendance saved successfully'),
             ),
             backgroundColor: AppColors.success,
           ),
         );
-        // Only pop if this was a new session (not editing existing)
         if (!hasExistingAttendance) {
           if (widget.onClose != null) {
             widget.onClose!();
@@ -203,7 +202,7 @@ class _SundaySchoolAttendancePageState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving attendance: $e'),
+            content: Text(context.tr('Error saving attendance: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -212,26 +211,24 @@ class _SundaySchoolAttendancePageState
   }
 
   Future<void> _deleteSession() async {
-    if (_attendanceRecords.isEmpty) {
-      return;
-    }
+    if (_attendanceRecords.isEmpty) return;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Session'),
+        title: Text(context.tr('Delete Session')),
         content: Text(
           'Are you sure you want to delete this session for ${DateFormat('MMM d, yyyy').format(_selectedDate)}? This will remove all attendance records for this date and cannot be undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Delete'),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -243,8 +240,8 @@ class _SundaySchoolAttendancePageState
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Session deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Session deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -258,7 +255,7 @@ class _SundaySchoolAttendancePageState
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting session: $e'),
+              content: Text(context.tr('Error deleting session: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -267,170 +264,297 @@ class _SundaySchoolAttendancePageState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
-    return Scaffold(
-      appBar: AppBar(
-        leading: widget.onClose != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: widget.onClose,
-              )
-            : null,
-        title: Text(_isViewMode ? 'Session Details' : 'Mark Attendance'),
-        actions: [
-          if (_isViewMode) ...[
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: _attendanceRecords.isEmpty ? null : _deleteSession,
-              tooltip: 'Delete Session',
-              color: AppColors.error,
-            ),
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () {
-                setState(() {
-                  _isViewMode = false;
-                });
-              },
-              tooltip: 'Edit Session',
-            ),
-          ] else ...[
-            if (_isSaving)
-              const Padding(
-                padding: EdgeInsets.all(16.0),
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+  String _memberInitials(String firstName, String lastName) {
+    final f = firstName.isNotEmpty ? firstName[0].toUpperCase() : '';
+    final l = lastName.isNotEmpty ? lastName[0].toUpperCase() : '';
+    final initials = '$f$l';
+    return initials.isEmpty ? '?' : initials;
+  }
+
+  Widget _buildHeroBanner() {
+    final dateLabel = DateFormat('EEE, MMM d, yyyy').format(_selectedDate);
+    final modeLabel = _isViewMode
+        ? context.tr('View Mode')
+        : context.tr('Edit Mode');
+
+    return Container(
+      margin: EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.secondary.withValues(alpha: 0.22),
+            context.mic.surfaceTint,
+            context.mic.surface,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-              )
-            else ...[
-              IconButton(
-                icon: const Icon(Icons.cancel),
-                onPressed: () {
-                  // Reload to reset changes
-                  _loadExistingAttendance();
-                  setState(() {
-                    _isViewMode = true;
-                  });
-                },
-                tooltip: 'Cancel',
+                child: Icon(
+                  _isViewMode ? Icons.visibility_outlined : Icons.edit_note,
+                  color: AppColors.secondaryDark,
+                  size: 26,
+                ),
               ),
-              IconButton(
-                icon: const Icon(Icons.save),
-                onPressed: _saveAttendance,
-                tooltip: 'Save Attendance',
+              SizedBox(width: AppDimensions.spacingMD),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isViewMode
+                          ? context.tr('Session Details')
+                          : context.tr('Mark Attendance'),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.mic.appBarForeground,
+                      ),
+                    ),
+                    SizedBox(height: AppDimensions.spacingXS),
+                    Text(
+                      dateLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.mic.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: (_isViewMode ? AppColors.info : AppColors.accent)
+                      .withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  modeLabel,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: _isViewMode ? AppColors.info : AppColors.accent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ],
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          if (!_isViewMode && widget.sessionDate == null) ...[
+            InkWell(
+              onTap: _selectDate,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: context.tr('Session Date'),
+                  prefixIcon: const Icon(Icons.calendar_today),
+                  filled: true,
+                  fillColor: context.mic.surface.withValues(alpha: 0.85),
+                  border: OutlineInputBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusMD),
+                    borderSide: BorderSide(color: context.mic.border),
+                  ),
+                ),
+                child: Text(DateFormat('yyyy-MM-dd').format(_selectedDate)),
+              ),
+            ),
+            SizedBox(height: AppDimensions.spacingMD),
           ],
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: _attendanceProgress,
+                    minHeight: 8,
+                    backgroundColor: context.mic.border,
+                    color: AppColors.secondary,
+                  ),
+                ),
+              ),
+              SizedBox(width: AppDimensions.spacingMD),
+              Text(
+                '${_attendedMemberIds.length}/${_members.length}',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.secondaryDark,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppDimensions.spacingXS),
+          Text(
+            context.tr('{count} of {total} children marked', {
+              'count': _attendedMemberIds.length,
+              'total': _members.length,
+            }),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: context.mic.textSecondary,
+            ),
+          ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : isDesktop
-          ? Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 900),
-                child: _buildBodyColumn(context),
-              ),
-            )
-          : _buildBodyColumn(context),
     );
   }
 
-  Widget _buildBodyColumn(BuildContext context) {
-    return Column(
+  Widget _buildChildTile({
+    required String memberId,
+    required String firstName,
+    required String lastName,
+    int? age,
+    required bool isAttended,
+    String? recordedAt,
+    bool interactive = true,
+  }) {
+    return Container(
+      margin: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        0,
+        AppDimensions.paddingMD,
+        AppDimensions.spacingSM,
+      ),
+      decoration: BoxDecoration(
+        color: isAttended
+            ? AppColors.secondary.withValues(alpha: 0.08)
+            : context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(
+          color: isAttended
+              ? AppColors.secondary.withValues(alpha: 0.35)
+              : context.mic.border,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: interactive
+              ? () => _toggleMemberAttendance(memberId)
+              : null,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingMD,
+              vertical: AppDimensions.paddingSM + 2,
+            ),
+            child: Row(
               children: [
-                // Date Selector
-                Container(
-                  padding: const EdgeInsets.all(AppDimensions.spacingMD),
-                  color: Theme.of(context).cardColor,
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: isAttended
+                      ? AppColors.secondary.withValues(alpha: 0.2)
+                      : context.mic.surfaceTint.withValues(alpha: 0.5),
+                  child: Text(
+                    _memberInitials(firstName, lastName),
+                    style: TextStyle(
+                      color: isAttended
+                          ? AppColors.secondaryDark
+                          : context.mic.appBarForeground,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                SizedBox(width: AppDimensions.spacingMD),
+                Expanded(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      InkWell(
-                        onTap: (_isViewMode || widget.sessionDate != null)
-                            ? null
-                            : _selectDate,
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Session Date',
-                            prefixIcon: const Icon(Icons.calendar_today),
-                            filled: _isViewMode || widget.sessionDate != null,
-                            fillColor:
-                                (_isViewMode || widget.sessionDate != null)
-                                ? Theme.of(
-                                    context,
-                                  ).disabledColor.withValues(alpha: 0.1)
-                                : null,
-                          ),
-                          child: Text(
-                            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-                          ),
+                      Text(
+                        '$firstName $lastName'.trim(),
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: context.mic.appBarForeground,
                         ),
                       ),
-                      const SizedBox(height: AppDimensions.spacingSM),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${_attendedMemberIds.length} of ${_members.length} children marked',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          if (_isViewMode)
-                            Text(
-                              'View Mode',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                        ],
-                      ),
+                      if (age != null)
+                        Text(
+                          context.tr('Age: {age}', {'age': age}),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: context.mic.textSecondary),
+                        ),
+                      if (recordedAt != null)
+                        Text(
+                          recordedAt,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: context.mic.textSecondary),
+                        ),
                     ],
                   ),
                 ),
-                // Members List or Attendance Details
-                Expanded(
-                  child: _isViewMode
-                      ? _buildViewModeContent()
-                      : _buildEditModeContent(),
-                ),
+                if (interactive)
+                  Icon(
+                    isAttended
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    color: isAttended
+                        ? AppColors.success
+                        : context.mic.textSecondary,
+                  )
+                else
+                  Icon(Icons.check_circle, color: AppColors.success, size: 22),
               ],
-            );
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildEditModeContent() {
     if (_members.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.child_care_outlined,
-              size: 64,
-              color: Theme.of(context).disabledColor,
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            Text(
-              'No active children found',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: context.mic.surfaceTint.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.child_care_outlined,
+                  size: 56,
+                  color: AppColors.secondaryDark,
+                ),
+              ),
+              SizedBox(height: AppDimensions.spacingMD),
+              Text(
+                context.tr('No active children found'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: context.mic.appBarForeground,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return ListView.builder(
+      padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
       itemCount: _members.length,
       itemBuilder: (context, index) {
         final member = _members[index];
         final memberId = member['id']?.toString() ?? '';
-        final isAttended = _attendedMemberIds.contains(memberId);
-        final firstName = member['first_name'] ?? '';
-        final lastName = member['last_name'] ?? '';
+        final firstName = member['first_name']?.toString() ?? '';
+        final lastName = member['last_name']?.toString() ?? '';
         final birthday = member['birthday'];
         int? age;
         if (birthday != null) {
@@ -442,25 +566,15 @@ class _SundaySchoolAttendancePageState
               birthdayDate = birthday;
             }
             age = MemberUtils.getAge(birthdayDate);
-          } catch (e) {
-            // Ignore
-          }
+          } catch (_) {}
         }
 
-        return Card(
-          margin: const EdgeInsets.symmetric(
-            horizontal: AppDimensions.spacingMD,
-            vertical: AppDimensions.spacingXS,
-          ),
-          child: CheckboxListTile(
-            title: Text('$firstName $lastName'),
-            subtitle: age != null ? Text('Age: $age') : null,
-            value: isAttended,
-            onChanged: (value) => _toggleMemberAttendance(memberId),
-            secondary: isAttended
-                ? const Icon(Icons.check_circle, color: AppColors.success)
-                : const Icon(Icons.radio_button_unchecked),
-          ),
+        return _buildChildTile(
+          memberId: memberId,
+          firstName: firstName,
+          lastName: lastName,
+          age: age,
+          isAttended: _attendedMemberIds.contains(memberId),
         );
       },
     );
@@ -469,117 +583,156 @@ class _SundaySchoolAttendancePageState
   Widget _buildViewModeContent() {
     if (_attendanceRecords.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_busy,
-              size: 64,
-              color: Theme.of(context).disabledColor,
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            Text(
-              'No attendance recorded for this session',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        // Summary Card
-        Container(
-          margin: const EdgeInsets.all(AppDimensions.spacingMD),
-          padding: const EdgeInsets.all(AppDimensions.spacingMD),
-          decoration: BoxDecoration(
-            color: AppColors.accent.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildStatItem(
-                'Total Attended',
-                '${_attendanceRecords.length}',
-                Icons.people,
-              ),
               Container(
-                width: 1,
-                height: 40,
-                color: AppColors.textSecondary.withValues(alpha: 0.3),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: context.mic.surfaceTint.withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.event_busy,
+                  size: 56,
+                  color: AppColors.secondaryDark,
+                ),
               ),
-              _buildStatItem(
-                'Active Children',
-                '${_members.length}',
-                Icons.child_care,
+              SizedBox(height: AppDimensions.spacingMD),
+              Text(
+                context.tr('No attendance recorded for this session'),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: context.mic.appBarForeground,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
         ),
-        // Attendance List
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.spacingMD,
-            ),
-            itemCount: _attendanceRecords.length,
-            itemBuilder: (context, index) {
-              final record = _attendanceRecords[index];
-              final member = record['member'] as Map<String, dynamic>?;
-              final firstName = member?['first_name'] ?? 'Unknown';
-              final lastName = member?['last_name'] ?? '';
+      );
+    }
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: AppDimensions.spacingXS),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: AppColors.accent,
-                    child: Text(
-                      '${firstName[0]}${lastName.isNotEmpty ? lastName[0] : ''}',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  title: Text('$firstName $lastName'),
-                  subtitle: Text(
-                    'Recorded: ${_formatDateTime(record['created_at'])}',
-                  ),
-                  // Remove delete button for existing sessions (view-only)
-                  trailing: null,
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return ListView.builder(
+      padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
+      itemCount: _attendanceRecords.length,
+      itemBuilder: (context, index) {
+        final record = _attendanceRecords[index];
+        final member = record['member'] as Map<String, dynamic>?;
+        final firstName = member?['first_name']?.toString() ?? 'Unknown';
+        final lastName = member?['last_name']?.toString() ?? '';
+        final recordedAt =
+            '${context.tr('Recorded')}: ${_formatDateTime(record['created_at'])}';
+
+        return _buildChildTile(
+          memberId: record['member_id']?.toString() ?? '',
+          firstName: firstName,
+          lastName: lastName,
+          isAttended: true,
+          recordedAt: recordedAt,
+          interactive: false,
+        );
+      },
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: AppColors.accent),
-        const SizedBox(height: AppDimensions.spacingXS),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppColors.accent,
-          ),
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 700;
+
+    return Scaffold(
+      backgroundColor: context.mic.background,
+      appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: widget.onClose,
+              )
+            : null,
+        title: Text(
+          _isViewMode
+              ? context.tr('Session Details')
+              : context.tr('Mark Attendance'),
         ),
-        const SizedBox(height: AppDimensions.spacingXS),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
+        actions: [
+          if (_isViewMode) ...[
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _attendanceRecords.isEmpty ? null : _deleteSession,
+              tooltip: context.tr('Delete Session'),
+              color: AppColors.error,
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => setState(() => _isViewMode = false),
+              tooltip: context.tr('Edit Session'),
+            ),
+          ] else ...[
+            if (_isSaving)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else ...[
+              TextButton(
+                onPressed: () {
+                  _loadExistingAttendance();
+                  setState(() => _isViewMode = true);
+                },
+                child: Text(context.tr('Cancel')),
+              ),
+              FilledButton.icon(
+                onPressed: _saveAttendance,
+                icon: const Icon(Icons.save, size: 18),
+                label: Text(context.tr('Save')),
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+            ],
+          ],
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : isDesktop
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _buildBodyColumn(),
+              ),
+            )
+          : _buildBodyColumn(),
+      floatingActionButton: !_isViewMode && !_isSaving && _members.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _saveAttendance,
+              icon: const Icon(Icons.save),
+              label: Text(context.tr('Save Attendance')),
+            )
+          : null,
+    );
+  }
+
+  Widget _buildBodyColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildHeroBanner(),
+        Expanded(
+          child: _isViewMode
+              ? _buildViewModeContent()
+              : _buildEditModeContent(),
         ),
       ],
     );
   }
 
   String _formatDateTime(dynamic dateTime) {
-    if (dateTime == null) return 'Unknown';
+    if (dateTime == null) return context.tr('Unknown');
     try {
       final dt = DateTime.parse(dateTime.toString());
       return DateFormat('MMM d, yyyy • h:mm a').format(dt);

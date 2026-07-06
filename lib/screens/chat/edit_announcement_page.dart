@@ -4,12 +4,13 @@ import '../../core/constants/app_dimensions.dart';
 import '../../services/chat_service.dart';
 import '../../services/member_service.dart';
 import '../../services/department_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Edit announcement page
 class EditAnnouncementPage extends StatefulWidget {
   final String announcementId;
 
-  const EditAnnouncementPage({super.key, required this.announcementId});
+  EditAnnouncementPage({super.key, required this.announcementId});
 
   @override
   State<EditAnnouncementPage> createState() => _EditAnnouncementPageState();
@@ -84,7 +85,7 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading announcement: $e')),
+          SnackBar(content: Text(context.tr('Error loading announcement: $e'))),
         );
       }
     }
@@ -95,7 +96,7 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
 
     if (!_isGlobal && _selectedMemberIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Please select at least one member for targeted announcement',
           ),
@@ -121,8 +122,8 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Announcement updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Announcement updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -132,7 +133,7 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating announcement: $e'),
+            content: Text(context.tr('Error updating announcement: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -161,13 +162,13 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingData) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Announcement')),
+      appBar: AppBar(title: Text(context.tr('Edit Announcement'))),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
           key: _formKey,
           child: Column(
@@ -176,8 +177,8 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
               // Title
               TextFormField(
                 controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Title *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Title *'),
                   prefixIcon: Icon(Icons.title),
                   border: OutlineInputBorder(),
                 ),
@@ -189,13 +190,13 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                 },
                 textCapitalization: TextCapitalization.words,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Message
               TextFormField(
                 controller: _messageController,
-                decoration: const InputDecoration(
-                  labelText: 'Message *',
+                decoration: InputDecoration(
+                  labelText: context.tr('Message *'),
                   prefixIcon: Icon(Icons.message),
                   border: OutlineInputBorder(),
                 ),
@@ -208,13 +209,13 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                 },
                 textCapitalization: TextCapitalization.sentences,
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Is Global
               Card(
                 child: SwitchListTile(
-                  title: const Text('Global Announcement'),
-                  subtitle: const Text(
+                  title: Text(context.tr('Global Announcement')),
+                  subtitle: Text(
                     'Send to all members. If disabled, select specific members.',
                   ),
                   value: _isGlobal,
@@ -227,26 +228,26 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                       }
                     });
                   },
-                  secondary: const Icon(Icons.public),
+                  secondary: Icon(Icons.public),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Department (optional, for filtering)
               if (!_isGlobal && _isLoadingDepartments)
-                const Center(child: CircularProgressIndicator())
+                Center(child: CircularProgressIndicator())
               else if (!_isGlobal)
                 DropdownButtonFormField<String>(
                   initialValue: _selectedDepartmentId,
-                  decoration: const InputDecoration(
-                    labelText: 'Department (Optional)',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Department (Optional)'),
                     prefixIcon: Icon(Icons.group_work),
                     border: OutlineInputBorder(),
                   ),
                   items: [
-                    const DropdownMenuItem<String>(
+                    DropdownMenuItem<String>(
                       value: null,
-                      child: Text('No Department'),
+                      child: Text(context.tr('No Department')),
                     ),
                     ..._departments.map((dept) {
                       return DropdownMenuItem<String>(
@@ -259,27 +260,27 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                     setState(() => _selectedDepartmentId = value);
                   },
                 ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
 
               // Member Selection (for targeted announcements)
               if (!_isGlobal) ...[
                 ElevatedButton.icon(
                   onPressed: _showMemberSelection,
-                  icon: const Icon(Icons.people),
+                  icon: Icon(Icons.people),
                   label: Text(
                     _selectedMemberIds.isEmpty
                         ? 'Select Members'
                         : '${_selectedMemberIds.length} member(s) selected',
                   ),
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(
+                    minimumSize: Size(
                       double.infinity,
                       AppDimensions.buttonHeightMD,
                     ),
                   ),
                 ),
                 if (_selectedMemberIds.isNotEmpty) ...[
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Wrap(
                     spacing: AppDimensions.spacingXS,
                     runSpacing: AppDimensions.spacingXS,
@@ -301,27 +302,27 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                     }).toList(),
                   ),
                 ],
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
               ],
 
-              const SizedBox(height: AppDimensions.spacingXL),
+              SizedBox(height: AppDimensions.spacingXL),
 
               // Save Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveAnnouncement,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
+                  minimumSize: Size(
                     double.infinity,
                     AppDimensions.buttonHeightLG,
                   ),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Update Announcement'),
+                    : Text(context.tr('Update Announcement')),
               ),
             ],
           ),
@@ -336,7 +337,7 @@ class _MemberSelectionDialog extends StatefulWidget {
   final List<Map<String, dynamic>> allMembers;
   final Set<String> selectedMemberIds;
 
-  const _MemberSelectionDialog({
+  _MemberSelectionDialog({
     required this.allMembers,
     required this.selectedMemberIds,
   });
@@ -384,21 +385,21 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
     return Dialog(
       child: Container(
         width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: BoxConstraints(maxHeight: 600),
         child: Column(
           children: [
             // Search bar
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: TextField(
                 controller: _searchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  hintText: 'Search members...',
-                  prefixIcon: const Icon(Icons.search),
+                  hintText: context.tr('Search members...'),
+                  prefixIcon: Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: Icon(Icons.clear),
                           onPressed: () {
                             _searchController.clear();
                             setState(() {});
@@ -411,7 +412,7 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                 ),
               ),
             ),
-            const Divider(),
+            Divider(),
             // Members list
             Expanded(
               child: ListView.builder(
@@ -440,25 +441,25 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                 },
               ),
             ),
-            const Divider(),
+            Divider(),
             // Actions
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_selectedMemberIds.length} selected'),
+                  Text(context.tr('${_selectedMemberIds.length} selected')),
                   Row(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(context.tr('Cancel')),
                       ),
-                      const SizedBox(width: AppDimensions.spacingSM),
+                      SizedBox(width: AppDimensions.spacingSM),
                       ElevatedButton(
                         onPressed: () =>
                             Navigator.pop(context, _selectedMemberIds),
-                        child: const Text('Select'),
+                        child: Text(context.tr('Select')),
                       ),
                     ],
                   ),

@@ -13,6 +13,7 @@ class ChurchAttendanceService {
     required DateTime serviceDate,
     required String serviceType, // 'wednesday' or 'sunday'
     String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
+    String? specificObservation,
   }) async {
     try {
       if (serviceType != 'wednesday' && serviceType != 'sunday') {
@@ -36,6 +37,8 @@ class ChurchAttendanceService {
         '[ChurchAttendanceService] Marking attendance for member: $memberId, date: $serviceDate, type: $serviceType, attendance: $attendanceType',
       );
 
+      final observation = specificObservation?.trim();
+
       final response = await _client
           .from('church_attendance')
           .insert({
@@ -45,6 +48,8 @@ class ChurchAttendanceService {
             )[0], // Date only
             'service_type': serviceType,
             'attendance_type': attendanceType,
+            if (observation != null && observation.isNotEmpty)
+              'specific_observation': observation,
             'created_by': currentUser.id,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
@@ -67,6 +72,7 @@ class ChurchAttendanceService {
     required DateTime serviceDate,
     required String serviceType,
     String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
+    Map<String, String?>? specificObservationsByMemberId,
   }) async {
     try {
       if (serviceType != 'wednesday' && serviceType != 'sunday') {
@@ -91,19 +97,21 @@ class ChurchAttendanceService {
       );
 
       final dateString = serviceDate.toIso8601String().split('T')[0];
-      final attendanceRecords = memberIds
-          .map(
-            (memberId) => {
-              'member_id': memberId,
-              'service_date': dateString,
-              'service_type': serviceType,
-              'attendance_type': attendanceType,
-              'created_by': currentUser.id,
-              'created_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            },
-          )
-          .toList();
+      final attendanceRecords = memberIds.map((memberId) {
+        final observation =
+            specificObservationsByMemberId?[memberId]?.trim();
+        return {
+          'member_id': memberId,
+          'service_date': dateString,
+          'service_type': serviceType,
+          'attendance_type': attendanceType,
+          if (observation != null && observation.isNotEmpty)
+            'specific_observation': observation,
+          'created_by': currentUser.id,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+        };
+      }).toList();
 
       final response = await _client
           .from('church_attendance')
@@ -418,6 +426,10 @@ class ChurchAttendanceService {
   static Future<Map<String, dynamic>> updateAttendance({
     required String attendanceId,
     String? attendanceType,
+    String? specificObservation,
+    bool clearSpecificObservation = false,
+    DateTime? serviceDate,
+    String? serviceType,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -435,6 +447,25 @@ class ChurchAttendanceService {
         updates['attendance_type'] = attendanceType;
       }
 
+      if (serviceDate != null) {
+        updates['service_date'] = serviceDate.toIso8601String().split('T')[0];
+      }
+
+      if (serviceType != null) {
+        if (serviceType != 'wednesday' && serviceType != 'sunday') {
+          throw Exception('Service type must be "wednesday" or "sunday"');
+        }
+        updates['service_type'] = serviceType;
+      }
+
+      if (clearSpecificObservation) {
+        updates['specific_observation'] = null;
+      } else if (specificObservation != null) {
+        final trimmed = specificObservation.trim();
+        updates['specific_observation'] =
+            trimmed.isEmpty ? null : trimmed;
+      }
+
       final response = await _client
           .from('church_attendance')
           .update(updates)
@@ -447,6 +478,29 @@ class ChurchAttendanceService {
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error updating attendance: $e');
       throw Exception('Failed to update attendance: $e');
+    }
+  }
+
+  /// Soft-delete every attendance row for a service (date + type).
+  static Future<void> deleteService({
+    required String serviceDate,
+    required String serviceType,
+  }) async {
+    try {
+      final deletedAt = DateTime.now().toIso8601String();
+      await _client
+          .from('church_attendance')
+          .update({'deleted_at': deletedAt, 'updated_at': deletedAt})
+          .eq('service_date', serviceDate)
+          .eq('service_type', serviceType)
+          .isFilter('deleted_at', null);
+
+      debugPrint(
+        '[ChurchAttendanceService] Service deleted: $serviceDate $serviceType',
+      );
+    } catch (e) {
+      debugPrint('[ChurchAttendanceService] Error deleting service: $e');
+      throw Exception('Failed to delete service: $e');
     }
   }
 

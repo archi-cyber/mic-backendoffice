@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/event_service.dart';
@@ -7,6 +8,7 @@ import '../../services/supabase_service.dart';
 import '../../services/member_service.dart';
 import '../../core/utils/permission_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Event detail page with registration and leader management
 class EventDetailPage extends StatefulWidget {
@@ -15,7 +17,7 @@ class EventDetailPage extends StatefulWidget {
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
-  const EventDetailPage({super.key, required this.eventId, this.onClose});
+  EventDetailPage({super.key, required this.eventId, this.onClose});
 
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
@@ -60,9 +62,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading event: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading event: $e'))),
+        );
       }
     }
   }
@@ -71,17 +73,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: const Text('Are you sure you want to delete this event?'),
+        title: Text(context.tr('Delete Event')),
+        content: Text(
+          context.tr('Are you sure you want to delete this event?'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -92,8 +96,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
         await EventService.deleteEvent(widget.eventId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Event deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Event deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -107,7 +111,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting event: $e'),
+              content: Text(context.tr('Error deleting event: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -119,21 +123,21 @@ class _EventDetailPageState extends State<EventDetailPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_event == null) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Event'),
+          title: Text(context.tr('Event')),
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: widget.onClose,
                 )
               : null,
         ),
-        body: const Center(child: Text('Event not found')),
+        body: Center(child: Text(context.tr('Event not found'))),
       );
     }
 
@@ -147,7 +151,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: widget.onClose,
                 )
               : null,
@@ -155,7 +159,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           actions: [
             if (_canEdit) ...[
               IconButton(
-                icon: const Icon(Icons.edit),
+                icon: Icon(Icons.edit),
                 onPressed: () {
                   final scope = DesktopShellScope.maybeOf(context);
                   if (scope != null) {
@@ -176,13 +180,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
               ),
             ],
             if (_canDelete) ...[
-              IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: _deleteEvent,
-              ),
+              IconButton(icon: Icon(Icons.delete), onPressed: _deleteEvent),
             ],
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             tabs: [
               Tab(text: 'Overview', icon: Icon(Icons.info)),
               Tab(text: 'Registrations', icon: Icon(Icons.people)),
@@ -210,7 +211,7 @@ class _OverviewTab extends StatelessWidget {
   final Map<String, dynamic> event;
   final double? desktopMaxWidth;
 
-  const _OverviewTab({required this.event, this.desktopMaxWidth});
+  _OverviewTab({required this.event, this.desktopMaxWidth});
 
   String _formatDate(DateTime date) {
     const months = [
@@ -238,13 +239,13 @@ class _OverviewTab extends StatelessWidget {
     final isRepeated = event['is_repeated'] == true;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -252,25 +253,25 @@ class _OverviewTab extends StatelessWidget {
                     event['title'] ?? 'Event',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   if (eventDate != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.calendar_today, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           _formatDate(eventDate),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (eventTime != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.access_time, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           eventTime.length >= 5
                               ? eventTime.substring(0, 5)
@@ -279,14 +280,14 @@ class _OverviewTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (event['location'] != null) ...[
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.location_on, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.location_on, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Expanded(
                           child: Text(
                             event['location'],
@@ -295,17 +296,13 @@ class _OverviewTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (isRepeated) ...[
                     Row(
                       children: [
-                        const Icon(
-                          Icons.repeat,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.repeat, size: 20, color: AppColors.primary),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           'Repeated Event',
                           style: Theme.of(context).textTheme.bodyLarge
@@ -321,10 +318,10 @@ class _OverviewTab extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           if (event['description'] != null) ...[
             Text('Description', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingSM),
             Text(
               event['description'],
               style: Theme.of(context).textTheme.bodyMedium,
@@ -356,7 +353,7 @@ class _RegistrationsTab extends StatefulWidget {
   final VoidCallback onRegistrationsUpdated;
   final double? desktopMaxWidth;
 
-  const _RegistrationsTab({
+  _RegistrationsTab({
     required this.eventId,
     required this.isLeader,
     required this.onRegistrationsUpdated,
@@ -398,7 +395,9 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading registrations: $e')),
+          SnackBar(
+            content: Text(context.tr('Error loading registrations: $e')),
+          ),
         );
       }
     }
@@ -465,8 +464,8 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
           _isRegistering = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully registered for event'),
+          SnackBar(
+            content: Text(context.tr('Successfully registered for event')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -477,7 +476,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registration failed: $e'),
+            content: Text(context.tr('Registration failed: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -515,7 +514,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error registering members: $e'),
+            content: Text(context.tr('Error registering members: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -541,8 +540,8 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Successfully registered guest'),
+          SnackBar(
+            content: Text(context.tr('Successfully registered guest')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -553,7 +552,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error registering guest: $e'),
+            content: Text(context.tr('Error registering guest: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -565,19 +564,19 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove Registration'),
-        content: const Text(
-          'Are you sure you want to remove this registration?',
+        title: Text(context.tr('Remove Registration')),
+        content: Text(
+          context.tr('Are you sure you want to remove this registration?'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Remove'),
+            child: Text(context.tr('Remove')),
           ),
         ],
       ),
@@ -592,8 +591,8 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Registration removed successfully'),
+            SnackBar(
+              content: Text(context.tr('Registration removed successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -604,7 +603,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error removing registration: $e'),
+              content: Text(context.tr('Error removing registration: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -619,23 +618,23 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         // Action buttons
         if (!_isRegistered && !widget.isLeader)
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: _isRegistering ? null : _handleSelfRegistration,
                 icon: _isRegistering
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.person_add),
+                    : Icon(Icons.person_add),
                 label: Text(
                   _isRegistering ? 'Registering...' : 'Register for Event',
                 ),
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(
+                  minimumSize: Size(
                     double.infinity,
                     AppDimensions.buttonHeightLG,
                   ),
@@ -645,27 +644,27 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
           ),
         if (widget.isLeader)
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             child: Row(
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _registerMembers,
-                    icon: const Icon(Icons.people),
-                    label: const Text('Register Members'),
+                    icon: Icon(Icons.people),
+                    label: Text(context.tr('Register Members')),
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+                      minimumSize: Size(0, AppDimensions.buttonHeightMD),
                     ),
                   ),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _registerGuest,
-                    icon: const Icon(Icons.person_add),
-                    label: const Text('Register Guest'),
+                    icon: Icon(Icons.person_add),
+                    label: Text(context.tr('Register Guest')),
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, AppDimensions.buttonHeightMD),
+                      minimumSize: Size(0, AppDimensions.buttonHeightMD),
                     ),
                   ),
                 ),
@@ -679,20 +678,20 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.people_outline,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Text('No registrations yet'),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(context.tr('No registrations yet')),
                     ],
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                    padding: EdgeInsets.all(AppDimensions.paddingMD),
                     itemCount: _registrations.length,
                     itemBuilder: (context, index) {
                       final registration = _registrations[index];
@@ -704,7 +703,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                       final isGuest = member == null;
 
                       return Card(
-                        margin: const EdgeInsets.only(
+                        margin: EdgeInsets.only(
                           bottom: AppDimensions.spacingMD,
                         ),
                         child: ListTile(
@@ -727,20 +726,22 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     if (guestEmail != null)
-                                      Text('Email: $guestEmail'),
+                                      Text(context.tr('Email: $guestEmail')),
                                     if (guestPhone != null)
-                                      Text('Phone: $guestPhone'),
-                                    const SizedBox(height: 4),
+                                      Text(context.tr('Phone: $guestPhone')),
+                                    SizedBox(height: 4),
                                     Container(
-                                      padding: const EdgeInsets.symmetric(
+                                      padding: EdgeInsets.symmetric(
                                         horizontal: 8,
                                         vertical: 2,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: AppColors.warning.withValues(alpha: 0.2),
+                                        color: AppColors.warning.withValues(
+                                          alpha: 0.2,
+                                        ),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
-                                      child: const Text(
+                                      child: Text(
                                         'Guest',
                                         style: TextStyle(
                                           fontSize: 12,
@@ -753,7 +754,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                               : Text(member['email']?.toString() ?? ''),
                           trailing: widget.isLeader
                               ? IconButton(
-                                  icon: const Icon(
+                                  icon: Icon(
                                     Icons.delete,
                                     color: AppColors.error,
                                   ),
@@ -775,7 +776,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     final content = _buildRegistrationsContent(context);
     if (widget.desktopMaxWidth != null) {
@@ -824,9 +825,9 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading members: $e'))),
+        );
       }
     }
   }
@@ -854,20 +855,20 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
     return Dialog(
       child: Container(
         width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: BoxConstraints(maxHeight: 600),
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: TextField(
                 controller: _searchController,
                 onChanged: (_) => setState(() {}),
                 decoration: InputDecoration(
-                  hintText: 'Search members...',
-                  prefixIcon: const Icon(Icons.search),
+                  hintText: context.tr('Search members...'),
+                  prefixIcon: Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
+                          icon: Icon(Icons.clear),
                           onPressed: () {
                             _searchController.clear();
                             setState(() {});
@@ -880,10 +881,10 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                 ),
               ),
             ),
-            const Divider(),
+            Divider(),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(child: CircularProgressIndicator())
                   : ListView.builder(
                       itemCount: _filteredMembers.length,
                       itemBuilder: (context, index) {
@@ -912,24 +913,24 @@ class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
                       },
                     ),
             ),
-            const Divider(),
+            Divider(),
             Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('${_selectedMemberIds.length} selected'),
+                  Text(context.tr('${_selectedMemberIds.length} selected')),
                   Row(
                     children: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(context.tr('Cancel')),
                       ),
-                      const SizedBox(width: AppDimensions.spacingSM),
+                      SizedBox(width: AppDimensions.spacingSM),
                       ElevatedButton(
                         onPressed: () =>
                             Navigator.pop(context, _selectedMemberIds),
-                        child: const Text('Register'),
+                        child: Text(context.tr('Register')),
                       ),
                     ],
                   ),
@@ -969,24 +970,24 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
     return Dialog(
       child: Container(
         width: double.maxFinite,
-        constraints: const BoxConstraints(maxHeight: 500),
+        constraints: BoxConstraints(maxHeight: 500),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Form(
             key: _formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
+                Text(
                   'Register Guest',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 TextFormField(
                   controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Full Name *',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Full Name *'),
                     prefixIcon: Icon(Icons.person),
                     border: OutlineInputBorder(),
                   ),
@@ -998,36 +999,36 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
                   },
                   textCapitalization: TextCapitalization.words,
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email (Optional)',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Email (Optional)'),
                     prefixIcon: Icon(Icons.email),
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.emailAddress,
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 TextFormField(
                   controller: _phoneController,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone (Optional)',
+                  decoration: InputDecoration(
+                    labelText: context.tr('Phone (Optional)'),
                     prefixIcon: Icon(Icons.phone),
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
                 ),
-                const SizedBox(height: AppDimensions.spacingXL),
+                SizedBox(height: AppDimensions.spacingXL),
                 Row(
                   children: [
                     Expanded(
                       child: TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(context.tr('Cancel')),
                       ),
                     ),
-                    const SizedBox(width: AppDimensions.spacingSM),
+                    SizedBox(width: AppDimensions.spacingSM),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
@@ -1043,7 +1044,7 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
                             });
                           }
                         },
-                        child: const Text('Register'),
+                        child: Text(context.tr('Register')),
                       ),
                     ),
                   ],

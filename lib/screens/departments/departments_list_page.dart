@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
@@ -7,6 +8,8 @@ import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
 import '../../services/supabase_service.dart';
 import '../../core/utils/permission_helper.dart';
+import 'add_department_page.dart';
+import 'department_form_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Departments list page
@@ -14,7 +17,7 @@ class DepartmentsListPage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const DepartmentsListPage({super.key, this.hideAppBarAndBottomNav = false});
+  DepartmentsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<DepartmentsListPage> createState() => _DepartmentsListPageState();
@@ -80,19 +83,117 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     setState(() => _isLoading = true);
     try {
       final departments = await DepartmentService.getDepartments(limit: 100);
+      final enrichedDepartments = await _enrichDepartmentsForTable(departments);
+      if (!mounted) return;
       setState(() {
-        _departments = departments;
+        _departments = enrichedDepartments;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        final errorMessage = ErrorMessageHelper.getErrorMessage(context, e);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(errorMessage)));
-      }
+      final errorMessage = ErrorMessageHelper.getErrorMessage(context, e);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(errorMessage)));
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _enrichDepartmentsForTable(
+    List<Map<String, dynamic>> departments,
+  ) async {
+    final departmentIds = departments
+        .map((dept) => dept['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    if (departmentIds.isEmpty) return departments;
+
+    final taskCounts = <String, int>{for (final id in departmentIds) id: 0};
+    final leaderNames = <String, String>{};
+
+    try {
+      final tasks = await SupabaseService.client
+          .from('tasks')
+          .select('department_id')
+          .inFilter('department_id', departmentIds);
+
+      for (final task in List<Map<String, dynamic>>.from(tasks)) {
+        final departmentId = task['department_id']?.toString();
+        if (departmentId == null) continue;
+        taskCounts[departmentId] = (taskCounts[departmentId] ?? 0) + 1;
+      }
+    } catch (_) {
+      // Keep counts at zero if the task lookup fails.
+    }
+
+    try {
+      final leaders = await SupabaseService.client
+          .from('department_members')
+          .select('department_id, role, members(first_name, last_name)')
+          .inFilter('department_id', departmentIds)
+          .eq('role', 'leader');
+
+      for (final leader in List<Map<String, dynamic>>.from(leaders)) {
+        final departmentId = leader['department_id']?.toString();
+        final member = leader['members'];
+        if (departmentId == null || member is! Map) continue;
+        final firstName = member['first_name']?.toString() ?? '';
+        final lastName = member['last_name']?.toString() ?? '';
+        final name = '$firstName $lastName'.trim();
+        if (name.isEmpty) continue;
+
+        final existing = leaderNames[departmentId];
+        leaderNames[departmentId] = existing == null || existing.isEmpty
+            ? name
+            : '$existing, $name';
+      }
+    } catch (_) {
+      // Leave leader names empty if the lookup fails.
+    }
+
+    return departments.map((dept) {
+      final id = dept['id']?.toString() ?? '';
+      return {
+        ...dept,
+        'task_count': taskCounts[id] ?? 0,
+        'leader_name': leaderNames[id] ?? '—',
+      };
+    }).toList();
+  }
+
+  Future<void> _openAddDepartment(BuildContext context) async {
+    final isDesktop =
+        widget.hideAppBarAndBottomNav &&
+        MediaQuery.sizeOf(context).width >= 700;
+
+    if (isDesktop) {
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return Dialog(
+            clipBehavior: Clip.antiAlias,
+            insetPadding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: SizedBox(
+              width: 920,
+              height: MediaQuery.sizeOf(dialogContext).height * 0.88,
+              child: AddDepartmentPage(
+                onClose: (result) => Navigator.of(dialogContext).pop(result),
+              ),
+            ),
+          );
+        },
+      );
+      if (result == true && mounted) _loadDepartments();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.addDepartment);
+    if (result == true && mounted) _loadDepartments();
   }
 
   List<Map<String, dynamic>> get _filteredDepartments {
@@ -126,286 +227,210 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     return _filteredDepartments.sublist(start, end);
   }
 
-  Widget _buildDesktopDepartmentsContent(
+  Widget _buildDepartmentsTabContent(
     BuildContext context,
     AppLocalizations? localizations,
   ) {
-    final scope = DesktopShellScope.maybeOf(context);
-    final theme = Theme.of(context);
+    final isDesktop =
+        widget.hideAppBarAndBottomNav &&
+        MediaQuery.sizeOf(context).width >= 700;
+    final pinnedSearchHeight = isDesktop ? 88.0 : 80.0;
 
-    return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Search + Add row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 400),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText:
-                        localizations?.searchDepartments ??
-                        'Search departments...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _deptPage = 0);
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusMD,
-                      ),
-                    ),
-                  ),
-                  onChanged: (_) => setState(() => _deptPage = 0),
-                ),
-              ),
-              const SizedBox(width: AppDimensions.spacingMD),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _loadDepartments,
-                tooltip: localizations?.refresh ?? 'Refresh',
-              ),
-              const Spacer(),
-              if (_canCreate)
-                FilledButton.icon(
-                  onPressed: () {
-                    if (scope != null) {
-                      scope.pushDetail(RouteNames.addDepartment, '');
-                    } else {
-                      Navigator.of(
-                        context,
-                      ).pushNamed(RouteNames.addDepartment).then((_) {
-                        if (mounted) _loadDepartments();
-                      });
-                    }
-                  },
-                  icon: const Icon(Icons.add, size: 20),
-                  label: Text(localizations?.addDepartment ?? 'Add Department'),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.spacingMD),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredDepartments.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.group_work_outlined,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: AppDimensions.spacingMD),
-                        Text(
+    Widget buildListBody() {
+      if (_isLoading) {
+        return CustomScrollView(
+          slivers: [
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+        );
+      }
+
+      if (_filteredDepartments.isEmpty) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: isDesktop
+                      ? Text(
                           _searchController.text.isNotEmpty
                               ? (localizations?.noDepartmentsFound ??
                                     'No departments found')
                               : (localizations?.noDepartments ??
                                     'No departments yet'),
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                  )
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              theme.colorScheme.surfaceContainerHighest,
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.group_work_outlined,
+                              size: 64,
+                              color: context.mic.textSecondary,
                             ),
-                            columns: const [
-                              DataColumn(label: Text('Name')),
-                              DataColumn(label: Text('Description')),
-                              DataColumn(label: Text('Status')),
-                              DataColumn(label: Text('Action')),
-                            ],
-                            rows: _paginatedDepartments.map((dept) {
-                        final id = dept['id']?.toString() ?? '';
-                        final name = dept['name']?.toString() ?? 'Unnamed';
-                        final desc = dept['description']?.toString() ?? '—';
-                        final isActive = dept['is_active'] == true;
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text(name, overflow: TextOverflow.ellipsis),
-                            ),
-                            DataCell(
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 280,
-                                ),
-                                child: Text(
-                                  desc,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              Text(
-                                isActive
-                                    ? (localizations?.active ?? 'Active')
-                                    : (localizations?.inactive ?? 'Inactive'),
-                                style: TextStyle(
-                                  color: isActive
-                                      ? AppColors.success
-                                      : AppColors.error,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            DataCell(
-                              TextButton(
-                                onPressed: () {
-                                  if (id.isEmpty) return;
-                                  if (scope != null) {
-                                    scope.pushDetail(
-                                      RouteNames.departmentDetail,
-                                      id,
-                                    );
-                                  } else {
-                                    Navigator.of(context).pushNamed(
-                                      RouteNames.departmentDetail.replaceAll(
-                                        ':id',
-                                        id,
-                                      ),
-                                    );
-                                  }
-                                },
-                                child: const Text('View'),
-                              ),
+                            SizedBox(height: AppDimensions.spacingMD),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? (localizations?.noDepartmentsFound ??
+                                        'No departments found')
+                                  : (localizations?.noDepartments ??
+                                        'No departments yet'),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ],
-                        );
-                      }).toList(),
-                          ),
                         ),
-                      );
-                    },
-                  ),
+                ),
+              ),
+            );
+          },
+        );
+      }
+
+      final items = isDesktop ? _paginatedDepartments : _filteredDepartments;
+      final list = ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        itemCount: items.length,
+        itemBuilder: (context, index) =>
+            _buildDepartmentCard(items[index]),
+      );
+
+      if (isDesktop) return list;
+
+      return RefreshIndicator(
+        onRefresh: _loadDepartments,
+        child: list,
+      );
+    }
+
+    final scrollView = NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverToBoxAdapter(child: _buildDepartmentsHeader()),
+        SliverToBoxAdapter(child: SizedBox(height: AppDimensions.spacingMD)),
+        SliverToBoxAdapter(child: _buildStatsRow()),
+        SliverAppBar(
+          pinned: true,
+          automaticallyImplyLeading: false,
+          backgroundColor: context.mic.background,
+          surfaceTintColor: context.mic.background,
+          elevation: 0,
+          scrolledUnderElevation: 1,
+          toolbarHeight: pinnedSearchHeight,
+          titleSpacing: AppDimensions.paddingMD,
+          title: _buildDepartmentsSearchBar(
+            context,
+            localizations,
+            isDesktop: isDesktop,
           ),
-          if (_filteredDepartments.isNotEmpty) ...[
-            const SizedBox(height: AppDimensions.spacingSM),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Rows per page: $_deptRowsPerPage',
-                  style: theme.textTheme.bodySmall,
-                ),
-                Row(
-                  children: [
-                    Text(
-                      'Page ${_deptPage + 1} of $_totalDeptPages',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: AppDimensions.spacingMD),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: _deptPage > 0
-                          ? () => setState(() => _deptPage--)
-                          : null,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: _deptPage < _totalDeptPages - 1
-                          ? () => setState(() => _deptPage++)
-                          : null,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+        ),
+      ],
+      body: buildListBody(),
+    );
+
+    if (!isDesktop) return scrollView;
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: scrollView),
+          if (!_isLoading && _filteredDepartments.isNotEmpty)
+            _buildDeptPagination(theme),
         ],
       ),
     );
   }
 
-  Widget _buildMobileDepartmentsContent(
+  Widget _buildDepartmentsSearchBar(
     BuildContext context,
-    AppLocalizations? localizations,
-  ) {
-    return Column(
+    AppLocalizations? localizations, {
+    required bool isDesktop,
+  }) {
+    final searchField = TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText:
+            localizations?.searchDepartments ?? 'Search departments...',
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: context.mic.surface,
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _deptPage = 0);
+                },
+              )
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          borderSide: BorderSide(color: context.mic.border),
+        ),
+      ),
+      onChanged: (_) => setState(() => _deptPage = 0),
+    );
+
+    if (!isDesktop) return searchField;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText:
-                  localizations?.searchDepartments ?? 'Search departments...',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {});
-                      },
-                    )
-                  : null,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-              ),
-            ),
-            onChanged: (_) => setState(() {}),
+        Expanded(child: searchField),
+        SizedBox(width: AppDimensions.spacingMD),
+        IconButton.filledTonal(
+          icon: const Icon(Icons.refresh),
+          onPressed: _loadDepartments,
+          tooltip: localizations?.refresh ?? 'Refresh',
+        ),
+        if (_canCreate) ...[
+          SizedBox(width: AppDimensions.spacingSM),
+          FilledButton.icon(
+            onPressed: () => _openAddDepartment(context),
+            icon: const Icon(Icons.add, size: 20),
+            label: Text(localizations?.addDepartment ?? 'Add Department'),
           ),
-        ),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _filteredDepartments.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.group_work_outlined,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      Text(
-                        _searchController.text.isNotEmpty
-                            ? (localizations?.noDepartmentsFound ??
-                                  'No departments found')
-                            : (localizations?.noDepartments ??
-                                  'No departments yet'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadDepartments,
-                  child: ListView.builder(
-                    itemCount: _filteredDepartments.length,
-                    itemBuilder: (context, index) {
-                      final department = _filteredDepartments[index];
-                      return _buildDepartmentCard(department);
-                    },
-                  ),
-                ),
-        ),
+        ],
       ],
+    );
+  }
+
+  Widget _buildDeptPagination(ThemeData theme) {
+    return Container(
+      margin: EdgeInsets.only(top: AppDimensions.spacingSM),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMD,
+        vertical: AppDimensions.spacingSM,
+      ),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: context.mic.border),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Text(
+            'Page ${_deptPage + 1} of $_totalDeptPages',
+            style: theme.textTheme.bodySmall,
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: _deptPage > 0 ? () => setState(() => _deptPage--) : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: _deptPage < _totalDeptPages - 1
+                ? () => setState(() => _deptPage++)
+                : null,
+          ),
+        ],
+      ),
     );
   }
 
@@ -415,6 +440,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: context.mic.background,
         appBar: widget.hideAppBarAndBottomNav
             ? null
             : AppBar(
@@ -426,7 +452,8 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                     tooltip: localizations?.refresh ?? 'Refresh',
                   ),
                 ],
-                bottom: TabBar(
+                bottom: DepartmentFormUi.coloredTabBar(
+                  context: context,
                   tabs: [
                     Tab(text: localizations?.departments ?? 'Departments'),
                     Tab(text: localizations?.workers ?? 'Workers'),
@@ -435,11 +462,7 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
               ),
         body: TabBarView(
           children: [
-            // Departments tab
-            widget.hideAppBarAndBottomNav
-                ? _buildDesktopDepartmentsContent(context, localizations)
-                : _buildMobileDepartmentsContent(context, localizations),
-            // Workers tab
+            _buildDepartmentsTabContent(context, localizations),
             _WorkersTab(),
           ],
         ),
@@ -449,14 +472,12 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                 future: _canCreateDepartment(),
                 builder: (context, snapshot) {
                   if (snapshot.data == true) {
-                    return FloatingActionButton(
-                      onPressed: () async {
-                        final result = await Navigator.of(
-                          context,
-                        ).pushNamed(RouteNames.addDepartment);
-                        if (result == true) _loadDepartments();
-                      },
-                      child: const Icon(Icons.add),
+                    return FloatingActionButton.extended(
+                      onPressed: () => _openAddDepartment(context),
+                      icon: const Icon(Icons.add),
+                      label: Text(
+                        localizations?.addDepartment ?? context.tr('Add Department'),
+                      ),
                     );
                   }
                   return const SizedBox.shrink();
@@ -466,118 +487,89 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     );
   }
 
+  int get _activeCount =>
+      _departments.where((d) => d['is_active'] == true).length;
+
+  void _openDepartment(String departmentId) {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      scope.pushDetail(RouteNames.departments, departmentId);
+    } else {
+      Navigator.pushNamed(
+        context,
+        '${RouteNames.departments}/$departmentId',
+      );
+    }
+  }
+
+  Widget _buildDepartmentsHeader() {
+    final localizations = AppLocalizations.of(context);
+    return DepartmentFormUi.listHeaderBanner(
+      context: context,
+      title: localizations?.departments ?? context.tr('Departments'),
+      subtitle: context.tr('Organize teams, leaders, and ministry work'),
+      compactTop: widget.hideAppBarAndBottomNav,
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return SizedBox(
+      height: 96,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        children: [
+          DepartmentFormUi.statChip(
+            context: context,
+            label: context.tr('Total'),
+            value: _isLoading ? '…' : '${_departments.length}',
+            icon: Icons.apartment_outlined,
+            color: DepartmentFormUi.accent,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          DepartmentFormUi.statChip(
+            context: context,
+            label: context.tr('Active'),
+            value: _isLoading ? '…' : '$_activeCount',
+            icon: Icons.check_circle_outline,
+            color: AppColors.success,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          DepartmentFormUi.statChip(
+            context: context,
+            label: context.tr('Showing'),
+            value: _isLoading ? '…' : '${_filteredDepartments.length}',
+            icon: Icons.filter_list_outlined,
+            color: AppColors.accent,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDepartmentCard(Map<String, dynamic> department) {
     final name = department['name']?.toString() ?? 'Unnamed';
     final description = department['description']?.toString();
     final isActive = department['is_active'] == true;
     final departmentId = department['id'].toString();
-    final localizations = AppLocalizations.of(context);
+    final leaderName = department['leader_name']?.toString() ?? '—';
+    final taskCount = department['task_count'] as int? ?? 0;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.paddingMD,
-        vertical: AppDimensions.spacingSM,
-      ),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-      ),
-      child: InkWell(
-        onTap: () {
-          Navigator.pushNamed(
-            context,
-            '${RouteNames.departments}/$departmentId',
-          );
-        },
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: Row(
-            children: [
-              // Department icon
-              Container(
-                width: 60,
-                height: 60,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
-                ),
-                child: Center(
-                  child: Text(
-                    name.substring(0, 1).toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppDimensions.spacingMD),
-              // Department info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (!isActive)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              localizations?.inactive ?? 'Inactive',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.error,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (description != null && description.isNotEmpty) ...[
-                      const SizedBox(height: AppDimensions.spacingXS),
-                      Text(
-                        description,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              // Chevron
-              Icon(Icons.chevron_right, color: AppColors.textSecondary),
-            ],
-          ),
-        ),
-      ),
+    return DepartmentFormUi.departmentListTile(
+      context: context,
+      name: name,
+      description: description,
+      leaderName: leaderName,
+      taskCount: taskCount,
+      isActive: isActive,
+      onTap: () => _openDepartment(departmentId),
     );
   }
 }
 
 /// Workers tab - shows all workers with their departments
 class _WorkersTab extends StatefulWidget {
-  const _WorkersTab();
+  _WorkersTab();
 
   @override
   State<_WorkersTab> createState() => _WorkersTabState();
@@ -611,9 +603,9 @@ class _WorkersTabState extends State<_WorkersTab> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading workers: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading workers: $e'))),
+        );
       }
     }
   }
@@ -650,13 +642,13 @@ class _WorkersTabState extends State<_WorkersTab> {
         icon = Icons.star_border;
         break;
       default:
-        color = AppColors.textSecondary;
+        color = context.mic.textSecondary;
         icon = Icons.business;
     }
 
     return Container(
-      margin: const EdgeInsets.only(right: AppDimensions.spacingXS),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: EdgeInsets.only(right: AppDimensions.spacingXS),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: isMain
             ? AppColors.primary.withValues(alpha: 0.2)
@@ -671,11 +663,11 @@ class _WorkersTabState extends State<_WorkersTab> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isMain) ...[
-            const Icon(Icons.home, size: 12, color: AppColors.primary),
-            const SizedBox(width: 4),
+            Icon(Icons.home, size: 12, color: AppColors.primary),
+            SizedBox(width: 4),
           ],
           Icon(icon, size: 12, color: isMain ? AppColors.primary : color),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             deptName,
             style: TextStyle(
@@ -696,16 +688,25 @@ class _WorkersTabState extends State<_WorkersTab> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: TextField(
+    return NestedScrollView(
+      headerSliverBuilder: (context, innerBoxIsScrolled) => [
+        SliverAppBar(
+          pinned: true,
+          automaticallyImplyLeading: false,
+          backgroundColor: context.mic.background,
+          surfaceTintColor: context.mic.background,
+          elevation: innerBoxIsScrolled ? 1 : 0,
+          scrolledUnderElevation: 1,
+          toolbarHeight: 80,
+          titleSpacing: AppDimensions.paddingMD,
+          title: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: localizations?.searchWorkers ?? 'Search workers...',
+              hintText:
+                  localizations?.searchWorkers ?? 'Search workers...',
               prefixIcon: const Icon(Icons.search),
+              filled: true,
+              fillColor: context.mic.surface,
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
@@ -715,150 +716,158 @@ class _WorkersTabState extends State<_WorkersTab> {
                       },
                     )
                   : null,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(
+                  AppDimensions.radiusMD,
+                ),
+                borderSide: BorderSide(color: context.mic.border),
+              ),
             ),
             onChanged: (_) => setState(() {}),
           ),
         ),
-        // Workers list
-        Expanded(
-          child: _filteredWorkers.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.people_outline,
-                        size: 64,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      Text(
-                        _searchController.text.isNotEmpty
-                            ? (localizations?.noWorkersFound ??
-                                  'No workers found matching your search')
-                            : (localizations?.noWorkers ?? 'No workers found'),
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadWorkers,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppDimensions.paddingMD,
-                    ),
-                    itemCount: _filteredWorkers.length,
-                    itemBuilder: (context, index) {
-                      final worker = _filteredWorkers[index];
-                      final member = worker['member'] as Map<String, dynamic>?;
-                      final departments =
-                          worker['departments']
-                              as List<Map<String, dynamic>>? ??
-                          [];
-
-                      if (member == null) return const SizedBox.shrink();
-
-                      final firstName = member['first_name']?.toString() ?? '';
-                      final lastName = member['last_name']?.toString() ?? '';
-                      final fullName = '$firstName $lastName'.trim();
-                      final email = member['email']?.toString() ?? '';
-                      final memberId = member['id']?.toString() ?? '';
-                      final mainDepartmentId = worker['main_department_id']
-                          ?.toString();
-
-                      return Card(
-                        margin: const EdgeInsets.only(
-                          bottom: AppDimensions.spacingSM,
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            child: Text(
-                              fullName.isNotEmpty
-                                  ? fullName[0].toUpperCase()
-                                  : 'W',
-                            ),
-                          ),
-                          title: Text(
-                            fullName.isEmpty ? 'Unknown Worker' : fullName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (email.isNotEmpty) ...[
-                                Text(
-                                  email,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: AppDimensions.spacingXS),
-                              ],
-                              if (departments.isNotEmpty) ...[
-                                Wrap(
-                                  children: departments.map((dept) {
-                                    final deptId = dept['department_id']
-                                        ?.toString();
-                                    final isMain = deptId == mainDepartmentId;
-                                    return _buildDepartmentChip(
-                                      dept['department_name']?.toString() ??
-                                          'Unknown',
-                                      dept['role']?.toString() ?? 'member',
-                                      isMain,
-                                    );
-                                  }).toList(),
-                                ),
-                              ] else
-                                Text(
-                                  localizations?.noDepartmentsAssigned ??
-                                      'No departments assigned',
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                            ],
-                          ),
-                          trailing: PopupMenuButton(
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.home, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      localizations?.setMainDepartment ??
-                                          'Set Main Department',
-                                    ),
-                                  ],
-                                ),
-                                onTap: () => Future.delayed(
-                                  const Duration(milliseconds: 100),
-                                  () => _showSetMainDepartmentDialog(
-                                    memberId,
-                                    fullName,
-                                    departments,
-                                    mainDepartmentId,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail.replaceAll(
-                                ':id',
-                                memberId,
-                              ),
-                            );
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-        ),
       ],
+      body: _buildWorkersListBody(context, localizations),
+    );
+  }
+
+  Widget _buildWorkersListBody(
+    BuildContext context,
+    AppLocalizations? localizations,
+  ) {
+    if (_filteredWorkers.isEmpty) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 64,
+                      color: context.mic.textSecondary,
+                    ),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Text(
+                      _searchController.text.isNotEmpty
+                          ? (localizations?.noWorkersFound ??
+                                'No workers found matching your search')
+                          : (localizations?.noWorkers ?? 'No workers found'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadWorkers,
+      child: ListView.builder(
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        itemCount: _filteredWorkers.length,
+        itemBuilder: (context, index) {
+          final worker = _filteredWorkers[index];
+          final member = worker['member'] as Map<String, dynamic>?;
+          final departments =
+              worker['departments'] as List<Map<String, dynamic>>? ?? [];
+
+          if (member == null) return const SizedBox.shrink();
+
+          final firstName = member['first_name']?.toString() ?? '';
+          final lastName = member['last_name']?.toString() ?? '';
+          final fullName = '$firstName $lastName'.trim();
+          final email = member['email']?.toString() ?? '';
+          final memberId = member['id']?.toString() ?? '';
+          final mainDepartmentId = worker['main_department_id']?.toString();
+
+          return Card(
+            margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
+            child: ListTile(
+              leading: CircleAvatar(
+                child: Text(
+                  fullName.isNotEmpty ? fullName[0].toUpperCase() : 'W',
+                ),
+              ),
+              title: Text(
+                fullName.isEmpty ? 'Unknown Worker' : fullName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (email.isNotEmpty) ...[
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: AppDimensions.spacingXS),
+                  ],
+                  if (departments.isNotEmpty) ...[
+                    Wrap(
+                      children: departments.map((dept) {
+                        final deptId = dept['department_id']?.toString();
+                        final isMain = deptId == mainDepartmentId;
+                        return _buildDepartmentChip(
+                          dept['department_name']?.toString() ?? 'Unknown',
+                          dept['role']?.toString() ?? 'member',
+                          isMain,
+                        );
+                      }).toList(),
+                    ),
+                  ] else
+                    Text(
+                      localizations?.noDepartmentsAssigned ??
+                          'No departments assigned',
+                      style: TextStyle(
+                        color: context.mic.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                ],
+              ),
+              trailing: PopupMenuButton(
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.home, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          localizations?.setMainDepartment ??
+                              'Set Main Department',
+                        ),
+                      ],
+                    ),
+                    onTap: () => Future.delayed(
+                      const Duration(milliseconds: 100),
+                      () => _showSetMainDepartmentDialog(
+                        memberId,
+                        fullName,
+                        departments,
+                        mainDepartmentId,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              onTap: () {
+                Navigator.of(context).pushNamed(
+                  RouteNames.memberDetail.replaceAll(':id', memberId),
+                );
+              },
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -919,21 +928,21 @@ class _WorkersTabState extends State<_WorkersTab> {
                         SnackBar(
                           content: Row(
                             children: [
-                              const SizedBox(
+                              SizedBox(
                                 width: 20,
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                 ),
                               ),
-                              const SizedBox(width: 16),
+                              SizedBox(width: 16),
                               Text(
                                 localizations?.updatingMainDepartment ??
                                     'Updating main department...',
                               ),
                             ],
                           ),
-                          duration: const Duration(seconds: 2),
+                          duration: Duration(seconds: 2),
                         ),
                       );
                     }
@@ -974,7 +983,7 @@ class _WorkersTabState extends State<_WorkersTab> {
                   }
                 },
                 secondary: isCurrentMain
-                    ? const Icon(Icons.home, color: AppColors.primary)
+                    ? Icon(Icons.home, color: AppColors.primary)
                     : null,
               );
             },

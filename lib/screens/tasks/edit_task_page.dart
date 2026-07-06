@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/task_service.dart';
 import '../../services/department_service.dart';
 import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
 import '../../core/constants/tag_colors.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Edit task page
 class EditTaskPage extends StatefulWidget {
@@ -14,7 +16,7 @@ class EditTaskPage extends StatefulWidget {
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const EditTaskPage({super.key, required this.taskId, this.onClose});
+  EditTaskPage({super.key, required this.taskId, this.onClose});
 
   @override
   State<EditTaskPage> createState() => _EditTaskPageState();
@@ -24,6 +26,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _penaltyAmountController = TextEditingController();
   String? _selectedDepartmentId;
   String? _selectedProjectId;
   final List<String> _selectedTagIds = [];
@@ -47,6 +50,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _penaltyAmountController.dispose();
     _newTagController.dispose();
     super.dispose();
   }
@@ -75,8 +79,10 @@ class _EditTaskPageState extends State<EditTaskPage> {
     if (deptId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Task has no department; cannot add tags'),
+          SnackBar(
+            content: Text(
+              context.tr('Task has no department; cannot add tags'),
+            ),
           ),
         );
       }
@@ -97,9 +103,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
       _newTagController.clear();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not add tag: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Could not add tag: $e'))),
+        );
       }
     }
   }
@@ -158,6 +164,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
       setState(() {
         _titleController.text = task['title']?.toString() ?? '';
         _descriptionController.text = task['description']?.toString() ?? '';
+        _penaltyAmountController.text =
+            task['penalty_amount_per_day']?.toString() ?? '';
         _selectedDepartmentId = task['department_id']?.toString();
         _selectedProjectId = task['project_id']?.toString();
         _selectedTagIds.clear();
@@ -178,9 +186,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
       if (!mounted) return;
       setState(() => _isLoadingData = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading data: $e'))),
+        );
         if (widget.onClose != null) {
           widget.onClose!(null);
         } else {
@@ -194,8 +202,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _dueDate ?? DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+      firstDate: DateTime.now().subtract(Duration(days: 365)),
+      lastDate: DateTime.now().add(Duration(days: 365 * 2)),
     );
     if (picked != null) {
       setState(() {
@@ -220,6 +228,9 @@ class _EditTaskPageState extends State<EditTaskPage> {
           'due_date': _dueDate?.toIso8601String().split('T')[0],
           'priority': _priority,
           'status': _status,
+          'penalty_amount_per_day': _penaltyAmountController.text.trim().isEmpty
+              ? null
+              : int.parse(_penaltyAmountController.text.trim()),
           if (_selectedDepartmentId != null)
             'department_id': _selectedDepartmentId,
           'project_id': _selectedProjectId,
@@ -233,8 +244,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Task updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Task updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -258,7 +269,31 @@ class _EditTaskPageState extends State<EditTaskPage> {
   }
 
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 800;
+  static const double _kDesktopMaxWidth = 1040;
+
+  Widget _buildPenaltyAmountField({bool outlined = false}) {
+    return TextFormField(
+      controller: _penaltyAmountController,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(
+        labelText: context.tr('Daily penalty amount'),
+        prefixIcon: Icon(Icons.payments_outlined),
+        helperText: context.tr(
+          'Optional. Leave empty to use the department/global default.',
+        ),
+        border: outlined ? OutlineInputBorder() : null,
+      ),
+      validator: (value) {
+        final trimmed = value?.trim() ?? '';
+        if (trimmed.isEmpty) return null;
+        final amount = int.tryParse(trimmed);
+        if (amount == null || amount < 0) {
+          return 'Enter a valid amount';
+        }
+        return null;
+      },
+    );
+  }
 
   Widget _desktopSectionCard(
     BuildContext context,
@@ -266,28 +301,100 @@ class _EditTaskPageState extends State<EditTaskPage> {
     IconData icon,
     List<Widget> children,
   ) {
-    return Card(
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingLG),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  ),
+                  child: Icon(icon, size: 20, color: AppColors.primary),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             ...children,
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _desktopIntroCard(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.14),
+            theme.colorScheme.surface,
+          ],
+        ),
+        border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              Icons.edit_note_outlined,
+              color: AppColors.primary,
+              size: 32,
+            ),
+          ),
+          SizedBox(width: AppDimensions.spacingMD),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Edit task',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  'Update the task details, schedule, status, and penalty settings.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -299,13 +406,13 @@ class _EditTaskPageState extends State<EditTaskPage> {
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(Icons.arrow_back),
                   onPressed: () => widget.onClose!(null),
                 )
               : null,
-          title: const Text('Edit Task'),
+          title: Text(context.tr('Edit Task')),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -315,48 +422,51 @@ class _EditTaskPageState extends State<EditTaskPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(useDesktop ? Icons.close : Icons.arrow_back),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Edit Task'),
+        title: Text(context.tr('Edit Task')),
         actions: useDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 20),
-                  label: const Text('Update Task'),
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Update Task')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
+      backgroundColor: useDesktop
+          ? Theme.of(context).colorScheme.surfaceContainerLowest
+          : null,
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        _desktopIntroCard(context),
+                        SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
                           'Task details',
@@ -364,8 +474,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           [
                             TextFormField(
                               controller: _titleController,
-                              decoration: const InputDecoration(
-                                labelText: 'Task Title *',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Task Title *'),
                                 prefixIcon: Icon(Icons.title),
                                 border: OutlineInputBorder(),
                               ),
@@ -376,21 +486,21 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Description'),
                                 prefixIcon: Icon(Icons.description),
                                 border: OutlineInputBorder(),
                               ),
                               maxLines: 4,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
                               initialValue: _selectedDepartmentId,
-                              decoration: const InputDecoration(
-                                labelText: 'Department',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Department'),
                                 prefixIcon: Icon(Icons.group_work),
                                 border: OutlineInputBorder(),
                               ),
@@ -409,12 +519,12 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 _loadTagsForDepartment();
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             InkWell(
                               onTap: _selectDueDate,
                               child: InputDecorator(
-                                decoration: const InputDecoration(
-                                  labelText: 'Due Date',
+                                decoration: InputDecoration(
+                                  labelText: context.tr('Due Date'),
                                   prefixIcon: Icon(Icons.calendar_today),
                                   border: OutlineInputBorder(),
                                 ),
@@ -432,78 +542,80 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
+                            _buildPenaltyAmountField(outlined: true),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
                               initialValue: _priority,
-                              decoration: const InputDecoration(
-                                labelText: 'Priority',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Priority'),
                                 prefixIcon: Icon(Icons.flag),
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
+                              items: [
                                 DropdownMenuItem(
                                   value: 'low',
-                                  child: Text('Low'),
+                                  child: Text(context.tr('Low')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'medium',
-                                  child: Text('Medium'),
+                                  child: Text(context.tr('Medium')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'high',
-                                  child: Text('High'),
+                                  child: Text(context.tr('High')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'urgent',
-                                  child: Text('Urgent'),
+                                  child: Text(context.tr('Urgent')),
                                 ),
                               ],
                               onChanged: (value) {
                                 setState(() => _priority = value ?? 'medium');
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
                               initialValue: _status,
-                              decoration: const InputDecoration(
-                                labelText: 'Status',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Status'),
                                 prefixIcon: Icon(Icons.check_circle),
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
+                              items: [
                                 DropdownMenuItem(
                                   value: 'pending',
-                                  child: Text('Pending'),
+                                  child: Text(context.tr('Pending')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'in_progress',
-                                  child: Text('In Progress'),
+                                  child: Text(context.tr('In Progress')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'completed',
-                                  child: Text('Completed'),
+                                  child: Text(context.tr('Completed')),
                                 ),
                                 DropdownMenuItem(
                                   value: 'cancelled',
-                                  child: Text('Cancelled'),
+                                  child: Text(context.tr('Cancelled')),
                                 ),
                               ],
                               onChanged: (value) {
                                 setState(() => _status = value ?? 'pending');
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String?>(
                               initialValue: _selectedProjectId,
-                              decoration: const InputDecoration(
-                                labelText: 'Project (optional)',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Project (optional)'),
                                 prefixIcon: Icon(Icons.folder_outlined),
                                 border: OutlineInputBorder(),
                               ),
                               items: [
-                                const DropdownMenuItem<String?>(
+                                DropdownMenuItem<String?>(
                                   value: null,
-                                  child: Text('None'),
+                                  child: Text(context.tr('None')),
                                 ),
                                 ..._projects.map(
                                   (p) => DropdownMenuItem<String?>(
@@ -519,22 +631,24 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 setState(() => _selectedProjectId = value);
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
-                            const Text(
+                            SizedBox(height: AppDimensions.spacingMD),
+                            Text(
                               'Tags (optional)',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Row(
                               children: [
                                 Expanded(
                                   child: TextField(
                                     controller: _newTagController,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Type a tag and add',
+                                    decoration: InputDecoration(
+                                      hintText: context.tr(
+                                        'Type a tag and add',
+                                      ),
                                       border: OutlineInputBorder(),
                                       isDense: true,
                                     ),
@@ -542,16 +656,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                     onSubmitted: (v) => _addTagByName(v),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 IconButton.filled(
                                   onPressed: () =>
                                       _addTagByName(_newTagController.text),
-                                  icon: const Icon(Icons.add),
-                                  tooltip: 'Add tag',
+                                  icon: Icon(Icons.add),
+                                  tooltip: context.tr('Add tag'),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Wrap(
                               spacing: 8,
                               runSpacing: 4,
@@ -589,7 +703,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -597,8 +711,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
                   children: [
                     TextFormField(
                       controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Task Title *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Task Title *'),
                         prefixIcon: Icon(Icons.title),
                       ),
                       validator: (value) {
@@ -608,20 +722,20 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
                       ),
                       maxLines: 4,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String>(
                       initialValue: _selectedDepartmentId,
-                      decoration: const InputDecoration(
-                        labelText: 'Department',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Department'),
                         prefixIcon: Icon(Icons.group_work),
                       ),
                       items: _departments.map((dept) {
@@ -637,12 +751,12 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         _loadTagsForDepartment();
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     InkWell(
                       onTap: _selectDueDate,
                       child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Due Date',
+                        decoration: InputDecoration(
+                          labelText: context.tr('Due Date'),
                           prefixIcon: Icon(Icons.calendar_today),
                         ),
                         child: Text(
@@ -651,29 +765,37 @@ class _EditTaskPageState extends State<EditTaskPage> {
                               : 'Select due date (optional)',
                           style: TextStyle(
                             color: _dueDate != null
-                                ? AppColors.textPrimary
-                                : AppColors.textSecondary,
+                                ? context.mic.textPrimary
+                                : context.mic.textSecondary,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    _buildPenaltyAmountField(),
+                    SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String>(
                       initialValue: _priority,
-                      decoration: const InputDecoration(
-                        labelText: 'Priority',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Priority'),
                         prefixIcon: Icon(Icons.flag),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'low', child: Text('Low')),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'low',
+                          child: Text(context.tr('Low')),
+                        ),
                         DropdownMenuItem(
                           value: 'medium',
-                          child: Text('Medium'),
+                          child: Text(context.tr('Medium')),
                         ),
-                        DropdownMenuItem(value: 'high', child: Text('High')),
+                        DropdownMenuItem(
+                          value: 'high',
+                          child: Text(context.tr('High')),
+                        ),
                         DropdownMenuItem(
                           value: 'urgent',
-                          child: Text('Urgent'),
+                          child: Text(context.tr('Urgent')),
                         ),
                       ],
                       onChanged: (value) {
@@ -682,29 +804,29 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String>(
                       initialValue: _status,
-                      decoration: const InputDecoration(
-                        labelText: 'Status',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Status'),
                         prefixIcon: Icon(Icons.check_circle),
                       ),
-                      items: const [
+                      items: [
                         DropdownMenuItem(
                           value: 'pending',
-                          child: Text('Pending'),
+                          child: Text(context.tr('Pending')),
                         ),
                         DropdownMenuItem(
                           value: 'in_progress',
-                          child: Text('In Progress'),
+                          child: Text(context.tr('In Progress')),
                         ),
                         DropdownMenuItem(
                           value: 'completed',
-                          child: Text('Completed'),
+                          child: Text(context.tr('Completed')),
                         ),
                         DropdownMenuItem(
                           value: 'cancelled',
-                          child: Text('Cancelled'),
+                          child: Text(context.tr('Cancelled')),
                         ),
                       ],
                       onChanged: (value) {
@@ -713,17 +835,17 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         });
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String?>(
                       initialValue: _selectedProjectId,
-                      decoration: const InputDecoration(
-                        labelText: 'Project (optional)',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Project (optional)'),
                         prefixIcon: Icon(Icons.folder_outlined),
                       ),
                       items: [
-                        const DropdownMenuItem<String?>(
+                        DropdownMenuItem<String?>(
                           value: null,
-                          child: Text('None'),
+                          child: Text(context.tr('None')),
                         ),
                         ..._projects.map(
                           (p) => DropdownMenuItem<String?>(
@@ -739,22 +861,22 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         setState(() => _selectedProjectId = value);
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    const Text(
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Text(
                       'Tags (optional)',
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
                           child: TextField(
                             controller: _newTagController,
-                            decoration: const InputDecoration(
-                              hintText: 'Type a tag and add',
+                            decoration: InputDecoration(
+                              hintText: context.tr('Type a tag and add'),
                               border: OutlineInputBorder(),
                               isDense: true,
                             ),
@@ -762,16 +884,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
                             onSubmitted: (v) => _addTagByName(v),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         IconButton.filled(
                           onPressed: () =>
                               _addTagByName(_newTagController.text),
-                          icon: const Icon(Icons.add),
-                          tooltip: 'Add tag',
+                          icon: Icon(Icons.add),
+                          tooltip: context.tr('Add tag'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
@@ -800,22 +922,22 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Update Task'),
+                          : Text(context.tr('Update Task')),
                     ),
                   ],
                 ),

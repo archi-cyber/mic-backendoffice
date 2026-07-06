@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/teaching_service.dart';
 import '../desktop/desktop_shell_scope.dart';
+import 'add_teaching_page.dart';
+import 'edit_teaching_page.dart';
 
 /// Teachings list page
 class TeachingsListPage extends StatefulWidget {
@@ -130,6 +133,66 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     }
   }
 
+  Future<void> _openAddTeaching() async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await _showTeachingFormDialog(
+        builder: (dialogContext) => AddTeachingPage(
+          onClose: (result) => Navigator.of(dialogContext).pop(result),
+        ),
+      );
+      if (result == true) _loadTeachings();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.addTeaching);
+    if (result == true) _loadTeachings();
+  }
+
+  Future<void> _openEditTeaching(String teachingId) async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await _showTeachingFormDialog(
+        builder: (dialogContext) => EditTeachingPage(
+          teachingId: teachingId,
+          onClose: (result) => Navigator.of(dialogContext).pop(result),
+        ),
+      );
+      if (result == true) _loadTeachings();
+      return;
+    }
+
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.editTeaching.replaceAll(':id', teachingId));
+    if (result == true) _loadTeachings();
+  }
+
+  Future<bool?> _showTeachingFormDialog({
+    required Widget Function(BuildContext dialogContext) builder,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final height = MediaQuery.sizeOf(dialogContext).height;
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingXL,
+            vertical: AppDimensions.paddingLG,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SizedBox(
+            width: 760,
+            height: height * 0.86,
+            child: builder(dialogContext),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _deleteTeaching(String teachingId, String teachingTitle) async {
     final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
@@ -195,7 +258,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     final teachingId = teaching['id'].toString();
 
     return Card(
-      margin: const EdgeInsets.symmetric(
+      margin: EdgeInsets.symmetric(
         horizontal: AppDimensions.paddingMD,
         vertical: AppDimensions.spacingSM,
       ),
@@ -206,7 +269,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
       child: InkWell(
         onTap: () => _openTeachingDetail(teachingId),
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -223,74 +286,55 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                   if (_canEdit || _canDelete) ...[
                     if (_canEdit)
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
+                        icon: Icon(Icons.edit, size: 20),
                         color: AppColors.primary,
-                        onPressed: () async {
-                          final scope = DesktopShellScope.maybeOf(context);
-                          if (scope != null) {
-                            scope.pushDetail(
-                              RouteNames.editTeaching,
-                              teachingId,
-                            );
-                          } else {
-                            final result = await Navigator.of(context)
-                                .pushNamed(
-                                  RouteNames.editTeaching.replaceAll(
-                                    ':id',
-                                    teachingId,
-                                  ),
-                                );
-                            if (result == true) {
-                              _loadTeachings();
-                            }
-                          }
-                        },
-                        tooltip: 'Edit Teaching',
+                        onPressed: () => _openEditTeaching(teachingId),
+                        tooltip: context.tr('Edit Teaching'),
                       ),
                     if (_canDelete)
                       IconButton(
-                        icon: const Icon(Icons.delete, size: 20),
+                        icon: Icon(Icons.delete, size: 20),
                         color: AppColors.error,
                         onPressed: () => _deleteTeaching(teachingId, title),
-                        tooltip: 'Delete Teaching',
+                        tooltip: context.tr('Delete Teaching'),
                       ),
                   ],
                 ],
               ),
               if (teachingDate != null) ...[
-                const SizedBox(height: AppDimensions.spacingXS),
+                SizedBox(height: AppDimensions.spacingXS),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_today,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
-                    const SizedBox(width: AppDimensions.spacingXS),
+                    SizedBox(width: AppDimensions.spacingXS),
                     Text(
                       _formatDate(teachingDate),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ],
               if (speaker.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.spacingXS),
+                SizedBox(height: AppDimensions.spacingXS),
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.person,
                       size: 16,
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
-                    const SizedBox(width: AppDimensions.spacingXS),
+                    SizedBox(width: AppDimensions.spacingXS),
                     Expanded(
                       child: Text(
                         speaker,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -300,7 +344,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                 ),
               ],
               if (description.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.spacingXS),
+                SizedBox(height: AppDimensions.spacingXS),
                 Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -331,7 +375,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
               ),
               actions: [
                 IconButton(
-                  icon: const Icon(Icons.refresh),
+                  icon: Icon(Icons.refresh),
                   onPressed: _loadTeachings,
                   tooltip: localizations?.refresh ?? 'Refresh',
                 ),
@@ -344,17 +388,10 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
               future: PermissionHelper.canCreate('teachings'),
               builder: (context, snapshot) {
                 final canCreate = snapshot.data ?? false;
-                if (!canCreate) return const SizedBox.shrink();
+                if (!canCreate) return SizedBox.shrink();
                 return FloatingActionButton.extended(
-                  onPressed: () async {
-                    final result = await Navigator.of(
-                      context,
-                    ).pushNamed(RouteNames.addTeaching);
-                    if (result == true) {
-                      _loadTeachings();
-                    }
-                  },
-                  icon: const Icon(Icons.add),
+                  onPressed: _openAddTeaching,
+                  icon: Icon(Icons.add),
                   label: Text(localizations?.addTeaching ?? 'Add Teaching'),
                 );
               },
@@ -367,12 +404,10 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: _kTeachingsDesktopMaxWidth,
-          ),
+          constraints: BoxConstraints(maxWidth: _kTeachingsDesktopMaxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -380,17 +415,17 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 400),
+                    constraints: BoxConstraints(maxWidth: 400),
                     child: TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
                         hintText:
                             localizations?.searchTeachings ??
                             'Search teachings...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: const OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
+                        contentPadding: EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 10,
                         ),
@@ -400,48 +435,36 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                       }),
                     ),
                   ),
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   IconButton(
-                    icon: const Icon(Icons.refresh),
+                    icon: Icon(Icons.refresh),
                     onPressed: _isLoading ? null : _loadTeachings,
                     tooltip: localizations?.refresh ?? 'Refresh',
                   ),
-                  const Spacer(),
+                  Spacer(),
                   if (_canCreate)
                     FilledButton.icon(
-                      onPressed: () async {
-                        final scope = DesktopShellScope.maybeOf(context);
-                        if (scope != null) {
-                          scope.pushDetail(RouteNames.addTeaching, '');
-                        } else {
-                          final result = await Navigator.of(
-                            context,
-                          ).pushNamed(RouteNames.addTeaching);
-                          if (result == true) {
-                            _loadTeachings();
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.add, size: 20),
+                      onPressed: _openAddTeaching,
+                      icon: Icon(Icons.add, size: 20),
                       label: Text(localizations?.addTeaching ?? 'Add Teaching'),
                     ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               Expanded(
                 child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
+                    ? Center(child: CircularProgressIndicator())
                     : _filteredTeachings.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.menu_book_outlined,
                               size: 64,
-                              color: AppColors.textSecondary,
+                              color: context.mic.textSecondary,
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             Text(
                               _searchController.text.isNotEmpty
                                   ? (localizations?.noTeachingsFound ??
@@ -449,7 +472,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                                   : (localizations?.noTeachings ??
                                         'No teachings yet'),
                               style: theme.textTheme.titleMedium?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: context.mic.textSecondary,
                               ),
                             ),
                           ],
@@ -464,113 +487,139 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                               return SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                                  constraints: BoxConstraints(
+                                    minWidth: constraints.maxWidth,
+                                  ),
                                   child: DataTable(
                                     headingRowColor: WidgetStateProperty.all(
                                       theme.colorScheme.surfaceContainerHighest,
                                     ),
-                                    columns: const [
-                                      DataColumn(label: Text('Title')),
-                                DataColumn(label: Text('Date')),
-                                DataColumn(label: Text('Speaker')),
-                                DataColumn(label: Text('Actions')),
-                              ],
-                              rows: _paginatedTeachings.map((teaching) {
-                                final id = teaching['id']?.toString() ?? '';
-                                final title =
-                                    teaching['title']?.toString() ?? 'Untitled';
-                                final dateStr = teaching['teaching_date'];
-                                final dateFormatted = dateStr != null
-                                    ? _formatDate(DateTime.parse(dateStr))
-                                    : '—';
-                                final speaker =
-                                    teaching['speaker']?.toString() ?? '—';
-                                return DataRow(
-                                  cells: [
-                                    DataCell(
-                                      InkWell(
-                                        onTap: () => _openTeachingDetail(id),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 8,
-                                          ),
-                                          child: Text(
-                                            title,
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
+                                    columns: [
+                                      DataColumn(
+                                        label: Text(context.tr('Title')),
                                       ),
-                                    ),
-                                    DataCell(Text(dateFormatted)),
-                                    DataCell(
-                                      Text(
-                                        speaker,
-                                        overflow: TextOverflow.ellipsis,
-                                        maxLines: 1,
+                                      DataColumn(
+                                        label: Text(context.tr('Date')),
                                       ),
-                                    ),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                _openTeachingDetail(id),
-                                            child: const Text('View'),
-                                          ),
-                                          if (_canEdit) ...[
-                                            const SizedBox(width: 4),
-                                            TextButton(
-                                              onPressed: () async {
-                                                final scope =
-                                                    DesktopShellScope.maybeOf(
-                                                      context,
-                                                    );
-                                                if (scope != null) {
-                                                  scope.pushDetail(
-                                                    RouteNames.editTeaching,
-                                                    id,
-                                                  );
-                                                } else {
-                                                  final result =
-                                                      await Navigator.of(
-                                                        context,
-                                                      ).pushNamed(
-                                                        RouteNames.editTeaching
-                                                            .replaceAll(
-                                                              ':id',
-                                                              id,
-                                                            ),
-                                                      );
-                                                  if (result == true) {
-                                                    _loadTeachings();
-                                                  }
-                                                }
-                                              },
-                                              child: const Text('Edit'),
-                                            ),
-                                          ],
-                                          if (_canDelete) ...[
-                                            const SizedBox(width: 4),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  _deleteTeaching(id, title),
-                                              style: TextButton.styleFrom(
-                                                foregroundColor:
-                                                    AppColors.error,
+                                      DataColumn(
+                                        label: Text(context.tr('Speaker')),
+                                      ),
+                                      DataColumn(
+                                        label: Text(context.tr('Actions')),
+                                      ),
+                                    ],
+                                    rows: _paginatedTeachings.map((teaching) {
+                                      final id =
+                                          teaching['id']?.toString() ?? '';
+                                      final title =
+                                          teaching['title']?.toString() ??
+                                          'Untitled';
+                                      final dateStr = teaching['teaching_date'];
+                                      final dateFormatted = dateStr != null
+                                          ? _formatDate(DateTime.parse(dateStr))
+                                          : '—';
+                                      final speaker =
+                                          teaching['speaker']?.toString() ??
+                                          '—';
+                                      return DataRow(
+                                        cells: [
+                                          DataCell(
+                                            InkWell(
+                                              onTap: () =>
+                                                  _openTeachingDetail(id),
+                                              child: Padding(
+                                                padding: EdgeInsets.symmetric(
+                                                  vertical: 8,
+                                                ),
+                                                child: Text(
+                                                  title,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  maxLines: 1,
+                                                ),
                                               ),
-                                              child: const Text('Delete'),
                                             ),
-                                          ],
+                                          ),
+                                          DataCell(Text(dateFormatted)),
+                                          DataCell(
+                                            Text(
+                                              speaker,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ),
+                                          DataCell(
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      _openTeachingDetail(id),
+                                                  child: Text(
+                                                    context.tr('View'),
+                                                  ),
+                                                ),
+                                                if (_canEdit) ...[
+                                                  SizedBox(width: 4),
+                                                  TextButton(
+                                                    onPressed: () async {
+                                                      final scope =
+                                                          DesktopShellScope.maybeOf(
+                                                            context,
+                                                          );
+                                                      if (scope != null) {
+                                                        scope.pushDetail(
+                                                          RouteNames
+                                                              .editTeaching,
+                                                          id,
+                                                        );
+                                                      } else {
+                                                        final result =
+                                                            await Navigator.of(
+                                                              context,
+                                                            ).pushNamed(
+                                                              RouteNames
+                                                                  .editTeaching
+                                                                  .replaceAll(
+                                                                    ':id',
+                                                                    id,
+                                                                  ),
+                                                            );
+                                                        if (result == true) {
+                                                          _loadTeachings();
+                                                        }
+                                                      }
+                                                    },
+                                                    child: Text(
+                                                      context.tr('Edit'),
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (_canDelete) ...[
+                                                  SizedBox(width: 4),
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        _deleteTeaching(
+                                                          id,
+                                                          title,
+                                                        ),
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor:
+                                                          AppColors.error,
+                                                    ),
+                                                    child: Text(
+                                                      context.tr('Delete'),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
                                         ],
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
-                                    ),
+                                      );
+                                    }).toList(),
                                   ),
+                                ),
                               );
                             },
                           ),
@@ -578,7 +627,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                       ),
               ),
               if (_filteredTeachings.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -592,9 +641,9 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                           'Page ${_teachingsPage + 1} of $_totalTeachingsPages',
                           style: theme.textTheme.bodySmall,
                         ),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        SizedBox(width: AppDimensions.spacingSM),
                         IconButton(
-                          icon: const Icon(Icons.chevron_left),
+                          icon: Icon(Icons.chevron_left),
                           onPressed: _teachingsPage > 0
                               ? () => setState(
                                   () => _teachingsPage = _teachingsPage - 1,
@@ -602,7 +651,7 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
                               : null,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.chevron_right),
+                          icon: Icon(Icons.chevron_right),
                           onPressed: _teachingsPage < _totalTeachingsPages - 1
                               ? () => setState(
                                   () => _teachingsPage = _teachingsPage + 1,
@@ -627,15 +676,15 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
               hintText: localizations?.searchTeachings ?? 'Search teachings...',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear),
+                      icon: Icon(Icons.clear),
                       onPressed: () {
                         _searchController.clear();
                         setState(() {});
@@ -648,18 +697,18 @@ class _TeachingsListPageState extends State<TeachingsListPage> {
         ),
         Expanded(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(child: CircularProgressIndicator())
               : _filteredTeachings.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.menu_book_outlined,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
+                      SizedBox(height: AppDimensions.spacingMD),
                       Text(
                         _searchController.text.isNotEmpty
                             ? (localizations?.noTeachingsFound ??

@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
+import 'task_service.dart';
 
 /// Teaching service for teaching management operations
 class TeachingService {
@@ -26,6 +28,14 @@ class TeachingService {
           .select()
           .single();
 
+      try {
+        await TaskService.createTeachingTasks(teaching: response);
+      } catch (e) {
+        debugPrint(
+          '[TeachingService] Teaching created, but auto-tasks failed: $e',
+        );
+      }
+
       return response;
     } catch (e) {
       throw Exception('Failed to create teaching: $e');
@@ -49,10 +59,16 @@ class TeachingService {
 
       // Apply date filters
       if (fromDate != null) {
-        filterQuery = filterQuery.gte('teaching_date', fromDate.toIso8601String().split('T')[0]);
+        filterQuery = filterQuery.gte(
+          'teaching_date',
+          fromDate.toIso8601String().split('T')[0],
+        );
       }
       if (toDate != null) {
-        filterQuery = filterQuery.lte('teaching_date', toDate.toIso8601String().split('T')[0]);
+        filterQuery = filterQuery.lte(
+          'teaching_date',
+          toDate.toIso8601String().split('T')[0],
+        );
       }
 
       // Apply other filters
@@ -70,7 +86,8 @@ class TeachingService {
         transformQuery = transformQuery.order(orderBy, ascending: ascending);
       } else {
         // Default to most recent teachings first
-        transformQuery = transformQuery.order('teaching_date', ascending: false)
+        transformQuery = transformQuery
+            .order('teaching_date', ascending: false)
             .order('created_at', ascending: false);
       }
 
@@ -153,7 +170,9 @@ class TeachingService {
 
   /// Get listeners for a teaching
   /// GET /teachings/:id/listeners
-  static Future<List<Map<String, dynamic>>> getTeachingListeners(String teachingId) async {
+  static Future<List<Map<String, dynamic>>> getTeachingListeners(
+    String teachingId,
+  ) async {
     try {
       final response = await _client
           .from('teaching_listeners')

@@ -16,6 +16,7 @@ import 'core/theme/app_theme.dart';
 import 'core/localization/app_localizations.dart';
 import 'core/routes/app_router.dart';
 import 'core/routes/route_names.dart';
+import 'core/navigation/app_navigator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,14 +96,9 @@ class _MyAppState extends State<MyApp> {
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, _) {
-          if (settingsProvider.isLoading) {
-            return const MaterialApp(
-              home: Scaffold(body: Center(child: CircularProgressIndicator())),
-            );
-          }
-
           return _AppLifecycleWrapper(
             child: MaterialApp(
+              navigatorKey: AppNavigator.rootNavigatorKey,
               title: AppConfig.appName,
               debugShowCheckedModeBanner: false,
               theme: AppTheme.lightTheme,
@@ -119,6 +115,14 @@ class _MyAppState extends State<MyApp> {
               onGenerateRoute: AppRouter.generateRoute,
               onUnknownRoute: AppRouter.onUnknownRoute,
               initialRoute: RouteNames.splash,
+              builder: (context, child) {
+                if (settingsProvider.isLoading) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return child ?? const SizedBox.shrink();
+              },
             ),
           );
         },

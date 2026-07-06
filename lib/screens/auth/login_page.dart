@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
@@ -9,7 +10,7 @@ import '../../providers/auth_provider.dart';
 
 /// Login screen with email/phone and password
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -57,10 +58,7 @@ class _LoginPageState extends State<LoginPage> {
         authProvider.errorMessage,
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(errorMessage),
-          backgroundColor: AppColors.error,
-        ),
+        SnackBar(content: Text(errorMessage), backgroundColor: AppColors.error),
       );
     }
   }
@@ -71,10 +69,11 @@ class _LoginPageState extends State<LoginPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: context.mic.background,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppDimensions.paddingLG),
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
             child: Form(
               key: _formKey,
               child: Column(
@@ -83,29 +82,29 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   // Logo/Icon
                   Icon(Icons.church, size: 80, color: AppColors.primary),
-                  const SizedBox(height: AppDimensions.spacingXL),
+                  SizedBox(height: AppDimensions.spacingXL),
                   // Title
                   Text(
                     localizations?.welcome ?? 'Welcome',
                     style: theme.textTheme.headlineLarge,
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   Text(
                     localizations?.signIn ?? 'Sign In',
                     style: theme.textTheme.bodyLarge?.copyWith(
-                      color: AppColors.textSecondary,
+                      color: context.mic.textSecondary,
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: AppDimensions.spacingXXL),
+                  SizedBox(height: AppDimensions.spacingXXL),
                   // Email/Phone field
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: localizations?.email ?? 'Email or Phone',
-                      prefixIcon: const Icon(Icons.email_outlined),
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -115,14 +114,14 @@ class _LoginPageState extends State<LoginPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   // Password field
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
                       labelText: localizations?.password ?? 'Password',
-                      prefixIcon: const Icon(Icons.lock_outlined),
+                      prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePassword
@@ -142,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   // Forgot password
                   Align(
                     alignment: Alignment.centerRight,
@@ -157,18 +156,18 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppDimensions.spacingLG),
+                  SizedBox(height: AppDimensions.spacingLG),
                   // Login button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
                     ),
                     child: _isLoading
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),

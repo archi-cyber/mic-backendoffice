@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
 import '../../config/app_config.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/task_penalty_service.dart';
+import '../../services/push_notification_handler.dart';
 import '../desktop/desktop_shell.dart';
 
 /// Splash screen shown when the app first launches
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -39,14 +43,14 @@ class _SplashScreenState extends State<SplashScreen>
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+        curve: Interval(0.0, 0.6, curve: Curves.easeIn),
       ),
     );
 
     _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
       CurvedAnimation(
         parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+        curve: Interval(0.0, 0.6, curve: Curves.easeOut),
       ),
     );
 
@@ -65,7 +69,7 @@ class _SplashScreenState extends State<SplashScreen>
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     // Wait a bit for auth provider to initialize
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(Duration(milliseconds: 500));
 
     if (!mounted) return;
 
@@ -74,13 +78,30 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navigate based on auth status and screen size (desktop when width >= 500px)
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
+      await TaskPenaltyService.calculatePenaltiesOnStartup();
+      if (!mounted) return;
+
       if (authProvider.mustChangePassword) {
         Navigator.of(context).pushReplacementNamed(RouteNames.changePassword);
       } else {
+        final launchMessage =
+            await PushNotificationHandler.getInitialMessage();
+        if (!mounted) return;
+
+        final openNotifications = launchMessage != null;
+
         if (useDesktop) {
-          Navigator.of(context).pushReplacementNamed(RouteNames.desktopMain);
+          Navigator.of(context).pushReplacementNamed(
+            RouteNames.desktopMain,
+            arguments: openNotifications
+                ? RouteNames.desktopNotifications
+                : null,
+          );
         } else {
           Navigator.of(context).pushReplacementNamed(RouteNames.dashboard);
+          if (openNotifications) {
+            AppNavigator.markPendingNotificationsNavigation();
+          }
         }
       }
     } else {
@@ -101,9 +122,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primary,
-      body: Center(
-        child: AnimatedBuilder(
+      body: Container(
+        decoration: BoxDecoration(gradient: context.mic.brandGradient),
+        child: Center(
+          child: AnimatedBuilder(
           animation: _animationController,
           builder: (context, child) {
             return FadeTransition(
@@ -118,13 +140,13 @@ class _SplashScreenState extends State<SplashScreen>
                       width: AppDimensions.splashLogoSize,
                       height: AppDimensions.splashLogoSize,
                       decoration: BoxDecoration(
-                        color: AppColors.surface,
+                        color: context.mic.surface,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.shadow,
                             blurRadius: 20,
-                            offset: const Offset(0, 10),
+                            offset: Offset(0, 10),
                           ),
                         ],
                       ),
@@ -134,7 +156,7 @@ class _SplashScreenState extends State<SplashScreen>
                         color: AppColors.primary,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     // App Name
                     Text(
                       AppConfig.appName,
@@ -144,7 +166,7 @@ class _SplashScreenState extends State<SplashScreen>
                         letterSpacing: 2,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     // App Tagline (optional)
                     Text(
                       'Church Administration',
@@ -153,9 +175,9 @@ class _SplashScreenState extends State<SplashScreen>
                         letterSpacing: 1,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingXXL),
+                    SizedBox(height: AppDimensions.spacingXXL),
                     // Loading Indicator
-                    const SizedBox(
+                    SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
@@ -170,6 +192,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             );
           },
+          ),
         ),
       ),
     );

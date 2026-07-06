@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_report_service.dart';
 import '../../services/department_service.dart';
 import '../../services/department_report_pdf_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Department reports list page
 class DepartmentReportsListPage extends StatefulWidget {
   final String departmentId;
 
-  const DepartmentReportsListPage({super.key, required this.departmentId});
+  DepartmentReportsListPage({super.key, required this.departmentId});
 
   @override
   State<DepartmentReportsListPage> createState() =>
@@ -50,7 +52,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Failed to get department: $e'),
+              content: Text(context.tr('Failed to get department: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -74,7 +76,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                 'Department loaded but reports failed to load. Make sure the department_reports table exists. Error: $e',
               ),
               backgroundColor: AppColors.warning,
-              duration: const Duration(seconds: 5),
+              duration: Duration(seconds: 5),
             ),
           );
         }
@@ -90,7 +92,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading data: $e'),
+            content: Text(context.tr('Error loading data: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -101,13 +103,13 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
   Future<void> _generateSummaryReport() async {
     try {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Generating summary report...')),
+        SnackBar(content: Text(context.tr('Generating summary report...'))),
       );
       await DepartmentReportPdfService.generateSummaryPdf(widget.departmentId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Summary report generated successfully'),
+          SnackBar(
+            content: Text(context.tr('Summary report generated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -116,7 +118,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error generating report: $e'),
+            content: Text(context.tr('Error generating report: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -127,7 +129,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -136,9 +138,9 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
         actions: [
           if (_reports.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.summarize),
+              icon: Icon(Icons.summarize),
               onPressed: _generateSummaryReport,
-              tooltip: 'Generate Summary Report',
+              tooltip: context.tr('Generate Summary Report'),
             ),
         ],
       ),
@@ -146,7 +148,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
         children: [
           // Add Report button
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             child: ElevatedButton.icon(
               onPressed: () async {
                 final result = await Navigator.of(context).pushNamed(
@@ -157,10 +159,10 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                   _loadData();
                 }
               },
-              icon: const Icon(Icons.add),
-              label: const Text('Create Report'),
+              icon: Icon(Icons.add),
+              label: Text(context.tr('Create Report')),
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(
+                minimumSize: Size(
                   double.infinity,
                   AppDimensions.buttonHeightMD,
                 ),
@@ -170,21 +172,21 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
           // Reports list
           Expanded(
             child: _reports.isEmpty
-                ? const Center(
+                ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.description_outlined,
                           size: 64,
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
                         SizedBox(height: AppDimensions.spacingMD),
-                        Text('No reports yet'),
+                        Text(context.tr('No reports yet')),
                         SizedBox(height: AppDimensions.spacingXS),
                         Text(
                           'Create your first report to get started',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: TextStyle(color: context.mic.textSecondary),
                         ),
                       ],
                     ),
@@ -192,68 +194,66 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                 : RefreshIndicator(
                     onRefresh: _loadData,
                     child: ListView.builder(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                      padding: EdgeInsets.all(AppDimensions.paddingMD),
                       itemCount: _reports.length,
                       itemBuilder: (context, index) {
                         final report = _reports[index];
                         return Card(
-                          margin: const EdgeInsets.only(
+                          margin: EdgeInsets.only(
                             bottom: AppDimensions.spacingMD,
                           ),
                           child: ListTile(
-                            leading: const Icon(
+                            leading: Icon(
                               Icons.description,
                               color: AppColors.primary,
                             ),
                             title: Text(
                               report['title'] ?? 'Untitled Report',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const SizedBox(height: 4),
+                                SizedBox(height: 4),
                                 Text(
                                   'Created: ${DateFormat('MMM d, yyyy').format(DateTime.parse(report['created_at']))}',
-                                  style: const TextStyle(fontSize: 12),
+                                  style: TextStyle(fontSize: 12),
                                 ),
                               ],
                             ),
                             trailing: PopupMenuButton(
                               itemBuilder: (context) => [
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'view',
                                   child: Row(
                                     children: [
                                       Icon(Icons.visibility, size: 20),
                                       SizedBox(width: 8),
-                                      Text('View'),
+                                      Text(context.tr('View')),
                                     ],
                                   ),
                                 ),
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'pdf',
                                   child: Row(
                                     children: [
                                       Icon(Icons.picture_as_pdf, size: 20),
                                       SizedBox(width: 8),
-                                      Text('Generate PDF'),
+                                      Text(context.tr('Generate PDF')),
                                     ],
                                   ),
                                 ),
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
                                     children: [
                                       Icon(Icons.edit, size: 20),
                                       SizedBox(width: 8),
-                                      Text('Edit'),
+                                      Text(context.tr('Edit')),
                                     ],
                                   ),
                                 ),
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'delete',
                                   child: Row(
                                     children: [
@@ -263,7 +263,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                                         color: AppColors.error,
                                       ),
                                       SizedBox(width: 8),
-                                      Text('Delete'),
+                                      Text(context.tr('Delete')),
                                     ],
                                   ),
                                 ),
@@ -278,8 +278,10 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                                 } else if (value == 'pdf') {
                                   try {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Generating PDF...'),
+                                      SnackBar(
+                                        content: Text(
+                                          context.tr('Generating PDF...'),
+                                        ),
                                       ),
                                     );
                                     await DepartmentReportPdfService.generateReportPdf(
@@ -289,7 +291,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                                       ScaffoldMessenger.of(
                                         context,
                                       ).showSnackBar(
-                                        const SnackBar(
+                                        SnackBar(
                                           content: Text(
                                             'PDF generated successfully',
                                           ),
@@ -303,7 +305,9 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                                         context,
                                       ).showSnackBar(
                                         SnackBar(
-                                          content: Text('Error: $e'),
+                                          content: Text(
+                                            context.tr('Error: $e'),
+                                          ),
                                           backgroundColor: AppColors.error,
                                         ),
                                       );
@@ -347,17 +351,17 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Report'),
+        title: Text(context.tr('Delete Report')),
         content: Text('Are you sure you want to delete "${report['title']}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -368,8 +372,8 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
         await DepartmentReportService.deleteReport(report['id']);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Report deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Report deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -379,7 +383,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting report: $e'),
+              content: Text(context.tr('Error deleting report: $e')),
               backgroundColor: AppColors.error,
             ),
           );

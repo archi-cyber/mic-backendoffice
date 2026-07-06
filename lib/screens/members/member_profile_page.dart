@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/member_constants.dart';
 import '../../core/routes/route_names.dart';
@@ -11,6 +12,7 @@ import '../../services/role_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
 import '../../utils/member_utils.dart';
+import 'member_form_ui.dart';
 
 /// Member profile with attendance summary, classes, and departments
 class MemberProfilePage extends StatefulWidget {
@@ -22,7 +24,7 @@ class MemberProfilePage extends StatefulWidget {
   /// When set (e.g. desktop), edit opens in stack overlay; parent shows edit overlay with this memberId.
   final void Function(String memberId)? onEditRequested;
 
-  const MemberProfilePage({
+  MemberProfilePage({
     super.key,
     required this.memberId,
     this.onClose,
@@ -35,7 +37,6 @@ class MemberProfilePage extends StatefulWidget {
 
 class _MemberProfilePageState extends State<MemberProfilePage> {
   Map<String, dynamic>? _member;
-  Map<String, dynamic>? _report;
   bool _isLoading = true;
   bool _canDelete = false;
 
@@ -49,11 +50,6 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
     setState(() => _isLoading = true);
     try {
       final member = await MemberService.getMemberById(widget.memberId);
-      final report = await ReportService.getMemberReport(
-        memberId: widget.memberId,
-        fromDate: DateTime.now().subtract(const Duration(days: 90)),
-        toDate: DateTime.now(),
-      );
 
       // Check if current user can delete (admin or leader)
       final isAdmin = await RoleService.isCurrentUserAdmin();
@@ -63,16 +59,15 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
 
       setState(() {
         _member = member;
-        _report = report;
         _canDelete = canDelete;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading member: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading member: $e'))),
+        );
       }
     }
   }
@@ -141,38 +136,43 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     if (_member == null) {
       return Scaffold(
+        backgroundColor: context.mic.background,
         appBar: AppBar(
-          title: const Text('Member Profile'),
+          title: Text(context.tr('Member Profile')),
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => widget.onClose!(null),
                 )
               : null,
         ),
-        body: const Center(child: Text('Member not found')),
+        body: Center(child: Text(context.tr('Member not found'))),
       );
     }
 
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        backgroundColor: context.mic.background,
         appBar: AppBar(
           leading: widget.onClose != null
               ? IconButton(
-                  icon: const Icon(Icons.close),
+                  icon: Icon(Icons.close),
                   onPressed: () => widget.onClose!(null),
                 )
               : null,
           title: Text('${_member!['first_name']} ${_member!['last_name']}'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: Icon(Icons.edit),
               onPressed: () async {
                 if (widget.onEditRequested != null) {
                   widget.onEditRequested!(widget.memberId);
@@ -189,7 +189,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                   _loadMemberData();
                 }
               },
-              tooltip: 'Edit Member',
+              tooltip: context.tr('Edit Member'),
             ),
             if (_canDelete)
               PopupMenuButton(
@@ -197,8 +197,8 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                   PopupMenuItem(
                     child: Row(
                       children: [
-                        const Icon(Icons.delete, color: AppColors.error),
-                        const SizedBox(width: 8),
+                        Icon(Icons.delete, color: AppColors.error),
+                        SizedBox(width: 8),
                         Text(
                           AppLocalizations.of(context)?.deleteMember ??
                               'Delete Member',
@@ -208,7 +208,7 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                     onTap: () {
                       // Delay to allow popup to close first
                       Future.delayed(
-                        const Duration(milliseconds: 100),
+                        Duration(milliseconds: 100),
                         () => _deleteMember(),
                       );
                     },
@@ -216,18 +216,19 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
                 ],
               ),
           ],
-          bottom: const TabBar(
+          bottom: MemberFormUi.coloredTabBar(
+            context: context,
             tabs: [
-              Tab(text: 'Profile'),
-              Tab(text: 'Attendance'),
-              Tab(text: 'Classes'),
+              Tab(text: context.tr('Profile')),
+              Tab(text: context.tr('Attendance')),
+              Tab(text: context.tr('Classes')),
             ],
           ),
         ),
         body: TabBarView(
           children: [
             _ProfileTab(member: _member!),
-            _AttendanceTab(report: _report),
+            _AttendanceTab(memberId: widget.memberId),
             _ClassesTab(memberId: widget.memberId),
           ],
         ),
@@ -236,9 +237,6 @@ class _MemberProfilePageState extends State<MemberProfilePage> {
   }
 }
 
-/// Desktop breakpoint for member profile tabs (match shell when used as overlay).
-const double _kProfileDesktopBreakpoint = 700;
-const double _kProfileDesktopMaxWidth = 900;
 
 /// Profile tab
 class _ProfileTab extends StatelessWidget {
@@ -246,479 +244,200 @@ class _ProfileTab extends StatelessWidget {
 
   const _ProfileTab({required this.member});
 
-  @override
-  Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = width >= _kProfileDesktopBreakpoint;
-
-    if (isDesktop) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: _kProfileDesktopMaxWidth,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left: avatar + main contact
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 40,
-                                child: Text(
-                                  member['first_name']?[0] ?? 'M',
-                                  style: const TextStyle(fontSize: 32),
-                                ),
-                              ),
-                              const SizedBox(width: AppDimensions.spacingMD),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '${member['first_name']} ${member['last_name']}',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.titleLarge,
-                                    ),
-                                    const SizedBox(
-                                      height: AppDimensions.spacingXS,
-                                    ),
-                                    Text(
-                                      member['email'] ?? '',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.bodyMedium,
-                                    ),
-                                    const SizedBox(
-                                      height: AppDimensions.spacingXS,
-                                    ),
-                                    _buildRoleChip(member['role'] ?? 'member'),
-                                    const SizedBox(
-                                      height: AppDimensions.spacingXS,
-                                    ),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          member['is_active'] == true
-                                              ? Icons.check_circle
-                                              : Icons.cancel,
-                                          size: 20,
-                                          color: member['is_active'] == true
-                                              ? AppColors.success
-                                              : AppColors.error,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          member['is_active'] == true
-                                              ? 'Active'
-                                              : 'Inactive',
-                                          style: Theme.of(
-                                            context,
-                                          ).textTheme.bodySmall,
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Divider(height: AppDimensions.spacingXL),
-                          _InfoRow(
-                            label: 'Phone',
-                            value: member['phone'] ?? 'N/A',
-                            icon: Icons.phone,
-                          ),
-                          _InfoRow(
-                            label: 'Address',
-                            value: member['address'] ?? 'N/A',
-                            icon: Icons.location_on,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppDimensions.spacingMD),
-                // Right: details grid
-                Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Details',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const Divider(height: AppDimensions.spacingLG),
-                          _InfoRow(
-                            label: 'Birthday',
-                            value: member['birthday'] != null
-                                ? DateFormat(
-                                    'MMMM d, yyyy',
-                                  ).format(DateTime.parse(member['birthday']))
-                                : 'N/A',
-                            icon: Icons.cake,
-                          ),
-                          _InfoRow(
-                            label: 'Role',
-                            value: _getRoleLabel(member['role'] ?? 'member'),
-                            icon: Icons.person_outline,
-                          ),
-                          _InfoRow(
-                            label: 'Age Category',
-                            value: member['birthday'] != null
-                                ? MemberUtils.getAgeCategoryLabel(
-                                    DateTime.parse(member['birthday']),
-                                  )
-                                : 'N/A',
-                            icon: Icons.person,
-                          ),
-                          if (member['quarter'] != null &&
-                              member['quarter'].toString().isNotEmpty)
-                            _InfoRow(
-                              label: 'Quarter',
-                              value: member['quarter'],
-                              icon: Icons.calendar_view_month,
-                            ),
-                          if (member['profession'] != null &&
-                              member['profession'].toString().isNotEmpty)
-                            _InfoRow(
-                              label: 'Profession',
-                              value: MemberConstants.getProfessionLabel(
-                                member['profession'],
-                              ),
-                              icon: Icons.work,
-                            ),
-                          if (member['level_of_study'] != null &&
-                              member['level_of_study'].toString().isNotEmpty)
-                            _InfoRow(
-                              label: 'Level of Study',
-                              value: member['level_of_study'],
-                              icon: Icons.school,
-                            ),
-                          if (member['sector_of_studies'] != null &&
-                              member['sector_of_studies'].toString().isNotEmpty)
-                            _InfoRow(
-                              label: 'Sector of Studies',
-                              value: member['sector_of_studies'],
-                              icon: Icons.category,
-                            ),
-                          if (member['domain_of_activity'] != null &&
-                              member['domain_of_activity']
-                                  .toString()
-                                  .isNotEmpty)
-                            _InfoRow(
-                              label: 'Domain of Activity',
-                              value: member['domain_of_activity'],
-                              icon: Icons.business,
-                            ),
-                          if (member['last_diplomas'] != null &&
-                              member['last_diplomas'].toString().isNotEmpty)
-                            _InfoRow(
-                              label: 'Last Diplomas',
-                              value: member['last_diplomas'],
-                              icon: Icons.workspace_premium,
-                            ),
-                          if (member['key_skills'] != null &&
-                              _getKeySkillsList(
-                                member['key_skills'],
-                              ).isNotEmpty) ...[
-                            const SizedBox(height: AppDimensions.spacingSM),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Icon(
-                                  Icons.star,
-                                  size: 20,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: AppDimensions.spacingMD),
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: AppDimensions.spacingSM,
-                                    runSpacing: AppDimensions.spacingSM,
-                                    children:
-                                        _getKeySkillsList(member['key_skills'])
-                                            .map(
-                                              (skill) => Chip(
-                                                label: Text(skill),
-                                                padding: EdgeInsets.zero,
-                                                labelPadding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                    ),
-                                              ),
-                                            )
-                                            .toList(),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+  List<Widget> _detailSections(BuildContext context) {
+    final sections = <Widget>[
+      MemberFormUi.sectionCard(
+        context: context,
+        title: context.tr('Contact'),
+        icon: Icons.contact_phone_outlined,
+        accent: AppColors.primary,
+        children: [
+          MemberFormUi.infoRow(
+            context: context,
+            label: context.tr('Phone'),
+            value: member['phone']?.toString() ?? context.tr('N/A'),
+            icon: Icons.phone_outlined,
           ),
+          MemberFormUi.infoRow(
+            context: context,
+            label: context.tr('Address'),
+            value: member['address']?.toString() ?? context.tr('N/A'),
+            icon: Icons.location_on_outlined,
+          ),
+        ],
+      ),
+      MemberFormUi.sectionCard(
+        context: context,
+        title: context.tr('Personal details'),
+        icon: Icons.badge_outlined,
+        accent: AppColors.accent,
+        children: [
+          MemberFormUi.infoRow(
+            context: context,
+            label: context.tr('Birthday'),
+            value: member['birthday'] != null
+                ? DateFormat('MMMM d, yyyy')
+                    .format(DateTime.parse(member['birthday']))
+                : context.tr('N/A'),
+            icon: Icons.cake_outlined,
+            iconColor: AppColors.accent,
+          ),
+          MemberFormUi.infoRow(
+            context: context,
+            label: context.tr('Age Category'),
+            value: member['birthday'] != null
+                ? MemberUtils.getAgeCategoryLabel(
+                    DateTime.parse(member['birthday']),
+                  )
+                : context.tr('N/A'),
+            icon: Icons.person_outline,
+            iconColor: AppColors.accent,
+          ),
+          if (member['quarter'] != null &&
+              member['quarter'].toString().isNotEmpty)
+            MemberFormUi.infoRow(
+              context: context,
+              label: context.tr('Quarter'),
+              value: member['quarter'].toString(),
+              icon: Icons.calendar_view_month,
+              iconColor: AppColors.accent,
+            ),
+        ],
+      ),
+    ];
+
+    final professional = <Widget>[];
+    if (member['profession'] != null &&
+        member['profession'].toString().isNotEmpty) {
+      professional.add(
+        MemberFormUi.infoRow(
+          context: context,
+          label: context.tr('Profession'),
+          value: MemberConstants.getProfessionLabel(member['profession']),
+          icon: Icons.work_outline,
+          iconColor: AppColors.info,
+        ),
+      );
+    }
+    if (member['level_of_study'] != null &&
+        member['level_of_study'].toString().isNotEmpty) {
+      professional.add(
+        MemberFormUi.infoRow(
+          context: context,
+          label: context.tr('Level of Study'),
+          value: member['level_of_study'].toString(),
+          icon: Icons.school_outlined,
+          iconColor: AppColors.info,
+        ),
+      );
+    }
+    if (member['sector_of_studies'] != null &&
+        member['sector_of_studies'].toString().isNotEmpty) {
+      professional.add(
+        MemberFormUi.infoRow(
+          context: context,
+          label: context.tr('Sector of Studies'),
+          value: member['sector_of_studies'].toString(),
+          icon: Icons.category_outlined,
+          iconColor: AppColors.info,
+        ),
+      );
+    }
+    if (member['domain_of_activity'] != null &&
+        member['domain_of_activity'].toString().isNotEmpty) {
+      professional.add(
+        MemberFormUi.infoRow(
+          context: context,
+          label: context.tr('Domain of Activity'),
+          value: member['domain_of_activity'].toString(),
+          icon: Icons.business_outlined,
+          iconColor: AppColors.info,
+        ),
+      );
+    }
+    if (member['last_diplomas'] != null &&
+        member['last_diplomas'].toString().isNotEmpty) {
+      professional.add(
+        MemberFormUi.infoRow(
+          context: context,
+          label: context.tr('Last Diplomas'),
+          value: member['last_diplomas'].toString(),
+          icon: Icons.workspace_premium_outlined,
+          iconColor: AppColors.info,
+        ),
+      );
+    }
+    if (professional.isNotEmpty) {
+      sections.add(
+        MemberFormUi.sectionCard(
+          context: context,
+          title: context.tr('Professional details'),
+          icon: Icons.work_outline,
+          accent: AppColors.info,
+          children: professional,
         ),
       );
     }
 
-    // Mobile: original single card
-    return ListView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      child: Text(
-                        member['first_name']?[0] ?? 'M',
-                        style: const TextStyle(fontSize: 32),
-                      ),
+    final skills = _getKeySkillsList(member['key_skills']);
+    if (skills.isNotEmpty) {
+      sections.add(
+        MemberFormUi.sectionCard(
+          context: context,
+          title: context.tr('Key Skills'),
+          icon: Icons.star_outline,
+          accent: AppColors.secondary,
+          children: [
+            Wrap(
+              spacing: AppDimensions.spacingSM,
+              runSpacing: AppDimensions.spacingSM,
+              children: skills
+                  .map(
+                    (skill) => Chip(
+                      label: Text(skill),
+                      backgroundColor:
+                          AppColors.secondary.withValues(alpha: 0.12),
                     ),
-                    const SizedBox(width: AppDimensions.spacingMD),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${member['first_name']} ${member['last_name']}',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: AppDimensions.spacingXS),
-                          Text(
-                            member['email'] ?? '',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: AppDimensions.spacingXS),
-                          _buildRoleChip(member['role'] ?? 'member'),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      member['is_active'] == true
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      color: member['is_active'] == true
-                          ? AppColors.success
-                          : AppColors.error,
-                    ),
-                  ],
-                ),
-                const Divider(height: AppDimensions.spacingXL),
-                _InfoRow(
-                  label: 'Phone',
-                  value: member['phone'] ?? 'N/A',
-                  icon: Icons.phone,
-                ),
-                _InfoRow(
-                  label: 'Birthday',
-                  value: member['birthday'] != null
-                      ? DateFormat(
-                          'MMMM d, yyyy',
-                        ).format(DateTime.parse(member['birthday']))
-                      : 'N/A',
-                  icon: Icons.cake,
-                ),
-                _InfoRow(
-                  label: 'Address',
-                  value: member['address'] ?? 'N/A',
-                  icon: Icons.location_on,
-                ),
-                _InfoRow(
-                  label: 'Role',
-                  value: _getRoleLabel(member['role'] ?? 'member'),
-                  icon: Icons.person_outline,
-                ),
-                _InfoRow(
-                  label: 'Age Category',
-                  value: member['birthday'] != null
-                      ? MemberUtils.getAgeCategoryLabel(
-                          DateTime.parse(member['birthday']),
-                        )
-                      : 'N/A',
-                  icon: Icons.person,
-                ),
-                if (member['quarter'] != null &&
-                    member['quarter'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Quarter',
-                    value: member['quarter'],
-                    icon: Icons.calendar_view_month,
-                  ),
-                if (member['profession'] != null &&
-                    member['profession'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Profession',
-                    value: MemberConstants.getProfessionLabel(
-                      member['profession'],
-                    ),
-                    icon: Icons.work,
-                  ),
-                if (member['level_of_study'] != null &&
-                    member['level_of_study'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Level of Study',
-                    value: member['level_of_study'],
-                    icon: Icons.school,
-                  ),
-                if (member['sector_of_studies'] != null &&
-                    member['sector_of_studies'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Sector of Studies',
-                    value: member['sector_of_studies'],
-                    icon: Icons.category,
-                  ),
-                if (member['domain_of_activity'] != null &&
-                    member['domain_of_activity'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Domain of Activity',
-                    value: member['domain_of_activity'],
-                    icon: Icons.business,
-                  ),
-                if (member['key_skills'] != null &&
-                    _getKeySkillsList(member['key_skills']).isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppDimensions.spacingSM,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.star,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(width: AppDimensions.spacingMD),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Key Skills: ',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: AppDimensions.spacingXS),
-                              Wrap(
-                                spacing: AppDimensions.spacingSM,
-                                runSpacing: AppDimensions.spacingSM,
-                                children:
-                                    _getKeySkillsList(member['key_skills'])
-                                        .map(
-                                          (skill) => Chip(
-                                            label: Text(skill),
-                                            padding: EdgeInsets.zero,
-                                            labelPadding:
-                                                const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                ),
-                                          ),
-                                        )
-                                        .toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                if (member['last_diplomas'] != null &&
-                    member['last_diplomas'].toString().isNotEmpty)
-                  _InfoRow(
-                    label: 'Last Diplomas',
-                    value: member['last_diplomas'],
-                    icon: Icons.workspace_premium,
-                  ),
-              ],
+                  )
+                  .toList(),
             ),
-          ),
+          ],
+        ),
+      );
+    }
+
+    return sections;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final firstName = member['first_name']?.toString() ?? '';
+    final lastName = member['last_name']?.toString() ?? '';
+    final fullName = '$firstName $lastName'.trim();
+    final photoUrl = member['photo_url']?.toString();
+    final initials = [
+      if (firstName.isNotEmpty) firstName[0],
+      if (lastName.isNotEmpty) lastName[0],
+    ].join().toUpperCase();
+
+    return ListView(
+      padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
+      children: [
+        MemberFormUi.profileHero(
+          context: context,
+          fullName: fullName.isEmpty ? context.tr('Unnamed Member') : fullName,
+          email: member['email']?.toString(),
+          role: member['role']?.toString() ?? 'member',
+          isActive: member['is_active'] == true,
+          photoUrl: photoUrl,
+          initials: initials.isEmpty ? 'M' : initials,
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+          child: Column(children: _detailSections(context)),
         ),
       ],
     );
-  }
-
-  Widget _buildRoleChip(String role) {
-    Color chipColor;
-    String label;
-    switch (role) {
-      case 'admin':
-        chipColor = AppColors.error;
-        label = 'Admin';
-        break;
-      case 'leader':
-        chipColor = AppColors.warning;
-        label = 'Leader';
-        break;
-      case 'worker':
-        chipColor = AppColors.primary;
-        label = 'Worker';
-        break;
-      case 'sympathiser':
-        chipColor = AppColors.textSecondary;
-        label = 'Sympathiser';
-        break;
-      default:
-        chipColor = AppColors.textSecondary;
-        label = 'Member';
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: chipColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: chipColor.withValues(alpha: 0.3)),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          color: chipColor,
-        ),
-      ),
-    );
-  }
-
-  String _getRoleLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'Admin';
-      case 'leader':
-        return 'Leader';
-      case 'worker':
-        return 'Worker';
-      case 'sympathiser':
-        return 'Sympathiser';
-      default:
-        return 'Member';
-    }
   }
 
   List<String> _getKeySkillsList(dynamic keySkills) {
@@ -740,163 +459,279 @@ class _ProfileTab extends StatelessWidget {
   }
 }
 
-/// Attendance tab
-class _AttendanceTab extends StatelessWidget {
-  final Map<String, dynamic>? report;
+/// Church attendance report for the Presence / Attendance tab.
+class _AttendanceTab extends StatefulWidget {
+  final String memberId;
 
-  const _AttendanceTab({this.report});
+  const _AttendanceTab({required this.memberId});
+
+  @override
+  State<_AttendanceTab> createState() => _AttendanceTabState();
+}
+
+class _AttendanceTabState extends State<_AttendanceTab> {
+  DateTime _fromDate = DateTime.now().subtract(const Duration(days: 90));
+  DateTime _toDate = DateTime.now();
+  bool _isLoading = true;
+  Map<String, dynamic>? _report;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReport();
+  }
+
+  Future<void> _loadReport() async {
+    setState(() => _isLoading = true);
+    try {
+      final report = await ReportService.getMemberChurchAttendanceReport(
+        memberId: widget.memberId,
+        fromDate: _fromDate,
+        toDate: _toDate,
+      );
+      if (!mounted) return;
+      setState(() {
+        _report = report;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Error loading report: $e'))),
+      );
+    }
+  }
+
+  Future<void> _selectDateRange() async {
+    final dates = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(start: _fromDate, end: _toDate),
+      helpText: context.tr('Select Date Range'),
+    );
+    if (dates == null) return;
+    setState(() {
+      _fromDate = dates.start;
+      _toDate = dates.end;
+    });
+    _loadReport();
+  }
+
+  String _formatDate(String dateString) {
+    try {
+      return DateFormat.yMMMd().format(DateTime.parse(dateString));
+    } catch (_) {
+      return dateString;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (report == null) {
-      return const Center(child: Text('No attendance data'));
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    final attendance = report!['attendance'] as Map<String, dynamic>;
-    final total = attendance['total'] as int;
-    final records = (attendance['records'] as List?) ?? [];
-    final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = width >= _kProfileDesktopBreakpoint;
-
-    if (isDesktop) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: _kProfileDesktopMaxWidth,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        Column(
-                          children: [
-                            Text(
-                              'Total Attendance',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingSM),
-                            Text(
-                              '$total',
-                              style: Theme.of(context).textTheme.headlineLarge
-                                  ?.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          'Last 90 days',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppDimensions.spacingMD),
-                if (records.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppDimensions.paddingMD),
-                      child: Center(child: Text('No attendance records')),
-                    ),
-                  )
-                else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                          child: DataTable(
-                            headingRowColor: WidgetStateProperty.all(
-                              Theme.of(context).colorScheme.surfaceContainerHighest,
-                            ),
-                            columns: const [
-                              DataColumn(label: Text('Session')),
-                        DataColumn(label: Text('Status')),
-                        DataColumn(label: Text('Date')),
-                      ],
-                      rows: records.map<DataRow>((record) {
-                        final dateStr = record['created_at'] != null
-                            ? DateTime.parse(
-                                record['created_at'],
-                              ).toString().split(' ')[0]
-                            : '';
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text('Session ${record['session_number'] ?? ''}'),
-                            ),
-                            DataCell(Text(record['status'] ?? 'unknown')),
-                            DataCell(Text(dateStr)),
-                          ],
-                        );
-                      }).toList(),
-                          ),
-                        ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+    if (_report == null) {
+      return Center(child: Text(context.tr('No attendance data')));
     }
+
+    final attendance = _report!['attendance'] as Map<String, dynamic>;
+    final records = List<Map<String, dynamic>>.from(
+      attendance['records'] as List? ?? [],
+    );
+    final totalPresent = attendance['total'] as int? ?? 0;
+    final onsite = attendance['onsite'] as int? ?? 0;
+    final online = attendance['online'] as int? ?? 0;
+    final absent = attendance['absent'] as int? ?? 0;
 
     return ListView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.only(bottom: AppDimensions.spacingXL),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
-            child: Column(
-              children: [
-                Text(
-                  'Total Attendance',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: AppDimensions.spacingSM),
-                Text(
-                  '$total',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            AppDimensions.paddingMD,
+            AppDimensions.spacingMD,
+            AppDimensions.paddingMD,
+            0,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.tr('churchAttendance'),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.mic.appBarForeground,
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingMD),
-                Text(
-                  'Last 90 days',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+              ),
+              TextButton.icon(
+                onPressed: _selectDateRange,
+                icon: const Icon(Icons.date_range_outlined, size: 18),
+                label: Text(context.tr('Select Date Range')),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
-        ...records.map((record) {
-          return ListTile(
-            leading: const Icon(Icons.event),
-            title: Text('Session ${record['session_number']}'),
-            subtitle: Text(record['status'] ?? 'unknown'),
-            trailing: Text(
-              record['created_at'] != null
-                  ? DateTime.parse(
-                      record['created_at'],
-                    ).toString().split(' ')[0]
-                  : '',
+        SizedBox(
+          height: 96,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+            children: [
+              _AttendanceStatChip(
+                label: context.tr('Total Attendance'),
+                value: '$totalPresent',
+                icon: Icons.how_to_reg_outlined,
+                color: AppColors.primary,
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+              _AttendanceStatChip(
+                label: context.tr('Onsite'),
+                value: '$onsite',
+                icon: Icons.church_outlined,
+                color: AppColors.success,
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+              _AttendanceStatChip(
+                label: context.tr('Online'),
+                value: '$online',
+                icon: Icons.wifi_tethering_outlined,
+                color: AppColors.accent,
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+              _AttendanceStatChip(
+                label: context.tr('Absent'),
+                value: '$absent',
+                icon: Icons.event_busy_outlined,
+                color: AppColors.error,
+              ),
+            ],
+          ),
+        ),
+        if (records.isEmpty)
+          Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.event_busy_outlined,
+                    size: 48,
+                    color: context.mic.textSecondary,
+                  ),
+                  SizedBox(height: AppDimensions.spacingMD),
+                  Text(context.tr('No attendance records')),
+                ],
+              ),
             ),
-          );
-        }),
+          )
+        else
+          ...records.map((record) => _churchRecordTile(context, record)),
       ],
+    );
+  }
+
+  Widget _churchRecordTile(BuildContext context, Map<String, dynamic> record) {
+    final displayType = record['display_type']?.toString() ?? '';
+    final displayDate = record['display_date']?.toString() ?? '';
+    final attendanceType = record['attendance_type']?.toString();
+    final typeLabel = record['attendance_type_display']?.toString() ?? '';
+
+    IconData icon;
+    Color color;
+    if (attendanceType == 'onsite') {
+      icon = Icons.church_outlined;
+      color = AppColors.success;
+    } else if (attendanceType == 'online') {
+      icon = Icons.wifi_tethering_outlined;
+      color = AppColors.accent;
+    } else {
+      icon = Icons.cancel_outlined;
+      color = AppColors.error;
+    }
+
+    return Container(
+      margin: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        0,
+        AppDimensions.paddingMD,
+        AppDimensions.spacingSM,
+      ),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: context.mic.border),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.12),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        title: Text(
+          displayType,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          typeLabel,
+          style: TextStyle(color: color, fontWeight: FontWeight.w500),
+        ),
+        trailing: Text(
+          _formatDate(displayDate),
+          style: Theme.of(context).textTheme.labelSmall,
+        ),
+      ),
+    );
+  }
+}
+
+class _AttendanceStatChip extends StatelessWidget {
+  const _AttendanceStatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 132,
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: context.mic.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -923,7 +758,6 @@ class _ClassesTabState extends State<_ClassesTab> {
 
   Future<void> _loadMemberClasses() async {
     try {
-      // Get classes where member is enrolled
       final enrollments = await SupabaseService.client
           .from('class_members')
           .select('*, classes(*)')
@@ -949,121 +783,50 @@ class _ClassesTabState extends State<_ClassesTab> {
     }
 
     if (_classes.isEmpty) {
-      return const Center(child: Text('No classes enrolled'));
-    }
-
-    final width = MediaQuery.sizeOf(context).width;
-    final isDesktop = width >= _kProfileDesktopBreakpoint;
-
-    if (isDesktop) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
-        child: Center(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
-                    ),
-                    columns: const [
-                      DataColumn(label: Text('Class')),
-                  DataColumn(label: Text('Description')),
-                  DataColumn(label: Text('Action')),
-                ],
-                rows: _classes.map<DataRow>((classItem) {
-                  final classId = classItem['id']?.toString() ?? '';
-                  final route = RouteNames.classDetail.replaceAll(
-                    ':id',
-                    classId,
-                  );
-                  return DataRow(
-                    cells: [
-                      DataCell(Text(classItem['name'] ?? 'Unnamed Class')),
-                      DataCell(
-                        Text(
-                          classItem['description']?.toString() ?? '—',
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 2,
-                        ),
-                      ),
-                      DataCell(
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.pushNamed(context, route);
-                          },
-                          icon: const Icon(Icons.open_in_new, size: 18),
-                          label: const Text('Open'),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-                  ),
-                ),
-            );
-          },
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.class_outlined, size: 56, color: AppColors.secondary),
+              SizedBox(height: AppDimensions.spacingMD),
+              Text(context.tr('No classes enrolled')),
+            ],
+          ),
         ),
-      ),
-    );
+      );
     }
 
     return ListView.builder(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       itemCount: _classes.length,
       itemBuilder: (context, index) {
         final classItem = _classes[index];
         final classId = classItem['id']?.toString() ?? '';
         final route = RouteNames.classDetail.replaceAll(':id', classId);
-        return ListTile(
-          leading: const Icon(Icons.class_),
-          title: Text(classItem['name'] ?? 'Unnamed Class'),
-          subtitle: classItem['description'] != null
-              ? Text(classItem['description'].toString())
-              : null,
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () {
-            Navigator.pushNamed(context, route);
-          },
+        return Container(
+          margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
+          decoration: BoxDecoration(
+            color: context.mic.surface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+            border: Border.all(color: context.mic.border),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: AppColors.secondary.withValues(alpha: 0.12),
+              child: Icon(Icons.class_, color: AppColors.secondaryDark),
+            ),
+            title: Text(
+              classItem['name']?.toString() ?? context.tr('Class'),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(classItem['description']?.toString() ?? ''),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).pushNamed(route),
+          ),
         );
       },
-    );
-  }
-}
-
-/// Info row widget
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimensions.spacingSM),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppColors.textSecondary),
-          const SizedBox(width: AppDimensions.spacingMD),
-          Text(
-            '$label: ',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          Expanded(
-            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
     );
   }
 }

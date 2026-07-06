@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/event_service.dart';
 import '../../services/supabase_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Event detail page with tabs for overview, sessions, registrations, and attendance
 class EventDetailPage extends StatefulWidget {
   final String eventId;
 
-  const EventDetailPage({super.key, required this.eventId});
+  EventDetailPage({super.key, required this.eventId});
 
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
@@ -36,9 +38,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading event: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading event: $e'))),
+        );
       }
     }
   }
@@ -47,19 +49,19 @@ class _EventDetailPageState extends State<EventDetailPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Event'),
-        content: const Text(
+        title: Text(context.tr('Delete Event')),
+        content: Text(
           'Are you sure you want to delete this event? This will deactivate it.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -70,8 +72,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
         await EventService.deleteEvent(widget.eventId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Event deleted successfully'),
+            SnackBar(
+              content: Text(context.tr('Event deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -81,7 +83,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error deleting event: $e'),
+              content: Text(context.tr('Error deleting event: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -93,13 +95,13 @@ class _EventDetailPageState extends State<EventDetailPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_event == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Event')),
-        body: const Center(child: Text('Event not found')),
+        appBar: AppBar(title: Text(context.tr('Event'))),
+        body: Center(child: Text(context.tr('Event not found'))),
       );
     }
 
@@ -115,7 +117,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
           title: Text(_event!['title'] ?? 'Event'),
           actions: [
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: Icon(Icons.edit),
               onPressed: () async {
                 final result = await Navigator.of(context).pushNamed(
                   RouteNames.editEvent.replaceAll(':id', widget.eventId),
@@ -124,16 +126,16 @@ class _EventDetailPageState extends State<EventDetailPage> {
                   _loadEventData();
                 }
               },
-              tooltip: 'Edit Event',
+              tooltip: context.tr('Edit Event'),
             ),
             PopupMenuButton(
               itemBuilder: (context) => [
                 PopupMenuItem(
-                  child: const Row(
+                  child: Row(
                     children: [
                       Icon(Icons.delete, color: AppColors.error),
                       SizedBox(width: 8),
-                      Text('Delete Event'),
+                      Text(context.tr('Delete Event')),
                     ],
                   ),
                   onTap: () => _deleteEvent(),
@@ -143,10 +145,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ],
           bottom: TabBar(
             tabs: [
-              const Tab(text: 'Overview'),
-              if (isRepeated) const Tab(text: 'Sessions'),
-              const Tab(text: 'Registrations'),
-              const Tab(text: 'Attendance'),
+              Tab(text: 'Overview'),
+              if (isRepeated) Tab(text: 'Sessions'),
+              Tab(text: 'Registrations'),
+              Tab(text: 'Attendance'),
             ],
           ),
         ),
@@ -171,7 +173,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
 class _OverviewTab extends StatelessWidget {
   final Map<String, dynamic> event;
 
-  const _OverviewTab({required this.event});
+  _OverviewTab({required this.event});
 
   String _formatDate(DateTime date) {
     const months = [
@@ -200,14 +202,14 @@ class _OverviewTab extends StatelessWidget {
     final isRepeated = event['is_repeated'] == true;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Event details card
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -215,39 +217,39 @@ class _OverviewTab extends StatelessWidget {
                     event['title'] ?? 'Event',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
+                  SizedBox(height: AppDimensions.spacingMD),
                   if (eventDate != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.calendar_today, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.calendar_today, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           _formatDate(eventDate),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (eventTime != null) ...[
                     Row(
                       children: [
-                        const Icon(Icons.access_time, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.access_time, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           eventTime.substring(0, 5), // HH:mm format
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (event['location'] != null) ...[
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.location_on, size: 20),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.location_on, size: 20),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Expanded(
                           child: Text(
                             event['location'],
@@ -256,17 +258,13 @@ class _OverviewTab extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                   ],
                   if (isRepeated) ...[
                     Row(
                       children: [
-                        const Icon(
-                          Icons.repeat,
-                          size: 20,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: AppDimensions.spacingSM),
+                        Icon(Icons.repeat, size: 20, color: AppColors.primary),
+                        SizedBox(width: AppDimensions.spacingSM),
                         Text(
                           'Repeated Event',
                           style: Theme.of(context).textTheme.bodyLarge
@@ -282,11 +280,11 @@ class _OverviewTab extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           // Description
           if (event['description'] != null) ...[
             Text('Description', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingSM),
             Text(
               event['description'],
               style: Theme.of(context).textTheme.bodyMedium,
@@ -303,7 +301,7 @@ class _SessionsTab extends StatefulWidget {
   final String eventId;
   final VoidCallback onSessionsUpdated;
 
-  const _SessionsTab({required this.eventId, required this.onSessionsUpdated});
+  _SessionsTab({required this.eventId, required this.onSessionsUpdated});
 
   @override
   State<_SessionsTab> createState() => _SessionsTabState();
@@ -331,9 +329,9 @@ class _SessionsTabState extends State<_SessionsTab> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading sessions: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading sessions: $e'))),
+        );
       }
     }
   }
@@ -344,16 +342,16 @@ class _SessionsTabState extends State<_SessionsTab> {
     final numberOfSessions = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Generate Sessions'),
-        content: const Text('Enter number of sessions to generate'),
+        title: Text(context.tr('Generate Sessions')),
+        content: Text(context.tr('Enter number of sessions to generate')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, 4),
-            child: const Text('Generate 4'),
+            child: Text(context.tr('Generate 4')),
           ),
         ],
       ),
@@ -369,8 +367,8 @@ class _SessionsTabState extends State<_SessionsTab> {
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sessions generated successfully'),
+          SnackBar(
+            content: Text(context.tr('Sessions generated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -381,7 +379,7 @@ class _SessionsTabState extends State<_SessionsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error generating sessions: $e'),
+            content: Text(context.tr('Error generating sessions: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -400,13 +398,13 @@ class _SessionsTabState extends State<_SessionsTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -417,13 +415,13 @@ class _SessionsTabState extends State<_SessionsTab> {
               ElevatedButton.icon(
                 onPressed: _isGenerating ? null : _generateSessions,
                 icon: _isGenerating
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.add),
-                label: const Text('Generate Sessions'),
+                    : Icon(Icons.add),
+                label: Text(context.tr('Generate Sessions')),
               ),
             ],
           ),
@@ -434,17 +432,17 @@ class _SessionsTabState extends State<_SessionsTab> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.event_busy,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Text('No sessions generated yet'),
-                      const SizedBox(height: AppDimensions.spacingSM),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(context.tr('No sessions generated yet')),
+                      SizedBox(height: AppDimensions.spacingSM),
                       ElevatedButton(
                         onPressed: _generateSessions,
-                        child: const Text('Generate Sessions'),
+                        child: Text(context.tr('Generate Sessions')),
                       ),
                     ],
                   ),
@@ -460,35 +458,32 @@ class _SessionsTabState extends State<_SessionsTab> {
                           : null;
 
                       return Card(
-                        margin: const EdgeInsets.symmetric(
+                        margin: EdgeInsets.symmetric(
                           horizontal: AppDimensions.paddingMD,
                           vertical: AppDimensions.paddingSM,
                         ),
                         child: ListTile(
-                          leading: const Icon(Icons.event),
+                          leading: Icon(Icons.event),
                           title: Text(
                             sessionDate != null
                                 ? _formatDate(sessionDate)
                                 : 'Session ${index + 1}',
                           ),
                           trailing: IconButton(
-                            icon: const Icon(
-                              Icons.delete,
-                              color: AppColors.error,
-                            ),
+                            icon: Icon(Icons.delete, color: AppColors.error),
                             onPressed: () async {
                               final confirm = await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text('Delete Session'),
-                                  content: const Text(
+                                  title: Text(context.tr('Delete Session')),
+                                  content: Text(
                                     'Are you sure you want to delete this session?',
                                   ),
                                   actions: [
                                     TextButton(
                                       onPressed: () =>
                                           Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
+                                      child: Text(context.tr('Cancel')),
                                     ),
                                     ElevatedButton(
                                       onPressed: () =>
@@ -496,7 +491,7 @@ class _SessionsTabState extends State<_SessionsTab> {
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.error,
                                       ),
-                                      child: const Text('Delete'),
+                                      child: Text(context.tr('Delete')),
                                     ),
                                   ],
                                 ),
@@ -541,7 +536,7 @@ class _SessionsTabState extends State<_SessionsTab> {
 class _RegistrationsTab extends StatefulWidget {
   final String eventId;
 
-  const _RegistrationsTab({required this.eventId});
+  _RegistrationsTab({required this.eventId});
 
   @override
   State<_RegistrationsTab> createState() => _RegistrationsTabState();
@@ -576,7 +571,9 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading registrations: $e')),
+          SnackBar(
+            content: Text(context.tr('Error loading registrations: $e')),
+          ),
         );
       }
     }
@@ -642,7 +639,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registration failed: $e'),
+            content: Text(context.tr('Registration failed: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -653,19 +650,19 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isRegistering ? null : _handleRegistration,
               icon: _isRegistering
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
@@ -673,7 +670,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                   : Icon(_isRegistered ? Icons.cancel : Icons.check),
               label: Text(_isRegistered ? 'Unregister' : 'Register for Event'),
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(
+                minimumSize: Size(
                   double.infinity,
                   AppDimensions.buttonHeightLG,
                 ),
@@ -687,13 +684,13 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.people_outline,
                         size: 64,
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
-                      const SizedBox(height: AppDimensions.spacingMD),
-                      const Text('No registrations yet'),
+                      SizedBox(height: AppDimensions.spacingMD),
+                      Text(context.tr('No registrations yet')),
                     ],
                   ),
                 )
@@ -706,10 +703,10 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                       final member =
                           registration['members'] as Map<String, dynamic>?;
 
-                      if (member == null) return const SizedBox.shrink();
+                      if (member == null) return SizedBox.shrink();
 
                       return Card(
-                        margin: const EdgeInsets.symmetric(
+                        margin: EdgeInsets.symmetric(
                           horizontal: AppDimensions.paddingMD,
                           vertical: AppDimensions.paddingSM,
                         ),
@@ -750,7 +747,7 @@ class _AttendanceTab extends StatelessWidget {
   final String eventId;
   final bool isRepeated;
 
-  const _AttendanceTab({required this.eventId, required this.isRepeated});
+  _AttendanceTab({required this.eventId, required this.isRepeated});
 
   @override
   Widget build(BuildContext context) {
@@ -758,12 +755,12 @@ class _AttendanceTab extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_outline,
             size: 64,
-            color: AppColors.textSecondary,
+            color: context.mic.textSecondary,
           ),
-          const SizedBox(height: AppDimensions.spacingMD),
+          SizedBox(height: AppDimensions.spacingMD),
           Text(
             isRepeated
                 ? 'Attendance is tracked per session'

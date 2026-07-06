@@ -1,39 +1,40 @@
 import 'package:flutter/material.dart';
+import 'app_colors.dart';
 
 /// Preset colors for tags (hex strings for DB, Color for UI).
 class TagColors {
   TagColors._();
 
-  /// Default color when none is set (neutral grey).
-  static const String defaultHex = '#9CA3AF';
+  /// Default color when none is set (neutral warm grey).
+  static const String defaultHex = '#8A96A3';
 
-  /// Preset palette for tag color picker (hex).
+  /// Preset palette aligned with MIC brand colors.
   static const List<String> presetHex = [
-    '#EF4444', // red
-    '#F97316', // orange
-    '#F59E0B', // amber
-    '#EAB308', // yellow
-    '#84CC16', // lime
-    '#22C55E', // green
-    '#10B981', // emerald
-    '#14B8A6', // teal
-    '#06B6D4', // cyan
-    '#3B82F6', // blue
-    '#6366F1', // indigo
-    '#8B5CF6', // violet
-    '#A855F7', // purple
-    '#D946EF', // fuchsia
-    '#EC4899', // pink
-    '#9CA3AF', // gray
+    '#C94A2E', // warm red
+    '#FF8C00', // vibrant orange
+    '#A65D26', // terracotta
+    '#E67E00', // deep orange
+    '#8FA17E', // sage
+    '#6F8260', // dark sage
+    '#4A6FA5', // slate blue
+    '#2D3E4E', // charcoal
+    '#3A2315', // chocolate
+    '#FBE6D6', // peach
+    '#D4A574', // sand
+    '#C9A227', // gold
+    '#B85C38', // rust
+    '#7B9E6B', // moss
+    '#5C7A8A', // steel
+    '#8A96A3', // grey
   ];
 
   /// Parse hex string to Color; returns grey if invalid.
   static Color colorFromHex(String? hex) {
-    if (hex == null || hex.isEmpty) return const Color(0xFF9CA3AF);
+    if (hex == null || hex.isEmpty) return AppColors.textTertiary;
     String h = hex.startsWith('#') ? hex : '#$hex';
-    if (h.length != 7) return const Color(0xFF9CA3AF);
+    if (h.length != 7) return AppColors.textTertiary;
     final n = int.tryParse(h.substring(1), radix: 16);
-    if (n == null) return const Color(0xFF9CA3AF);
+    if (n == null) return AppColors.textTertiary;
     return Color(0xFF000000 | n);
   }
 }

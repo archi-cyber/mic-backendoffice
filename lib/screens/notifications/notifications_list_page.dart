@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/notification_service.dart';
 import '../../services/supabase_service.dart';
+import '../../core/localization/app_localizations.dart';
+import '../desktop/desktop_shell_scope.dart';
 
 /// Notifications list page
 class NotificationsListPage extends StatefulWidget {
   /// When true (e.g. desktop layout), no app bar is shown.
   final bool hideAppBarAndBottomNav;
 
-  const NotificationsListPage({super.key, this.hideAppBarAndBottomNav = false});
+  NotificationsListPage({super.key, this.hideAppBarAndBottomNav = false});
 
   @override
   State<NotificationsListPage> createState() => _NotificationsListPageState();
@@ -39,8 +42,10 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
         setState(() => _isLoading = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: Not authenticated. Please login again.'),
+            SnackBar(
+              content: Text(
+                context.tr('Error: Not authenticated. Please login again.'),
+              ),
             ),
           );
         }
@@ -64,7 +69,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
         setState(() => _isLoading = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
                 'Error: User profile not found. Please contact support.',
               ),
@@ -122,7 +127,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                   'This account is not linked to a member profile. '
                   'Role: ${userRole ?? 'Unknown'}',
                 ),
-                duration: const Duration(seconds: 4),
+                duration: Duration(seconds: 4),
               ),
             );
           }
@@ -134,7 +139,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading notifications: $e')),
+          SnackBar(
+            content: Text(context.tr('Error loading notifications: $e')),
+          ),
         );
       }
     }
@@ -193,8 +200,10 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error: Member ID not found. Please try again.'),
+          SnackBar(
+            content: Text(
+              context.tr('Error: Member ID not found. Please try again.'),
+            ),
           ),
         );
       }
@@ -230,7 +239,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading notifications: $e')),
+          SnackBar(
+            content: Text(context.tr('Error loading notifications: $e')),
+          ),
         );
       }
     }
@@ -244,7 +255,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error marking notification as read: $e'),
+            content: Text(context.tr('Error marking notification as read: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -257,8 +268,8 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       await NotificationService.markAllAsRead(memberId: _memberId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All notifications marked as read'),
+          SnackBar(
+            content: Text(context.tr('All notifications marked as read')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -268,7 +279,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error marking all as read: $e'),
+            content: Text(context.tr('Error marking all as read: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -281,8 +292,8 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       await NotificationService.deleteNotification(notificationId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Notification deleted'),
+          SnackBar(
+            content: Text(context.tr('Notification deleted')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -292,7 +303,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error deleting notification: $e'),
+            content: Text(context.tr('Error deleting notification: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -314,25 +325,38 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
 
     switch (relatedType) {
       case 'task':
-        Navigator.of(
-          context,
-        ).pushNamed(RouteNames.taskDetail.replaceAll(':id', relatedId));
+        _openNotificationTarget(RouteNames.taskDetail, relatedId);
         break;
       case 'announcement':
-        // Navigate to announcements/chat page
-        Navigator.of(context).pushNamed(RouteNames.chat);
+        _openNotificationListTarget(RouteNames.desktopChat, RouteNames.chat);
         break;
       case 'event':
-        Navigator.of(
-          context,
-        ).pushNamed(RouteNames.eventDetail.replaceAll(':id', relatedId));
+        _openNotificationTarget(RouteNames.eventDetail, relatedId);
         break;
       case 'member':
-        Navigator.of(
-          context,
-        ).pushNamed(RouteNames.memberDetail.replaceAll(':id', relatedId));
+        _openNotificationTarget(RouteNames.memberDetail, relatedId);
         break;
     }
+  }
+
+  void _openNotificationTarget(String route, String relatedId) {
+    final shell = DesktopShellScope.maybeOf(context);
+    if (shell != null) {
+      shell.pushDetail(route, relatedId);
+      return;
+    }
+
+    Navigator.of(context).pushNamed(route.replaceAll(':id', relatedId));
+  }
+
+  void _openNotificationListTarget(String desktopRoute, String mobileRoute) {
+    final shell = DesktopShellScope.maybeOf(context);
+    if (shell != null) {
+      shell.pushList(desktopRoute);
+      return;
+    }
+
+    Navigator.of(context).pushNamed(mobileRoute);
   }
 
   IconData _getNotificationIcon(String? type) {
@@ -361,9 +385,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       case 'announcement':
         return AppColors.primary;
       case 'event':
-        return Colors.blue;
+        return AppColors.info;
       default:
-        return AppColors.textSecondary;
+        return context.mic.textSecondary;
     }
   }
 
@@ -394,30 +418,30 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
       appBar: widget.hideAppBarAndBottomNav
           ? null
           : AppBar(
-              title: const Text('Notifications'),
+              title: Text(context.tr('Notifications')),
               actions: [
                 if (_unreadCount > 0)
                   TextButton.icon(
                     onPressed: _markAllAsRead,
-                    icon: const Icon(Icons.done_all),
-                    label: const Text('Mark all read'),
+                    icon: Icon(Icons.done_all),
+                    label: Text(context.tr('Mark all read')),
                   ),
               ],
             ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _notifications.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.notifications_none,
                     size: 64,
-                    color: AppColors.textSecondary,
+                    color: context.mic.textSecondary,
                   ),
-                  const SizedBox(height: AppDimensions.spacingMD),
-                  const Text('No notifications'),
+                  SizedBox(height: AppDimensions.spacingMD),
+                  Text(context.tr('No notifications')),
                 ],
               ),
             )
@@ -438,11 +462,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                     direction: DismissDirection.endToStart,
                     background: Container(
                       alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(
-                        right: AppDimensions.paddingMD,
-                      ),
+                      padding: EdgeInsets.only(right: AppDimensions.paddingMD),
                       color: AppColors.error,
-                      child: const Icon(Icons.delete, color: Colors.white),
+                      child: Icon(Icons.delete, color: Colors.white),
                     ),
                     onDismissed: (_) =>
                         _deleteNotification(notification['id'].toString()),
@@ -481,19 +503,19 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               Text(
                                 notification['message'] ?? '',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (createdAt != null) ...[
-                                const SizedBox(height: 4),
+                                SizedBox(height: 4),
                                 Text(
                                   _formatDate(createdAt),
                                   style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
-                                        color: AppColors.textSecondary,
+                                        color: context.mic.textSecondary,
                                       ),
                                 ),
                               ],
@@ -501,7 +523,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
                           ),
                           trailing: isRead
                               ? null
-                              : const Icon(
+                              : Icon(
                                   Icons.circle,
                                   size: 8,
                                   color: AppColors.primary,

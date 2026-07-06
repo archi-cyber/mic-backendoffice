@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../services/class_service.dart';
 import '../../services/offline_queue_service.dart';
-import '../../widgets/attendance_toggle.dart';
 
-/// Attendance-taking UI with fast toggles and bulk select
+/// Attendance-taking UI with MIC styling, search, and quick bulk actions.
 class AttendancePage extends StatefulWidget {
   final String sessionId;
-
-  /// When null (e.g. opened from desktop stack), members are loaded from session's class.
   final List<Map<String, dynamic>>? members;
-
-  /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
   const AttendancePage({
@@ -29,22 +28,80 @@ class AttendancePage extends StatefulWidget {
 class _AttendancePageState extends State<AttendancePage> {
   final Map<String, String> _attendanceStatus = {};
   final Set<String> _selectedMembers = {};
+  final TextEditingController _searchController = TextEditingController();
   bool _isSaving = false;
   bool _isSelectMode = false;
-  List<Map<String, dynamic>>? _members;
   bool _isLoadingMembers = false;
+  bool _isLoadingSession = true;
+  List<Map<String, dynamic>>? _members;
+  Map<String, dynamic>? _session;
+  Map<String, dynamic>? _training;
 
   List<Map<String, dynamic>> get _effectiveMembers =>
       widget.members ?? _members ?? [];
 
+  List<Map<String, dynamic>> get _filteredMembers {
+    final query = _searchController.text.toLowerCase().trim();
+    if (query.isEmpty) return _effectiveMembers;
+    return _effectiveMembers.where((member) {
+      final firstName = (member['first_name'] ?? '').toString().toLowerCase();
+      final lastName = (member['last_name'] ?? '').toString().toLowerCase();
+      final email = (member['email'] ?? '').toString().toLowerCase();
+      return firstName.contains(query) ||
+          lastName.contains(query) ||
+          '$firstName $lastName'.contains(query) ||
+          email.contains(query);
+    }).toList();
+  }
+
+  int get _presentCount => _attendanceStatus.values
+      .where((status) => status == 'present')
+      .length;
+
+  int get _lateCount =>
+      _attendanceStatus.values.where((status) => status == 'late').length;
+
+  int get _absentCount => _attendanceStatus.values
+      .where((status) => status == 'absent')
+      .length;
+
+  int get _unmarkedCount =>
+      _effectiveMembers.length - _attendanceStatus.length;
+
   @override
   void initState() {
     super.initState();
+    _loadSessionInfo();
     if (widget.members != null && widget.members!.isNotEmpty) {
       _members = widget.members;
       _loadExistingAttendance();
     } else {
       _loadMembersFromSession();
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSessionInfo() async {
+    try {
+      final session = await ClassService.getSessionById(widget.sessionId);
+      final classId = session['class_id']?.toString();
+      Map<String, dynamic>? training;
+      if (classId != null) {
+        training = await ClassService.getClassById(classId);
+      }
+      if (!mounted) return;
+      setState(() {
+        _session = session;
+        _training = training;
+        _isLoadingSession = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingSession = false);
     }
   }
 
@@ -56,9 +113,8 @@ class _AttendancePageState extends State<AttendancePage> {
       if (classId == null) throw Exception('Session has no class_id');
       final enrollments = await ClassService.getClassMembers(classId);
       final memberList = enrollments
-          .map((e) => e['members'] as Map<String, dynamic>?)
-          .where((m) => m != null)
-          .cast<Map<String, dynamic>>()
+          .map((enrollment) => enrollment['members'] as Map<String, dynamic>?)
+          .whereType<Map<String, dynamic>>()
           .toList();
       if (!mounted) return;
       setState(() {
@@ -67,15 +123,14 @@ class _AttendancePageState extends State<AttendancePage> {
       });
       _loadExistingAttendance();
     } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingMembers = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading members: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _isLoadingMembers = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Error loading members: $e')),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
@@ -84,7 +139,7 @@ class _AttendancePageState extends State<AttendancePage> {
       final attendanceRecords = await ClassService.getSessionAttendance(
         widget.sessionId,
       );
-
+      if (!mounted) return;
       setState(() {
         for (final record in attendanceRecords) {
           final memberId = record['member_id']?.toString();
@@ -95,7 +150,6 @@ class _AttendancePageState extends State<AttendancePage> {
         }
       });
     } catch (e) {
-      // If error, continue with empty attendance
       debugPrint('Error loading existing attendance: $e');
     }
   }
@@ -115,65 +169,56 @@ class _AttendancePageState extends State<AttendancePage> {
 
   Future<void> _saveAttendance() async {
     setState(() => _isSaving = true);
-
     try {
-      // Prepare attendance records
       final records = _attendanceStatus.entries
           .map((entry) => {'member_id': entry.key, 'status': entry.value})
           .toList();
-
-      // Check if online
       final isOnline = await OfflineQueueService.isOnline();
 
       if (isOnline) {
-        // Save directly to backend
         await ClassService.recordAttendance(
           sessionId: widget.sessionId,
           attendanceRecords: records,
         );
       } else {
-        // Queue for offline sync
         await OfflineQueueService.queueOperation(
           type: 'attendance',
           data: {'session_id': widget.sessionId, 'records': records},
         );
       }
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isOnline
-                  ? 'Attendance saved successfully'
-                  : 'Attendance queued for sync',
-            ),
-            backgroundColor: AppColors.success,
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isOnline
+                ? context.tr('Attendance saved successfully')
+                : context.tr('Attendance queued for sync'),
           ),
-        );
-        if (widget.onClose != null) {
-          widget.onClose!();
-        } else {
-          Navigator.of(context).pop();
-        }
+          backgroundColor: AppColors.success,
+        ),
+      );
+      if (widget.onClose != null) {
+        widget.onClose!();
+      } else {
+        Navigator.of(context).pop();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving attendance: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Error saving attendance: $e')),
+          backgroundColor: AppColors.error,
+        ),
+      );
     }
   }
 
   void _bulkMarkPresent() {
     setState(() {
       for (final member in _effectiveMembers) {
-        final memberId = member['id'].toString();
-        _attendanceStatus[memberId] = 'present';
+        _attendanceStatus[member['id'].toString()] = 'present';
       }
     });
   }
@@ -181,368 +226,590 @@ class _AttendancePageState extends State<AttendancePage> {
   void _bulkMarkAbsent() {
     setState(() {
       for (final member in _effectiveMembers) {
-        final memberId = member['id'].toString();
-        _attendanceStatus[memberId] = 'absent';
+        _attendanceStatus[member['id'].toString()] = 'absent';
       }
     });
+  }
+
+  String? _sessionDateLabel() {
+    final raw = _session?['session_date']?.toString();
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return DateFormat.yMMMEd().format(DateTime.parse(raw));
+    } catch (_) {
+      return raw;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width >= 700;
 
-    if (_isLoadingMembers) {
+    if (_isLoadingMembers || _isLoadingSession) {
       return Scaffold(
-        appBar: widget.onClose != null
-            ? AppBar(
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: widget.onClose,
-                ),
-                title: const Text('Take Attendance'),
-              )
-            : AppBar(title: const Text('Take Attendance')),
+        backgroundColor: context.mic.background,
+        appBar: _buildAppBar(context, isDesktop),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: isDesktop
-          ? null
-          : AppBar(
-              leading: widget.onClose != null
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: widget.onClose,
-                    )
-                  : null,
-              title: const Text('Take Attendance'),
-              actions: [
-                if (_isSelectMode)
-                  IconButton(
-                    icon: const Icon(Icons.check),
-                    onPressed: () {
-                      setState(() {
-                        for (final memberId in _selectedMembers) {
-                          _attendanceStatus[memberId] = 'present';
-                        }
-                        _isSelectMode = false;
-                        _selectedMembers.clear();
-                      });
-                    },
+      backgroundColor: context.mic.background,
+      appBar: isDesktop ? null : _buildAppBar(context, isDesktop),
+      body: Column(
+        children: [
+          Expanded(
+            child: NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverToBoxAdapter(child: _buildHeaderBanner()),
+                SliverToBoxAdapter(child: SizedBox(height: AppDimensions.spacingMD)),
+                SliverToBoxAdapter(child: _buildStatsRow()),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      AppDimensions.paddingMD,
+                      AppDimensions.spacingMD,
+                      AppDimensions.paddingMD,
+                      AppDimensions.spacingSM,
+                    ),
+                    child: _buildActionRow(isDesktop),
                   ),
-                IconButton(
-                  icon: Icon(_isSelectMode ? Icons.close : Icons.select_all),
-                  onPressed: () {
-                    setState(() {
-                      _isSelectMode = !_isSelectMode;
-                      if (!_isSelectMode) {
-                        _selectedMembers.clear();
-                      }
-                    });
-                  },
+                ),
+                SliverAppBar(
+                  pinned: true,
+                  automaticallyImplyLeading: false,
+                  backgroundColor: context.mic.background,
+                  surfaceTintColor: context.mic.background,
+                  elevation: innerBoxIsScrolled ? 1 : 0,
+                  scrolledUnderElevation: 1,
+                  toolbarHeight: 72,
+                  titleSpacing: AppDimensions.paddingMD,
+                  title: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: context.tr('Search members...'),
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: context.mic.surface,
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusMD),
+                        borderSide: BorderSide(color: context.mic.border),
+                      ),
+                    ),
+                  ),
                 ),
               ],
+              body: _buildMembersList(),
             ),
-      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
-      bottomNavigationBar: isDesktop ? null : _buildSaveBar(context),
-    );
-  }
-
-  Widget _buildDesktopBody(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header: back (desktop stack) + title + actions + save
-            Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.onClose != null)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: AppDimensions.spacingSM,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.arrow_back),
-                        onPressed: widget.onClose,
-                        tooltip: 'Back',
-                      ),
-                    ),
-                  Text(
-                    'Take Attendance',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.spacingMD),
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _bulkMarkPresent,
-                        icon: const Icon(Icons.check_circle_outline, size: 20),
-                        label: const Text('All Present'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 40),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.spacingSM),
-                      OutlinedButton.icon(
-                        onPressed: _bulkMarkAbsent,
-                        icon: const Icon(Icons.cancel_outlined, size: 20),
-                        label: const Text('All Absent'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 40),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.spacingMD),
-                      if (_isSelectMode)
-                        IconButton(
-                          icon: const Icon(Icons.check),
-                          onPressed: () {
-                            setState(() {
-                              for (final memberId in _selectedMembers) {
-                                _attendanceStatus[memberId] = 'present';
-                              }
-                              _isSelectMode = false;
-                              _selectedMembers.clear();
-                            });
-                          },
-                          tooltip: 'Mark selected present',
-                        ),
-                      IconButton(
-                        icon: Icon(
-                          _isSelectMode ? Icons.close : Icons.select_all,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _isSelectMode = !_isSelectMode;
-                            if (!_isSelectMode) {
-                              _selectedMembers.clear();
-                            }
-                          });
-                        },
-                        tooltip: _isSelectMode
-                            ? 'Cancel selection'
-                            : 'Select all',
-                      ),
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: _isSaving ? null : _saveAttendance,
-                        icon: _isSaving
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.save, size: 20),
-                        label: Text(
-                          _isSaving ? 'Saving...' : 'Save Attendance',
-                        ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(0, 40),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppDimensions.paddingLG,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // Table of members and status
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingMD),
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                  ),
-                  columns: const [
-                    DataColumn(label: Text('Member')),
-                    DataColumn(label: Text('Present'), numeric: true),
-                    DataColumn(label: Text('Late'), numeric: true),
-                    DataColumn(label: Text('Absent'), numeric: true),
-                  ],
-                  rows: _effectiveMembers.map((member) {
-                    final memberId = member['id'].toString();
-                    final memberName =
-                        '${member['first_name']} ${member['last_name']}';
-                    final status = _attendanceStatus[memberId];
-                    return DataRow(
-                      cells: [
-                        DataCell(
-                          Row(
-                            children: [
-                              if (_isSelectMode)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: AppDimensions.spacingSM,
-                                  ),
-                                  child: Checkbox(
-                                    value:
-                                        status != 'absent' &&
-                                        _selectedMembers.contains(memberId),
-                                    onChanged: (value) {
-                                      setState(() {
-                                        if (value == true) {
-                                          _attendanceStatus[memberId] =
-                                              'present';
-                                          _selectedMembers.add(memberId);
-                                        } else {
-                                          _attendanceStatus[memberId] =
-                                              'absent';
-                                          _selectedMembers.remove(memberId);
-                                        }
-                                      });
-                                    },
-                                  ),
-                                ),
-                              Text(
-                                memberName,
-                                style: Theme.of(context).textTheme.bodyLarge,
-                              ),
-                            ],
-                          ),
-                        ),
-                        DataCell(
-                          _DesktopStatusChip(
-                            label: 'P',
-                            isSelected: status == 'present',
-                            color: AppColors.success,
-                            onTap: () =>
-                                _handleStatusChanged(memberId, 'present'),
-                          ),
-                        ),
-                        DataCell(
-                          _DesktopStatusChip(
-                            label: 'L',
-                            isSelected: status == 'late',
-                            color: AppColors.warning,
-                            onTap: () => _handleStatusChanged(memberId, 'late'),
-                          ),
-                        ),
-                        DataCell(
-                          _DesktopStatusChip(
-                            label: 'A',
-                            isSelected: status == 'absent',
-                            color: AppColors.error,
-                            onTap: () =>
-                                _handleStatusChanged(memberId, 'absent'),
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+          _buildSaveBar(context, isDesktop),
+        ],
       ),
     );
   }
 
-  Widget _buildMobileBody(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          color: AppColors.background,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _bulkMarkPresent,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('All Present'),
-              ),
-              OutlinedButton.icon(
-                onPressed: _bulkMarkAbsent,
-                icon: const Icon(Icons.cancel_outlined),
-                label: const Text('All Absent'),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _effectiveMembers.length,
-            itemBuilder: (context, index) {
-              final member = _effectiveMembers[index];
-              final memberId = member['id'].toString();
-              final memberName =
-                  '${member['first_name']} ${member['last_name']}';
-
-              return AttendanceToggle(
-                memberId: memberId,
-                memberName: memberName,
-                currentStatus: _attendanceStatus[memberId],
-                onStatusChanged: _handleStatusChanged,
-              );
+  PreferredSizeWidget? _buildAppBar(BuildContext context, bool isDesktop) {
+    if (isDesktop) return null;
+    return AppBar(
+      leading: widget.onClose != null
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: widget.onClose,
+            )
+          : null,
+      title: Text(context.tr('Mark Attendance')),
+      actions: [
+        if (_isSelectMode)
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: () {
+              setState(() {
+                for (final memberId in _selectedMembers) {
+                  _attendanceStatus[memberId] = 'present';
+                }
+                _isSelectMode = false;
+                _selectedMembers.clear();
+              });
             },
           ),
+        IconButton(
+          icon: Icon(_isSelectMode ? Icons.close : Icons.select_all),
+          onPressed: () {
+            setState(() {
+              _isSelectMode = !_isSelectMode;
+              if (!_isSelectMode) _selectedMembers.clear();
+            });
+          },
         ),
       ],
     );
   }
 
-  Widget _buildSaveBar(BuildContext context) {
+  Widget _buildHeaderBanner() {
+    final trainingName =
+        _training?['name']?.toString() ?? context.tr('Training');
+    final sessionDate = _sessionDateLabel();
+
     return Container(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      margin: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        widget.onClose != null ? AppDimensions.spacingSM : 0,
+        AppDimensions.paddingMD,
+        0,
+      ),
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primary.withValues(alpha: 0.16),
+            context.mic.surfaceTint,
+            context.mic.surface,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          if (widget.onClose != null)
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: widget.onClose,
+              tooltip: context.tr('Back'),
+            ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('Mark Attendance'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.mic.appBarForeground,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  trainingName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: context.mic.appBarForeground,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (sessionDate != null) ...[
+                  SizedBox(height: AppDimensions.spacingXS),
+                  Text(
+                    sessionDate,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.mic.textSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.fact_check_outlined,
+              color: AppColors.primary,
+              size: 30,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    return SizedBox(
+      height: 96,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        children: [
+          _StatChip(
+            label: context.tr('Present'),
+            value: '$_presentCount',
+            icon: Icons.check_circle_outline,
+            color: AppColors.success,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          _StatChip(
+            label: context.tr('Late'),
+            value: '$_lateCount',
+            icon: Icons.schedule_outlined,
+            color: AppColors.warning,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          _StatChip(
+            label: context.tr('Absent'),
+            value: '$_absentCount',
+            icon: Icons.cancel_outlined,
+            color: AppColors.error,
+          ),
+          SizedBox(width: AppDimensions.spacingSM),
+          _StatChip(
+            label: context.tr('Unmarked'),
+            value: '$_unmarkedCount',
+            icon: Icons.help_outline,
+            color: context.mic.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionRow(bool isDesktop) {
+    return Wrap(
+      spacing: AppDimensions.spacingSM,
+      runSpacing: AppDimensions.spacingSM,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _bulkMarkPresent,
+          icon: const Icon(Icons.check_circle_outline, size: 18),
+          label: Text(context.tr('All Present')),
+        ),
+        OutlinedButton.icon(
+          onPressed: _bulkMarkAbsent,
+          icon: const Icon(Icons.cancel_outlined, size: 18),
+          label: Text(context.tr('All Absent')),
+        ),
+        if (_isSelectMode)
+          IconButton(
+            icon: const Icon(Icons.check),
+            onPressed: () {
+              setState(() {
+                for (final memberId in _selectedMembers) {
+                  _attendanceStatus[memberId] = 'present';
+                }
+                _isSelectMode = false;
+                _selectedMembers.clear();
+              });
+            },
+            tooltip: context.tr('Mark selected present'),
+          ),
+        IconButton(
+          icon: Icon(_isSelectMode ? Icons.close : Icons.select_all),
+          onPressed: () {
+            setState(() {
+              _isSelectMode = !_isSelectMode;
+              if (!_isSelectMode) _selectedMembers.clear();
+            });
+          },
+          tooltip: _isSelectMode
+              ? context.tr('Cancel')
+              : context.tr('Select all'),
+        ),
+        if (isDesktop)
+          FilledButton.icon(
+            onPressed: _isSaving ? null : _saveAttendance,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined, size: 18),
+            label: Text(
+              _isSaving
+                  ? context.tr('Saving...')
+                  : context.tr('Save Attendance'),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildMembersList() {
+    final members = _filteredMembers;
+    if (members.isEmpty) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.people_outline,
+                      size: 56,
+                      color: context.mic.textSecondary,
+                    ),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Text(
+                      _searchController.text.isNotEmpty
+                          ? context.tr('No members found')
+                          : context.tr('No members enrolled'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        AppDimensions.spacingMD,
+        AppDimensions.paddingMD,
+        AppDimensions.paddingXL,
+      ),
+      itemCount: members.length,
+      itemBuilder: (context, index) {
+        final member = members[index];
+        final memberId = member['id'].toString();
+        final memberName =
+            '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'.trim();
+        final status = _attendanceStatus[memberId];
+
+        return _MemberAttendanceCard(
+          memberName: memberName.isEmpty
+              ? context.tr('Unknown')
+              : memberName,
+          status: status,
+          isSelectMode: _isSelectMode,
+          isSelected: status != 'absent' && _selectedMembers.contains(memberId),
+          onSelectChanged: (selected) {
+            setState(() {
+              if (selected) {
+                _attendanceStatus[memberId] = 'present';
+                _selectedMembers.add(memberId);
+              } else {
+                _attendanceStatus[memberId] = 'absent';
+                _selectedMembers.remove(memberId);
+              }
+            });
+          },
+          onStatusChanged: (newStatus) =>
+              _handleStatusChanged(memberId, newStatus),
+        );
+      },
+    );
+  }
+
+  Widget _buildSaveBar(BuildContext context, bool isDesktop) {
+    if (isDesktop) return const SizedBox.shrink();
+
+    return Container(
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        border: Border(top: BorderSide(color: context.mic.border)),
         boxShadow: [
           BoxShadow(
             color: AppColors.shadow,
-            blurRadius: 4,
+            blurRadius: 8,
             offset: const Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
-        child: ElevatedButton(
+        top: false,
+        child: FilledButton.icon(
           onPressed: _isSaving ? null : _saveAttendance,
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(
-              double.infinity,
-              AppDimensions.buttonHeightLG,
-            ),
-          ),
-          child: _isSaving
+          icon: _isSaving
               ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.textLight,
+                  ),
                 )
-              : const Text('Save Attendance'),
+              : const Icon(Icons.save_outlined),
+          label: Text(
+            _isSaving
+                ? context.tr('Saving...')
+                : context.tr('Save Attendance'),
+          ),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(double.infinity, AppDimensions.buttonHeightLG),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Desktop-only status chip for DataTable cell
-class _DesktopStatusChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final Color color;
-  final VoidCallback onTap;
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 
-  const _DesktopStatusChip({
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 132,
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 20),
+          const Spacer(),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: context.mic.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberAttendanceCard extends StatelessWidget {
+  const _MemberAttendanceCard({
+    required this.memberName,
+    required this.status,
+    required this.isSelectMode,
+    required this.isSelected,
+    required this.onSelectChanged,
+    required this.onStatusChanged,
+  });
+
+  final String memberName;
+  final String? status;
+  final bool isSelectMode;
+  final bool isSelected;
+  final ValueChanged<bool> onSelectChanged;
+  final ValueChanged<String> onStatusChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.only(bottom: AppDimensions.spacingSM),
+      decoration: BoxDecoration(
+        color: context.mic.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: context.mic.border),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        child: Row(
+          children: [
+            if (isSelectMode)
+              Padding(
+                padding: EdgeInsets.only(right: AppDimensions.spacingSM),
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (value) => onSelectChanged(value == true),
+                ),
+              ),
+            CircleAvatar(
+              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+              child: Text(
+                memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            SizedBox(width: AppDimensions.spacingMD),
+            Expanded(
+              child: Text(
+                memberName,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.mic.appBarForeground,
+                ),
+              ),
+            ),
+            _StatusButton(
+              label: 'P',
+              isSelected: status == 'present',
+              color: AppColors.success,
+              onTap: () => onStatusChanged('present'),
+            ),
+            SizedBox(width: AppDimensions.spacingXS),
+            _StatusButton(
+              label: 'L',
+              isSelected: status == 'late',
+              color: AppColors.warning,
+              onTap: () => onStatusChanged('late'),
+            ),
+            SizedBox(width: AppDimensions.spacingXS),
+            _StatusButton(
+              label: 'A',
+              isSelected: status == 'absent',
+              color: AppColors.error,
+              onTap: () => onStatusChanged('absent'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusButton extends StatelessWidget {
+  const _StatusButton({
     required this.label,
     required this.isSelected,
     required this.color,
     required this.onTap,
   });
+
+  final String label;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -550,12 +817,12 @@ class _DesktopStatusChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
       child: Container(
-        width: 44,
-        height: 44,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: isSelected ? color : Colors.transparent,
           border: Border.all(
-            color: isSelected ? color : AppColors.border,
+            color: isSelected ? color : context.mic.border,
             width: 2,
           ),
           borderRadius: BorderRadius.circular(AppDimensions.radiusSM),

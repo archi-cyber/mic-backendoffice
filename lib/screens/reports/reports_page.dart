@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../desktop/desktop_shell_scope.dart';
-import '../../services/member_service.dart';
-import '../../services/class_service.dart';
-import 'member_report_page.dart';
-import 'class_report_page.dart';
+import 'members_report_page.dart';
+import 'trainings_report_page.dart';
 import 'new_comer_report_page.dart';
 
-/// Reports page with member and training reports
+/// Reports hub with links to member, training, and newcomer reports.
 class ReportsPage extends StatefulWidget {
   final bool hideAppBarAndBottomNav;
 
@@ -23,97 +23,140 @@ class ReportsPage extends StatefulWidget {
 class _ReportsPageState extends State<ReportsPage> {
   @override
   Widget build(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
-    final isDesktop = widget.hideAppBarAndBottomNav;
-
     return Scaffold(
+      backgroundColor: context.mic.background,
       appBar: widget.hideAppBarAndBottomNav
           ? null
-          : AppBar(title: Text(localizations?.statistics ?? 'Reports')),
-      body: isDesktop ? _buildDesktopBody(context) : _buildMobileBody(context),
-    );
-  }
+          : AppBar(title: Text(context.tr('Statistics'))),
+      body: ListView(
+        padding: EdgeInsets.only(bottom: AppDimensions.paddingXL),
+        children: [
+          _buildHeaderBanner(),
+          SizedBox(height: AppDimensions.spacingLG),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 760;
+                final cards = _reportCards(context);
 
-  Widget _buildDesktopBody(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                AppLocalizations.of(context)?.statistics ?? 'Reports',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: AppDimensions.spacingXL),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: _ReportCard(
-                      title: 'Member Report',
-                      description: 'View attendance and giving for a member',
-                      icon: Icons.person_outline,
-                      onTap: () => _showMemberSelectionDialog(context),
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.spacingLG),
-                  Expanded(
-                    child: _ReportCard(
-                      title: 'Training Report',
-                      description: 'View attendance statistics for a training',
-                      icon: Icons.class_outlined,
-                      onTap: () => _showClassSelectionDialog(context),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppDimensions.spacingLG),
-              _ReportCard(
-                title: 'New Comers Stats',
-                description:
-                    'Weekly, monthly, yearly and custom newcomer reports',
-                icon: Icons.groups_2_outlined,
-                onTap: () => _openNewComerReport(context),
-              ),
-            ],
+                if (isWide) {
+                  return Wrap(
+                    spacing: AppDimensions.spacingMD,
+                    runSpacing: AppDimensions.spacingMD,
+                    children: cards
+                        .map(
+                          (card) => SizedBox(
+                            width: (constraints.maxWidth -
+                                    AppDimensions.spacingMD) /
+                                2,
+                            child: card,
+                          ),
+                        )
+                        .toList(),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    for (var i = 0; i < cards.length; i++) ...[
+                      cards[i],
+                      if (i < cards.length - 1)
+                        SizedBox(height: AppDimensions.spacingMD),
+                    ],
+                  ],
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  Widget _buildMobileBody(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
-      children: [
-        _ReportCard(
-          title: 'Member Report',
-          description: 'View attendance and giving for a member',
-          icon: Icons.person_outline,
-          onTap: () => _showMemberSelectionDialog(context),
+  List<Widget> _reportCards(BuildContext context) {
+    return [
+      _ReportTypeCard(
+        title: context.tr('Member Report'),
+        description: context.tr(
+          'Weekly, monthly, yearly and custom reports for all members',
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _ReportCard(
-          title: 'Training Report',
-          description: 'View attendance statistics for a training',
-          icon: Icons.class_outlined,
-          onTap: () => _showClassSelectionDialog(context),
+        icon: Icons.groups_outlined,
+        color: AppColors.primary,
+        onTap: () => _openMembersReport(context),
+      ),
+      _ReportTypeCard(
+        title: context.tr('Training Report'),
+        description: context.tr(
+          'Review training summaries and open detailed reports',
         ),
-        const SizedBox(height: AppDimensions.spacingMD),
-        _ReportCard(
-          title: 'New Comers Stats',
-          description:
-              'Weekly, monthly, yearly and custom newcomer reports',
-          icon: Icons.groups_2_outlined,
-          onTap: () => _openNewComerReport(context),
+        icon: Icons.school_outlined,
+        color: AppColors.secondaryDark,
+        onTap: () => _openTrainingsReport(context),
+      ),
+      _ReportTypeCard(
+        title: context.tr('New Comers Report'),
+        description: context.tr(
+          'Weekly, monthly, yearly and custom newcomer reports',
         ),
-      ],
+        icon: Icons.fiber_new_rounded,
+        color: AppColors.accent,
+        onTap: () => _openNewComerReport(context),
+      ),
+    ];
+  }
+
+  Widget _buildHeaderBanner() {
+    return Container(
+      margin: EdgeInsets.fromLTRB(
+        AppDimensions.paddingMD,
+        widget.hideAppBarAndBottomNav ? 0 : AppDimensions.spacingSM,
+        AppDimensions.paddingMD,
+        0,
+      ),
+      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      decoration: BoxDecoration(
+        gradient: context.mic.headerGradient,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: context.mic.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.tr('Statistics'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.mic.appBarForeground,
+                  ),
+                ),
+                SizedBox(height: AppDimensions.spacingXS),
+                Text(
+                  context.tr('Insights and attendance reports for your church'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            decoration: BoxDecoration(
+              color: AppColors.info.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.insights_outlined,
+              color: AppColors.info,
+              size: 30,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -126,468 +169,123 @@ class _ReportsPageState extends State<ReportsPage> {
     }
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const NewComerReportPage()),
+      MaterialPageRoute(builder: (context) => NewComerReportPage()),
     );
   }
 
-  void _showMemberSelectionDialog(BuildContext context) async {
-    try {
-      final members = await MemberService.getMembers(limit: 100);
-      if (!context.mounted) return;
-
-      final scope = DesktopShellScope.maybeOf(context);
-      final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
-      final narrowDialog = openAsStack;
-
-      showDialog(
-        context: context,
-        builder: (context) => _MemberSelectionDialog(
-          members: members,
-          narrowForDesktop: narrowDialog,
-          onSelect: (memberId) {
-            Navigator.pop(context);
-            if (openAsStack) {
-              scope.pushDetail(RouteNames.memberReport, memberId);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MemberReportPage(memberId: memberId),
-                ),
-              );
-            }
-          },
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading members: $e')));
-      }
+  void _openMembersReport(BuildContext context) {
+    final scope = DesktopShellScope.maybeOf(context);
+    final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
+    if (openAsStack) {
+      scope.pushDetail(RouteNames.membersReport, '');
+      return;
     }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const MembersReportPage()),
+    );
   }
 
-  void _showClassSelectionDialog(BuildContext context) async {
-    try {
-      final classes = await ClassService.getClasses(limit: 100);
-      if (!context.mounted) return;
-
-      final scope = DesktopShellScope.maybeOf(context);
-      final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
-      final narrowDialog = openAsStack;
-
-      showDialog(
-        context: context,
-        builder: (context) => _ClassSelectionDialog(
-          classes: classes,
-          narrowForDesktop: narrowDialog,
-          onSelect: (classId) {
-            Navigator.pop(context);
-            if (openAsStack) {
-              scope.pushDetail(RouteNames.classReport, classId);
-            } else {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ClassReportPage(classId: classId),
-                ),
-              );
-            }
-          },
-        ),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading trainings: $e')));
-      }
+  void _openTrainingsReport(BuildContext context) {
+    final scope = DesktopShellScope.maybeOf(context);
+    final openAsStack = scope != null && widget.hideAppBarAndBottomNav;
+    if (openAsStack) {
+      scope.pushDetail(RouteNames.trainingsReport, '');
+      return;
     }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TrainingsReportPage()),
+    );
   }
 }
 
-class _ReportCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ReportCard({
+class _ReportTypeCard extends StatelessWidget {
+  const _ReportTypeCard({
     required this.title,
     required this.description,
     required this.icon,
+    required this.color,
     required this.onTap,
   });
 
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
-          child: Row(
-            children: [
-              Icon(icon, size: 48, color: AppColors.primary),
-              const SizedBox(width: AppDimensions.spacingMD),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: AppDimensions.spacingXS),
-                    Text(
-                      description,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: context.mic.surface,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+            border: Border.all(color: color.withValues(alpha: 0.22)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withValues(alpha: 0.1),
+                context.mic.surface,
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              const Icon(Icons.chevron_right),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MemberSelectionDialog extends StatefulWidget {
-  final List<Map<String, dynamic>> members;
-  final bool narrowForDesktop;
-  final void Function(String memberId) onSelect;
-
-  const _MemberSelectionDialog({
-    required this.members,
-    this.narrowForDesktop = false,
-    required this.onSelect,
-  });
-
-  @override
-  State<_MemberSelectionDialog> createState() => _MemberSelectionDialogState();
-}
-
-class _MemberSelectionDialogState extends State<_MemberSelectionDialog> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _filteredMembers = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredMembers = widget.members;
-    _searchController.addListener(_filterMembers);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterMembers() {
-    final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) {
-      _filteredMembers = widget.members;
-    } else {
-      _filteredMembers = widget.members.where((member) {
-        final firstName = (member['first_name'] ?? '').toString().toLowerCase();
-        final lastName = (member['last_name'] ?? '').toString().toLowerCase();
-        final email = (member['email'] ?? '').toString().toLowerCase();
-        final phone = (member['phone'] ?? '').toString().toLowerCase();
-
-        return firstName.contains(query) ||
-            lastName.contains(query) ||
-            '$firstName $lastName'.contains(query) ||
-            email.contains(query) ||
-            phone.contains(query);
-      }).toList();
-    }
-    setState(() {}); // Rebuild to update UI
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Select Member'),
-      contentPadding: widget.narrowForDesktop
-          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
-          : null,
-      content: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: 500,
-          maxWidth: widget.narrowForDesktop ? 480 : double.infinity,
-        ),
-        child: SizedBox(
-          width: widget.narrowForDesktop ? 480 : double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Search Bar
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search members...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          child: Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
+                  child: Icon(icon, color: color, size: 28),
                 ),
-                onChanged: (_) =>
-                    setState(() {}), // Rebuild to update suffixIcon
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              // Members List
-              Flexible(
-                child: _filteredMembers.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 48,
-                              color: Theme.of(context).disabledColor,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingSM),
-                            Text(
-                              'No members found',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            if (_searchController.text.isNotEmpty) ...[
-                              const SizedBox(height: AppDimensions.spacingXS),
-                              Text(
-                                'Try adjusting your search',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ],
+                SizedBox(width: AppDimensions.spacingMD),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: context.mic.appBarForeground,
                         ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: false,
-                        itemCount: _filteredMembers.length,
-                        itemBuilder: (context, index) {
-                          final member = _filteredMembers[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                              child: Icon(
-                                Icons.person,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            title: Text(
-                              '${member['first_name']} ${member['last_name']}',
-                            ),
-                            subtitle: member['email'] != null
-                                ? Text(member['email'].toString())
-                                : null,
-                            onTap: () {
-                              widget.onSelect(member['id'].toString());
-                            },
-                          );
-                        },
                       ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-      ],
-    );
-  }
-}
-
-class _ClassSelectionDialog extends StatefulWidget {
-  final List<Map<String, dynamic>> classes;
-  final bool narrowForDesktop;
-  final void Function(String classId) onSelect;
-
-  const _ClassSelectionDialog({
-    required this.classes,
-    this.narrowForDesktop = false,
-    required this.onSelect,
-  });
-
-  @override
-  State<_ClassSelectionDialog> createState() => _ClassSelectionDialogState();
-}
-
-class _ClassSelectionDialogState extends State<_ClassSelectionDialog> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Map<String, dynamic>> _filteredClasses = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filteredClasses = widget.classes;
-    _searchController.addListener(_filterClasses);
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _filterClasses() {
-    final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) {
-      _filteredClasses = widget.classes;
-    } else {
-      _filteredClasses = widget.classes.where((classItem) {
-        final name = (classItem['name'] ?? '').toString().toLowerCase();
-        final description = (classItem['description'] ?? '')
-            .toString()
-            .toLowerCase();
-
-        return name.contains(query) || description.contains(query);
-      }).toList();
-    }
-    setState(() {}); // Rebuild to update UI
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Select Training'),
-      contentPadding: widget.narrowForDesktop
-          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
-          : null,
-      content: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: 500,
-          maxWidth: widget.narrowForDesktop ? 480 : double.infinity,
-        ),
-        child: SizedBox(
-          width: widget.narrowForDesktop ? 480 : double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Search Bar
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search trainings...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                          },
-                        )
-                      : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                      SizedBox(height: AppDimensions.spacingXS),
+                      Text(
+                        description,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.mic.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
-                  filled: true,
-                  fillColor: Theme.of(context).cardColor,
                 ),
-                onChanged: (_) =>
-                    setState(() {}), // Rebuild to update suffixIcon
-              ),
-              const SizedBox(height: AppDimensions.spacingMD),
-              // Classes List
-              Flexible(
-                child: widget.classes.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.class_outlined,
-                              size: 48,
-                              color: Theme.of(context).disabledColor,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingSM),
-                            Text(
-                              'No trainings available',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
-                        ),
-                      )
-                    : _filteredClasses.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.search_off,
-                              size: 48,
-                              color: Theme.of(context).disabledColor,
-                            ),
-                            const SizedBox(height: AppDimensions.spacingSM),
-                            Text(
-                              'No trainings found',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            if (_searchController.text.isNotEmpty) ...[
-                              const SizedBox(height: AppDimensions.spacingXS),
-                              Text(
-                                'Try adjusting your search',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: false,
-                        itemCount: _filteredClasses.length,
-                        itemBuilder: (context, index) {
-                          final classItem = _filteredClasses[index];
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                              child: Icon(
-                                Icons.class_outlined,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            title: Text(
-                              classItem['name'] ?? 'Unnamed Training',
-                            ),
-                            subtitle: classItem['description'] != null
-                                ? Text(classItem['description'].toString())
-                                : null,
-                            onTap: () {
-                              widget.onSelect(classItem['id'].toString());
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
+                Icon(Icons.arrow_forward_ios, size: 16, color: color),
+              ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-      ],
     );
   }
 }

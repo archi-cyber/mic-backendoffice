@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
@@ -9,7 +10,7 @@ import '../desktop/desktop_shell.dart';
 
 /// First-time password change screen (blocks other actions)
 class ChangePasswordPage extends StatefulWidget {
-  const ChangePasswordPage({super.key});
+  ChangePasswordPage({super.key});
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -51,8 +52,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         useDesktop ? RouteNames.desktopMain : RouteNames.dashboard,
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password changed successfully'),
+        SnackBar(
+          content: Text(context.tr('Password changed successfully')),
           backgroundColor: AppColors.success,
         ),
       );
@@ -70,7 +71,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return WillPopScope(
@@ -79,7 +79,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         body: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingLG),
+              padding: EdgeInsets.all(AppDimensions.paddingLG),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -91,28 +91,28 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       size: 80,
                       color: AppColors.warning,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     Text(
                       'Change Password Required',
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     Text(
                       'You must change your password before continuing.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
+                        color: context.mic.textSecondary,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXXL),
+                    SizedBox(height: AppDimensions.spacingXXL),
                     // New password field
                     TextFormField(
                       controller: _newPasswordController,
                       obscureText: _obscureNewPassword,
                       decoration: InputDecoration(
-                        labelText: 'New Password',
-                        prefixIcon: const Icon(Icons.lock_outlined),
+                        labelText: context.tr('New Password'),
+                        prefixIcon: Icon(Icons.lock_outlined),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureNewPassword
@@ -136,14 +136,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     // Confirm password field
                     TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: _obscureConfirmPassword,
                       decoration: InputDecoration(
-                        labelText: 'Confirm New Password',
-                        prefixIcon: const Icon(Icons.lock_outlined),
+                        labelText: context.tr('Confirm New Password'),
+                        prefixIcon: Icon(Icons.lock_outlined),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureConfirmPassword
@@ -168,23 +168,23 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     // Change password button
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleChangePassword,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Change Password'),
+                          : Text(context.tr('Change Password')),
                     ),
                   ],
                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_dimensions.dart';
+import '../core/theme/mic_theme.dart';
 
 /// Attendance chart widget using fl_chart
 class AttendanceChart extends StatelessWidget {
@@ -25,7 +26,7 @@ class AttendanceChart extends StatelessWidget {
               'No attendance data available',
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodyMedium?.copyWith(color: context.mic.textSecondary),
             ),
           ),
         ),

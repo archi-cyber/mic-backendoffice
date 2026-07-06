@@ -1,5 +1,6 @@
 import 'supabase_service.dart';
 import 'new_comer_service.dart';
+import 'members_report_service.dart';
 
 /// Report service for generating reports
 class ReportService {
@@ -149,6 +150,94 @@ class ReportService {
     }
   }
 
+  /// Church service attendance only for a member (no Sunday school or giving).
+  static Future<Map<String, dynamic>> getMemberChurchAttendanceReport({
+    required String memberId,
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      var churchAttendanceQuery = _client
+          .from('church_attendance')
+          .select('*')
+          .eq('member_id', memberId);
+
+      if (fromDate != null) {
+        churchAttendanceQuery = churchAttendanceQuery.gte(
+          'service_date',
+          fromDate.toIso8601String().split('T')[0],
+        );
+      }
+      if (toDate != null) {
+        churchAttendanceQuery = churchAttendanceQuery.lte(
+          'service_date',
+          toDate.toIso8601String().split('T')[0],
+        );
+      }
+
+      final churchAttendance = await churchAttendanceQuery;
+      final records = <Map<String, dynamic>>[];
+
+      for (final record in churchAttendance as List) {
+        if (record['deleted_at'] != null) continue;
+        records.add({
+          ...record,
+          'attendance_category': 'church',
+          'display_date': record['service_date'],
+          'display_type': record['service_type'] == 'sunday'
+              ? 'Sunday Service'
+              : 'Wednesday Service',
+          'attendance_type_display': record['attendance_type'] == 'onsite'
+              ? 'Onsite'
+              : record['attendance_type'] == 'online'
+              ? 'Online'
+              : 'Absent',
+        });
+      }
+
+      records.sort((a, b) {
+        final dateA = (a['display_date'] ?? '').toString();
+        final dateB = (b['display_date'] ?? '').toString();
+        return dateB.compareTo(dateA);
+      });
+
+      final totalPresent = records
+          .where((record) {
+            final type = record['attendance_type']?.toString();
+            return type == 'onsite' || type == 'online';
+          })
+          .length;
+
+      final onsite = records
+          .where((r) => r['attendance_type']?.toString() == 'onsite')
+          .length;
+      final online = records
+          .where((r) => r['attendance_type']?.toString() == 'online')
+          .length;
+      final absent = records
+          .where((r) => r['attendance_type']?.toString() == 'absent')
+          .length;
+
+      return {
+        'member_id': memberId,
+        'period': {
+          'from': fromDate?.toIso8601String(),
+          'to': toDate?.toIso8601String(),
+        },
+        'attendance': {
+          'total': totalPresent,
+          'onsite': onsite,
+          'online': online,
+          'absent': absent,
+          'records': records,
+        },
+        'generated_at': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      throw Exception('Failed to generate church attendance report: $e');
+    }
+  }
+
   /// Get class report
   /// GET /reports/class/:classId?from=&to=
   static Future<Map<String, dynamic>> getClassReport({
@@ -261,12 +350,62 @@ class ReportService {
     }
   }
 
-  /// Get newcomer report for a given year.
+  /// Get yearly newcomer report for a given year.
   static Future<Map<String, dynamic>> getYearlyNewComerReport({int? year}) async {
     try {
       return await NewComerService.getYearlyReport(year: year);
     } catch (e) {
       throw Exception('Failed to generate yearly newcomer report: $e');
+    }
+  }
+
+  /// Get members report for a custom period.
+  static Future<Map<String, dynamic>> getMembersReport({
+    DateTime? fromDate,
+    DateTime? toDate,
+  }) async {
+    try {
+      return await MembersReportService.getReport(
+        startDate: fromDate,
+        endDate: toDate,
+      );
+    } catch (e) {
+      throw Exception('Failed to generate members report: $e');
+    }
+  }
+
+  /// Get members report for the current/reference week.
+  static Future<Map<String, dynamic>> getWeeklyMembersReport({
+    DateTime? referenceDate,
+  }) async {
+    try {
+      return await MembersReportService.getWeeklyReport(
+        referenceDate: referenceDate,
+      );
+    } catch (e) {
+      throw Exception('Failed to generate weekly members report: $e');
+    }
+  }
+
+  /// Get members report for the current/reference month.
+  static Future<Map<String, dynamic>> getMonthlyMembersReport({
+    DateTime? referenceDate,
+  }) async {
+    try {
+      return await MembersReportService.getMonthlyReport(
+        referenceDate: referenceDate,
+      );
+    } catch (e) {
+      throw Exception('Failed to generate monthly members report: $e');
+    }
+  }
+
+  /// Get members report for a given year.
+  static Future<Map<String, dynamic>> getYearlyMembersReport({int? year}) async {
+    try {
+      return await MembersReportService.getYearlyReport(year: year);
+    } catch (e) {
+      throw Exception('Failed to generate yearly members report: $e');
     }
   }
 }

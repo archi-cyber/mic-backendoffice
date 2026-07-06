@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/department_service.dart';
 import '../../services/storage_service.dart';
+import '../../core/localization/app_localizations.dart';
+import 'department_form_ui.dart';
 
 /// Edit department page
 class EditDepartmentPage extends StatefulWidget {
@@ -14,11 +17,7 @@ class EditDepartmentPage extends StatefulWidget {
   /// When set (e.g. desktop stack), close uses this instead of Navigator.pop.
   final void Function(bool? result)? onClose;
 
-  const EditDepartmentPage({
-    super.key,
-    required this.departmentId,
-    this.onClose,
-  });
+  EditDepartmentPage({super.key, required this.departmentId, this.onClose});
 
   @override
   State<EditDepartmentPage> createState() => _EditDepartmentPageState();
@@ -76,7 +75,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
       if (!canEdit) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+            SnackBar(
               content: Text(
                 'You do not have permission to edit this department. Only leaders and subleaders can edit.',
               ),
@@ -116,9 +115,9 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
     } catch (e) {
       setState(() => _isLoadingData = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading data: $e'))),
+        );
       }
     }
   }
@@ -159,7 +158,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error picking file: $e'),
+            content: Text(context.tr('Error picking file: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -337,8 +336,8 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Department updated successfully'),
+          SnackBar(
+            content: Text(context.tr('Department updated successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -367,57 +366,68 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingData) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: context.mic.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     final useDesktop = MediaQuery.sizeOf(context).width >= _kDesktopBreakpoint;
 
     return Scaffold(
+      backgroundColor: context.mic.background,
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close),
                 onPressed: () => widget.onClose!(null),
               )
             : null,
-        title: const Text('Edit Department'),
+        title: Text(context.tr('Edit Department')),
         actions: useDesktop
             ? [
                 TextButton(
                   onPressed: () => widget.onClose != null
                       ? widget.onClose!(null)
                       : Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.tr('Cancel')),
                 ),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 FilledButton.icon(
                   onPressed: _isLoading ? null : _handleSave,
                   icon: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 18,
                           width: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(Icons.save, size: 20),
-                  label: const Text('Update Department'),
+                      : Icon(Icons.save, size: 20),
+                  label: Text(context.tr('Update Department')),
                 ),
-                const SizedBox(width: AppDimensions.paddingMD),
+                SizedBox(width: AppDimensions.paddingMD),
               ]
             : null,
       ),
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingLG),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _kDesktopMaxWidth,
-                  ),
+                  constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
                     key: _formKey,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        DepartmentFormUi.heroBanner(
+                          context: context,
+                          isEdit: true,
+                          title: context.tr('Edit Department'),
+                          subtitle: context.tr(
+                            'Update department details and documents',
+                          ),
+                        ),
+                        SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
                           'Basic information',
@@ -425,8 +435,8 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                           [
                             TextFormField(
                               controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Department Name *',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Department Name *'),
                                 prefixIcon: Icon(Icons.group_work),
                               ),
                               validator: (value) {
@@ -436,11 +446,11 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: AppDimensions.spacingMD),
+                            SizedBox(height: AppDimensions.spacingMD),
                             TextFormField(
                               controller: _descriptionController,
-                              decoration: const InputDecoration(
-                                labelText: 'Description',
+                              decoration: InputDecoration(
+                                labelText: context.tr('Description'),
                                 prefixIcon: Icon(Icons.description),
                               ),
                               maxLines: 4,
@@ -458,21 +468,21 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                               _newDocument1Name,
                               _existingDoc1Url,
                             ),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(
                               2,
                               _existingDoc2Name,
                               _newDocument2Name,
                               _existingDoc2Url,
                             ),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(
                               3,
                               _existingDoc3Name,
                               _newDocument3Name,
                               _existingDoc3Url,
                             ),
-                            const SizedBox(height: AppDimensions.spacingSM),
+                            SizedBox(height: AppDimensions.spacingSM),
                             _buildDocumentPicker(
                               4,
                               _existingDoc4Name,
@@ -488,7 +498,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
               ),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.paddingMD),
+              padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -496,8 +506,8 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                   children: [
                     TextFormField(
                       controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Department Name *',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Department Name *'),
                         prefixIcon: Icon(Icons.group_work),
                       ),
                       validator: (value) {
@@ -507,68 +517,68 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
+                    SizedBox(height: AppDimensions.spacingMD),
                     TextFormField(
                       controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                      decoration: InputDecoration(
+                        labelText: context.tr('Description'),
                         prefixIcon: Icon(Icons.description),
                       ),
                       maxLines: 4,
                     ),
-                    const SizedBox(height: AppDimensions.spacingMD),
-                    const Divider(),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingMD),
+                    Divider(),
+                    SizedBox(height: AppDimensions.spacingSM),
                     Text(
                       'Documents (Optional)',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(
                       1,
                       _existingDoc1Name,
                       _newDocument1Name,
                       _existingDoc1Url,
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(
                       2,
                       _existingDoc2Name,
                       _newDocument2Name,
                       _existingDoc2Url,
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(
                       3,
                       _existingDoc3Name,
                       _newDocument3Name,
                       _existingDoc3Url,
                     ),
-                    const SizedBox(height: AppDimensions.spacingSM),
+                    SizedBox(height: AppDimensions.spacingSM),
                     _buildDocumentPicker(
                       4,
                       _existingDoc4Name,
                       _newDocument4Name,
                       _existingDoc4Url,
                     ),
-                    const SizedBox(height: AppDimensions.spacingXL),
+                    SizedBox(height: AppDimensions.spacingXL),
                     ElevatedButton(
                       onPressed: _isLoading ? null : _handleSave,
                       style: ElevatedButton.styleFrom(
-                        minimumSize: const Size(
+                        minimumSize: Size(
                           double.infinity,
                           AppDimensions.buttonHeightLG,
                         ),
                       ),
                       child: _isLoading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Update Department'),
+                          : Text(context.tr('Update Department')),
                     ),
                   ],
                 ),
@@ -583,31 +593,12 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
     IconData icon,
     List<Widget> children,
   ) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingLG),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingLG),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 22, color: theme.colorScheme.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.spacingMD),
-            ...children,
-          ],
-        ),
-      ),
+    return DepartmentFormUi.sectionCard(
+      context: context,
+      title: title,
+      icon: icon,
+      accentColor: DepartmentFormUi.accent,
+      children: children,
     );
   }
 
@@ -624,14 +615,14 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingSM),
+        padding: EdgeInsets.all(AppDimensions.paddingSM),
         child: Row(
           children: [
             Icon(
               Icons.insert_drive_file,
-              color: hasFile ? AppColors.primary : AppColors.textSecondary,
+              color: hasFile ? AppColors.primary : context.mic.textSecondary,
             ),
-            const SizedBox(width: AppDimensions.spacingSM),
+            SizedBox(width: AppDimensions.spacingSM),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,8 +633,8 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                         : 'Document $documentNumber (Optional)',
                     style: TextStyle(
                       color: hasFile
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                          ? context.mic.textPrimary
+                          : context.mic.textSecondary,
                       fontWeight: hasFile ? FontWeight.w500 : FontWeight.normal,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -668,22 +659,22 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                           );
                         }
                       },
-                      child: const Text('View', style: TextStyle(fontSize: 12)),
+                      child: Text('View', style: TextStyle(fontSize: 12)),
                     ),
                 ],
               ),
             ),
             if (hasFile)
               IconButton(
-                icon: const Icon(Icons.close, size: 20),
+                icon: Icon(Icons.close, size: 20),
                 onPressed: () => _removeDocument(documentNumber),
-                tooltip: 'Remove',
+                tooltip: context.tr('Remove'),
               )
             else
               TextButton.icon(
                 onPressed: () => _pickDocument(documentNumber),
-                icon: const Icon(Icons.upload_file, size: 18),
-                label: const Text('Upload'),
+                icon: Icon(Icons.upload_file, size: 18),
+                label: Text(context.tr('Upload')),
               ),
           ],
         ),

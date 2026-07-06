@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/leader_access_service.dart';
+import '../../core/localization/app_localizations.dart';
 
 const double _kLeaderAccessDesktopBreakpoint = 700;
 const double _kLeaderAccessDesktopMaxWidth = 900;
@@ -12,7 +14,7 @@ class LeaderAccessPage extends StatefulWidget {
   /// When provided (e.g. desktop stack), back button calls this instead of Navigator.pop.
   final VoidCallback? onClose;
 
-  const LeaderAccessPage({super.key, this.onClose});
+  LeaderAccessPage({super.key, this.onClose});
 
   @override
   State<LeaderAccessPage> createState() => _LeaderAccessPageState();
@@ -58,14 +60,14 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   }).toList();
 
             return AlertDialog(
-              title: const Text('Select Leader or Member'),
+              title: Text(context.tr('Select Leader or Member')),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Search by name, email, or ID',
+                      hintText: context.tr('Search by name, email, or ID'),
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
@@ -73,13 +75,15 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                       setStateDialog(() => query = value);
                     },
                   ),
-                  const SizedBox(height: AppDimensions.spacingSM),
+                  SizedBox(height: AppDimensions.spacingSM),
                   SizedBox(
                     width: double.maxFinite,
                     height: 300,
                     child: filtered.isEmpty
-                        ? const Center(
-                            child: Text('No matching leaders or members'),
+                        ? Center(
+                            child: Text(
+                              context.tr('No matching leaders or members'),
+                            ),
                           )
                         : ListView.builder(
                             itemCount: filtered.length,
@@ -89,7 +93,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                               final displayName = _getLeaderDisplayName(leader);
                               final isSelected = id == _selectedLeaderId;
                               return ListTile(
-                                leading: const Icon(Icons.person),
+                                leading: Icon(Icons.person),
                                 title: Text(
                                   displayName,
                                   overflow: TextOverflow.ellipsis,
@@ -99,7 +103,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                                 trailing: isSelected
-                                    ? const Icon(
+                                    ? Icon(
                                         Icons.check,
                                         color: AppColors.primary,
                                       )
@@ -144,7 +148,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading leaders: $e'),
+            content: Text(context.tr('Error loading leaders: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -169,7 +173,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading access: $e'),
+            content: Text(context.tr('Error loading access: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -232,8 +236,10 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('All access permissions saved successfully'),
+          SnackBar(
+            content: Text(
+              context.tr('All access permissions saved successfully'),
+            ),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 2),
           ),
@@ -244,7 +250,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving access: $e'),
+            content: Text(context.tr('Error saving access: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -309,9 +315,9 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     final canDelete = access?['can_delete'] == true;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: AppDimensions.spacingMD),
+      margin: EdgeInsets.only(bottom: AppDimensions.spacingMD),
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -321,12 +327,12 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             Row(
               children: [
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text('View'),
+                    title: Text(context.tr('View')),
                     value: canView,
                     onChanged: _isSaving
                         ? null
@@ -343,7 +349,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                 ),
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text('Create'),
+                    title: Text(context.tr('Create')),
                     value: canCreate,
                     onChanged: _isSaving
                         ? null
@@ -364,7 +370,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
               children: [
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text('Edit'),
+                    title: Text(context.tr('Edit')),
                     value: canEdit,
                     onChanged: _isSaving
                         ? null
@@ -381,7 +387,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                 ),
                 Expanded(
                   child: CheckboxListTile(
-                    title: const Text('Delete'),
+                    title: Text(context.tr('Delete')),
                     value: canDelete,
                     onChanged: _isSaving
                         ? null
@@ -413,16 +419,16 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: widget.onClose,
               )
             : null,
-        title: const Text('Leader Access Management'),
+        title: Text(context.tr('Leader Access Management')),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: Icon(Icons.refresh),
             onPressed: _loadLeaders,
-            tooltip: 'Refresh',
+            tooltip: context.tr('Refresh'),
           ),
         ],
       ),
@@ -432,27 +438,27 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
 
   Widget _buildDesktopBody(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_leaders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.people_outline,
               size: 64,
-              color: AppColors.textSecondary,
+              color: context.mic.textSecondary,
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             Text(
               'No leaders found',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: AppDimensions.spacingSM),
-            const Text(
+            SizedBox(height: AppDimensions.spacingSM),
+            Text(
               'Leaders must have role "leader" in the users table',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.mic.textSecondary),
             ),
           ],
         ),
@@ -460,18 +466,16 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(AppDimensions.paddingMD),
+      padding: EdgeInsets.all(AppDimensions.paddingMD),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: _kLeaderAccessDesktopMaxWidth,
-          ),
+          constraints: BoxConstraints(maxWidth: _kLeaderAccessDesktopMaxWidth),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                  padding: EdgeInsets.all(AppDimensions.paddingMD),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -481,12 +485,12 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: AppDimensions.spacingSM),
+                      SizedBox(height: AppDimensions.spacingSM),
                       InkWell(
                         onTap: _openLeaderPicker,
                         borderRadius: BorderRadius.circular(8),
                         child: InputDecorator(
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.person),
                             suffixIcon: Icon(Icons.arrow_drop_down),
@@ -514,10 +518,10 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               if (_hasUnsavedChanges) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: AppDimensions.spacingSM,
                     vertical: AppDimensions.spacingXS,
                   ),
@@ -525,7 +529,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                     color: AppColors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppDimensions.radiusSM),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.edit, size: 14, color: AppColors.warning),
@@ -540,7 +544,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: AppDimensions.spacingSM),
+                SizedBox(height: AppDimensions.spacingSM),
               ],
               Expanded(
                 child: Card(
@@ -548,115 +552,122 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+                        padding: EdgeInsets.all(AppDimensions.paddingMD),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
+                          ),
                           child: DataTable(
-                            columns: const [
-                              DataColumn(label: Text('Feature')),
-                              DataColumn(label: Text('View')),
-                              DataColumn(label: Text('Create')),
-                              DataColumn(label: Text('Edit')),
-                              DataColumn(label: Text('Delete')),
+                            columns: [
+                              DataColumn(label: Text(context.tr('Feature'))),
+                              DataColumn(label: Text(context.tr('View'))),
+                              DataColumn(label: Text(context.tr('Create'))),
+                              DataColumn(label: Text(context.tr('Edit'))),
+                              DataColumn(label: Text(context.tr('Delete'))),
                             ],
                             rows: _features.map((featureName) {
-                        final pending = _pendingChanges[featureName];
-                        final access = pending ?? _leaderAccessMap[featureName];
-                        final canView = access?['can_view'] == true;
-                        final canCreate = access?['can_create'] == true;
-                        final canEdit = access?['can_edit'] == true;
-                        final canDelete = access?['can_delete'] == true;
-                        return DataRow(
-                          cells: [
-                            DataCell(
-                              Text(
-                                _getFeatureDisplayName(featureName),
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            DataCell(
-                              Checkbox(
-                                value: canView,
-                                onChanged: _isSaving
-                                    ? null
-                                    : (value) {
-                                        _updatePendingChange(
-                                          featureName,
-                                          'can_view',
-                                          value ?? false,
-                                        );
-                                      },
-                              ),
-                            ),
-                            DataCell(
-                              Checkbox(
-                                value: canCreate,
-                                onChanged: _isSaving
-                                    ? null
-                                    : (value) {
-                                        _updatePendingChange(
-                                          featureName,
-                                          'can_create',
-                                          value ?? false,
-                                        );
-                                      },
-                              ),
-                            ),
-                            DataCell(
-                              Checkbox(
-                                value: canEdit,
-                                onChanged: _isSaving
-                                    ? null
-                                    : (value) {
-                                        _updatePendingChange(
-                                          featureName,
-                                          'can_edit',
-                                          value ?? false,
-                                        );
-                                      },
-                              ),
-                            ),
-                            DataCell(
-                              Checkbox(
-                                value: canDelete,
-                                onChanged: _isSaving
-                                    ? null
-                                    : (value) {
-                                        _updatePendingChange(
-                                          featureName,
-                                          'can_delete',
-                                          value ?? false,
-                                        );
-                                      },
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
+                              final pending = _pendingChanges[featureName];
+                              final access =
+                                  pending ?? _leaderAccessMap[featureName];
+                              final canView = access?['can_view'] == true;
+                              final canCreate = access?['can_create'] == true;
+                              final canEdit = access?['can_edit'] == true;
+                              final canDelete = access?['can_delete'] == true;
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    Text(
+                                      _getFeatureDisplayName(featureName),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Checkbox(
+                                      value: canView,
+                                      onChanged: _isSaving
+                                          ? null
+                                          : (value) {
+                                              _updatePendingChange(
+                                                featureName,
+                                                'can_view',
+                                                value ?? false,
+                                              );
+                                            },
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Checkbox(
+                                      value: canCreate,
+                                      onChanged: _isSaving
+                                          ? null
+                                          : (value) {
+                                              _updatePendingChange(
+                                                featureName,
+                                                'can_create',
+                                                value ?? false,
+                                              );
+                                            },
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Checkbox(
+                                      value: canEdit,
+                                      onChanged: _isSaving
+                                          ? null
+                                          : (value) {
+                                              _updatePendingChange(
+                                                featureName,
+                                                'can_edit',
+                                                value ?? false,
+                                              );
+                                            },
+                                    ),
+                                  ),
+                                  DataCell(
+                                    Checkbox(
+                                      value: canDelete,
+                                      onChanged: _isSaving
+                                          ? null
+                                          : (value) {
+                                              _updatePendingChange(
+                                                featureName,
+                                                'can_delete',
+                                                value ?? false,
+                                              );
+                                            },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
                           ),
                         ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
-            ),
               if (_hasUnsavedChanges) ...[
-                const SizedBox(height: AppDimensions.spacingMD),
+                SizedBox(height: AppDimensions.spacingMD),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: _isSaving ? null : _saveAllChanges,
                     icon: _isSaving
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 20,
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.save),
+                        : Icon(Icons.save),
                     label: Text(_isSaving ? 'Saving...' : 'Save All Changes'),
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size(
+                      minimumSize: Size(
                         double.infinity,
                         AppDimensions.buttonHeightLG,
                       ),
@@ -673,27 +684,27 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
 
   Widget _buildMobileBody(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
     if (_leaders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.people_outline,
               size: 64,
-              color: AppColors.textSecondary,
+              color: context.mic.textSecondary,
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             Text(
               'No leaders found',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: AppDimensions.spacingSM),
-            const Text(
+            SizedBox(height: AppDimensions.spacingSM),
+            Text(
               'Leaders must have role "leader" in the users table',
-              style: TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: context.mic.textSecondary),
             ),
           ],
         ),
@@ -703,7 +714,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           color: Theme.of(context).cardColor,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -714,11 +725,11 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: AppDimensions.spacingSM),
+              SizedBox(height: AppDimensions.spacingSM),
               InkWell(
                 onTap: _openLeaderPicker,
                 child: InputDecorator(
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.person),
                     suffixIcon: Icon(Icons.arrow_drop_down),
@@ -741,7 +752,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -754,7 +765,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                   ),
                   if (_hasUnsavedChanges)
                     Container(
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: AppDimensions.spacingSM,
                         vertical: AppDimensions.spacingXS,
                       ),
@@ -764,7 +775,7 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                           AppDimensions.radiusSM,
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.edit, size: 14, color: AppColors.warning),
@@ -781,22 +792,22 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                     ),
                 ],
               ),
-              const SizedBox(height: AppDimensions.spacingMD),
+              SizedBox(height: AppDimensions.spacingMD),
               ..._features.map((feature) => _buildFeatureAccessCard(feature)),
-              const SizedBox(height: AppDimensions.spacingXL),
+              SizedBox(height: AppDimensions.spacingXL),
             ],
           ),
         ),
         if (_hasUnsavedChanges)
           Container(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             decoration: BoxDecoration(
               color: Theme.of(context).cardColor,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 4,
-                  offset: const Offset(0, -2),
+                  offset: Offset(0, -2),
                 ),
               ],
             ),
@@ -806,18 +817,18 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveAllChanges,
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(
+                    minimumSize: Size(
                       double.infinity,
                       AppDimensions.buttonHeightLG,
                     ),
                   ),
                   child: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Save All Changes'),
+                      : Text(context.tr('Save All Changes')),
                 ),
               ),
             ),

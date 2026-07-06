@@ -14,10 +14,93 @@ class AppLocalizations {
       _AppLocalizationsDelegate();
 
   static const List<Locale> supportedLocales = [
-    Locale('en', ''), // English
-    Locale('fr', ''), // French
-    Locale('es', ''), // Spanish
+    Locale('en'), // English
+    Locale('fr'), // French
+    Locale('es'), // Spanish
   ];
+
+  String translate(String fallback, [Map<String, Object?> params = const {}]) {
+    final value =
+        _literalValues[locale.languageCode]?[fallback] ??
+        _localizedByEnglishValue(fallback) ??
+        _fallbackPhraseTranslation(fallback);
+    return _interpolate(value, params);
+  }
+
+  String t(String fallback, [Map<String, Object?> params = const {}]) =>
+      translate(fallback, params);
+
+  String byKey(
+    String key,
+    String fallback, [
+    Map<String, Object?> params = const {},
+  ]) {
+    final value =
+        _localizedValues[locale.languageCode]?[key] ??
+        _localizedValues['en']?[key] ??
+        fallback;
+    return _interpolate(value, params);
+  }
+
+  String statusLabel(String? status) {
+    switch (status) {
+      case 'in_progress':
+        return translate('In progress');
+      case 'completed':
+        return translate('Completed');
+      case 'cancelled':
+        return translate('Cancelled');
+      case 'pending':
+      default:
+        return translate('Pending');
+    }
+  }
+
+  String priorityLabel(String? priority) {
+    switch (priority) {
+      case 'urgent':
+        return translate('Urgent');
+      case 'high':
+        return translate('High');
+      case 'low':
+        return translate('Low');
+      case 'medium':
+      default:
+        return translate('Medium');
+    }
+  }
+
+  String? _localizedByEnglishValue(String fallback) {
+    final englishEntries = _localizedValues['en']?.entries;
+    if (englishEntries == null) return null;
+    for (final entry in englishEntries) {
+      if (entry.value == fallback) {
+        return _localizedValues[locale.languageCode]?[entry.key] ?? fallback;
+      }
+    }
+    return null;
+  }
+
+  String _fallbackPhraseTranslation(String fallback) {
+    final replacements = _fallbackPhraseReplacements[locale.languageCode];
+    if (replacements == null) return fallback;
+    var result = fallback;
+    for (final entry in replacements.entries) {
+      result = result.replaceAllMapped(
+        RegExp('\\b${RegExp.escape(entry.key)}\\b'),
+        (_) => entry.value,
+      );
+    }
+    return result;
+  }
+
+  String _interpolate(String value, Map<String, Object?> params) {
+    var result = value;
+    for (final entry in params.entries) {
+      result = result.replaceAll('{${entry.key}}', entry.value.toString());
+    }
+    return result;
+  }
 
   // Common
   String get appName =>
@@ -760,6 +843,22 @@ class AppLocalizations {
   String get noVisitorsFound =>
       _localizedValues[locale.languageCode]?['noVisitorsFound'] ??
       'No visitors found matching your search';
+  String get convertToMember =>
+      _localizedValues[locale.languageCode]?['convertToMember'] ??
+      'Convert to Member';
+  String get convertVisitorToMember =>
+      _localizedValues[locale.languageCode]?['convertVisitorToMember'] ??
+      'Convert visitor to member';
+  String convertVisitorToMemberConfirm(String name) =>
+      (_localizedValues[locale.languageCode]?['convertVisitorToMemberConfirm'] ??
+              'Create a member profile for "{name}" using the visitor\'s contact details. The visitor record will be removed.')
+          .replaceAll('{name}', name);
+  String get visitorConvertedToMember =>
+      _localizedValues[locale.languageCode]?['visitorConvertedToMember'] ??
+      'Visitor converted to member successfully';
+  String get errorConvertingVisitor =>
+      _localizedValues[locale.languageCode]?['errorConvertingVisitor'] ??
+      'Error converting visitor to member';
 
   // Workers & Departments
   String get workers =>
@@ -1079,17 +1178,22 @@ class AppLocalizations {
 
   /// Church attendance PDF — column / chart strings
   String get churchAttendanceReportPdfTitle =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfTitle'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfTitle'] ??
       'Church attendance report';
   String get churchAttendanceReportPdfIntro =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfIntro'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfIntro'] ??
       'This report is organised by calendar month. Each month includes a member table (Onsite / Online / Absent per service) and monthly summary charts. '
           'The last column is left blank for notes.';
-  String churchAttendanceReportPdfDiligenceNote(int pctDiligent, int pctModerate) =>
-      (_localizedValues[locale.languageCode]
-              ?['churchAttendanceReportPdfDiligenceNote'] ??
-          'Diligence: ≥{d}% present = Diligent; ≥{m}% = Moderately diligent; below = Not diligent. '
-              'Present = onsite + online, denominator = number of scheduled services in the month.')
+  String churchAttendanceReportPdfDiligenceNote(
+    int pctDiligent,
+    int pctModerate,
+  ) =>
+      (_localizedValues[locale
+                  .languageCode]?['churchAttendanceReportPdfDiligenceNote'] ??
+              'Diligence: ≥{d}% present = Diligent; ≥{m}% = Moderately diligent; below = Not diligent. '
+                  'Present = onsite + online, denominator = number of scheduled services in the month.')
           .replaceAll('{d}', '$pctDiligent')
           .replaceAll('{m}', '$pctModerate');
   String get attendanceReportFullName =>
@@ -1108,24 +1212,33 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['attendanceReportObservation'] ??
       'Observation';
   String get attendanceReportSpecificObservations =>
-      _localizedValues[locale.languageCode]?['attendanceReportSpecificObservations'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportSpecificObservations'] ??
       'Specific observations';
   String get attendanceReportPresentAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportPresentAbbr'] ?? 'P';
+      _localizedValues[locale.languageCode]?['attendanceReportPresentAbbr'] ??
+      'P';
   String get attendanceReportAbsentAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportAbsentAbbr'] ?? 'A';
+      _localizedValues[locale.languageCode]?['attendanceReportAbsentAbbr'] ??
+      'A';
   String get attendanceReportOnlineAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnlineAbbr'] ?? 'O';
+      _localizedValues[locale.languageCode]?['attendanceReportOnlineAbbr'] ??
+      'O';
   String get attendanceReportOnsite =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnsite'] ?? 'Onsite';
+      _localizedValues[locale.languageCode]?['attendanceReportOnsite'] ??
+      'Onsite';
   String get attendanceReportOnline =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnline'] ?? 'Online';
+      _localizedValues[locale.languageCode]?['attendanceReportOnline'] ??
+      'Online';
   String get attendanceReportAbsent =>
-      _localizedValues[locale.languageCode]?['attendanceReportAbsent'] ?? 'Absent';
+      _localizedValues[locale.languageCode]?['attendanceReportAbsent'] ??
+      'Absent';
   String get attendanceReportVisitor =>
-      _localizedValues[locale.languageCode]?['attendanceReportVisitor'] ?? 'Visitor';
+      _localizedValues[locale.languageCode]?['attendanceReportVisitor'] ??
+      'Visitor';
   String get attendanceReportVisitorsSection =>
-      _localizedValues[locale.languageCode]?['attendanceReportVisitorsSection'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportVisitorsSection'] ??
       'Visitors';
   String get attendanceReportChildTag =>
       _localizedValues[locale.languageCode]?['attendanceReportChildTag'] ??
@@ -1134,33 +1247,40 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['attendanceReportNewComerTag'] ??
       'New comer';
   String get attendanceReportMembersSection =>
-      _localizedValues[locale.languageCode]?['attendanceReportMembersSection'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportMembersSection'] ??
       'Members';
   String get attendanceReportMonthlySummaryTitle =>
-      _localizedValues[locale.languageCode]?['attendanceReportMonthlySummaryTitle'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportMonthlySummaryTitle'] ??
       'Monthly attendance (sum of present counts)';
   String get attendanceReportPresenceChartsSection =>
-      _localizedValues[locale.languageCode]?['attendanceReportPresenceChartsSection'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportPresenceChartsSection'] ??
       'Monthly presence';
   String get attendanceReportSundayMonthlyPresenceChart =>
       _localizedValues[locale
-              .languageCode]?['attendanceReportSundayMonthlyPresenceChart'] ??
+          .languageCode]?['attendanceReportSundayMonthlyPresenceChart'] ??
       'Sunday — present count by service';
   String get attendanceReportWednesdayMonthlyPresenceChart =>
       _localizedValues[locale
-              .languageCode]?['attendanceReportWednesdayMonthlyPresenceChart'] ??
+          .languageCode]?['attendanceReportWednesdayMonthlyPresenceChart'] ??
       'Wednesday — present count by service';
   String get attendanceReportTotalMonthlyPresenceChart =>
-      _localizedValues[locale.languageCode]?['attendanceReportTotalMonthlyPresenceChart'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportTotalMonthlyPresenceChart'] ??
       'Total presence — by service date (chronological)';
   String get attendanceReportSundayMonthTotal =>
-      _localizedValues[locale.languageCode]?['attendanceReportSundayMonthTotal'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportSundayMonthTotal'] ??
       'Sunday (month)';
   String get attendanceReportWednesdayMonthTotal =>
-      _localizedValues[locale.languageCode]?['attendanceReportWednesdayMonthTotal'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportWednesdayMonthTotal'] ??
       'Wednesday (month)';
   String get attendanceReportAllServicesMonthTotal =>
-      _localizedValues[locale.languageCode]?['attendanceReportAllServicesMonthTotal'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportAllServicesMonthTotal'] ??
       'All services (month)';
   String get attendanceReportChartNoData =>
       _localizedValues[locale.languageCode]?['attendanceReportChartNoData'] ??
@@ -1169,28 +1289,38 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['attendanceReportDiligent'] ??
       'Diligent';
   String get attendanceReportModeratelyDiligent =>
-      _localizedValues[locale.languageCode]?['attendanceReportModeratelyDiligent'] ??
+      _localizedValues[locale
+          .languageCode]?['attendanceReportModeratelyDiligent'] ??
       'Moderately diligent';
   String get attendanceReportNotDiligent =>
       _localizedValues[locale.languageCode]?['attendanceReportNotDiligent'] ??
       'Not diligent';
   String get attendanceReportSundayShort =>
-      _localizedValues[locale.languageCode]?['attendanceReportSundayShort'] ?? 'Sun';
+      _localizedValues[locale.languageCode]?['attendanceReportSundayShort'] ??
+      'Sun';
   String get attendanceReportWednesdayShort =>
-      _localizedValues[locale.languageCode]?['attendanceReportWednesdayShort'] ?? 'Wed';
+      _localizedValues[locale
+          .languageCode]?['attendanceReportWednesdayShort'] ??
+      'Wed';
   String get churchAttendanceReportPdfGenerated =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfGenerated'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfGenerated'] ??
       'Generated';
   String get churchAttendanceReportPdfPeriod =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfPeriod'] ?? 'Period';
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfPeriod'] ??
+      'Period';
   String get churchAttendanceReportPdfServiceFilter =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfServiceFilter'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfServiceFilter'] ??
       'Service type';
   String get churchAttendanceReportPdfSundayService =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfSundayService'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfSundayService'] ??
       'Sunday service';
   String get churchAttendanceReportPdfWednesdayService =>
-      _localizedValues[locale.languageCode]?['churchAttendanceReportPdfWednesdayService'] ??
+      _localizedValues[locale
+          .languageCode]?['churchAttendanceReportPdfWednesdayService'] ??
       'Wednesday service';
 
   // Reports
@@ -1254,6 +1384,566 @@ class AppLocalizations {
       'Report generated successfully: {path}';
   String reportGeneratedWithPathString(String path) =>
       reportGeneratedWithPath.replaceAll('{path}', path);
+
+  static const Map<String, Map<String, String>> _literalValues = {
+    'fr': {
+      'Add': 'Ajouter',
+      'All': 'Tous',
+      'All tasks': 'Toutes les tâches',
+      'All members': 'Tous les membres',
+      'All Priorities': 'Toutes les priorités',
+      'All projects': 'Tous les projets',
+      'All Statuses': 'Tous les statuts',
+      'All tags': 'Toutes les étiquettes',
+      'Absent': 'Absent',
+      'Amount': 'Montant',
+      'Back': 'Retour',
+      'Backoffice': 'Backoffice',
+      'Archive': 'Archiver',
+      'Archived': 'Archivé',
+      'Assigned': 'Assigné',
+      'Assigned members': 'Membres assignés',
+      'Assigned member': 'Membre assigné',
+      'Attendance Report': 'Rapport de présence',
+      'Attended': 'Présences',
+      'Blocked from new task assignments':
+          'Bloqué pour les nouvelles assignations de tâches',
+      'Board': 'Tableau',
+      'Cancel': 'Annuler',
+      'Cancelled': 'Annulé',
+      'Capture a teaching with its date, speaker, and notes.':
+          'Enregistrez un enseignement avec sa date, son intervenant et ses notes.',
+      'Category': 'Catégorie',
+      'Charts': 'Graphiques',
+      'Clear': 'Effacer',
+      'Clear filters': 'Effacer les filtres',
+      'Close': 'Fermer',
+      'Completed': 'Terminé',
+      'Confirm': 'Confirmer',
+      'Create': 'Créer',
+      'Create a training and optionally link it to a department.':
+          'Créez une formation et associez-la éventuellement à un département.',
+      'Date': 'Date',
+      'Delete': 'Supprimer',
+      'Description': 'Description',
+      'Details': 'Détails',
+      'Done': 'Terminé',
+      'Drop tasks here': 'Déposez les tâches ici',
+      'Due date': 'Date limite',
+      'Edit': 'Modifier',
+      'Email': 'E-mail',
+      'End date': 'Date de fin',
+      'Enter a valid amount': 'Saisissez un montant valide',
+      'Error': 'Erreur',
+      'Error loading tasks: {error}':
+          'Erreur lors du chargement des tâches : {error}',
+      'Error recording payment: {error}':
+          'Erreur lors de l\'enregistrement du paiement : {error}',
+      'Error sending reminders: {error}':
+          'Erreur lors de l\'envoi des rappels : {error}',
+      'Export': 'Exporter',
+      'Failed to generate PDF report: {error}':
+          'Échec de la génération du rapport PDF : {error}',
+      'Filter': 'Filtrer',
+      'Filter Tasks': 'Filtrer les tâches',
+      'Filters': 'Filtres',
+      'Filters on': 'Filtres actifs',
+      'Generate PDF Report': 'Générer le rapport PDF',
+      'High': 'Élevée',
+      'In progress': 'En cours',
+      'Import': 'Importer',
+      'Intention': 'Intention',
+      'Joined': 'Arrivé',
+      'Last attended': 'Dernière présence',
+      'Loading...': 'Chargement...',
+      'Low': 'Faible',
+      'Manage projects': 'Gérer les projets',
+      'Manage tags': 'Gérer les étiquettes',
+      'Medium': 'Moyenne',
+      'More': 'Plus',
+      'Name': 'Nom',
+      'New Comers': 'Nouveaux venus',
+      'New Comers Report': 'Rapport des nouveaux venus',
+      'Newcomer Attendance': 'Présence des nouveaux venus',
+      'Newcomer Stats': 'Statistiques des nouveaux venus',
+      'No data': 'Aucune donnée',
+      'No data yet': 'Aucune donnée pour le moment',
+      'No newcomer attendance found for this period.':
+          'Aucune présence de nouveau venu trouvée pour cette période.',
+      'No newcomer records found for this period.':
+          'Aucun enregistrement de nouveau venu trouvé pour cette période.',
+      'No project': 'Aucun projet',
+      'No tasks found': 'Aucune tâche trouvée',
+      'No tasks match this view': 'Aucune tâche ne correspond à cette vue',
+      'No tasks yet': 'Aucune tâche pour le moment',
+      'No unpaid penalties': 'Aucune pénalité impayée',
+      'Note (optional)': 'Note (facultative)',
+      'Notes': 'Notes',
+      'Online': 'En ligne',
+      'Open': 'Ouvrir',
+      'Open tasks': 'Tâches ouvertes',
+      'Onsite': 'Sur place',
+      'Overdue': 'En retard',
+      'PDF report generated: {path}': 'Rapport PDF généré : {path}',
+      'Pending': 'En attente',
+      'Penalties': 'Pénalités',
+      'Penalty balance pending': 'Solde de pénalité en attente',
+      'Priority': 'Priorité',
+      'Project': 'Projet',
+      'Project workload': 'Charge par projet',
+      'Projects': 'Projets',
+      'Record': 'Enregistrer',
+      'Record payment': 'Enregistrer un paiement',
+      'Record payment for {name}': 'Enregistrer un paiement pour {name}',
+      'Refresh': 'Actualiser',
+      'Reminder': 'Rappel',
+      'Reminder sent for {count} task assignment(s)':
+          'Rappel envoyé pour {count} assignation(s) de tâche',
+      'Save': 'Enregistrer',
+      'Search': 'Rechercher',
+      'Search tasks, projects, assignees...':
+          'Rechercher des tâches, projets, assignés...',
+      'Search tasks...': 'Rechercher des tâches...',
+      'Send general reminder': 'Envoyer un rappel général',
+      'Send general task reminder?': 'Envoyer un rappel général de tâche ?',
+      'Send reminder': 'Envoyer le rappel',
+      'Select end date': 'Sélectionner la date de fin',
+      'Select start date': 'Sélectionner la date de début',
+      'Services': 'Cultes',
+      'Start date': 'Date de début',
+      'Status': 'Statut',
+      'Success': 'Succès',
+      'Tags': 'Étiquettes',
+      'Task': 'Tâche',
+      'Tasks': 'Tâches',
+      'Tasks workspace': 'Espace des tâches',
+      'This will notify all members who currently have pending or in-progress tasks.':
+          'Cela notifiera tous les membres qui ont actuellement des tâches en attente ou en cours.',
+      'Title': 'Titre',
+      'Training details': 'Détails de la formation',
+      'Try another filter or create a new task.':
+          'Essayez un autre filtre ou créez une nouvelle tâche.',
+      'Unknown': 'Inconnu',
+      'Update the teaching details without leaving the current workspace.':
+          'Mettez à jour les détails de l\'enseignement sans quitter l\'espace de travail actuel.',
+      'Update the training details without leaving the current workspace.':
+          'Mettez à jour les détails de la formation sans quitter l\'espace de travail actuel.',
+      'Unnamed member': 'Membre sans nom',
+      'Untitled project': 'Projet sans titre',
+      'Untitled task': 'Tâche sans titre',
+      'Urgent': 'Urgente',
+      'View': 'Voir',
+      'Visible tasks': 'Tâches visibles',
+      'attendances': 'présences',
+      'records': 'enregistrements',
+      'saved': 'enregistré',
+      '{completed}/{total} done': '{completed}/{total} terminées',
+      '{visible} visible of {total} tasks':
+          '{visible} visibles sur {total} tâches',
+      '+{count} more tasks': '+{count} autres tâches',
+    },
+    'es': {
+      'Add': 'Agregar',
+      'All': 'Todos',
+      'All tasks': 'Todas las tareas',
+      'All members': 'Todos los miembros',
+      'All Priorities': 'Todas las prioridades',
+      'All projects': 'Todos los proyectos',
+      'All Statuses': 'Todos los estados',
+      'All tags': 'Todas las etiquetas',
+      'Absent': 'Ausente',
+      'Amount': 'Cantidad',
+      'Back': 'Atrás',
+      'Backoffice': 'Backoffice',
+      'Archive': 'Archivar',
+      'Archived': 'Archivado',
+      'Assigned': 'Asignado',
+      'Assigned members': 'Miembros asignados',
+      'Assigned member': 'Miembro asignado',
+      'Attendance Report': 'Informe de asistencia',
+      'Attended': 'Asistencias',
+      'Blocked from new task assignments':
+          'Bloqueado para nuevas asignaciones de tareas',
+      'Board': 'Tablero',
+      'Cancel': 'Cancelar',
+      'Cancelled': 'Cancelado',
+      'Capture a teaching with its date, speaker, and notes.':
+          'Registra una enseñanza con su fecha, orador y notas.',
+      'Category': 'Categoría',
+      'Charts': 'Gráficos',
+      'Clear': 'Limpiar',
+      'Clear filters': 'Limpiar filtros',
+      'Close': 'Cerrar',
+      'Completed': 'Completado',
+      'Confirm': 'Confirmar',
+      'Create': 'Crear',
+      'Create a training and optionally link it to a department.':
+          'Crea una formación y, opcionalmente, vincúlala a un departamento.',
+      'Date': 'Fecha',
+      'Delete': 'Eliminar',
+      'Description': 'Descripción',
+      'Details': 'Detalles',
+      'Done': 'Hecho',
+      'Drop tasks here': 'Suelta las tareas aquí',
+      'Due date': 'Fecha límite',
+      'Edit': 'Editar',
+      'Email': 'Correo electrónico',
+      'End date': 'Fecha de fin',
+      'Enter a valid amount': 'Ingresa una cantidad válida',
+      'Error': 'Error',
+      'Error loading tasks: {error}': 'Error al cargar las tareas: {error}',
+      'Error recording payment: {error}': 'Error al registrar el pago: {error}',
+      'Error sending reminders: {error}':
+          'Error al enviar recordatorios: {error}',
+      'Export': 'Exportar',
+      'Failed to generate PDF report: {error}':
+          'Error al generar el informe PDF: {error}',
+      'Filter': 'Filtrar',
+      'Filter Tasks': 'Filtrar tareas',
+      'Filters': 'Filtros',
+      'Filters on': 'Filtros activos',
+      'Generate PDF Report': 'Generar informe PDF',
+      'High': 'Alta',
+      'In progress': 'En progreso',
+      'Import': 'Importar',
+      'Intention': 'Intención',
+      'Joined': 'Llegó',
+      'Last attended': 'Última asistencia',
+      'Loading...': 'Cargando...',
+      'Low': 'Baja',
+      'Manage projects': 'Gestionar proyectos',
+      'Manage tags': 'Gestionar etiquetas',
+      'Medium': 'Media',
+      'More': 'Más',
+      'Name': 'Nombre',
+      'New Comers': 'Nuevos visitantes',
+      'New Comers Report': 'Informe de nuevos visitantes',
+      'Newcomer Attendance': 'Asistencia de nuevos visitantes',
+      'Newcomer Stats': 'Estadísticas de nuevos visitantes',
+      'No data': 'Sin datos',
+      'No data yet': 'Aún no hay datos',
+      'No newcomer attendance found for this period.':
+          'No se encontró asistencia de nuevos visitantes para este período.',
+      'No newcomer records found for this period.':
+          'No se encontraron registros de nuevos visitantes para este período.',
+      'No project': 'Sin proyecto',
+      'No tasks found': 'No se encontraron tareas',
+      'No tasks match this view': 'Ninguna tarea coincide con esta vista',
+      'No tasks yet': 'Aún no hay tareas',
+      'No unpaid penalties': 'No hay penalizaciones pendientes',
+      'Note (optional)': 'Nota (opcional)',
+      'Notes': 'Notas',
+      'Online': 'En línea',
+      'Open': 'Abrir',
+      'Open tasks': 'Tareas abiertas',
+      'Onsite': 'Presencial',
+      'Overdue': 'Atrasadas',
+      'PDF report generated: {path}': 'Informe PDF generado: {path}',
+      'Pending': 'Pendiente',
+      'Penalties': 'Penalizaciones',
+      'Penalty balance pending': 'Saldo de penalización pendiente',
+      'Priority': 'Prioridad',
+      'Project': 'Proyecto',
+      'Project workload': 'Carga por proyecto',
+      'Projects': 'Proyectos',
+      'Record': 'Registrar',
+      'Record payment': 'Registrar pago',
+      'Record payment for {name}': 'Registrar pago para {name}',
+      'Refresh': 'Actualizar',
+      'Reminder': 'Recordatorio',
+      'Reminder sent for {count} task assignment(s)':
+          'Recordatorio enviado para {count} asignación(es) de tarea',
+      'Save': 'Guardar',
+      'Search': 'Buscar',
+      'Search tasks, projects, assignees...':
+          'Buscar tareas, proyectos, asignados...',
+      'Search tasks...': 'Buscar tareas...',
+      'Send general reminder': 'Enviar recordatorio general',
+      'Send general task reminder?': '¿Enviar recordatorio general de tareas?',
+      'Send reminder': 'Enviar recordatorio',
+      'Select end date': 'Seleccionar fecha de fin',
+      'Select start date': 'Seleccionar fecha de inicio',
+      'Services': 'Cultos',
+      'Start date': 'Fecha de inicio',
+      'Status': 'Estado',
+      'Success': 'Éxito',
+      'Tags': 'Etiquetas',
+      'Task': 'Tarea',
+      'Tasks': 'Tareas',
+      'Tasks workspace': 'Espacio de tareas',
+      'This will notify all members who currently have pending or in-progress tasks.':
+          'Esto notificará a todos los miembros que actualmente tienen tareas pendientes o en progreso.',
+      'Title': 'Título',
+      'Training details': 'Detalles de la formación',
+      'Try another filter or create a new task.':
+          'Prueba otro filtro o crea una nueva tarea.',
+      'Unknown': 'Desconocido',
+      'Update the teaching details without leaving the current workspace.':
+          'Actualiza los detalles de la enseñanza sin salir del espacio de trabajo actual.',
+      'Update the training details without leaving the current workspace.':
+          'Actualiza los detalles de la formación sin salir del espacio de trabajo actual.',
+      'Unnamed member': 'Miembro sin nombre',
+      'Untitled project': 'Proyecto sin título',
+      'Untitled task': 'Tarea sin título',
+      'Urgent': 'Urgente',
+      'View': 'Ver',
+      'Visible tasks': 'Tareas visibles',
+      'attendances': 'asistencias',
+      'records': 'registros',
+      'saved': 'guardado',
+      '{completed}/{total} done': '{completed}/{total} completadas',
+      '{visible} visible of {total} tasks':
+          '{visible} visibles de {total} tareas',
+      '+{count} more tasks': '+{count} tareas más',
+    },
+  };
+
+  static const Map<String, Map<String, String>> _fallbackPhraseReplacements = {
+    'fr': {
+      'Action': 'Action',
+      'Actions': 'Actions',
+      'Active': 'Actif',
+      'Add': 'Ajouter',
+      'Address': 'Adresse',
+      'Admin': 'Admin',
+      'All': 'Tous',
+      'Amount': 'Montant',
+      'Announcement': 'Annonce',
+      'Announcements': 'Annonces',
+      'Apply': 'Appliquer',
+      'Archive': 'Archiver',
+      'Assignment': 'Assignation',
+      'Attendance': 'Présence',
+      'Back': 'Retour',
+      'Birthday': 'Anniversaire',
+      'Cancel': 'Annuler',
+      'Cancelled': 'Annulé',
+      'Category': 'Catégorie',
+      'Chart': 'Graphique',
+      'Choose': 'Choisir',
+      'City': 'Ville',
+      'Class': 'Formation',
+      'Clear': 'Effacer',
+      'Close': 'Fermer',
+      'Comments': 'Commentaires',
+      'Completed': 'Terminé',
+      'Confirm': 'Confirmer',
+      'Country': 'Pays',
+      'Create': 'Créer',
+      'Current': 'Actuel',
+      'Custom': 'Personnalisé',
+      'Daily': 'Quotidien',
+      'Date': 'Date',
+      'Days': 'Jours',
+      'Delete': 'Supprimer',
+      'Department': 'Département',
+      'Description': 'Description',
+      'Details': 'Détails',
+      'Difficulties': 'Difficultés',
+      'Disable': 'Désactiver',
+      'Divorced': 'Divorcé',
+      'Domain': 'Domaine',
+      'Due': 'Échéance',
+      'Edit': 'Modifier',
+      'Email': 'E-mail',
+      'End': 'Fin',
+      'Enter': 'Saisir',
+      'Error': 'Erreur',
+      'Event': 'Événement',
+      'Export': 'Exporter',
+      'Failed': 'Échec',
+      'File': 'Fichier',
+      'Filter': 'Filtrer',
+      'First': 'Prénom',
+      'From': 'Depuis',
+      'Generate': 'Générer',
+      'Giving': 'Don',
+      'Guest': 'Invité',
+      'High': 'Élevé',
+      'Import': 'Importer',
+      'Inactive': 'Inactif',
+      'Last': 'Nom',
+      'Leader': 'Dirigeant',
+      'Loading': 'Chargement',
+      'Low': 'Faible',
+      'Manage': 'Gérer',
+      'Member': 'Membre',
+      'Members': 'Membres',
+      'Name': 'Nom',
+      'New': 'Nouveau',
+      'No': 'Aucun',
+      'Note': 'Note',
+      'Notes': 'Notes',
+      'Notification': 'Notification',
+      'Notifications': 'Notifications',
+      'Open': 'Ouvrir',
+      'Optional': 'Facultatif',
+      'Overview': 'Aperçu',
+      'Password': 'Mot de passe',
+      'Payment': 'Paiement',
+      'Pending': 'En attente',
+      'Penalty': 'Pénalité',
+      'Phone': 'Téléphone',
+      'Photo': 'Photo',
+      'Priority': 'Priorité',
+      'Profession': 'Profession',
+      'Project': 'Projet',
+      'Projects': 'Projets',
+      'Record': 'Enregistrer',
+      'Register': 'Inscrire',
+      'Registration': 'Inscription',
+      'Remove': 'Retirer',
+      'Report': 'Rapport',
+      'Reports': 'Rapports',
+      'Required': 'Requis',
+      'Reset': 'Réinitialiser',
+      'Role': 'Rôle',
+      'Save': 'Enregistrer',
+      'Search': 'Rechercher',
+      'Select': 'Sélectionner',
+      'Service': 'Culte',
+      'Session': 'Session',
+      'Settings': 'Paramètres',
+      'Skill': 'Compétence',
+      'Start': 'Début',
+      'Status': 'Statut',
+      'Success': 'Succès',
+      'Summary': 'Résumé',
+      'Tag': 'Étiquette',
+      'Task': 'Tâche',
+      'Tasks': 'Tâches',
+      'Teaching': 'Enseignement',
+      'Title': 'Titre',
+      'Token': 'Jeton',
+      'Training': 'Formation',
+      'Update': 'Mettre à jour',
+      'User': 'Utilisateur',
+      'Visitor': 'Visiteur',
+      'Visitors': 'Visiteurs',
+    },
+    'es': {
+      'Action': 'Acción',
+      'Actions': 'Acciones',
+      'Active': 'Activo',
+      'Add': 'Agregar',
+      'Address': 'Dirección',
+      'Admin': 'Admin',
+      'All': 'Todos',
+      'Amount': 'Cantidad',
+      'Announcement': 'Anuncio',
+      'Announcements': 'Anuncios',
+      'Apply': 'Aplicar',
+      'Archive': 'Archivar',
+      'Assignment': 'Asignación',
+      'Attendance': 'Asistencia',
+      'Back': 'Atrás',
+      'Birthday': 'Cumpleaños',
+      'Cancel': 'Cancelar',
+      'Cancelled': 'Cancelado',
+      'Category': 'Categoría',
+      'Chart': 'Gráfico',
+      'Choose': 'Elegir',
+      'City': 'Ciudad',
+      'Class': 'Formación',
+      'Clear': 'Limpiar',
+      'Close': 'Cerrar',
+      'Comments': 'Comentarios',
+      'Completed': 'Completado',
+      'Confirm': 'Confirmar',
+      'Country': 'País',
+      'Create': 'Crear',
+      'Current': 'Actual',
+      'Custom': 'Personalizado',
+      'Daily': 'Diario',
+      'Date': 'Fecha',
+      'Days': 'Días',
+      'Delete': 'Eliminar',
+      'Department': 'Departamento',
+      'Description': 'Descripción',
+      'Details': 'Detalles',
+      'Difficulties': 'Dificultades',
+      'Disable': 'Desactivar',
+      'Divorced': 'Divorciado',
+      'Domain': 'Dominio',
+      'Due': 'Vencimiento',
+      'Edit': 'Editar',
+      'Email': 'Correo electrónico',
+      'End': 'Fin',
+      'Enter': 'Ingresar',
+      'Error': 'Error',
+      'Event': 'Evento',
+      'Export': 'Exportar',
+      'Failed': 'Falló',
+      'File': 'Archivo',
+      'Filter': 'Filtrar',
+      'First': 'Nombre',
+      'From': 'Desde',
+      'Generate': 'Generar',
+      'Giving': 'Donación',
+      'Guest': 'Invitado',
+      'High': 'Alta',
+      'Import': 'Importar',
+      'Inactive': 'Inactivo',
+      'Last': 'Apellido',
+      'Leader': 'Líder',
+      'Loading': 'Cargando',
+      'Low': 'Baja',
+      'Manage': 'Gestionar',
+      'Member': 'Miembro',
+      'Members': 'Miembros',
+      'Name': 'Nombre',
+      'New': 'Nuevo',
+      'No': 'Sin',
+      'Note': 'Nota',
+      'Notes': 'Notas',
+      'Notification': 'Notificación',
+      'Notifications': 'Notificaciones',
+      'Open': 'Abrir',
+      'Optional': 'Opcional',
+      'Overview': 'Resumen',
+      'Password': 'Contraseña',
+      'Payment': 'Pago',
+      'Pending': 'Pendiente',
+      'Penalty': 'Penalización',
+      'Phone': 'Teléfono',
+      'Photo': 'Foto',
+      'Priority': 'Prioridad',
+      'Profession': 'Profesión',
+      'Project': 'Proyecto',
+      'Projects': 'Proyectos',
+      'Record': 'Registrar',
+      'Register': 'Registrar',
+      'Registration': 'Registro',
+      'Remove': 'Eliminar',
+      'Report': 'Informe',
+      'Reports': 'Informes',
+      'Required': 'Requerido',
+      'Reset': 'Restablecer',
+      'Role': 'Rol',
+      'Save': 'Guardar',
+      'Search': 'Buscar',
+      'Select': 'Seleccionar',
+      'Service': 'Servicio',
+      'Session': 'Sesión',
+      'Settings': 'Configuración',
+      'Skill': 'Habilidad',
+      'Start': 'Inicio',
+      'Status': 'Estado',
+      'Success': 'Éxito',
+      'Summary': 'Resumen',
+      'Tag': 'Etiqueta',
+      'Task': 'Tarea',
+      'Tasks': 'Tareas',
+      'Teaching': 'Enseñanza',
+      'Title': 'Título',
+      'Token': 'Token',
+      'Training': 'Formación',
+      'Update': 'Actualizar',
+      'User': 'Usuario',
+      'Visitor': 'Visitante',
+      'Visitors': 'Visitantes',
+    },
+  };
 
   static const Map<String, Map<String, String>> _localizedValues = {
     'en': {
@@ -1547,6 +2237,12 @@ class AppLocalizations {
       'searchVisitors': 'Search visitors...',
       'noVisitors': 'No visitors yet',
       'noVisitorsFound': 'No visitors found matching your search',
+      'convertToMember': 'Convert to Member',
+      'convertVisitorToMember': 'Convert visitor to member',
+      'convertVisitorToMemberConfirm':
+          'Create a member profile for "{name}" using the visitor\'s contact details. The visitor record will be removed.',
+      'visitorConvertedToMember': 'Visitor converted to member successfully',
+      'errorConvertingVisitor': 'Error converting visitor to member',
       // Workers & Departments
       'workers': 'Workers',
       'searchWorkers': 'Search workers...',
@@ -1692,7 +2388,8 @@ class AppLocalizations {
       'attendanceReportChildTag': 'Child',
       'attendanceReportNewComerTag': 'New comer',
       'attendanceReportMembersSection': 'Members',
-      'attendanceReportMonthlySummaryTitle': 'Monthly attendance (sum of present counts)',
+      'attendanceReportMonthlySummaryTitle':
+          'Monthly attendance (sum of present counts)',
       'attendanceReportPresenceChartsSection': 'Monthly presence',
       'attendanceReportSundayMonthlyPresenceChart':
           'Sunday — present count by service',
@@ -1974,6 +2671,13 @@ class AppLocalizations {
       'noVisitors': 'Aún no hay visitantes',
       'noVisitorsFound':
           'No se encontraron visitantes que coincidan con tu búsqueda',
+      'convertToMember': 'Convertir en miembro',
+      'convertVisitorToMember': 'Convertir visitante en miembro',
+      'convertVisitorToMemberConfirm':
+          'Crear un perfil de miembro para "{name}" con los datos del visitante. El registro del visitante se eliminará.',
+      'visitorConvertedToMember':
+          'Visitante convertido en miembro exitosamente',
+      'errorConvertingVisitor': 'Error al convertir visitante en miembro',
       // Workers & Departments
       'workers': 'Trabajadores',
       'searchWorkers': 'Buscar trabajadores...',
@@ -2123,7 +2827,8 @@ class AppLocalizations {
       'attendanceReportChildTag': 'Niño',
       'attendanceReportNewComerTag': 'Nuevo',
       'attendanceReportMembersSection': 'Miembros',
-      'attendanceReportMonthlySummaryTitle': 'Asistencia mensual (suma de presentes)',
+      'attendanceReportMonthlySummaryTitle':
+          'Asistencia mensual (suma de presentes)',
       'attendanceReportPresenceChartsSection': 'Presencia mensual',
       'attendanceReportSundayMonthlyPresenceChart':
           'Domingo — presentes por culto',
@@ -2472,6 +3177,13 @@ class AppLocalizations {
       'noVisitors': 'Aucun visiteur pour le moment',
       'noVisitorsFound':
           'Aucun visiteur trouvé correspondant à votre recherche',
+      'convertToMember': 'Convertir en membre',
+      'convertVisitorToMember': 'Convertir le visiteur en membre',
+      'convertVisitorToMemberConfirm':
+          'Créer un profil membre pour "{name}" avec les coordonnées du visiteur. Le dossier visiteur sera supprimé.',
+      'visitorConvertedToMember': 'Visiteur converti en membre avec succès',
+      'errorConvertingVisitor':
+          'Erreur lors de la conversion du visiteur en membre',
       // Workers & Departments
       'workers': 'Travailleurs',
       'searchWorkers': 'Rechercher des travailleurs...',
@@ -2624,7 +3336,8 @@ class AppLocalizations {
       'attendanceReportChildTag': 'Enfant',
       'attendanceReportNewComerTag': 'Nouveau',
       'attendanceReportMembersSection': 'Membres',
-      'attendanceReportMonthlySummaryTitle': 'Présence mensuelle (somme des présences)',
+      'attendanceReportMonthlySummaryTitle':
+          'Présence mensuelle (somme des présences)',
       'attendanceReportPresenceChartsSection': 'Présence mensuelle',
       'attendanceReportSundayMonthlyPresenceChart':
           'Dimanche — présents par culte',
@@ -2689,4 +3402,12 @@ class _AppLocalizationsDelegate
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
+}
+
+extension AppLocalizationsContext on BuildContext {
+  AppLocalizations get l10n => AppLocalizations.of(this)!;
+
+  String tr(String fallback, [Map<String, Object?> params = const {}]) {
+    return l10n.translate(fallback, params);
+  }
 }

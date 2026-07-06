@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/member_service.dart';
 import '../../services/report_service.dart';
 import '../../services/finance_service.dart';
 import '../../widgets/attendance_chart.dart';
 import '../../utils/export_utils.dart';
+import '../../core/localization/app_localizations.dart';
 
 /// Member report page with charts and export
 class MemberReportPage extends StatefulWidget {
@@ -14,7 +16,7 @@ class MemberReportPage extends StatefulWidget {
   /// When set (e.g. desktop stack), back uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
-  const MemberReportPage({super.key, required this.memberId, this.onClose});
+  MemberReportPage({super.key, required this.memberId, this.onClose});
 
   @override
   State<MemberReportPage> createState() => _MemberReportPageState();
@@ -23,7 +25,7 @@ class MemberReportPage extends StatefulWidget {
 class _MemberReportPageState extends State<MemberReportPage> {
   Map<String, dynamic>? _member;
   Map<String, dynamic>? _report;
-  DateTime _fromDate = DateTime.now().subtract(const Duration(days: 90));
+  DateTime _fromDate = DateTime.now().subtract(Duration(days: 90));
   DateTime _toDate = DateTime.now();
   bool _isLoading = true;
   bool _isFinanceLeader = false;
@@ -70,9 +72,9 @@ class _MemberReportPageState extends State<MemberReportPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error loading report: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading report: $e'))),
+        );
       }
     }
   }
@@ -100,8 +102,8 @@ class _MemberReportPageState extends State<MemberReportPage> {
       await ExportUtils.exportMemberReportToCSV(_report!);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report exported successfully'),
+          SnackBar(
+            content: Text(context.tr('Report exported successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -110,7 +112,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Export failed: $e'),
+            content: Text(context.tr('Export failed: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -121,7 +123,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final attendance = _report?['attendance'] as Map<String, dynamic>?;
@@ -159,7 +161,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
       appBar: AppBar(
         leading: widget.onClose != null
             ? IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: Icon(Icons.arrow_back),
                 onPressed: widget.onClose,
               )
             : null,
@@ -168,19 +170,19 @@ class _MemberReportPageState extends State<MemberReportPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.date_range),
+            icon: Icon(Icons.date_range),
             onPressed: _selectDateRange,
-            tooltip: 'Select Date Range',
+            tooltip: context.tr('Select Date Range'),
           ),
           IconButton(
-            icon: const Icon(Icons.download),
+            icon: Icon(Icons.download),
             onPressed: _exportToCSV,
-            tooltip: 'Export to CSV',
+            tooltip: context.tr('Export to CSV'),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -196,7 +198,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
                   ),
                 ),
                 if (_isFinanceLeader) ...[
-                  const SizedBox(width: AppDimensions.spacingMD),
+                  SizedBox(width: AppDimensions.spacingMD),
                   Expanded(
                     child: _StatCard(
                       title: 'Total Giving',
@@ -209,15 +211,15 @@ class _MemberReportPageState extends State<MemberReportPage> {
                 ],
               ],
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             // Charts
             AttendanceChart(
               attendanceData: attendanceData,
               title: 'Attendance Trend',
             ),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             AttendancePieChart(present: present, absent: absent, late: late),
-            const SizedBox(height: AppDimensions.spacingMD),
+            SizedBox(height: AppDimensions.spacingMD),
             // Attendance Details Section
             _buildAttendanceDetailsSection(attendanceRecords),
           ],
@@ -230,7 +232,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
     if (attendanceRecords.isEmpty) {
       return Card(
         child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMD),
+          padding: EdgeInsets.all(AppDimensions.paddingMD),
           child: Column(
             children: [
               Icon(
@@ -238,7 +240,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
                 size: 48,
                 color: Theme.of(context).disabledColor,
               ),
-              const SizedBox(height: AppDimensions.spacingSM),
+              SizedBox(height: AppDimensions.spacingSM),
               Text(
                 'No attendance records found',
                 style: Theme.of(context).textTheme.titleMedium,
@@ -254,11 +256,11 @@ class _MemberReportPageState extends State<MemberReportPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMD),
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
             child: Row(
               children: [
                 Icon(Icons.list, color: AppColors.primary),
-                const SizedBox(width: AppDimensions.spacingSM),
+                SizedBox(width: AppDimensions.spacingSM),
                 Text(
                   'Attendance Details',
                   style: Theme.of(
@@ -268,13 +270,13 @@ class _MemberReportPageState extends State<MemberReportPage> {
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           ListView.separated(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             padding: EdgeInsets.zero,
             itemCount: attendanceRecords.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
+            separatorBuilder: (context, index) => Divider(height: 1),
             itemBuilder: (context, index) {
               final record = attendanceRecords[index] as Map<String, dynamic>;
               final attendanceCategory =
@@ -312,31 +314,31 @@ class _MemberReportPageState extends State<MemberReportPage> {
                 ),
                 title: Text(
                   displayType,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(
                           Icons.calendar_today,
                           size: 14,
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           _formatDate(displayDate),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(icon, size: 14, color: color),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           attendanceTypeDisplay,
                           style: TextStyle(
@@ -348,12 +350,12 @@ class _MemberReportPageState extends State<MemberReportPage> {
                       ],
                     ),
                     if (createdAt != null) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         'Recorded: ${_formatDateTime(createdAt)}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 11,
-                          color: AppColors.textSecondary,
+                          color: context.mic.textSecondary,
                         ),
                       ),
                     ],
@@ -392,7 +394,7 @@ class _StatCard extends StatelessWidget {
   final IconData icon;
   final Color color;
 
-  const _StatCard({
+  _StatCard({
     required this.title,
     required this.value,
     required this.icon,
@@ -403,11 +405,11 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMD),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           children: [
             Icon(icon, size: 32, color: color),
-            const SizedBox(height: AppDimensions.spacingSM),
+            SizedBox(height: AppDimensions.spacingSM),
             Text(
               value,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
