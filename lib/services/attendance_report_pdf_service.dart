@@ -181,6 +181,192 @@ class AttendanceReportPdfService {
     }
   }
 
+  /// Generate a single-service PDF containing members/visitors marked absent,
+  /// along with their contact info (phone, email) and WhatsApp deep-link.
+  static Future<String?> generateChurchAttendanceAbsentPeopleReport({
+    required DateTime serviceDate,
+    required String serviceType, // 'sunday' or 'wednesday'
+    required AppLocalizations localizations,
+  }) async {
+    try {
+      final localeTag = localizations.locale.toString();
+      final df = DateFormat.yMMMd(localeTag);
+
+      final allActiveMembers = await MemberService.getMembers(
+        filters: {'is_active': true},
+        orderBy: 'last_name',
+        ascending: true,
+      );
+
+      final attendance = await ChurchAttendanceService.getServiceAttendance(
+        serviceDate: serviceDate,
+        serviceType: serviceType,
+      );
+
+      // "Absent" list = active members that are not onsite/online for this service.
+      final attendedMemberIds = attendance
+          .where((r) {
+            final at = r['attendance_type']?.toString();
+            return at == 'onsite' || at == 'online';
+          })
+          .map((r) => r['member_id']?.toString())
+          .whereType<String>()
+          .toSet();
+
+      final absentMembers = allActiveMembers.where((m) {
+        final id = m['id']?.toString();
+        if (id == null || id.isEmpty) return false;
+        return !attendedMemberIds.contains(id);
+      }).toList();
+
+      final visitors = await VisitorService.getVisitors(
+        fromDate: serviceDate,
+        toDate: serviceDate,
+        limit: 1000,
+      );
+
+      // Match the UI logic:
+      // - visitor.service_type is null/empty => match any service type
+      // - otherwise it must equal the selected serviceType
+      final visitorsForService = visitors.where((v) {
+        final st = v['service_type']?.toString();
+        if (st == null || st.isEmpty) return true;
+        return st == serviceType;
+      }).toList();
+
+      // "Absent" visitors = visitors logged for this service that are not onsite/online.
+      final absentVisitors = visitorsForService.where((v) {
+        final at = v['attendance_type']?.toString();
+        return at != 'onsite' && at != 'online';
+      }).toList();
+
+      String? whatsappUrlFromPhone(dynamic phone) {
+        final raw = phone?.toString() ?? '';
+        if (raw.trim().isEmpty) return null;
+        final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+        if (digits.isEmpty) return null;
+        return 'https://wa.me/$digits';
+      }
+
+      String formatName(Map<String, dynamic> row) {
+        final first = row['first_name']?.toString().trim() ?? '';
+        final last = row['last_name']?.toString().trim() ?? '';
+        final name = '$first $last'.trim();
+        return name.isEmpty ? row['id']?.toString() ?? '-' : name;
+      }
+
+      // Local helper for language-specific label without adding new localization keys.
+      String contextLabel(AppLocalizations l10n, String en, String other) {
+        final code = l10n.locale.languageCode;
+        if (code == 'fr' || code == 'es') return other; // best-effort
+        return en;
+      }
+
+      final serviceLabel = serviceType == 'sunday'
+          ? contextLabel(localizations, 'Sunday service', 'Service dominical')
+          : contextLabel(
+              localizations,
+              'Wednesday service',
+              'Service du mercredi',
+            );
+
+      pw.Widget cell(String t, {pw.TextStyle? style, pw.Alignment align = pw.Alignment.centerLeft}) {
+        return pw.Padding(
+          padding: const pw.EdgeInsets.all(2),
+          child: pw.Align(
+            alignment: align,
+            child: pw.Text(t, style: style),
+          ),
+        );
+      }
+
+      final headerStyle = pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold);
+      final baseStyle = const pw.TextStyle(fontSize: 9);
+
+      final rows = <pw.TableRow>[
+        pw.TableRow(
+          children: [
+            cell(localizations.churchAttendance, style: headerStyle),
+            cell('Type', style: headerStyle),
+            cell('Phone', style: headerStyle),
+            cell('Email', style: headerStyle),
+            cell('WhatsApp', style: headerStyle),
+          ],
+        ),
+      ];
+
+      for (final m in absentMembers) {
+        final phone = m['phone'];
+        final email = m['email']?.toString();
+        rows.add(
+          pw.TableRow(
+            children: [
+              cell(formatName(m), style: baseStyle),
+              cell('Member', style: baseStyle),
+              cell(phone?.toString() ?? '-', style: baseStyle),
+              cell(email != null && email.isNotEmpty ? email : '-', style: baseStyle),
+              cell(whatsappUrlFromPhone(phone) ?? '-', style: baseStyle),
+            ],
+          ),
+        );
+      }
+
+      for (final v in absentVisitors) {
+        final phone = v['phone'];
+        final email = v['email']?.toString();
+        rows.add(
+          pw.TableRow(
+            children: [
+              cell(formatName(v), style: baseStyle),
+              cell('Visitor', style: baseStyle),
+              cell(phone?.toString() ?? '-', style: baseStyle),
+              cell(email != null && email.isNotEmpty ? email : '-', style: baseStyle),
+              cell(whatsappUrlFromPhone(phone) ?? '-', style: baseStyle),
+            ],
+          ),
+        );
+      }
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(28),
+          build: (context) => [
+            pw.Text(
+              '${localizations.churchAttendance} - Absent people',
+              style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            pw.Text(
+              '$serviceLabel - ${df.format(serviceDate)}',
+              style: const pw.TextStyle(fontSize: 10),
+            ),
+            pw.SizedBox(height: 12),
+            pw.Table(
+              border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+              columnWidths: const {
+                0: pw.FlexColumnWidth(1.6),
+                1: pw.FlexColumnWidth(0.6),
+                2: pw.FlexColumnWidth(1.0),
+                3: pw.FlexColumnWidth(1.2),
+                4: pw.FlexColumnWidth(1.4),
+              },
+              children: rows,
+            ),
+          ],
+        ),
+      );
+
+      return await _savePdf(pdf, 'church_attendance_absent_people_${serviceDate.toIso8601String().split('T').first}_${serviceType}');
+    } catch (e) {
+      debugPrint(
+        '[AttendanceReportPdfService] Error generating absent people PDF: $e',
+      );
+      rethrow;
+    }
+  }
+
   static pw.Widget _buildChurchAttendanceHeader(
     AppLocalizations l10n,
     DateTime? startDate,
@@ -376,14 +562,16 @@ class AttendanceReportPdfService {
   }
 
   static Future<String?> _savePdf(pw.Document pdf, String fileName) async {
+    final bytes = await pdf.save();
+    final pdfFileName = '$fileName.pdf';
+
     try {
-      // Try to let user select save location
-      final bytes = await pdf.save();
       final result = await FilePicker.platform.saveFile(
-        fileName: '$fileName.pdf',
+        fileName: pdfFileName,
         bytes: bytes,
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        dialogTitle: 'Save Attendance Report',
       );
 
       if (result != null) {
@@ -393,24 +581,42 @@ class AttendanceReportPdfService {
         return result;
       }
 
-      // Fallback: save to temporary directory
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/$fileName.pdf');
-      await file.writeAsBytes(bytes);
       debugPrint(
-        '[AttendanceReportPdfService] PDF saved to temporary directory: ${file.path}',
+        '[AttendanceReportPdfService] User cancelled file save dialog',
       );
-
-      // Try to share the file
-      if (Platform.isAndroid || Platform.isIOS) {
-        final xFile = XFile(file.path);
-        await Share.shareXFiles([xFile], text: 'Attendance Report');
-      }
-
-      return file.path;
     } catch (e) {
-      debugPrint('[AttendanceReportPdfService] Error saving PDF: $e');
-      rethrow;
+      debugPrint(
+        '[AttendanceReportPdfService] FilePicker.saveFile unavailable: $e',
+      );
     }
+
+    return _savePdfToFallbackLocation(bytes, pdfFileName);
+  }
+
+  static Future<String> _savePdfToFallbackLocation(
+    List<int> bytes,
+    String fileName,
+  ) async {
+    final directory = Platform.isAndroid || Platform.isIOS
+        ? await getTemporaryDirectory()
+        : await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/$fileName');
+    await file.writeAsBytes(bytes);
+    debugPrint(
+      '[AttendanceReportPdfService] PDF saved to fallback location: ${file.path}',
+    );
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      try {
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'Attendance Report',
+        );
+      } catch (e) {
+        debugPrint('[AttendanceReportPdfService] Error sharing PDF: $e');
+      }
+    }
+
+    return file.path;
   }
 }
