@@ -7,6 +7,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/app_logo.dart';
 
 /// Login screen with email/phone and password
 class LoginPage extends StatefulWidget {
@@ -81,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Logo/Icon
-                  Icon(Icons.church, size: 80, color: AppColors.primary),
+                  const AppLogo(size: 80),
                   SizedBox(height: AppDimensions.spacingXL),
                   // Title
                   Text(

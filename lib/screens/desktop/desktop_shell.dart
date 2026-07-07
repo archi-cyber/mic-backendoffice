@@ -7,6 +7,7 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/app_logo.dart';
 import '../../services/supabase_service.dart';
 import '../../screens/events/event_detail_page.dart';
 import '../../screens/events/add_event_page.dart';
@@ -525,11 +526,7 @@ class _DesktopShellState extends State<DesktopShell> {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.church,
-                        size: 28,
-                        color: theme.colorScheme.primary,
-                      ),
+                      const AppLogo(size: 28),
                       SizedBox(width: AppDimensions.spacingSM),
                       Text(
                         context.tr('Backoffice'),

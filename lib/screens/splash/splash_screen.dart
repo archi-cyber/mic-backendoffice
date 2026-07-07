@@ -10,6 +10,7 @@ import '../../core/platform/platform_capabilities.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/task_penalty_service.dart';
 import '../../services/push_notification_handler.dart';
+import '../../widgets/app_logo.dart';
 import '../desktop/desktop_shell.dart';
 
 /// Splash screen shown when the app first launches
@@ -152,10 +153,10 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ],
                       ),
-                      child: Icon(
-                        Icons.church,
-                        size: AppDimensions.splashLogoSize * 0.6,
-                        color: AppColors.primary,
+                      padding: EdgeInsets.all(AppDimensions.paddingSM),
+                      child: AppLogo(
+                        size: AppDimensions.splashLogoSize -
+                            (AppDimensions.paddingSM * 2),
                       ),
                     ),
                     SizedBox(height: AppDimensions.spacingXL),

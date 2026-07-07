@@ -7,6 +7,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../../core/utils/error_message_helper.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../widgets/app_logo.dart';
 
 /// Desktop/Web login (width >= 500px). Same behaviour as [LoginPage], desktop layout.
 class DesktopLoginPage extends StatefulWidget {
@@ -80,7 +81,7 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.church, size: 64, color: AppColors.primary),
+                  const AppLogo(size: 64),
                   SizedBox(height: AppDimensions.spacingXL),
                   Text(
                     localizations?.welcome ?? 'Welcome',
