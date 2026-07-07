@@ -14,7 +14,7 @@ class AppLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = Image.asset(
-      'assets/images/app_icon.png',
+      'assets/images/android-chrome-512x512.png',
       width: size,
       height: size,
       fit: BoxFit.contain,
