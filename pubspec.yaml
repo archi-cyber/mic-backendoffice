@@ -77,9 +77,8 @@ flutter_launcher_icons:
     background_color: "#F5F5F0"
     theme_color: "#1B3A57"
   windows:
-    generate: true
-    image_path: assets/images/android-chrome-512x512.png
-    icon_size: 256
+    generate: false
+    # app_icon.ico is copied from assets/images/favicon.ico (see scripts/copy_windows_icon.ps1)
   macos:
     generate: true
     image_path: assets/images/android-chrome-512x512.png

@@ -17,6 +17,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Copy Windows app icon
+        shell: powershell
+        run: .\scripts\copy_windows_icon.ps1
+
       - name: Build Windows release
         run: flutter build windows --release
 
