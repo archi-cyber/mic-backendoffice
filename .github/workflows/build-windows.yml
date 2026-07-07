@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -21,7 +21,7 @@ jobs:
         run: flutter build windows --release
 
       - name: Upload portable app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: windows-portable
           path: build/windows/x64/runner/Release/
