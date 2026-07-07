@@ -18,6 +18,10 @@
   #define MyAppVersion "1.0.0"
 #endif
 
+#ifndef MyAppIconFile
+  #define MyAppIconFile "{#SourcePath}\runner\resources\app_icon.ico"
+#endif
+
 [Setup]
 AppId={{9E0E0E12-3A6B-4D31-9F43-0E43A2AC0C9A}}
 AppName={#MyAppName}
@@ -34,7 +38,7 @@ OutputBaseFilename={#MyAppName}_setup_{#MyAppVersion}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=runner\resources\app_icon.ico
+SetupIconFile={#MyAppIconFile}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

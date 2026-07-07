@@ -31,6 +31,11 @@ jobs:
           $version = ($pubspecVersionLine -split "version:\s*")[1].Trim()
           $version = ($version -split "\+")[0].Trim()
 
+          $iconPath = "windows\runner\resources\app_icon.ico"
+          if (-not (Test-Path $iconPath)) {
+            throw "Installer icon not found at $iconPath"
+          }
+
           New-Item -ItemType Directory -Force -Path "build\installer" | Out-Null
 
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"

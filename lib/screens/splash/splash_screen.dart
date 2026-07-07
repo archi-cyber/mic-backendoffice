@@ -6,6 +6,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
 import '../../config/app_config.dart';
+import '../../core/platform/platform_capabilities.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/task_penalty_service.dart';
 import '../../services/push_notification_handler.dart';
@@ -84,8 +85,9 @@ class _SplashScreenState extends State<SplashScreen>
       if (authProvider.mustChangePassword) {
         Navigator.of(context).pushReplacementNamed(RouteNames.changePassword);
       } else {
-        final launchMessage =
-            await PushNotificationHandler.getInitialMessage();
+        final launchMessage = PlatformCapabilities.supportsPushNotifications
+            ? await PushNotificationHandler.getInitialMessage()
+            : null;
         if (!mounted) return;
 
         final openNotifications = launchMessage != null;

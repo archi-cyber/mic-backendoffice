@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/settings_service.dart';
 
@@ -19,15 +21,18 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final results = await Future.wait([
+      await Future.wait([
         SettingsService.getLocale(),
         SettingsService.getThemeMode(),
         SettingsService.getNotificationsEnabled(),
-      ]);
-
-      _locale = results[0] as Locale?;
-      _themeMode = results[1] as ThemeMode;
-      _notificationsEnabled = results[2] as bool;
+      ]).timeout(const Duration(seconds: 5)).then((results) {
+        _locale = results[0] as Locale?;
+        _themeMode = results[1] as ThemeMode;
+        _notificationsEnabled = results[2] as bool;
+      });
+      _isLoading = false;
+      notifyListeners();
+    } on TimeoutException {
       _isLoading = false;
       notifyListeners();
     } catch (e) {

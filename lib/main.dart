@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'config/app_config.dart';
+import 'core/platform/platform_capabilities.dart';
 import 'services/supabase_service.dart';
 import 'services/offline_storage_service.dart';
 import 'services/device_token_service.dart';
@@ -21,21 +22,25 @@ import 'core/navigation/app_navigator.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase (for FCM)
+  // Initialize Firebase (for FCM) on mobile only.
   bool firebaseInitialized = false;
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    firebaseInitialized = true;
-    debugPrint('✓ Firebase initialized successfully');
+  if (PlatformCapabilities.supportsPushNotifications) {
+    try {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      firebaseInitialized = true;
+      debugPrint('✓ Firebase initialized successfully');
 
-    // CRITICAL: Register background message handler IMMEDIATELY after Firebase init
-    // This MUST be done before any other FCM operations and before runApp()
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    debugPrint('✓ Background message handler registered');
-  } catch (e) {
-    debugPrint('⚠ Error initializing Firebase: $e');
+      // CRITICAL: Register background message handler IMMEDIATELY after Firebase init
+      // This MUST be done before any other FCM operations and before runApp()
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      debugPrint('✓ Background message handler registered');
+    } catch (e) {
+      debugPrint('⚠ Error initializing Firebase: $e');
+    }
+  } else {
+    debugPrint('Skipping Firebase initialization on desktop platform');
   }
 
   // Initialize Supabase
@@ -54,16 +59,17 @@ void main() async {
   // Initialize offline storage
   await OfflineStorageService.database;
 
-  // Initialize background tasks
-  try {
-    await BackgroundTaskService.initialize();
-  } catch (e) {
-    debugPrint('Error initializing background tasks: $e');
+  // Initialize background tasks (mobile only)
+  if (PlatformCapabilities.supportsBackgroundTasks) {
+    try {
+      await BackgroundTaskService.initialize();
+    } catch (e) {
+      debugPrint('Error initializing background tasks: $e');
+    }
   }
 
-  // Initialize FCM and get device token (only if Firebase is initialized)
-  // IMPORTANT: Background message handler must be registered BEFORE runApp()
-  if (firebaseInitialized) {
+  // Initialize FCM and get device token (mobile only, and only if Firebase is initialized)
+  if (firebaseInitialized && PlatformCapabilities.supportsPushNotifications) {
     try {
       // Register background message handler first (before any other FCM calls)
       // This is done in PushNotificationHandler.initialize(), but we ensure it's early
