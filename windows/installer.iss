@@ -1,11 +1,25 @@
-#define MyAppName "mic_backoffice"
-#define MyAppPublisher "MIC"
-#define MyAppURL "https://example.com"
-#define MyAppExeName "mic_backoffice.exe"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppName
+  #define MyAppName "mic_backoffice"
+#endif
+
+#ifndef MyAppPublisher
+  #define MyAppPublisher "MIC"
+#endif
+
+#ifndef MyAppURL
+  #define MyAppURL "https://example.com"
+#endif
+
+#ifndef MyAppExeName
+  #define MyAppExeName "mic_backoffice.exe"
+#endif
+
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 
 [Setup]
-AppId={{9E0E0E12-3A6B-4D31-9F43-0E43A2AC0C9A}
+AppId={{9E0E0E12-3A6B-4D31-9F43-0E43A2AC0C9A}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
