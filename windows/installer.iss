@@ -19,7 +19,7 @@
 #endif
 
 #ifndef MyAppIconFile
-  #define MyAppIconFile "{#SourcePath}\runner\resources\app_icon.ico"
+  #define MyAppIconFile "runner\resources\app_icon.ico"
 #endif
 
 [Setup]
