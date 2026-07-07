@@ -9,6 +9,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
