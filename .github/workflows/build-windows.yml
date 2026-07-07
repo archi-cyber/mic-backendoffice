@@ -1,4 +1,4 @@
-name: Build Flutter Windows (Portable)
+name: Build Flutter Windows Installer
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -20,8 +20,26 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
-      - name: Upload portable app
-        uses: actions/upload-artifact@v4
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Build installer (.exe)
+        shell: powershell
+        run: |
+          $pubspecVersionLine = (Select-String -Path "pubspec.yaml" -Pattern "^\s*version:\s*").Line
+          if (-not $pubspecVersionLine) { throw "Could not find version in pubspec.yaml" }
+          $version = ($pubspecVersionLine -split "version:\s*")[1].Trim()
+          $version = ($version -split "\+")[0].Trim()
+
+          New-Item -ItemType Directory -Force -Path "build\installer" | Out-Null
+
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe not found at $iscc" }
+
+          & $iscc "windows\installer.iss" /DMyAppName="mic_backoffice" /DMyAppVersion="$version" /DMyAppPublisher="MIC" /DMyAppURL="https://example.com" /DMyAppExeName="mic_backoffice.exe"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v6
         with:
-          name: windows-portable
-          path: build/windows/x64/runner/Release/
+          name: windows-installer
+          path: build/installer/*.exe

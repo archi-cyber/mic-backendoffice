@@ -2,6 +2,11 @@
 cmake_minimum_required(VERSION 3.14)
 project(mic_backoffice LANGUAGES CXX)
 
+# CMake 4.x dropped compatibility with cmake_minimum_required < 3.5 in
+# transitive projects (e.g. firebase_cpp_sdk_windows). Setting this allows those
+# dependencies to configure without needing to patch generated/extracted files.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "mic_backoffice")
