@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -6,11 +9,20 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/member_service.dart';
+import '../../services/department_service.dart';
 import '../../services/project_service.dart';
 import '../../services/task_penalty_service.dart';
+import '../../services/tag_service.dart';
 import '../../services/task_service.dart';
+import '../../core/constants/tag_colors.dart';
 import 'add_task_page.dart';
 import 'edit_task_page.dart';
+import 'task_table_inline_cells.dart';
+import 'task_assignee_picker.dart';
+import 'task_tag_picker_panel.dart';
+import 'task_table_anchored_popup.dart';
+import 'task_member_analytics.dart';
+import 'task_member_chart_views.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Tasks list (department-scoped)
@@ -30,12 +42,27 @@ class TasksListPage extends StatefulWidget {
 
 const double _kTasksDesktopBreakpoint = 700;
 const double _kTasksDesktopMaxWidth = 1280;
+const double _kTaskTableResizeHandleWidth = 8;
+const double _kTaskTableMinColumnWidth = 72;
+const double _kTaskTableMaxColumnWidth = 640;
+const double _kTimelineLabelWidth = 280;
+const double _kTimelineRowHeight = 56;
+const double _kTimelineWeekHeaderHeight = 34;
+const double _kTimelineMonthHeaderHeight = 30;
+const double _kTimelineDayHeaderHeight = 44;
+const double _kTimelineProjectHeaderHeight = 38;
+const double _kTimelineMinDayWidth = 44;
+const double _kTimelineMaxDayWidth = 72;
+const double _kTimelineMinZoom = 0.6;
+const double _kTimelineMaxZoom = 2.4;
+const double _kTimelineZoomStep = 0.2;
 
 class _TasksListPageState extends State<TasksListPage> {
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _tasks = [];
   List<Map<String, dynamic>> _projects = [];
   List<Map<String, dynamic>> _penaltyMembers = [];
+  List<Map<String, dynamic>> _tags = [];
   bool _isLoading = true;
   bool _isLoadingDesktopMeta = true;
   String _workspaceView = 'projects';
@@ -45,10 +72,36 @@ class _TasksListPageState extends State<TasksListPage> {
   String? _selectedProjectId;
   String? _selectedTagId;
   bool _canCreate = false;
+  late List<double> _taskTableColumnWidths;
+  final _timelineHeaderScrollController = ScrollController();
+  final _timelineBodyScrollController = ScrollController();
+  final _timelineBodyVerticalScrollController = ScrollController();
+  final _timelineLabelsVerticalScrollController = ScrollController();
+  bool _isSyncingTimelineScroll = false;
+  bool _isSyncingTimelineVerticalScroll = false;
+  double _timelineZoom = 1.0;
+  int? _taskTableSortColumnIndex;
+  bool _taskTableSortAscending = true;
+
+  static const Map<String, int> _taskStatusSortOrder = {
+    'pending': 0,
+    'in_progress': 1,
+    'completed': 2,
+    'cancelled': 3,
+  };
 
   @override
   void initState() {
     super.initState();
+    _taskTableColumnWidths = [300, 140, 200, 150, 160, 240, 56];
+    _timelineHeaderScrollController.addListener(_syncTimelineBodyToHeader);
+    _timelineBodyScrollController.addListener(_syncTimelineHeaderToBody);
+    _timelineLabelsVerticalScrollController.addListener(
+      _syncTimelineChartToLabels,
+    );
+    _timelineBodyVerticalScrollController.addListener(
+      _syncTimelineLabelsToChart,
+    );
     _checkPermissions();
     _loadTasks();
     _loadDesktopMeta();
@@ -62,8 +115,46 @@ class _TasksListPageState extends State<TasksListPage> {
 
   @override
   void dispose() {
+    _timelineHeaderScrollController.removeListener(_syncTimelineBodyToHeader);
+    _timelineBodyScrollController.removeListener(_syncTimelineHeaderToBody);
+    _timelineLabelsVerticalScrollController.removeListener(
+      _syncTimelineChartToLabels,
+    );
+    _timelineBodyVerticalScrollController.removeListener(
+      _syncTimelineLabelsToChart,
+    );
+    _timelineHeaderScrollController.dispose();
+    _timelineBodyScrollController.dispose();
+    _timelineBodyVerticalScrollController.dispose();
+    _timelineLabelsVerticalScrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _syncTimelineBodyToHeader() {
+    _syncTimelineScroll(
+      source: _timelineHeaderScrollController,
+      target: _timelineBodyScrollController,
+    );
+  }
+
+  void _syncTimelineHeaderToBody() {
+    _syncTimelineScroll(
+      source: _timelineBodyScrollController,
+      target: _timelineHeaderScrollController,
+    );
+  }
+
+  void _syncTimelineScroll({
+    required ScrollController source,
+    required ScrollController target,
+  }) {
+    if (_isSyncingTimelineScroll || !source.hasClients || !target.hasClients) {
+      return;
+    }
+    _isSyncingTimelineScroll = true;
+    target.jumpTo(source.offset);
+    _isSyncingTimelineScroll = false;
   }
 
   Future<void> _loadTasks() async {
@@ -105,15 +196,21 @@ class _TasksListPageState extends State<TasksListPage> {
   Future<void> _loadDesktopMeta() async {
     setState(() => _isLoadingDesktopMeta = true);
     try {
+      final deptId = widget.departmentId;
       final results = await Future.wait([
         ProjectService.getProjects(
           departmentId: widget.departmentId,
           limit: 500,
         ),
         MemberService.getMembers(limit: 500),
+        if (deptId != null)
+          TagService.getTags(departmentId: deptId, limit: 500)
+        else
+          Future.value(<Map<String, dynamic>>[]),
       ]);
       final projects = results[0];
       final members = results[1];
+      final tags = results[2];
       final annotatedMembers =
           await TaskPenaltyService.annotateMembersWithPenalties(members);
       annotatedMembers.sort((a, b) {
@@ -125,6 +222,7 @@ class _TasksListPageState extends State<TasksListPage> {
       setState(() {
         _projects = projects;
         _penaltyMembers = annotatedMembers;
+        _tags = tags;
         _isLoadingDesktopMeta = false;
       });
     } catch (_) {
@@ -522,21 +620,8 @@ class _TasksListPageState extends State<TasksListPage> {
   }
 
   String _formatDate(DateTime date) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+    final locale = Localizations.localeOf(context).languageCode;
+    return DateFormat('d MMMM y', locale).format(date);
   }
 
   void _showFilters() {
@@ -799,12 +884,7 @@ class _TasksListPageState extends State<TasksListPage> {
               SizedBox(height: AppDimensions.spacingMD),
               _buildViewSwitcher(theme),
               SizedBox(height: AppDimensions.spacingMD),
-              Expanded(
-                child: _buildWorkspaceContent(
-                  theme,
-                  filteredTasks,
-                ),
-              ),
+              Expanded(child: _buildWorkspaceContent(theme, filteredTasks)),
             ],
           ),
         ),
@@ -949,7 +1029,9 @@ class _TasksListPageState extends State<TasksListPage> {
       ('projects', Icons.folder_copy_outlined, 'Projects'),
       ('board', Icons.view_kanban_outlined, 'Board'),
       ('all', Icons.table_rows_outlined, 'All tasks'),
-      ('charts', Icons.insert_chart_outlined, 'Charts'),
+      ('timeline', Icons.view_timeline_outlined, 'Timeline'),
+      ('avg_lateness', Icons.av_timer_outlined, 'Avg. lateness'),
+      ('workload', Icons.work_outline, 'Workload'),
       ('penalties', Icons.account_balance_wallet_outlined, 'Penalties'),
     ];
 
@@ -971,7 +1053,12 @@ class _TasksListPageState extends State<TasksListPage> {
                   color: selected ? theme.colorScheme.onPrimary : null,
                 ),
                 label: Text(context.tr(view.$3)),
-                onSelected: (_) => setState(() => _workspaceView = view.$1),
+                onSelected: (_) => setState(() {
+                  _workspaceView = view.$1;
+                  if (view.$1 == 'projects' || view.$1 == 'all') {
+                    _selectedProjectId = null;
+                  }
+                }),
                 selectedColor: AppColors.primary,
                 visualDensity: VisualDensity.compact,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1000,7 +1087,10 @@ class _TasksListPageState extends State<TasksListPage> {
     if (_workspaceView == 'penalties') {
       return _buildPenaltiesView(theme, compact: compact);
     }
-    if (filteredTasks.isEmpty && _workspaceView != 'charts') {
+    if (filteredTasks.isEmpty &&
+        _workspaceView != 'timeline' &&
+        _workspaceView != 'avg_lateness' &&
+        _workspaceView != 'workload') {
       return _buildDesktopEmptyState(theme);
     }
     return _buildSelectedView(theme, filteredTasks, compact: compact);
@@ -1016,8 +1106,12 @@ class _TasksListPageState extends State<TasksListPage> {
         return _buildBoardView(theme, tasks, compact: compact);
       case 'all':
         return _buildAllTasksView(theme, tasks, compact: compact);
-      case 'charts':
-        return _buildChartsView(theme, tasks, compact: compact);
+      case 'timeline':
+        return _buildTimelineView(theme, tasks, compact: compact);
+      case 'avg_lateness':
+        return _buildAvgLatenessView(theme, tasks, compact: compact);
+      case 'workload':
+        return _buildWorkloadView(theme, tasks, compact: compact);
       case 'penalties':
         return _buildPenaltiesView(theme, compact: compact);
       case 'projects':
@@ -1062,66 +1156,45 @@ class _TasksListPageState extends State<TasksListPage> {
     List<Map<String, dynamic>> tasks, {
     bool compact = false,
   }) {
-    final groups = <_TaskProjectGroup>[];
-    for (final project in _projects) {
-      final id = project['id']?.toString();
-      if (id == null) continue;
-      final projectTasks = tasks
-          .where((task) => _taskProjectId(task) == id)
-          .toList();
-      if (projectTasks.isNotEmpty) {
-        groups.add(
-          _TaskProjectGroup(
-            title:
-                project['title']?.toString() ?? context.tr('Untitled project'),
-            tasks: projectTasks,
-          ),
-        );
-      }
+    if (_isLoadingDesktopMeta) {
+      return const Center(child: CircularProgressIndicator());
     }
-    final knownProjectIds = _projects
-        .map((project) => project['id']?.toString())
-        .whereType<String>()
-        .toSet();
-    final noProjectTasks = tasks.where((task) {
-      final id = _taskProjectId(task);
-      return id == null || !knownProjectIds.contains(id);
-    }).toList();
-    if (noProjectTasks.isNotEmpty) {
-      groups.add(
-        _TaskProjectGroup(
-          title: context.tr('No project'),
-          tasks: noProjectTasks,
+
+    final groups = _collectTaskProjectGroups(tasks);
+    if (groups.isEmpty) {
+      return _buildDesktopEmptyState(theme);
+    }
+
+    if (compact) {
+      return RefreshIndicator(
+        onRefresh: _refreshTasksWorkspace,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+          children: [
+            for (var i = 0; i < groups.length; i++) ...[
+              _buildProjectGroupCard(theme, groups[i]),
+              if (i < groups.length - 1)
+                SizedBox(height: AppDimensions.spacingMD),
+            ],
+          ],
         ),
       );
     }
 
     return RefreshIndicator(
       onRefresh: _refreshTasksWorkspace,
-      child: SingleChildScrollView(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: compact
-            ? EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD)
-            : null,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final cardWidth = constraints.maxWidth >= 900
-                ? (constraints.maxWidth - AppDimensions.spacingMD) / 2
-                : constraints.maxWidth;
-            return Wrap(
-              spacing: AppDimensions.spacingMD,
-              runSpacing: AppDimensions.spacingMD,
-              children: groups
-                  .map(
-                    (group) => SizedBox(
-                      width: cardWidth,
-                      child: _buildProjectGroupCard(theme, group),
-                    ),
-                  )
-                  .toList(),
-            );
-          },
-        ),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        children: [
+          for (var i = 0; i < groups.length; i++) ...[
+            _buildProjectSectionHeader(theme, groups[i]),
+            _buildTasksTableContent(theme, groups[i].tasks),
+            if (i < groups.length - 1)
+              SizedBox(height: AppDimensions.spacingXL),
+          ],
+        ],
       ),
     );
   }
@@ -1144,6 +1217,15 @@ class _TasksListPageState extends State<TasksListPage> {
                   ),
                 ),
               ),
+              if (group.endDateText != null)
+                Text(
+                  group.endDateText!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.mic.textSecondary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              SizedBox(width: AppDimensions.spacingSM),
               _buildDesktopChip(
                 context.tr('{completed}/{total} done', {
                   'completed': completed,
@@ -1177,21 +1259,166 @@ class _TasksListPageState extends State<TasksListPage> {
     );
   }
 
+  List<_TaskProjectGroup> _collectTaskProjectGroups(
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final groups = <_TaskProjectGroup>[];
+    final sortedProjects = [..._projects];
+    sortedProjects.sort((a, b) {
+      final aDate = DateTime.tryParse(a['end_date']?.toString() ?? '');
+      final bDate = DateTime.tryParse(b['end_date']?.toString() ?? '');
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+
+    for (final project in sortedProjects) {
+      final id = project['id']?.toString();
+      if (id == null) continue;
+      final projectTasks =
+          tasks.where((task) => _taskProjectId(task) == id).toList();
+      if (projectTasks.isEmpty) continue;
+
+      final endDateStr = project['end_date']?.toString();
+      String endDateText = '—';
+      if (endDateStr != null && endDateStr.isNotEmpty) {
+        final dt = DateTime.tryParse(endDateStr);
+        if (dt != null) endDateText = _formatDate(dt);
+      }
+
+      groups.add(
+        _TaskProjectGroup(
+          title:
+              project['title']?.toString() ?? context.tr('Untitled project'),
+          endDateText: endDateText,
+          tasks: projectTasks,
+        ),
+      );
+    }
+
+    final knownProjectIds = _projects
+        .map((project) => project['id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final noProjectTasks = tasks.where((task) {
+      final id = _taskProjectId(task);
+      return id == null || !knownProjectIds.contains(id);
+    }).toList();
+    if (noProjectTasks.isNotEmpty) {
+      groups.add(
+        _TaskProjectGroup(
+          title: context.tr('No project'),
+          tasks: noProjectTasks,
+        ),
+      );
+    }
+
+    return groups;
+  }
+
+  Widget _buildProjectSectionHeader(ThemeData theme, _TaskProjectGroup group) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppDimensions.spacingMD),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              group.title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (group.endDateText != null)
+            Text(
+              group.endDateText!,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.mic.textSecondary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAllTasksView(
     ThemeData theme,
     List<Map<String, dynamic>> tasks, {
     bool compact = false,
   }) {
+    if (compact) {
+      return RefreshIndicator(
+        onRefresh: _refreshTasksWorkspace,
+        child: ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: compact
+              ? EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD)
+              : null,
+          itemCount: tasks.length,
+          separatorBuilder: (_, __) =>
+              SizedBox(height: AppDimensions.spacingSM),
+          itemBuilder: (context, index) => _buildDesktopTaskCard(tasks[index]),
+        ),
+      );
+    }
+
+    return _buildDesktopResizableTasksTable(theme, tasks);
+  }
+
+  String? _analyticsDepartmentLabel(List<Map<String, dynamic>> tasks) {
+    if (widget.departmentId != null) {
+      return TaskMemberAnalytics.departmentLabel(tasks) ??
+          context.tr('Current department');
+    }
+    return null;
+  }
+
+  Widget _buildAvgLatenessView(
+    ThemeData theme,
+    List<Map<String, dynamic>> tasks, {
+    bool compact = false,
+  }) {
+    final metrics = TaskMemberAnalytics.averageLatenessPerMember(tasks);
     return RefreshIndicator(
       onRefresh: _refreshTasksWorkspace,
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: compact
-            ? EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD)
-            : null,
-        itemCount: tasks.length,
-        separatorBuilder: (_, __) => SizedBox(height: AppDimensions.spacingSM),
-        itemBuilder: (context, index) => _buildDesktopTaskCard(tasks[index]),
+        padding: EdgeInsets.all(
+          compact ? AppDimensions.paddingMD : AppDimensions.paddingMD,
+        ),
+        children: [
+          TaskMemberLatenessChartView(
+            metrics: metrics,
+            departmentName: _analyticsDepartmentLabel(tasks),
+            compact: compact,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkloadView(
+    ThemeData theme,
+    List<Map<String, dynamic>> tasks, {
+    bool compact = false,
+  }) {
+    final metrics = TaskMemberAnalytics.workloadPerMember(tasks);
+    return RefreshIndicator(
+      onRefresh: _refreshTasksWorkspace,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(
+          compact ? AppDimensions.paddingMD : AppDimensions.paddingMD,
+        ),
+        children: [
+          TaskMemberWorkloadChartView(
+            metrics: metrics,
+            departmentName: _analyticsDepartmentLabel(tasks),
+            compact: compact,
+          ),
+        ],
       ),
     );
   }
@@ -1218,7 +1445,9 @@ class _TasksListPageState extends State<TasksListPage> {
             height: boardHeight,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingMD,
+              ),
               itemCount: statuses.length,
               separatorBuilder: (_, __) =>
                   SizedBox(width: AppDimensions.spacingSM),
@@ -1366,83 +1595,974 @@ class _TasksListPageState extends State<TasksListPage> {
     );
   }
 
-  Widget _buildChartsView(
+  Widget _buildTimelineView(
     ThemeData theme,
     List<Map<String, dynamic>> tasks, {
     bool compact = false,
   }) {
-    final statusCounts = _countBy(tasks, 'status');
-    final priorityCounts = _countBy(tasks, 'priority');
-    final projectCounts = <String, int>{};
-    for (final task in tasks) {
-      final project = _getProjectTitle(task);
-      final projectLabel = project == '—' ? context.tr('No project') : project;
-      projectCounts[projectLabel] = (projectCounts[projectLabel] ?? 0) + 1;
+    final timelineTasks = _timelineTasksWithDates(tasks);
+    if (timelineTasks.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(AppDimensions.paddingLG),
+          child: Text(
+            tasks.isEmpty
+                ? context.tr('No tasks yet')
+                : context.tr(
+                    'No scheduled tasks to display on the timeline.',
+                  ),
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: context.mic.textSecondary,
+            ),
+          ),
+        ),
+      );
     }
-    final overdue = tasks.where(_isTaskOverdue).length;
-    final open = tasks
-        .where((task) => task['status']?.toString() != 'completed')
-        .length;
 
-    return RefreshIndicator(
-      onRefresh: _refreshTasksWorkspace,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: compact
-            ? EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD)
-            : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    final projectGroups = _collectTimelineProjectGroups(timelineTasks);
+    final displayRows = _timelineRowsFromGroups(projectGroups);
+    final range = _timelineRangeForTasks(timelineTasks);
+    final totalDays = range.end.difference(range.start).inDays + 1;
+    final monthBands = _timelineMonthBands(range.start, range.end);
+    final weekBands = _timelineWeekBands(range.start, range.end);
+    final labelWidth = compact ? 220.0 : _kTimelineLabelWidth;
+    final todayOffset = _timelineDayOffset(DateTime.now(), range.start);
+    final borderColor = theme.dividerColor.withValues(alpha: 0.45);
+    final headerHeight = _kTimelineMonthHeaderHeight +
+        _kTimelineWeekHeaderHeight +
+        _kTimelineDayHeaderHeight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildTimelineToolbar(theme, compact: compact),
+        SizedBox(height: AppDimensions.spacingSM),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final chartAreaWidth = math.max(
+                0.0,
+                constraints.maxWidth - labelWidth,
+              );
+              final fitDayWidth = chartAreaWidth / totalDays;
+              final dayWidth = (fitDayWidth * _timelineZoom).clamp(
+                _kTimelineMinDayWidth,
+                _kTimelineMaxDayWidth * _kTimelineMaxZoom,
+              );
+              final chartWidth = math.max(chartAreaWidth, totalDays * dayWidth);
+              final needsHorizontalScroll = chartWidth > chartAreaWidth + 1;
+
+              Widget buildChartHeader() {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: _kTimelineMonthHeaderHeight,
+                      child: Row(
+                        children: monthBands.map((band) {
+                          return _buildTimelineMonthBandHeader(
+                            theme,
+                            band,
+                            dayWidth,
+                            borderColor,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    SizedBox(
+                      height: _kTimelineWeekHeaderHeight,
+                      child: Row(
+                        children: weekBands.map((band) {
+                          return _buildTimelineWeekBandHeader(
+                            theme,
+                            band,
+                            dayWidth,
+                            borderColor,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    SizedBox(
+                      height: _kTimelineDayHeaderHeight,
+                      child: _buildTimelineDayHeaderRow(
+                        theme,
+                        range,
+                        totalDays,
+                        dayWidth,
+                        todayOffset,
+                        borderColor,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              Widget buildChartBody() {
+                return Column(
+                  children: displayRows.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final row = entry.value;
+                    if (row.isHeader) {
+                      return SizedBox(
+                        height: _kTimelineProjectHeaderHeight,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            _buildTimelineGrid(
+                              theme,
+                              range,
+                              totalDays,
+                              dayWidth: dayWidth,
+                              todayOffset: todayOffset,
+                            ),
+                            if (todayOffset >= 0 && todayOffset < totalDays)
+                              Positioned(
+                                left:
+                                    todayOffset * dayWidth + (dayWidth / 2) - 1,
+                                top: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 2,
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.35,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final task = row.task!;
+                    return Container(
+                      height: _kTimelineRowHeight,
+                      decoration: BoxDecoration(
+                        color: index.isEven
+                            ? theme.colorScheme.surface
+                            : theme.colorScheme.surfaceContainerLowest
+                                  .withValues(alpha: 0.55),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: borderColor.withValues(alpha: 0.35),
+                          ),
+                        ),
+                      ),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _buildTimelineGrid(
+                            theme,
+                            range,
+                            totalDays,
+                            dayWidth: dayWidth,
+                            todayOffset: todayOffset,
+                          ),
+                          if (todayOffset >= 0 && todayOffset < totalDays)
+                            Positioned(
+                              left:
+                                  todayOffset * dayWidth + (dayWidth / 2) - 1,
+                              top: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 2,
+                                color: AppColors.primary.withValues(alpha: 0.55),
+                              ),
+                            ),
+                          _buildTimelineBar(
+                            theme,
+                            task,
+                            range.start,
+                            dayWidth: dayWidth,
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              }
+
+              return RefreshIndicator(
+                onRefresh: _refreshTasksWorkspace,
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
+                  clipBehavior: Clip.antiAlias,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: borderColor),
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusXL),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(
+                          height: headerHeight,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                width: labelWidth,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: AppDimensions.paddingMD,
+                                ),
+                                alignment: Alignment.centerLeft,
+                                decoration: BoxDecoration(
+                                  color: theme
+                                      .colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                                  border: Border(
+                                    right: BorderSide(color: borderColor),
+                                    bottom: BorderSide(color: borderColor),
+                                  ),
+                                ),
+                                child: Text(
+                                  context.tr('Projects'),
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: context.mic.textSecondary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(color: borderColor),
+                                    ),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    controller: _timelineHeaderScrollController,
+                                    scrollDirection: Axis.horizontal,
+                                    physics: needsHorizontalScroll
+                                        ? const ClampingScrollPhysics()
+                                        : const NeverScrollableScrollPhysics(),
+                                    child: SizedBox(
+                                      width: chartWidth,
+                                      child: buildChartHeader(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: labelWidth,
+                                child: ListView.builder(
+                                  controller:
+                                      _timelineLabelsVerticalScrollController,
+                                  physics: const ClampingScrollPhysics(),
+                                  itemCount: displayRows.length,
+                                  itemBuilder: (context, index) {
+                                    final row = displayRows[index];
+                                    if (row.isHeader) {
+                                      return _buildTimelineProjectHeaderLabel(
+                                        theme,
+                                        row.projectTitle!,
+                                        row.taskCount!,
+                                        borderColor,
+                                      );
+                                    }
+                                    return _buildTimelineTaskLabel(
+                                      theme,
+                                      row.task!,
+                                      index,
+                                      borderColor,
+                                    );
+                                  },
+                                ),
+                              ),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  controller:
+                                      _timelineBodyVerticalScrollController,
+                                  physics: const ClampingScrollPhysics(),
+                                  child: SingleChildScrollView(
+                                    controller: _timelineBodyScrollController,
+                                    scrollDirection: Axis.horizontal,
+                                    physics: needsHorizontalScroll
+                                        ? const ClampingScrollPhysics()
+                                        : const NeverScrollableScrollPhysics(),
+                                    child: SizedBox(
+                                      width: chartWidth,
+                                      child: buildChartBody(),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTimelineToolbar(ThemeData theme, {bool compact = false}) {
+    final zoomPercent = (_timelineZoom * 100).round();
+
+    return Row(
+      children: [
+        Icon(
+          Icons.view_timeline_outlined,
+          size: 18,
+          color: context.mic.textSecondary,
+        ),
+        SizedBox(width: AppDimensions.spacingSM),
+        Text(
+          context.tr('Timeline'),
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          '$zoomPercent%',
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: context.mic.textSecondary,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        SizedBox(width: AppDimensions.spacingSM),
+        IconButton(
+          tooltip: context.tr('Zoom out'),
+          onPressed: _timelineZoom <= _kTimelineMinZoom
+              ? null
+              : () => setState(() {
+                  _timelineZoom = math.max(
+                    _kTimelineMinZoom,
+                    _timelineZoom - _kTimelineZoomStep,
+                  );
+                }),
+          icon: const Icon(Icons.zoom_out_map, size: 20),
+          visualDensity: VisualDensity.compact,
+        ),
+        IconButton(
+          tooltip: context.tr('Fit to width'),
+          onPressed: () => setState(() => _timelineZoom = 1.0),
+          icon: const Icon(Icons.fit_screen, size: 20),
+          visualDensity: VisualDensity.compact,
+        ),
+        IconButton(
+          tooltip: context.tr('Zoom in'),
+          onPressed: _timelineZoom >= _kTimelineMaxZoom
+              ? null
+              : () => setState(() {
+                  _timelineZoom = math.min(
+                    _kTimelineMaxZoom,
+                    _timelineZoom + _kTimelineZoomStep,
+                  );
+                }),
+          icon: const Icon(Icons.zoom_in_map, size: 20),
+          visualDensity: VisualDensity.compact,
+        ),
+      ],
+    );
+  }
+
+  List<_TimelineProjectGroup> _collectTimelineProjectGroups(
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final groups = <_TimelineProjectGroup>[];
+    final sortedProjects = [..._projects];
+    sortedProjects.sort((a, b) {
+      final aDate = DateTime.tryParse(a['end_date']?.toString() ?? '');
+      final bDate = DateTime.tryParse(b['end_date']?.toString() ?? '');
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return bDate.compareTo(aDate);
+    });
+
+    for (final project in sortedProjects) {
+      final id = project['id']?.toString();
+      if (id == null) continue;
+      final projectTasks =
+          tasks.where((task) => _taskProjectId(task) == id).toList();
+      if (projectTasks.isEmpty) continue;
+      projectTasks.sort(
+        (a, b) => _timelineTaskStart(a).compareTo(_timelineTaskStart(b)),
+      );
+      groups.add(
+        _TimelineProjectGroup(
+          title:
+              project['title']?.toString() ?? context.tr('Untitled project'),
+          tasks: projectTasks,
+        ),
+      );
+    }
+
+    final knownProjectIds = _projects
+        .map((project) => project['id']?.toString())
+        .whereType<String>()
+        .toSet();
+    final noProjectTasks = tasks.where((task) {
+      final id = _taskProjectId(task);
+      return id == null || !knownProjectIds.contains(id);
+    }).toList();
+    if (noProjectTasks.isNotEmpty) {
+      noProjectTasks.sort(
+        (a, b) => _timelineTaskStart(a).compareTo(_timelineTaskStart(b)),
+      );
+      groups.add(
+        _TimelineProjectGroup(
+          title: context.tr('No project'),
+          tasks: noProjectTasks,
+        ),
+      );
+    }
+
+    return groups;
+  }
+
+  List<_TimelineDisplayRow> _timelineRowsFromGroups(
+    List<_TimelineProjectGroup> groups,
+  ) {
+    final rows = <_TimelineDisplayRow>[];
+    for (final group in groups) {
+      if (group.tasks.isEmpty) continue;
+      rows.add(
+        _TimelineDisplayRow.header(
+          projectTitle: group.title,
+          taskCount: group.tasks.length,
+        ),
+      );
+      for (final task in group.tasks) {
+        rows.add(_TimelineDisplayRow.task(task));
+      }
+    }
+    return rows;
+  }
+
+  List<_TimelineMonthBand> _timelineMonthBands(DateTime start, DateTime end) {
+    final bands = <_TimelineMonthBand>[];
+    var cursor = start;
+    var monthIndex = 0;
+
+    while (!cursor.isAfter(end)) {
+      final monthEnd = DateTime(cursor.year, cursor.month + 1, 0);
+      final visibleEnd = monthEnd.isAfter(end) ? end : monthEnd;
+      final dayCount = visibleEnd.difference(cursor).inDays + 1;
+      bands.add(
+        _TimelineMonthBand(
+          start: cursor,
+          end: visibleEnd,
+          dayCount: dayCount,
+          monthIndex: monthIndex,
+        ),
+      );
+      cursor = visibleEnd.add(const Duration(days: 1));
+      monthIndex++;
+    }
+
+    return bands;
+  }
+
+  Widget _buildTimelineMonthBandHeader(
+    ThemeData theme,
+    _TimelineMonthBand band,
+    double dayWidth,
+    Color borderColor,
+  ) {
+    final locale = Localizations.localeOf(context).languageCode;
+    final width = band.dayCount * dayWidth;
+
+    return Container(
+      width: width,
+      padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingSM),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: band.monthIndex.isEven
+            ? AppColors.primary.withValues(alpha: 0.1)
+            : theme.colorScheme.secondaryContainer.withValues(alpha: 0.35),
+        border: Border(
+          right: BorderSide(color: borderColor, width: 1.5),
+          bottom: BorderSide(color: borderColor.withValues(alpha: 0.5)),
+        ),
+      ),
+      child: Text(
+        DateFormat.yMMMM(locale).format(band.start),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w900,
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineProjectHeaderLabel(
+    ThemeData theme,
+    String projectTitle,
+    int taskCount,
+    Color borderColor,
+  ) {
+    return Material(
+      color: AppColors.primary.withValues(alpha: 0.07),
+      child: Container(
+        height: _kTimelineProjectHeaderHeight,
+        padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
+        decoration: BoxDecoration(
+          border: Border(
+            right: BorderSide(color: borderColor),
+            bottom: BorderSide(color: borderColor.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Row(
           children: [
-            Wrap(
-              spacing: AppDimensions.spacingMD,
-              runSpacing: AppDimensions.spacingMD,
+            Icon(
+              Icons.folder_outlined,
+              size: 16,
+              color: AppColors.primary,
+            ),
+            SizedBox(width: AppDimensions.spacingSM),
+            Expanded(
+              child: Text(
+                projectTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingSM,
+                vertical: 2,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+              ),
+              child: Text(
+                '$taskCount',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _syncTimelineLabelsToChart() {
+    _syncTimelineVerticalScroll(
+      source: _timelineBodyVerticalScrollController,
+      target: _timelineLabelsVerticalScrollController,
+    );
+  }
+
+  void _syncTimelineChartToLabels() {
+    _syncTimelineVerticalScroll(
+      source: _timelineLabelsVerticalScrollController,
+      target: _timelineBodyVerticalScrollController,
+    );
+  }
+
+  void _syncTimelineVerticalScroll({
+    required ScrollController source,
+    required ScrollController target,
+  }) {
+    if (_isSyncingTimelineVerticalScroll ||
+        !source.hasClients ||
+        !target.hasClients) {
+      return;
+    }
+    _isSyncingTimelineVerticalScroll = true;
+    target.jumpTo(source.offset);
+    _isSyncingTimelineVerticalScroll = false;
+  }
+
+  Widget _buildTimelineTaskLabel(
+    ThemeData theme,
+    Map<String, dynamic> task,
+    int index,
+    Color borderColor,
+  ) {
+    final taskId = task['id']?.toString() ?? '';
+    final status = task['status']?.toString() ?? 'pending';
+    final statusColor = _getStatusColor(status);
+    final due = _taskDueDate(task);
+    final dueText = due != null ? _formatDate(due) : '—';
+
+    return SizedBox(
+      height: _kTimelineRowHeight,
+      child: Material(
+        color: index.isEven
+            ? theme.colorScheme.surface
+            : theme.colorScheme.surfaceContainerLowest.withValues(alpha: 0.55),
+        child: InkWell(
+          onTap: taskId.isEmpty ? null : () => _openTaskDetail(taskId),
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.paddingMD,
+              vertical: AppDimensions.spacingSM,
+            ),
+            decoration: BoxDecoration(
+              border: Border(
+                right: BorderSide(color: borderColor),
+                bottom: BorderSide(color: borderColor.withValues(alpha: 0.35)),
+              ),
+            ),
+            child: Row(
               children: [
-                _buildMetricCard(
-                  theme,
-                  context.tr('Open tasks'),
-                  '$open',
-                  Icons.task_outlined,
-                  compact: compact,
+                Container(
+                  width: 4,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                _buildMetricCard(
-                  theme,
-                  context.tr('Overdue'),
-                  '$overdue',
-                  Icons.warning_amber_outlined,
-                  color: overdue > 0 ? AppColors.error : AppColors.success,
-                  compact: compact,
-                ),
-                _buildMetricCard(
-                  theme,
-                  context.tr('Projects'),
-                  '${projectCounts.length}',
-                  Icons.folder_outlined,
-                  compact: compact,
+                SizedBox(width: AppDimensions.spacingSM),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        task['title']?.toString() ??
+                            context.tr('Untitled task'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Text(
+                        '${_getAssignedMemberDisplay(task)} · $dueText',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: context.mic.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: AppDimensions.spacingMD),
-            if (compact) ...[
-              _buildBarChartCard(theme, 'Status', statusCounts),
-              SizedBox(height: AppDimensions.spacingMD),
-              _buildBarChartCard(theme, 'Priority', priorityCounts),
-            ] else
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _buildBarChartCard(theme, 'Status', statusCounts),
-                  ),
-                  SizedBox(width: AppDimensions.spacingMD),
-                  Expanded(
-                    child: _buildBarChartCard(theme, 'Priority', priorityCounts),
-                  ),
-                ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineWeekBandHeader(
+    ThemeData theme,
+    _TimelineWeekBand band,
+    double dayWidth,
+    Color borderColor,
+  ) {
+    final locale = Localizations.localeOf(context).languageCode;
+    final width = band.dayCount * dayWidth;
+    final isEvenWeek = band.weekIndex.isEven;
+
+    return Container(
+      width: width,
+      padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingSM),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        color: isEvenWeek
+            ? theme.colorScheme.primary.withValues(alpha: 0.06)
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        border: Border(
+          right: BorderSide(color: borderColor, width: 1.5),
+        ),
+      ),
+      child: Text(
+        '${DateFormat('d MMM', locale).format(band.start)} – ${DateFormat('d MMM', locale).format(band.end)}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: theme.textTheme.labelMedium?.copyWith(
+          fontWeight: FontWeight.w900,
+          color: context.mic.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimelineDayHeaderRow(
+    ThemeData theme,
+    ({DateTime start, DateTime end}) range,
+    int totalDays,
+    double dayWidth,
+    int todayOffset,
+    Color borderColor,
+  ) {
+    final locale = Localizations.localeOf(context).languageCode;
+    final weekdayFormat = DateFormat('EEE', locale);
+
+    return Row(
+      children: List.generate(totalDays, (index) {
+        final day = range.start.add(Duration(days: index));
+        final isToday = index == todayOffset;
+        final isWeekend =
+            day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+        final isWeekStart = day.weekday == DateTime.monday;
+        final weekIndex = _timelineWeekIndex(day, range.start);
+
+        return Container(
+          width: dayWidth,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isToday
+                ? AppColors.primary.withValues(alpha: 0.12)
+                : weekIndex.isEven
+                ? theme.colorScheme.primary.withValues(alpha: 0.03)
+                : isWeekend
+                ? theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.35)
+                : null,
+            border: Border(
+              left: isWeekStart
+                  ? BorderSide(color: borderColor, width: 1.5)
+                  : BorderSide.none,
+              right: BorderSide(color: borderColor.withValues(alpha: 0.35)),
+              bottom: BorderSide(color: borderColor.withValues(alpha: 0.35)),
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                weekdayFormat.format(day),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: isToday
+                      ? AppColors.primary
+                      : context.mic.textSecondary,
+                ),
               ),
-            SizedBox(height: AppDimensions.spacingMD),
-            _buildBarChartCard(theme, 'Project workload', projectCounts),
-          ],
+              Text(
+                '${day.day}',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: isToday
+                      ? AppColors.primary
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  List<Map<String, dynamic>> _timelineTasksWithDates(
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final dated = tasks.where((task) {
+      return _taskCreatedDate(task) != null || _taskDueDate(task) != null;
+    }).toList();
+
+    dated.sort((a, b) {
+      final aStart = _timelineTaskStart(a);
+      final bStart = _timelineTaskStart(b);
+      return aStart.compareTo(bStart);
+    });
+    return dated;
+  }
+
+  ({DateTime start, DateTime end}) _timelineRangeForTasks(
+    List<Map<String, dynamic>> tasks,
+  ) {
+    DateTime? minDate;
+    DateTime? maxDate;
+
+    for (final task in tasks) {
+      final start = _timelineTaskStart(task);
+      final end = _timelineTaskEnd(task);
+      if (minDate == null || start.isBefore(minDate)) minDate = start;
+      if (maxDate == null || end.isAfter(maxDate)) maxDate = end;
+    }
+
+    final start = _timelineWeekStart(minDate!);
+    final end = _timelineWeekEnd(_dateOnly(maxDate!));
+    return (start: start, end: end);
+  }
+
+  DateTime _timelineWeekStart(DateTime date) =>
+      _dateOnly(date).subtract(Duration(days: date.weekday - DateTime.monday));
+
+  DateTime _timelineWeekEnd(DateTime date) =>
+      _timelineWeekStart(date).add(const Duration(days: 6));
+
+  int _timelineWeekIndex(DateTime day, DateTime rangeStart) {
+    return day.difference(_timelineWeekStart(rangeStart)).inDays ~/ 7;
+  }
+
+  List<_TimelineWeekBand> _timelineWeekBands(DateTime start, DateTime end) {
+    final bands = <_TimelineWeekBand>[];
+    var weekStart = _timelineWeekStart(start);
+    var weekIndex = 0;
+
+    while (!weekStart.isAfter(end)) {
+      final weekEnd = weekStart.add(const Duration(days: 6));
+      final visibleStart = weekStart.isBefore(start) ? start : weekStart;
+      final visibleEnd = weekEnd.isAfter(end) ? end : weekEnd;
+      final dayCount = visibleEnd.difference(visibleStart).inDays + 1;
+      bands.add(
+        _TimelineWeekBand(
+          start: visibleStart,
+          end: visibleEnd,
+          dayCount: dayCount,
+          weekIndex: weekIndex,
+        ),
+      );
+      weekStart = weekStart.add(const Duration(days: 7));
+      weekIndex++;
+    }
+
+    return bands;
+  }
+
+  DateTime _timelineTaskStart(Map<String, dynamic> task) {
+    final created = _taskCreatedDate(task);
+    final due = _taskDueDate(task);
+    if (created != null) return _dateOnly(created);
+    if (due != null) return _dateOnly(due.subtract(const Duration(days: 7)));
+    return _dateOnly(DateTime.now());
+  }
+
+  DateTime _timelineTaskEnd(Map<String, dynamic> task) {
+    final due = _taskDueDate(task);
+    final created = _taskCreatedDate(task);
+    if (due != null) return _dateOnly(due);
+    if (created != null) return _dateOnly(created.add(const Duration(days: 7)));
+    return _dateOnly(DateTime.now());
+  }
+
+  DateTime? _taskCreatedDate(Map<String, dynamic> task) {
+    final value = task['created_at']?.toString();
+    if (value == null || value.isEmpty) return null;
+    return DateTime.tryParse(value);
+  }
+
+  DateTime _dateOnly(DateTime date) =>
+      DateTime(date.year, date.month, date.day);
+
+  int _timelineDayOffset(DateTime date, DateTime rangeStart) {
+    return _dateOnly(date).difference(rangeStart).inDays;
+  }
+
+  Widget _buildTimelineGrid(
+    ThemeData theme,
+    ({DateTime start, DateTime end}) range,
+    int totalDays, {
+    required double dayWidth,
+    required int todayOffset,
+  }) {
+    final borderColor = theme.dividerColor.withValues(alpha: 0.45);
+
+    return Row(
+      children: List.generate(totalDays, (index) {
+        final day = range.start.add(Duration(days: index));
+        final isToday = index == todayOffset;
+        final isWeekend =
+            day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+        final isWeekStart = day.weekday == DateTime.monday;
+        final weekIndex = _timelineWeekIndex(day, range.start);
+
+        return Container(
+          width: dayWidth,
+          decoration: BoxDecoration(
+            border: Border(
+              left: isWeekStart
+                  ? BorderSide(color: borderColor, width: 1.5)
+                  : BorderSide.none,
+              right: BorderSide(color: borderColor.withValues(alpha: 0.25)),
+            ),
+            color: isToday
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : weekIndex.isEven
+                ? theme.colorScheme.primary.withValues(alpha: 0.03)
+                : isWeekend
+                ? theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.25)
+                : null,
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildTimelineBar(
+    ThemeData theme,
+    Map<String, dynamic> task,
+    DateTime rangeStart, {
+    required double dayWidth,
+  }) {
+    final start = _timelineTaskStart(task);
+    final end = _timelineTaskEnd(task);
+    final normalizedEnd = end.isBefore(start) ? start : end;
+    final left = _timelineDayOffset(start, rangeStart) * dayWidth + 6;
+    final daySpan = normalizedEnd.difference(start).inDays + 1;
+    final width = (daySpan * dayWidth - 12).clamp(20.0, double.infinity);
+    final status = task['status']?.toString() ?? 'pending';
+    final color = _getStatusColor(status);
+    final taskId = task['id']?.toString() ?? '';
+    final title = task['title']?.toString().trim().isEmpty == true
+        ? context.tr('Untitled task')
+        : task['title']?.toString().trim() ?? context.tr('Untitled task');
+    final showTitle = width >= 72;
+
+    return Positioned(
+      left: left,
+      top: 12,
+      child: GestureDetector(
+        onTap: taskId.isEmpty ? null : () => _openTaskDetail(taskId),
+        child: Container(
+          width: width,
+          height: 32,
+          padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingSM),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                color.withValues(alpha: 0.9),
+                color.withValues(alpha: 0.72),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.28),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          alignment: Alignment.centerLeft,
+          child: Text(
+            showTitle ? title : context.l10n.statusLabel(status),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
       ),
     );
@@ -1751,146 +2871,6 @@ class _TasksListPageState extends State<TasksListPage> {
     );
   }
 
-  Widget _buildMetricCard(
-    ThemeData theme,
-    String title,
-    String value,
-    IconData icon, {
-    Color color = AppColors.primary,
-    bool compact = false,
-  }) {
-    return SizedBox(
-      width: compact ? double.infinity : 240,
-      child: _DesktopTaskSurface(
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-              ),
-              child: Icon(icon, color: color),
-            ),
-            SizedBox(width: AppDimensions.spacingMD),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    value,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  Text(
-                    title,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.mic.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBarChartCard(
-    ThemeData theme,
-    String title,
-    Map<String, int> counts,
-  ) {
-    final entries = counts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final maxValue = entries.fold<int>(
-      1,
-      (current, entry) => entry.value > current ? entry.value : current,
-    );
-
-    return _DesktopTaskSurface(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            context.tr(title),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          SizedBox(height: AppDimensions.spacingMD),
-          if (entries.isEmpty)
-            Text(
-              context.tr('No data yet'),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: context.mic.textSecondary,
-              ),
-            )
-          else
-            ...entries.take(8).map((entry) {
-              final color = title == 'Status'
-                  ? _getStatusColor(entry.key)
-                  : title == 'Priority'
-                  ? _getPriorityColor(entry.key)
-                  : AppColors.primary;
-              return Padding(
-                padding: EdgeInsets.only(bottom: AppDimensions.spacingSM),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 130,
-                      child: Text(
-                        title == 'Status'
-                            ? context.l10n.statusLabel(entry.key)
-                            : title == 'Priority'
-                            ? context.l10n.priorityLabel(entry.key)
-                            : context.tr(entry.key.replaceAll('_', ' ')),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(
-                          AppDimensions.radiusSM,
-                        ),
-                        child: LinearProgressIndicator(
-                          minHeight: 10,
-                          value: entry.value / maxValue,
-                          backgroundColor: color.withValues(alpha: 0.1),
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: AppDimensions.spacingSM),
-                    Text(
-                      entry.value.toString(),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-        ],
-      ),
-    );
-  }
-
-  Map<String, int> _countBy(List<Map<String, dynamic>> tasks, String field) {
-    final counts = <String, int>{};
-    for (final task in tasks) {
-      final value = task[field]?.toString();
-      final label = value == null || value.isEmpty ? 'unknown' : value;
-      counts[label] = (counts[label] ?? 0) + 1;
-    }
-    return counts;
-  }
-
   Future<void> _moveTaskToStatus(
     Map<String, dynamic> task,
     String status,
@@ -1918,6 +2898,393 @@ class _TasksListPageState extends State<TasksListPage> {
 
   Future<void> _refreshTasksWorkspace() async {
     await Future.wait([_loadTasks(), _loadDesktopMeta()]);
+  }
+
+  Future<void> _updateTaskInlineField(
+    Map<String, dynamic> task,
+    Map<String, dynamic> updates, {
+    void Function()? applyLocal,
+    void Function()? revertLocal,
+  }) async {
+    final taskId = task['id']?.toString();
+    if (taskId == null || taskId.isEmpty) return;
+
+    applyLocal?.call();
+    try {
+      await TaskService.updateTask(taskId: taskId, updates: updates);
+      if (!mounted) return;
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      revertLocal?.call();
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Could not update task: {error}', {'error': e}),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateTaskTitleInline(Map<String, dynamic> task, String value) {
+    final previous = task['title']?.toString() ?? '';
+    return _updateTaskInlineField(
+      task,
+      {'title': value.isEmpty ? context.tr('Untitled task') : value},
+      applyLocal: () => task['title'] = value,
+      revertLocal: () => task['title'] = previous,
+    );
+  }
+
+  Future<void> _updateTaskDescriptionInline(
+    Map<String, dynamic> task,
+    String value,
+  ) {
+    final previous = task['description']?.toString();
+    return _updateTaskInlineField(
+      task,
+      {'description': value.isEmpty ? null : value},
+      applyLocal: () => task['description'] = value.isEmpty ? null : value,
+      revertLocal: () => task['description'] = previous,
+    );
+  }
+
+  Future<void> _updateTaskStatusInline(
+    Map<String, dynamic> task,
+    String status,
+  ) async {
+    final taskId = task['id']?.toString();
+    if (taskId == null || taskId.isEmpty) return;
+    if (task['status']?.toString() == status) return;
+
+    final previousStatus = task['status'];
+    setState(() => task['status'] = status);
+    try {
+      await TaskService.updateTask(taskId: taskId, updates: {'status': status});
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => task['status'] = previousStatus);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Could not update task status: {error}', {'error': e}),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _updateTaskDueDateInline(
+    Map<String, dynamic> task,
+    DateTime? dueDate,
+  ) {
+    final previous = task['due_date']?.toString();
+    final iso = dueDate?.toIso8601String().split('T').first;
+    return _updateTaskInlineField(
+      task,
+      {'due_date': iso},
+      applyLocal: () => task['due_date'] = iso,
+      revertLocal: () => task['due_date'] = previous,
+    );
+  }
+
+  Future<void> _updateTaskAssigneeInline(
+    Map<String, dynamic> task,
+    String? memberId,
+  ) async {
+    final taskId = task['id']?.toString();
+    if (taskId == null || taskId.isEmpty) return;
+
+    final currentMember = _getPrimaryAssignedMember(task);
+    final currentId = currentMember?['id']?.toString();
+    if (currentId == memberId) return;
+
+    try {
+      if (currentId != null) {
+        await TaskService.removeAssignment(
+          taskId: taskId,
+          memberId: currentId,
+        );
+      }
+      if (memberId != null && memberId.isNotEmpty) {
+        await TaskService.assignTask(taskId: taskId, memberId: memberId);
+      }
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Could not update assignment: {error}', {'error': e}),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _tagsForTask(
+    Map<String, dynamic> task,
+  ) async {
+    final deptId =
+        task['department_id']?.toString() ?? widget.departmentId;
+    if (deptId == null) return _tags;
+    if (widget.departmentId == deptId && _tags.isNotEmpty) return _tags;
+    return TagService.getTags(departmentId: deptId, limit: 500);
+  }
+
+  Future<void> _updateTaskTagInline(
+    Map<String, dynamic> task,
+    String? tagId,
+  ) async {
+    final taskId = task['id']?.toString();
+    if (taskId == null) return;
+
+    try {
+      await TaskService.setTaskTags(
+        taskId: taskId,
+        tagIds: tagId == null ? [] : [tagId],
+      );
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Could not update tags: {error}', {'error': e}),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<String?> _createTagForTaskDepartment(
+    Map<String, dynamic> task,
+    String name,
+  ) async {
+    final deptId =
+        task['department_id']?.toString() ?? widget.departmentId;
+    if (deptId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr('Task has no department; cannot add tags'),
+            ),
+          ),
+        );
+      }
+      return null;
+    }
+
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+
+    final tags = await _tagsForTask(task);
+    final existing = tags.where(
+      (tag) =>
+          tag['name']?.toString().toLowerCase() == trimmed.toLowerCase(),
+    );
+    if (existing.isNotEmpty) {
+      return existing.first['id']?.toString();
+    }
+
+    final created = await TagService.createTag(
+      name: trimmed,
+      departmentId: deptId,
+      color: TagColors.defaultHex,
+    );
+    if (widget.departmentId == deptId) {
+      setState(() => _tags = [..._tags, created]);
+    }
+    return created['id']?.toString();
+  }
+
+  Future<void> _showAnchoredMenu<T>(
+    BuildContext anchorContext,
+    List<PopupMenuEntry<T>> items,
+    Future<void> Function(T value) onSelected,
+  ) async {
+    final renderBox = anchorContext.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final selected = await showMenu<T>(
+      context: anchorContext,
+      position: _popupPositionForCell(anchorContext, renderBox),
+      items: items,
+    );
+    if (selected != null) await onSelected(selected);
+  }
+
+  RelativeRect _popupPositionForCell(
+    BuildContext anchorContext,
+    RenderBox renderBox,
+  ) {
+    final overlay =
+        Overlay.of(anchorContext).context.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+    return RelativeRect.fromLTRB(
+      offset.dx,
+      offset.dy + renderBox.size.height,
+      offset.dx + renderBox.size.width,
+      offset.dy + renderBox.size.height + 240,
+    );
+  }
+
+  Future<void> _showStatusPicker(
+    BuildContext anchorContext,
+    Map<String, dynamic> task,
+  ) {
+    const statuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+    return _showAnchoredMenu<String>(
+      anchorContext,
+      statuses
+          .map(
+            (status) => PopupMenuItem<String>(
+              value: status,
+              child: Text(context.l10n.statusLabel(status)),
+            ),
+          )
+          .toList(),
+      (status) => _updateTaskStatusInline(task, status),
+    );
+  }
+
+  Future<void> _showAssigneePicker(
+    BuildContext anchorContext,
+    Map<String, dynamic> task,
+  ) async {
+    final departmentId =
+        task['department_id']?.toString() ?? widget.departmentId;
+    if (departmentId == null || departmentId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Task must be assigned to a department first'),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final departmentMembers = await DepartmentService.getDepartmentMembers(
+        departmentId,
+      );
+      final members = departmentMembers
+          .map((row) => row['members'] as Map<String, dynamic>?)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+      final membersWithPenalties =
+          await TaskPenaltyService.annotateMembersWithPenalties(members);
+
+      if (!mounted || !anchorContext.mounted) return;
+      if (membersWithPenalties.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr('No members found in this department'),
+            ),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        return;
+      }
+
+      final currentMember = _getPrimaryAssignedMember(task);
+      final selectedMemberId = await showTaskTableAnchoredPopup<String>(
+        anchorContext: anchorContext,
+        child: TaskAssigneePickerPanel(
+          members: membersWithPenalties,
+          currentMemberId: currentMember?['id']?.toString(),
+        ),
+      );
+
+      if (selectedMemberId == null) return;
+      await _updateTaskAssigneeInline(
+        task,
+        selectedMemberId.isEmpty ? null : selectedMemberId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.tr('Error loading members: $e')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickTaskDueDate(
+    BuildContext anchorContext,
+    Map<String, dynamic> task,
+  ) async {
+    final current = _taskDueDate(task);
+    final initial = current ?? DateTime.now();
+    final firstDate = DateTime.now().subtract(const Duration(days: 365 * 2));
+    final lastDate = DateTime.now().add(const Duration(days: 365 * 3));
+
+    final picked = await showTaskTableAnchoredPopup<DateTime>(
+      anchorContext: anchorContext,
+      width: 328,
+      child: Builder(
+        builder: (popupContext) => SizedBox(
+          height: 340,
+          child: CalendarDatePicker(
+            initialDate: initial.isBefore(firstDate)
+                ? firstDate
+                : initial.isAfter(lastDate)
+                ? lastDate
+                : initial,
+            firstDate: firstDate,
+            lastDate: lastDate,
+            onDateChanged: (date) => Navigator.of(popupContext).pop(date),
+          ),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    await _updateTaskDueDateInline(task, picked);
+  }
+
+  Future<void> _showTagPicker(
+    BuildContext anchorContext,
+    Map<String, dynamic> task,
+  ) async {
+    final tags = await _tagsForTask(task);
+    final firstTag = _getTaskFirstTag(task);
+    final currentTagId = firstTag?['id']?.toString();
+
+    if (!mounted || !anchorContext.mounted) return;
+    final selected = await showTaskTableAnchoredPopup<String>(
+      anchorContext: anchorContext,
+      child: TaskTagPickerPanel(
+        tags: tags,
+        currentTagId: currentTagId,
+      ),
+    );
+
+    if (selected == null) return;
+    if (selected.startsWith('create:')) {
+      final name = selected.substring('create:'.length);
+      final tagId = await _createTagForTaskDepartment(task, name);
+      if (tagId != null) {
+        await _updateTaskTagInline(task, tagId);
+      }
+      return;
+    }
+    await _updateTaskTagInline(
+      task,
+      selected.isEmpty ? null : selected,
+    );
   }
 
   Future<void> _openManageProjects() async {
@@ -2018,21 +3385,13 @@ class _TasksListPageState extends State<TasksListPage> {
         ],
         SizedBox(height: AppDimensions.spacingSM),
         Expanded(
-          child: _buildWorkspaceContent(
-            theme,
-            filteredTasks,
-            compact: true,
-          ),
+          child: _buildWorkspaceContent(theme, filteredTasks, compact: true),
         ),
       ],
     );
   }
 
-  Widget _buildMobileHeader(
-    ThemeData theme,
-    int openTasks,
-    int overdueTasks,
-  ) {
+  Widget _buildMobileHeader(ThemeData theme, int openTasks, int overdueTasks) {
     return Container(
       margin: EdgeInsets.fromLTRB(
         AppDimensions.paddingMD,
@@ -2182,16 +3541,8 @@ class _TasksListPageState extends State<TasksListPage> {
         context.tr('Reminder'),
         _sendGeneralTaskReminder,
       ),
-      (
-        Icons.folder_outlined,
-        context.tr('Projects'),
-        _openManageProjects,
-      ),
-      (
-        Icons.label_outlined,
-        context.tr('Tags'),
-        _openManageTags,
-      ),
+      (Icons.folder_outlined, context.tr('Projects'), _openManageProjects),
+      (Icons.label_outlined, context.tr('Tags'), _openManageTags),
     ];
 
     return SizedBox(
@@ -2253,13 +3604,10 @@ class _TasksListPageState extends State<TasksListPage> {
         (item) => item['id']?.toString() == _selectedProjectId,
         orElse: () => {},
       );
-      addChip(
-        project['title']?.toString() ?? context.tr('Project'),
-        () {
-          setState(() => _selectedProjectId = null);
-          _loadTasks();
-        },
-      );
+      addChip(project['title']?.toString() ?? context.tr('Project'), () {
+        setState(() => _selectedProjectId = null);
+        _loadTasks();
+      });
     }
     if (_selectedTagId != null) {
       addChip(context.tr('Tag filter'), () {
@@ -2280,12 +3628,644 @@ class _TasksListPageState extends State<TasksListPage> {
       child: Row(children: chips),
     );
   }
+
+  void _resizeTaskTableColumn(int columnIndex, double delta) {
+    setState(() {
+      final next = _taskTableColumnWidths[columnIndex] + delta;
+      _taskTableColumnWidths[columnIndex] = next.clamp(
+        _kTaskTableMinColumnWidth,
+        _kTaskTableMaxColumnWidth,
+      );
+    });
+  }
+
+  double get _taskTableTotalWidth =>
+      _taskTableColumnWidths.fold<double>(0, (sum, width) => sum + width);
+
+  Color _taskTableBorderColor(ThemeData theme) =>
+      theme.dividerColor.withValues(alpha: 0.75);
+
+  void _toggleTaskTableSort(int columnIndex) {
+    if (columnIndex >= 6) return;
+    setState(() {
+      if (_taskTableSortColumnIndex == columnIndex) {
+        _taskTableSortAscending = !_taskTableSortAscending;
+      } else {
+        _taskTableSortColumnIndex = columnIndex;
+        _taskTableSortAscending = true;
+      }
+    });
+  }
+
+  int _compareTaskTableValues(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+    int columnIndex,
+  ) {
+    switch (columnIndex) {
+      case 0:
+        return _compareTaskTableStrings(
+          a['title']?.toString().trim(),
+          b['title']?.toString().trim(),
+        );
+      case 1:
+        return _compareTaskTableStatus(
+          a['status']?.toString(),
+          b['status']?.toString(),
+        );
+      case 2:
+        return _compareTaskTableStrings(
+          _getAssignedMemberDisplay(a),
+          _getAssignedMemberDisplay(b),
+        );
+      case 3:
+        return _compareTaskTableDates(_taskDueDate(a), _taskDueDate(b));
+      case 4:
+        return _compareTaskTableStrings(
+          _getTaskFirstTag(a)?['name']?.toString(),
+          _getTaskFirstTag(b)?['name']?.toString(),
+        );
+      case 5:
+        return _compareTaskTableStrings(
+          a['description']?.toString().trim(),
+          b['description']?.toString().trim(),
+        );
+      default:
+        return 0;
+    }
+  }
+
+  int _compareTaskTableStrings(String? a, String? b) {
+    final left = (a == null || a.isEmpty || a == '—') ? '' : a.toLowerCase();
+    final right = (b == null || b.isEmpty || b == '—') ? '' : b.toLowerCase();
+    return left.compareTo(right);
+  }
+
+  int _compareTaskTableStatus(String? a, String? b) {
+    final left = _taskStatusSortOrder[a ?? 'pending'] ?? 99;
+    final right = _taskStatusSortOrder[b ?? 'pending'] ?? 99;
+    return left.compareTo(right);
+  }
+
+  int _compareTaskTableDates(DateTime? a, DateTime? b) {
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return a.compareTo(b);
+  }
+
+  List<Map<String, dynamic>> _sortedTasksForTable(
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final columnIndex = _taskTableSortColumnIndex;
+    if (columnIndex == null) return tasks;
+
+    final sorted = [...tasks];
+    sorted.sort((a, b) {
+      final comparison = _compareTaskTableValues(a, b, columnIndex);
+      return _taskTableSortAscending ? comparison : -comparison;
+    });
+    return sorted;
+  }
+
+  Widget _buildTasksTableSortIcon(ThemeData theme, int columnIndex) {
+    final isActive = _taskTableSortColumnIndex == columnIndex;
+    return IconButton(
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      visualDensity: VisualDensity.compact,
+      tooltip: isActive
+          ? (_taskTableSortAscending
+              ? context.tr('Sort descending')
+              : context.tr('Sort ascending'))
+          : context.tr('Sort'),
+      onPressed: () => _toggleTaskTableSort(columnIndex),
+      icon: Icon(
+        isActive
+            ? (_taskTableSortAscending
+                ? Icons.arrow_upward
+                : Icons.arrow_downward)
+            : Icons.unfold_more,
+        size: 16,
+        color: isActive ? AppColors.primary : context.mic.textSecondary,
+      ),
+    );
+  }
+
+  Widget _buildDesktopResizableTasksTable(
+    ThemeData theme,
+    List<Map<String, dynamic>> tasks,
+  ) {
+    return RefreshIndicator(
+      onRefresh: _refreshTasksWorkspace,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
+        children: [_buildTasksTableContent(theme, tasks)],
+      ),
+    );
+  }
+
+  Widget _buildTasksTableContent(
+    ThemeData theme,
+    List<Map<String, dynamic>> tasks,
+  ) {
+    final borderColor = _taskTableBorderColor(theme);
+    final displayTasks = _sortedTasksForTable(tasks);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: _taskTableTotalWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTasksTableHeaderRow(theme, borderColor),
+            ...displayTasks.map(
+              (task) => _buildTasksTableDataRow(theme, task, borderColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTasksTableHeaderRow(ThemeData theme, Color borderColor) {
+    final headerStyle = theme.textTheme.labelMedium?.copyWith(
+      color: context.mic.textSecondary,
+      fontWeight: FontWeight.w800,
+    );
+
+    final labels = [
+      context.tr('Title'),
+      context.tr('Status'),
+      context.tr('Assigned'),
+      context.tr('Due date'),
+      context.tr('Tags'),
+      context.tr('Description'),
+      context.tr('Actions'),
+    ];
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < labels.length; i++)
+            _buildTasksTableGridCell(
+              theme: theme,
+              width: _taskTableColumnWidths[i],
+              borderColor: borderColor,
+              isHeader: true,
+              showLeftBorder: i == 0,
+              showRightBorder: true,
+              resizable: i < labels.length - 1,
+              columnIndex: i,
+              alignment: i == labels.length - 1
+                  ? Alignment.center
+                  : Alignment.centerLeft,
+              child: i == labels.length - 1
+                  ? Text(
+                      labels[i],
+                      style: headerStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            labels[i],
+                            style: headerStyle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        _buildTasksTableSortIcon(theme, i),
+                      ],
+                    ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTasksTableDataRow(
+    ThemeData theme,
+    Map<String, dynamic> task,
+    Color borderColor,
+  ) {
+    final taskId = task['id']?.toString() ?? '';
+    final rawTitle = task['title']?.toString().trim() ?? '';
+    final title = rawTitle.isEmpty ? '' : rawTitle;
+
+    final status = task['status']?.toString() ?? 'pending';
+    final statusColor = _getStatusColor(status);
+    final statusLabel = context.l10n.statusLabel(status);
+
+    final dueDate = _taskDueDate(task);
+    final dueDateText = dueDate != null ? _formatDate(dueDate) : '—';
+    final overdue = _isTaskOverdue(task);
+
+    final primaryMember = _getPrimaryAssignedMember(task);
+    final memberName = primaryMember == null
+        ? '—'
+        : '${primaryMember['first_name'] ?? ''} ${primaryMember['last_name'] ?? ''}'
+              .trim();
+    final initials = _getMemberInitials(primaryMember);
+
+    final firstTag = _getTaskFirstTag(task);
+    final tagName = firstTag?['name']?.toString();
+    final tagColor = TagColors.colorFromHex(firstTag?['color']?.toString());
+
+    final description = task['description']?.toString().trim() ?? '';
+    final canEdit = taskId.isNotEmpty;
+
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[0],
+            borderColor: borderColor,
+            showLeftBorder: true,
+            child: TaskTableInlineTextCell(
+              text: title,
+              hint: context.tr('Untitled task'),
+              maxLines: 2,
+              enabled: canEdit,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              onCommit: (value) => _updateTaskTitleInline(task, value),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[1],
+            borderColor: borderColor,
+            child: Builder(
+              builder: (cellContext) => TaskTableTappableCell(
+                enabled: canEdit,
+                onTap: canEdit
+                    ? () => _showStatusPicker(cellContext, task)
+                    : null,
+                child: _buildDesktopStatusPill(statusLabel, statusColor),
+              ),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[2],
+            borderColor: borderColor,
+            child: Builder(
+              builder: (cellContext) => TaskTableTappableCell(
+                enabled: canEdit,
+                onTap: canEdit
+                    ? () => _showAssigneePicker(cellContext, task)
+                    : null,
+                child: _buildAssignedCell(theme, memberName, initials),
+              ),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[3],
+            borderColor: borderColor,
+            child: Builder(
+              builder: (cellContext) => TaskTableTappableCell(
+                enabled: canEdit,
+                onTap: canEdit
+                    ? () => _pickTaskDueDate(cellContext, task)
+                    : null,
+                child: Text(
+                  dueDateText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: overdue ? AppColors.error : context.mic.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[4],
+            borderColor: borderColor,
+            child: Builder(
+              builder: (cellContext) => TaskTableTappableCell(
+                enabled: canEdit,
+                onTap: canEdit
+                    ? () => _showTagPicker(cellContext, task)
+                    : null,
+                child: tagName == null || tagName.isEmpty
+                    ? Text(
+                        '—',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: context.mic.textSecondary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : _buildDesktopTagPill(tagName, color: tagColor),
+              ),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[5],
+            borderColor: borderColor,
+            child: TaskTableInlineTextCell(
+              text: description,
+              hint: '—',
+              maxLines: 2,
+              enabled: canEdit,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.mic.textSecondary,
+                fontWeight: FontWeight.w700,
+              ),
+              onCommit: (value) => _updateTaskDescriptionInline(task, value),
+            ),
+          ),
+          _buildTasksTableGridCell(
+            theme: theme,
+            width: _taskTableColumnWidths[6],
+            borderColor: borderColor,
+            showRightBorder: true,
+            alignment: Alignment.center,
+            child: IconButton(
+              tooltip: context.tr('Details'),
+              visualDensity: VisualDensity.compact,
+              onPressed: canEdit ? () => _openTaskDetail(taskId) : null,
+              icon: Icon(
+                Icons.open_in_new,
+                size: 18,
+                color: canEdit
+                    ? context.mic.textSecondary
+                    : context.mic.textSecondary.withValues(alpha: 0.35),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTasksTableGridCell({
+    required ThemeData theme,
+    required double width,
+    required Color borderColor,
+    required Widget child,
+    bool isHeader = false,
+    bool showLeftBorder = false,
+    bool showRightBorder = false,
+    bool resizable = false,
+    int? columnIndex,
+    VoidCallback? onTap,
+    Alignment alignment = Alignment.centerLeft,
+  }) {
+    final cell = Container(
+      width: width,
+      constraints: BoxConstraints(minHeight: isHeader ? 44 : 52),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMD,
+        vertical: AppDimensions.spacingSM,
+      ),
+      decoration: BoxDecoration(
+        color: isHeader ? null : theme.colorScheme.surface,
+        border: Border(
+          left: showLeftBorder
+              ? BorderSide(color: borderColor)
+              : BorderSide.none,
+          right: showRightBorder || !isHeader
+              ? BorderSide(color: borderColor)
+              : BorderSide.none,
+          bottom: isHeader ? BorderSide.none : BorderSide(color: borderColor),
+        ),
+      ),
+      alignment: alignment,
+      child: child,
+    );
+
+    Widget content = cell;
+    if (onTap != null) {
+      content = Material(
+        color: Colors.transparent,
+        child: InkWell(onTap: onTap, child: cell),
+      );
+    }
+
+    if (!resizable || columnIndex == null) return content;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        content,
+        Positioned(
+          top: 0,
+          right: -_kTaskTableResizeHandleWidth / 2,
+          bottom: 0,
+          width: _kTaskTableResizeHandleWidth,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: (details) {
+              _resizeTaskTableColumn(columnIndex, details.delta.dx);
+            },
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeColumn,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAssignedCell(
+    ThemeData theme,
+    String memberName,
+    String initials,
+  ) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+          child: Text(
+            initials.isEmpty ? '?' : initials,
+            style: TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w900,
+              fontSize: 11,
+            ),
+          ),
+        ),
+        SizedBox(width: AppDimensions.spacingSM),
+        Expanded(
+          child: Text(
+            memberName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopStatusPill(String label, Color color) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 88, maxWidth: 130),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppDimensions.paddingSM,
+          vertical: AppDimensions.spacingXS,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopTagPill(String label, {required Color color}) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingSM,
+        vertical: AppDimensions.spacingXS,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _getPrimaryAssignedMember(Map<String, dynamic> task) {
+    final assignments = task['task_assignments'];
+    if (assignments is! List || assignments.isEmpty) return null;
+
+    for (final a in assignments) {
+      if (a is! Map) continue;
+      final members = a['members'];
+      if (members is Map<String, dynamic>) return members;
+      if (members is Map) return Map<String, dynamic>.from(members);
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _getTaskFirstTag(Map<String, dynamic> task) {
+    final taskTags = task['task_tags'];
+    if (taskTags is! List || taskTags.isEmpty) return null;
+
+    final first = taskTags.first;
+    if (first is! Map) return null;
+
+    final tags = first['tags'];
+    if (tags is Map) return Map<String, dynamic>.from(tags);
+    return null;
+  }
+
+  String _getMemberInitials(Map<String, dynamic>? member) {
+    if (member == null) return '';
+    final first = member['first_name']?.toString().trim() ?? '';
+    final last = member['last_name']?.toString().trim() ?? '';
+    final a = first.isNotEmpty ? first[0].toUpperCase() : '';
+    final b = last.isNotEmpty ? last[0].toUpperCase() : '';
+    final initials = (a + b).trim();
+    return initials.isEmpty ? '?' : initials;
+  }
+}
+
+class _TimelineMonthBand {
+  _TimelineMonthBand({
+    required this.start,
+    required this.end,
+    required this.dayCount,
+    required this.monthIndex,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final int dayCount;
+  final int monthIndex;
+}
+
+class _TimelineWeekBand {
+  _TimelineWeekBand({
+    required this.start,
+    required this.end,
+    required this.dayCount,
+    required this.weekIndex,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final int dayCount;
+  final int weekIndex;
+}
+
+class _TimelineProjectGroup {
+  _TimelineProjectGroup({required this.title, required this.tasks});
+
+  final String title;
+  final List<Map<String, dynamic>> tasks;
+}
+
+class _TimelineDisplayRow {
+  const _TimelineDisplayRow.header({
+    required this.projectTitle,
+    required this.taskCount,
+  })  : isHeader = true,
+        task = null;
+
+  const _TimelineDisplayRow.task(this.task)
+      : isHeader = false,
+        projectTitle = null,
+        taskCount = null;
+
+  final bool isHeader;
+  final String? projectTitle;
+  final int? taskCount;
+  final Map<String, dynamic>? task;
 }
 
 class _TaskProjectGroup {
-  _TaskProjectGroup({required this.title, required this.tasks});
+  _TaskProjectGroup({
+    required this.title,
+    required this.tasks,
+    this.endDateText,
+  });
 
   final String title;
+  final String? endDateText;
   final List<Map<String, dynamic>> tasks;
 }
 

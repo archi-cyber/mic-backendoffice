@@ -850,7 +850,8 @@ class AppLocalizations {
       _localizedValues[locale.languageCode]?['convertVisitorToMember'] ??
       'Convert visitor to member';
   String convertVisitorToMemberConfirm(String name) =>
-      (_localizedValues[locale.languageCode]?['convertVisitorToMemberConfirm'] ??
+      (_localizedValues[locale
+                  .languageCode]?['convertVisitorToMemberConfirm'] ??
               'Create a member profile for "{name}" using the visitor\'s contact details. The visitor record will be removed.')
           .replaceAll('{name}', name);
   String get visitorConvertedToMember =>
@@ -1415,6 +1416,45 @@ class AppLocalizations {
           'Enregistrez un enseignement avec sa date, son intervenant et ses notes.',
       'Category': 'Catégorie',
       'Charts': 'Graphiques',
+      'Timeline': 'Chronologie',
+      'No scheduled tasks to display on the timeline.':
+          'Aucune tâche planifiée à afficher sur la chronologie.',
+      'Zoom in': 'Zoom avant',
+      'Zoom out': 'Zoom arrière',
+      'Fit to width': 'Ajuster à la largeur',
+      'Unassigned': 'Non assigné',
+      'No tag': 'Aucun tag',
+      'Create tag': 'Créer un tag',
+      'Could not update task: {error}':
+          'Impossible de mettre à jour la tâche : {error}',
+      'Could not update assignment: {error}':
+          'Impossible de mettre à jour l\'assignation : {error}',
+      'Could not update tags: {error}':
+          'Impossible de mettre à jour les tags : {error}',
+      'Avg. lateness': 'Retard moyen',
+      'Workload': 'Charge',
+      'Current department': 'Département actuel',
+      'Average lateness per member': 'Retard moyen par membre',
+      'Average days late on scheduled tasks with assignees':
+          'Nombre moyen de jours de retard sur les tâches planifiées avec assignés',
+      'Department: {name}': 'Département : {name}',
+      'Members tracked': 'Membres suivis',
+      'Team average': 'Moyenne équipe',
+      'Highest avg.': 'Retard max.',
+      'Average days late': 'Jours de retard moyens',
+      'Lateness trend by member': 'Tendance du retard par membre',
+      'No lateness data for assigned tasks yet':
+          'Aucune donnée de retard pour les tâches assignées',
+      'Member workload': 'Charge par membre',
+      'Open task load weighted by priority (urgent counts more)':
+          'Charge des tâches ouvertes pondérée par priorité (urgent compte plus)',
+      'Active members': 'Membres actifs',
+      'Total load': 'Charge totale',
+      'Busiest': 'Le plus chargé',
+      'Workload share': 'Répartition de la charge',
+      'Open tasks by member': 'Tâches ouvertes par membre',
+      'No active assignments to chart yet':
+          'Aucune assignation active à afficher',
       'Clear': 'Effacer',
       'Clear filters': 'Effacer les filtres',
       'Close': 'Fermer',
@@ -1571,6 +1611,45 @@ class AppLocalizations {
           'Registra una enseñanza con su fecha, orador y notas.',
       'Category': 'Categoría',
       'Charts': 'Gráficos',
+      'Timeline': 'Cronología',
+      'No scheduled tasks to display on the timeline.':
+          'No hay tareas programadas para mostrar en la cronología.',
+      'Zoom in': 'Acercar',
+      'Zoom out': 'Alejar',
+      'Fit to width': 'Ajustar al ancho',
+      'Unassigned': 'Sin asignar',
+      'No tag': 'Sin etiqueta',
+      'Create tag': 'Crear etiqueta',
+      'Could not update task: {error}':
+          'No se pudo actualizar la tarea: {error}',
+      'Could not update assignment: {error}':
+          'No se pudo actualizar la asignación: {error}',
+      'Could not update tags: {error}':
+          'No se pudieron actualizar las etiquetas: {error}',
+      'Avg. lateness': 'Retraso medio',
+      'Workload': 'Carga',
+      'Current department': 'Departamento actual',
+      'Average lateness per member': 'Retraso medio por miembro',
+      'Average days late on scheduled tasks with assignees':
+          'Días medios de retraso en tareas programadas con asignados',
+      'Department: {name}': 'Departamento: {name}',
+      'Members tracked': 'Miembros seguidos',
+      'Team average': 'Promedio del equipo',
+      'Highest avg.': 'Retraso máx.',
+      'Average days late': 'Días de retraso medios',
+      'Lateness trend by member': 'Tendencia de retraso por miembro',
+      'No lateness data for assigned tasks yet':
+          'Sin datos de retraso para tareas asignadas',
+      'Member workload': 'Carga por miembro',
+      'Open task load weighted by priority (urgent counts more)':
+          'Carga de tareas abiertas ponderada por prioridad (urgente cuenta más)',
+      'Active members': 'Miembros activos',
+      'Total load': 'Carga total',
+      'Busiest': 'Más ocupado',
+      'Workload share': 'Distribución de carga',
+      'Open tasks by member': 'Tareas abiertas por miembro',
+      'No active assignments to chart yet':
+          'Sin asignaciones activas para mostrar',
       'Clear': 'Limpiar',
       'Clear filters': 'Limpiar filtros',
       'Close': 'Cerrar',

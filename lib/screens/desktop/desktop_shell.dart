@@ -812,25 +812,28 @@ class _NavTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListTile(
-      leading: Icon(
-        isActive ? activeIcon : icon,
-        size: 22,
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurfaceVariant,
-      ),
-      title: Text(
-        label,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        leading: Icon(
+          isActive ? activeIcon : icon,
+          size: 22,
           color: isActive
               ? theme.colorScheme.primary
-              : theme.colorScheme.onSurface,
+              : theme.colorScheme.onSurfaceVariant,
         ),
+        title: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            color: isActive
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface,
+          ),
+        ),
+        selected: isActive,
+        onTap: onTap,
       ),
-      selected: isActive,
-      onTap: onTap,
     );
   }
 }

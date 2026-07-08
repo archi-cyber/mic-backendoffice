@@ -130,6 +130,125 @@ class _EditTaskPageState extends State<EditTaskPage> {
     }
   }
 
+  List<Map<String, dynamic>> get _filteredProjects {
+    final deptId = _selectedDepartmentId;
+    if (deptId == null) return [];
+    return _projects
+        .where((project) => project['department_id']?.toString() == deptId)
+        .toList();
+  }
+
+  void _onDepartmentChanged(String? departmentId) {
+    setState(() {
+      _selectedDepartmentId = departmentId;
+      if (_selectedProjectId != null) {
+        final projectStillValid = _projects.any(
+          (project) =>
+              project['id']?.toString() == _selectedProjectId &&
+              project['department_id']?.toString() == departmentId,
+        );
+        if (!projectStillValid) {
+          _selectedProjectId = null;
+        }
+      }
+    });
+    _loadTagsForDepartment();
+  }
+
+  List<DropdownMenuItem<String>> _departmentDropdownItems() {
+    final items = _departments
+        .map(
+          (dept) => DropdownMenuItem<String>(
+            value: dept['id'].toString(),
+            child: Text(dept['name']?.toString() ?? 'Unnamed'),
+          ),
+        )
+        .toList();
+
+    final selectedId = _selectedDepartmentId;
+    if (selectedId != null &&
+        !items.any((item) => item.value == selectedId)) {
+      items.insert(
+        0,
+        DropdownMenuItem<String>(
+          value: selectedId,
+          child: Text(context.tr('Unknown department')),
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  List<DropdownMenuItem<String?>> _projectDropdownItems() {
+    final items = <DropdownMenuItem<String?>>[
+      DropdownMenuItem<String?>(
+        value: null,
+        child: Text(context.tr('None')),
+      ),
+      ..._filteredProjects.map(
+        (project) => DropdownMenuItem<String?>(
+          value: project['id'].toString(),
+          child: Text(
+            project['title']?.toString() ?? '',
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    ];
+
+    final selectedId = _selectedProjectId;
+    if (selectedId != null &&
+        !items.any((item) => item.value == selectedId)) {
+      final project = _projects.cast<Map<String, dynamic>?>().firstWhere(
+        (project) => project?['id']?.toString() == selectedId,
+        orElse: () => null,
+      );
+      items.insert(
+        1,
+        DropdownMenuItem<String?>(
+          value: selectedId,
+          child: Text(
+            project?['title']?.toString() ?? context.tr('Unknown project'),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  String? get _effectiveDepartmentDropdownValue {
+    final selectedId = _selectedDepartmentId;
+    if (selectedId == null) return null;
+    return _departmentDropdownItems().any((item) => item.value == selectedId)
+        ? selectedId
+        : null;
+  }
+
+  String? get _effectiveProjectDropdownValue {
+    final selectedId = _selectedProjectId;
+    if (selectedId == null) return null;
+    return _projectDropdownItems().any((item) => item.value == selectedId)
+        ? selectedId
+        : null;
+  }
+
+  static const Set<String> _allowedPriorities = {
+    'low',
+    'medium',
+    'high',
+    'urgent',
+  };
+
+  static const Set<String> _allowedStatuses = {
+    'pending',
+    'in_progress',
+    'completed',
+    'cancelled',
+  };
+
   Future<void> _loadData() async {
     try {
       final results = await Future.wait([
@@ -170,8 +289,12 @@ class _EditTaskPageState extends State<EditTaskPage> {
         _selectedProjectId = task['project_id']?.toString();
         _selectedTagIds.clear();
         _selectedTagIds.addAll(tagIds);
-        _priority = task['priority']?.toString() ?? 'medium';
-        _status = task['status']?.toString() ?? 'pending';
+        _priority = _allowedPriorities.contains(task['priority']?.toString())
+            ? task['priority'].toString()
+            : 'medium';
+        _status = _allowedStatuses.contains(task['status']?.toString())
+            ? task['status'].toString()
+            : 'pending';
 
         if (task['due_date'] != null) {
           _dueDate = DateTime.parse(task['due_date']);
@@ -231,8 +354,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
           'penalty_amount_per_day': _penaltyAmountController.text.trim().isEmpty
               ? null
               : int.parse(_penaltyAmountController.text.trim()),
-          if (_selectedDepartmentId != null)
-            'department_id': _selectedDepartmentId,
+          'department_id': _selectedDepartmentId,
           'project_id': _selectedProjectId,
         },
       );
@@ -498,25 +620,19 @@ class _EditTaskPageState extends State<EditTaskPage> {
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String>(
-                              initialValue: _selectedDepartmentId,
+                              initialValue: _effectiveDepartmentDropdownValue,
                               decoration: InputDecoration(
                                 labelText: context.tr('Department'),
                                 prefixIcon: Icon(Icons.group_work),
                                 border: OutlineInputBorder(),
                               ),
-                              items: _departments.map((dept) {
-                                return DropdownMenuItem<String>(
-                                  value: dept['id'].toString(),
-                                  child: Text(
-                                    dept['name']?.toString() ?? 'Unnamed',
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedDepartmentId = value;
-                                });
-                                _loadTagsForDepartment();
+                              items: _departmentDropdownItems(),
+                              onChanged: _onDepartmentChanged,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return context.tr('Please select a department');
+                                }
+                                return null;
                               },
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
@@ -606,27 +722,13 @@ class _EditTaskPageState extends State<EditTaskPage> {
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
                             DropdownButtonFormField<String?>(
-                              initialValue: _selectedProjectId,
+                              initialValue: _effectiveProjectDropdownValue,
                               decoration: InputDecoration(
                                 labelText: context.tr('Project (optional)'),
                                 prefixIcon: Icon(Icons.folder_outlined),
                                 border: OutlineInputBorder(),
                               ),
-                              items: [
-                                DropdownMenuItem<String?>(
-                                  value: null,
-                                  child: Text(context.tr('None')),
-                                ),
-                                ..._projects.map(
-                                  (p) => DropdownMenuItem<String?>(
-                                    value: p['id'].toString(),
-                                    child: Text(
-                                      p['title']?.toString() ?? '',
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              items: _projectDropdownItems(),
                               onChanged: (value) {
                                 setState(() => _selectedProjectId = value);
                               },
@@ -733,22 +835,18 @@ class _EditTaskPageState extends State<EditTaskPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String>(
-                      initialValue: _selectedDepartmentId,
+                      initialValue: _effectiveDepartmentDropdownValue,
                       decoration: InputDecoration(
                         labelText: context.tr('Department'),
                         prefixIcon: Icon(Icons.group_work),
                       ),
-                      items: _departments.map((dept) {
-                        return DropdownMenuItem<String>(
-                          value: dept['id'].toString(),
-                          child: Text(dept['name']?.toString() ?? 'Unnamed'),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedDepartmentId = value;
-                        });
-                        _loadTagsForDepartment();
+                      items: _departmentDropdownItems(),
+                      onChanged: _onDepartmentChanged,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return context.tr('Please select a department');
+                        }
+                        return null;
                       },
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
@@ -837,26 +935,12 @@ class _EditTaskPageState extends State<EditTaskPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     DropdownButtonFormField<String?>(
-                      initialValue: _selectedProjectId,
+                      initialValue: _effectiveProjectDropdownValue,
                       decoration: InputDecoration(
                         labelText: context.tr('Project (optional)'),
                         prefixIcon: Icon(Icons.folder_outlined),
                       ),
-                      items: [
-                        DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text(context.tr('None')),
-                        ),
-                        ..._projects.map(
-                          (p) => DropdownMenuItem<String?>(
-                            value: p['id'].toString(),
-                            child: Text(
-                              p['title']?.toString() ?? '',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
+                      items: _projectDropdownItems(),
                       onChanged: (value) {
                         setState(() => _selectedProjectId = value);
                       },
