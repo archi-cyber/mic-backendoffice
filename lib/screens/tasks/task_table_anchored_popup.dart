@@ -11,7 +11,8 @@ Future<T?> showTaskTableAnchoredPopup<T>({
   if (renderBox == null) return null;
 
   final overlay =
-      Overlay.of(anchorContext).context.findRenderObject() as RenderBox;
+      Overlay.of(anchorContext).context.findRenderObject() as RenderBox?;
+  if (overlay == null) return null;
   final offset = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
   final position = RelativeRect.fromLTRB(
     offset.dx,

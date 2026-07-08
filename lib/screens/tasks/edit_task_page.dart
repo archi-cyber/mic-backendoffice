@@ -354,7 +354,8 @@ class _EditTaskPageState extends State<EditTaskPage> {
           'penalty_amount_per_day': _penaltyAmountController.text.trim().isEmpty
               ? null
               : int.parse(_penaltyAmountController.text.trim()),
-          'department_id': _selectedDepartmentId,
+          if (_selectedDepartmentId != null)
+            'department_id': _selectedDepartmentId,
           'project_id': _selectedProjectId,
         },
       );
