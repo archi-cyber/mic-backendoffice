@@ -85,7 +85,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     if (_passwordReset) {
@@ -106,13 +105,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   ),
                   SizedBox(height: AppDimensions.spacingXL),
                   Text(
-                    'Password Reset Successful!',
+                    context.tr('Password Reset Successful!'),
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
                   Text(
-                    'Your password has been successfully reset. You can now log in with your new password.',
+                    context.tr(
+                      'Your password has been successfully reset. You can now log in with your new password.',
+                    ),
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -159,13 +160,15 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   ),
                   SizedBox(height: AppDimensions.spacingXL),
                   Text(
-                    'Set New Password',
+                    context.tr('Set New Password'),
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: AppDimensions.spacingSM),
                   Text(
-                    'Enter the token from your email and your new password.',
+                    context.tr(
+                      'Enter the token from your email and your new password.',
+                    ),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: context.mic.textSecondary,
                     ),
@@ -176,7 +179,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
-                      labelText: localizations?.email ?? 'Email',
+                      labelText: context.tr('Email'),
                       prefixIcon: Icon(Icons.email_outlined),
                       helperText: context.tr(
                         'Enter the email address you used to request password reset',
@@ -184,12 +187,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return localizations?.emailRequired ??
-                            'Email is required';
+                        return context.tr('Email is required');
                       }
                       if (!value.contains('@')) {
-                        return localizations?.invalidEmail ??
-                            'Invalid email format';
+                        return context.tr('Invalid email format');
                       }
                       return null;
                     },
@@ -206,7 +207,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Token is required';
+                        return context.tr('Token is required');
                       }
                       return null;
                     },
@@ -216,7 +217,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: localizations?.password ?? 'New Password',
+                      labelText: context.tr('New Password'),
                       prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -233,11 +234,12 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return localizations?.passwordRequired ??
-                            'Password is required';
+                        return context.tr('Password is required');
                       }
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return context.tr(
+                          'Password must be at least 6 characters',
+                        );
                       }
                       return null;
                     },
@@ -247,8 +249,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
-                      labelText:
-                          localizations?.confirmPassword ?? 'Confirm Password',
+                      labelText: context.tr('Confirm Password'),
                       prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -265,10 +266,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
+                        return context.tr('Please confirm your password');
                       }
                       if (value != _passwordController.text) {
-                        return 'Passwords do not match';
+                        return context.tr('Passwords do not match');
                       }
                       return null;
                     },

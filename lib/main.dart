@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -43,7 +45,7 @@ void main() async {
     debugPrint('Skipping Firebase initialization on desktop platform');
   }
 
-  // Initialize Supabase
+  // Initialize Supabase (required before auth / data)
   try {
     await SupabaseService.initialize(
       supabaseUrl: AppConfig.supabaseUrl,
@@ -56,10 +58,15 @@ void main() async {
     );
   }
 
-  // Initialize offline storage
+  runApp(const MyApp());
+
+  // Defer non-critical services so the first frame appears sooner.
+  unawaited(_initializeDeferredServices(firebaseInitialized));
+}
+
+Future<void> _initializeDeferredServices(bool firebaseInitialized) async {
   await OfflineStorageService.database;
 
-  // Initialize background tasks (mobile only)
   if (PlatformCapabilities.supportsBackgroundTasks) {
     try {
       await BackgroundTaskService.initialize();
@@ -68,11 +75,8 @@ void main() async {
     }
   }
 
-  // Initialize FCM and get device token (mobile only, and only if Firebase is initialized)
   if (firebaseInitialized && PlatformCapabilities.supportsPushNotifications) {
     try {
-      // Register background message handler first (before any other FCM calls)
-      // This is done in PushNotificationHandler.initialize(), but we ensure it's early
       await DeviceTokenService.initialize();
       await PushNotificationHandler.initialize();
     } catch (e) {
@@ -81,8 +85,6 @@ void main() async {
   } else {
     debugPrint('Skipping FCM initialization - Firebase not available');
   }
-
-  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
@@ -121,14 +123,6 @@ class _MyAppState extends State<MyApp> {
               onGenerateRoute: AppRouter.generateRoute,
               onUnknownRoute: AppRouter.onUnknownRoute,
               initialRoute: RouteNames.splash,
-              builder: (context, child) {
-                if (settingsProvider.isLoading) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                return child ?? const SizedBox.shrink();
-              },
             ),
           );
         },

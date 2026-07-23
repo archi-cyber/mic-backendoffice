@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/church_attendance_service.dart';
+import '../../services/church_service_service.dart';
 import '../../services/member_service.dart';
 import '../../services/visitor_service.dart';
 import '../../services/attendance_report_pdf_service.dart';
@@ -11,19 +12,18 @@ import '../../utils/member_utils.dart';
 import '../../utils/whatsapp_utils.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
+import '../../widgets/phone_number_field.dart';
 
-/// Page for marking church attendance (Wednesday and Sunday services)
+/// Page for marking church attendance (named services on any date)
 class ChurchAttendancePage extends StatefulWidget {
-  final String? serviceDate;
-  final String? serviceType;
+  final String? churchServiceId;
 
   /// When set (e.g. desktop stack), back/close uses this instead of Navigator.pop.
   final VoidCallback? onClose;
 
   ChurchAttendancePage({
     super.key,
-    this.serviceDate,
-    this.serviceType,
+    this.churchServiceId,
     this.onClose,
   });
 
@@ -33,7 +33,8 @@ class ChurchAttendancePage extends StatefulWidget {
 
 class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   late DateTime _selectedDate;
-  late String _selectedServiceType;
+  String? _churchServiceId;
+  final TextEditingController _serviceNameController = TextEditingController();
   List<Map<String, dynamic>> _members = [];
   Map<String, String?> _memberAttendanceTypes =
       {}; // memberId -> attendanceType (null = absent)
@@ -66,13 +67,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   void initState() {
     super.initState();
     // Initialize from arguments if provided
-    if (widget.serviceDate != null && widget.serviceType != null) {
-      _selectedDate = DateTime.parse(widget.serviceDate!);
-      _selectedServiceType = widget.serviceType!;
+    if (widget.churchServiceId != null && widget.churchServiceId!.isNotEmpty) {
+      _churchServiceId = widget.churchServiceId;
       _isViewMode = true;
+      _selectedDate = DateTime.now();
     } else {
       _selectedDate = DateTime.now();
-      _selectedServiceType = 'sunday';
+      _churchServiceId = null;
     }
     _searchController.addListener(() {
       setState(() {}); // Rebuild when search text changes
@@ -84,9 +85,35 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Future<void> _bootstrapData() async {
+    if (_churchServiceId != null && _churchServiceId!.isNotEmpty) {
+      await _loadChurchService();
+    }
     await _loadMembers();
     if (!mounted) return;
     await Future.wait([_loadVisitorsFromTable(), _loadExistingAttendance()]);
+  }
+
+  Future<void> _loadChurchService() async {
+    final serviceId = _churchServiceId;
+    if (serviceId == null || serviceId.isEmpty) return;
+    try {
+      final service = await ChurchServiceService.getById(serviceId);
+      if (!mounted || service == null) return;
+      final serviceDate = service['service_date']?.toString();
+      setState(() {
+        if (serviceDate != null && serviceDate.isNotEmpty) {
+          _selectedDate = DateTime.parse(serviceDate);
+        }
+        _serviceNameController.text = service['name']?.toString() ?? '';
+      });
+    } catch (e) {
+      debugPrint('Error loading church service: $e');
+    }
+  }
+
+  String get _displayServiceName {
+    final name = _serviceNameController.text.trim();
+    return name.isNotEmpty ? name : context.tr('Church service');
   }
 
   Map<String, Map<String, dynamic>> get _membersById {
@@ -132,11 +159,14 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   bool _visitorMatchesSelectedService(Map<String, dynamic> visitor) {
-    final serviceType = visitor['service_type']?.toString();
-    if (serviceType == null || serviceType.isEmpty) {
+    final visitorServiceId = visitor['church_service_id']?.toString();
+    if (visitorServiceId == null || visitorServiceId.isEmpty) {
       return true;
     }
-    return serviceType == _selectedServiceType;
+    if (_churchServiceId == null || _churchServiceId!.isEmpty) {
+      return false;
+    }
+    return visitorServiceId == _churchServiceId;
   }
 
   /// Visitors logged for the currently selected service date (and type).
@@ -186,7 +216,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         updates: {
           'attendance_type': effectiveType,
           'visit_date': targetDate,
-          'service_type': _selectedServiceType,
+          'church_service_id': _churchServiceId,
         },
       );
       savedIds.add(visitorId);
@@ -200,7 +230,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         updates: {
           'attendance_type': 'absent',
           'visit_date': targetDate,
-          'service_type': _selectedServiceType,
+          'church_service_id': _churchServiceId,
         },
       );
       savedIds.add(visitorId);
@@ -214,7 +244,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         updates: {
           'attendance_type': effectiveType,
           'visit_date': targetDate,
-          'service_type': _selectedServiceType,
+          'church_service_id': _churchServiceId,
         },
       );
     }
@@ -237,15 +267,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     _editSessionVisitorIds = {};
   }
 
-  Future<void> _onServiceDateOrTypeChanged({
+  Future<void> _onServiceDateOrNameChanged({
     DateTime? newDate,
-    String? newServiceType,
   }) async {
     final preserveEditState = _editSessionRecords.isNotEmpty;
 
     setState(() {
       if (newDate != null) _selectedDate = newDate;
-      if (newServiceType != null) _selectedServiceType = newServiceType;
       if (!preserveEditState) {
         _memberAttendanceTypes.clear();
         _visitorAttendanceTypes.clear();
@@ -287,6 +315,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _serviceNameController.dispose();
     super.dispose();
   }
 
@@ -317,10 +346,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Future<void> _loadExistingAttendance() async {
+    if (_churchServiceId == null || _churchServiceId!.isEmpty) {
+      return;
+    }
     try {
       final attendance = await ChurchAttendanceService.getServiceAttendance(
-        serviceDate: _selectedDate,
-        serviceType: _selectedServiceType,
+        churchServiceId: _churchServiceId!,
       );
 
       // Create a map of member IDs to attendance records
@@ -363,7 +394,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             'id': null, // No database ID since it's not saved yet
             'member_id': memberId,
             'service_date': _selectedDate.toIso8601String().split('T')[0],
-            'service_type': _selectedServiceType,
+            'church_service_id': _churchServiceId,
             'attendance_type': 'absent',
             'member': {
               'id': memberId,
@@ -445,7 +476,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        'Visitor',
+        context.tr('Visitor'),
         style: TextStyle(
           color: AppColors.secondary,
           fontSize: 11,
@@ -496,7 +527,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   Future<void> _showAddVisitorDialog() async {
     final firstNameController = TextEditingController();
     final lastNameController = TextEditingController();
-    final phoneController = TextEditingController();
+    final phoneInput = PhoneNumberInputController();
     final notesController = TextEditingController();
     final formKey = GlobalKey<FormState>();
     var isSaving = false;
@@ -516,7 +547,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Visit date: $dateLabel',
+                    '${_displayServiceName} · $dateLabel',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
@@ -527,8 +558,9 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       border: OutlineInputBorder(),
                     ),
                     textCapitalization: TextCapitalization.words,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? context.tr('Required')
+                        : null,
                   ),
                   SizedBox(height: AppDimensions.spacingSM),
                   TextFormField(
@@ -538,17 +570,18 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       border: OutlineInputBorder(),
                     ),
                     textCapitalization: TextCapitalization.words,
-                    validator: (v) =>
-                        v == null || v.trim().isEmpty ? 'Required' : null,
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? context.tr('Required')
+                        : null,
                   ),
                   SizedBox(height: AppDimensions.spacingSM),
-                  TextFormField(
-                    controller: phoneController,
+                  PhoneNumberField(
+                    controller: phoneInput,
+                    optional: true,
                     decoration: InputDecoration(
                       labelText: context.tr('Phone (optional)'),
                       border: OutlineInputBorder(),
                     ),
-                    keyboardType: TextInputType.phone,
                   ),
                   SizedBox(height: AppDimensions.spacingSM),
                   TextFormField(
@@ -577,14 +610,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       if (!formKey.currentState!.validate()) return;
                       setDialogState(() => isSaving = true);
                       try {
+                        final churchServiceId = await _ensureChurchServiceId();
                         final visitorData = {
                           'first_name': firstNameController.text.trim(),
                           'last_name': lastNameController.text.trim(),
-                          'phone': phoneController.text.trim().isEmpty
-                              ? null
-                              : phoneController.text.trim(),
+                          'phone': phoneInput.storedValue,
                           'visit_date': _formatDateOnly(_selectedDate),
-                          'service_type': _selectedServiceType,
+                          'church_service_id': churchServiceId,
                           'attendance_type': 'onsite',
                           'notes': notesController.text.trim().isEmpty
                               ? null
@@ -596,11 +628,11 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                           );
                         } catch (e) {
                           final msg = e.toString();
-                          if (msg.contains('service_type') ||
+                          if (msg.contains('church_service_id') ||
                               msg.contains('attendance_type')) {
                             final withoutOptional =
                                 Map<String, dynamic>.from(visitorData)
-                                  ..remove('service_type')
+                                  ..remove('church_service_id')
                                   ..remove('attendance_type');
                             await VisitorService.createVisitor(
                               visitorData: withoutOptional,
@@ -641,7 +673,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
     firstNameController.dispose();
     lastNameController.dispose();
-    phoneController.dispose();
+    phoneInput.dispose();
     notesController.dispose();
 
     if (saved == true && mounted) {
@@ -710,17 +742,45 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(Duration(days: 1)),
-      helpText: 'Select Service Date',
+      helpText: context.tr('Select Service Date'),
     );
     if (picked != null) {
-      await _onServiceDateOrTypeChanged(newDate: picked);
+      await _onServiceDateOrNameChanged(newDate: picked);
     }
+  }
+
+  Future<String> _ensureChurchServiceId() async {
+    final name = _serviceNameController.text.trim();
+    if (name.isEmpty) {
+      throw Exception(context.tr('Service name is required'));
+    }
+
+    if (_churchServiceId != null && _churchServiceId!.isNotEmpty) {
+      await ChurchServiceService.updateService(
+        serviceId: _churchServiceId!,
+        name: name,
+        serviceDate: _selectedDate,
+      );
+      return _churchServiceId!;
+    }
+
+    final service = await ChurchServiceService.findOrCreate(
+      serviceDate: _selectedDate,
+      name: name,
+    );
+    final id = service['id']?.toString();
+    if (id == null || id.isEmpty) {
+      throw Exception('Failed to create church service');
+    }
+    _churchServiceId = id;
+    return id;
   }
 
   Future<void> _saveAttendance() async {
     setState(() => _isSaving = true);
 
     try {
+      final churchServiceId = await _ensureChurchServiceId();
       // Keep historical rows intact: update existing records in-place and only
       // insert missing ones for this service. Do not soft-delete/recreate rows.
       final existingRecordByMemberId = <String, Map<String, dynamic>>{};
@@ -794,8 +854,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           attendanceId: update['id']!,
           attendanceType: update['type']!,
           specificObservation: _memberSpecificObservations[memberId] ?? '',
-          serviceDate: movingExistingService ? _selectedDate : null,
-          serviceType: movingExistingService ? _selectedServiceType : null,
+          churchServiceId: movingExistingService ? churchServiceId : null,
         );
       }
 
@@ -803,8 +862,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (onsiteMembers.isNotEmpty) {
         await ChurchAttendanceService.markBulkAttendance(
           memberIds: onsiteMembers,
-          serviceDate: _selectedDate,
-          serviceType: _selectedServiceType,
+          churchServiceId: churchServiceId,
           attendanceType: 'onsite',
           specificObservationsByMemberId: _memberSpecificObservations,
         );
@@ -812,8 +870,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (onlineMembers.isNotEmpty) {
         await ChurchAttendanceService.markBulkAttendance(
           memberIds: onlineMembers,
-          serviceDate: _selectedDate,
-          serviceType: _selectedServiceType,
+          churchServiceId: churchServiceId,
           attendanceType: 'online',
           specificObservationsByMemberId: _memberSpecificObservations,
         );
@@ -821,8 +878,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (absentMembers.isNotEmpty) {
         await ChurchAttendanceService.markBulkAttendance(
           memberIds: absentMembers,
-          serviceDate: _selectedDate,
-          serviceType: _selectedServiceType,
+          churchServiceId: churchServiceId,
           attendanceType: 'absent',
           specificObservationsByMemberId: _memberSpecificObservations,
         );
@@ -930,7 +986,9 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                trimmed.isEmpty ? 'Observation removed' : 'Observation saved',
+                trimmed.isEmpty
+                    ? context.tr('Observation removed')
+                    : context.tr('Observation saved'),
               ),
               backgroundColor: AppColors.success,
             ),
@@ -1085,7 +1143,9 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Remove Attendance')),
         content: Text(
-          'Are you sure you want to remove this attendance record?',
+          context.tr(
+            'Are you sure you want to remove this attendance record?',
+          ),
         ),
         actions: [
           TextButton(
@@ -1148,7 +1208,11 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       onPressed: widget.onClose,
                     )
                   : null,
-              title: Text(_isViewMode ? 'Service Details' : 'Mark Attendance'),
+              title: Text(
+                _isViewMode
+                    ? context.tr('Service Details')
+                    : context.tr('Mark Attendance'),
+              ),
               actions: [
                 if (_isViewMode) ...[
                   IconButton(
@@ -1234,16 +1298,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Widget _buildDesktopHeroBanner() {
-    final serviceLabel = _selectedServiceType == 'sunday'
-        ? context.tr('Sunday Service')
-        : context.tr('Wednesday Service');
     final dateLabel = DateFormat('EEEE, MMM d, yyyy').format(_selectedDate);
 
     return DesktopHeroBanner(
       title: _isViewMode
           ? context.tr('Service Details')
           : context.tr('Mark Attendance'),
-      subtitle: '$serviceLabel · $dateLabel',
+      subtitle: '${_displayServiceName} · $dateLabel',
       icon: Icons.church_outlined,
       trailing: widget.onClose != null
           ? IconButton(
@@ -1302,9 +1363,6 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Widget _buildCompactServiceHeader() {
-    final serviceLabel = _selectedServiceType == 'sunday'
-        ? 'Sunday service'
-        : 'Wednesday service';
     final dateLabel = DateFormat('EEEE, MMM d, yyyy').format(_selectedDate);
 
     return Container(
@@ -1327,7 +1385,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            serviceLabel,
+            _displayServiceName,
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -1374,51 +1432,23 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               ),
               SizedBox(width: AppDimensions.spacingMD),
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: _selectedServiceType,
+                child: TextFormField(
+                  controller: _serviceNameController,
+                  readOnly: _isViewMode,
                   decoration: InputDecoration(
-                    labelText: context.tr('Service Type'),
-                    prefixIcon: Icon(Icons.church),
-                    isDense: true,
+                    labelText: context.tr('Service name'),
+                    prefixIcon: const Icon(Icons.church),
                     filled: _isViewMode,
                     fillColor: _isViewMode
-                        ? Theme.of(context).disabledColor.withValues(alpha: 0.1)
+                        ? Theme.of(context)
+                            .disabledColor
+                            .withValues(alpha: 0.1)
                         : null,
                   ),
-                  isExpanded: true,
-                  items: [
-                    DropdownMenuItem(
-                      value: 'sunday',
-                      child: Text(
-                        'Sunday Service',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'wednesday',
-                      child: Text(
-                        'Wednesday Service',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                  selectedItemBuilder: (BuildContext context) {
-                    return ['sunday', 'wednesday'].map((String value) {
-                      return Text(
-                        value == 'sunday' ? 'Sunday' : 'Wednesday',
-                        overflow: TextOverflow.ellipsis,
-                      );
-                    }).toList();
-                  },
+                  textCapitalization: TextCapitalization.words,
                   onChanged: _isViewMode
                       ? null
-                      : (value) async {
-                          if (value != null) {
-                            await _onServiceDateOrTypeChanged(
-                              newServiceType: value,
-                            );
-                          }
-                        },
+                      : (_) => setState(() {}),
                 ),
               ),
             ],
@@ -1440,13 +1470,29 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                     .where(_visitorAttended)
                     .length;
 
+                final visitorSuffix = visitorCount > 0
+                    ? (visitorCount == 1
+                          ? context.tr(', {count} visitor', {
+                              'count': visitorCount,
+                            })
+                          : context.tr(', {count} visitors', {
+                              'count': visitorCount,
+                            }))
+                    : '';
+
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Flexible(
                       child: Text(
-                        '$attendedCount attended, $absentCount absent'
-                        '${visitorCount > 0 ? ', $visitorCount visitor${visitorCount == 1 ? '' : 's'}' : ''}',
+                        context.tr(
+                          '{attended} attended, {absent} absent{visitors}',
+                          {
+                            'attended': attendedCount,
+                            'absent': absentCount,
+                            'visitors': visitorSuffix,
+                          },
+                        ),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
@@ -1529,11 +1575,47 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   String _attendanceStatusLabel(String? type) {
     switch (type) {
       case 'onsite':
-        return 'Onsite';
+        return context.tr('Onsite');
       case 'online':
-        return 'Online';
+        return context.tr('Online');
       default:
-        return 'Absent';
+        return context.tr('Absent');
+    }
+  }
+
+  String _attendanceFilterLabel(String? value) {
+    switch (value) {
+      case 'onsite':
+        return context.tr('Onsite');
+      case 'online':
+        return context.tr('Online');
+      case 'absent':
+        return context.tr('Absent');
+      case 'child':
+        return context.tr('Children');
+      case 'visitor':
+        return context.tr('Visitors');
+      case null:
+      default:
+        return context.tr('All');
+    }
+  }
+
+  String _attendanceFilterLabelWithCount(String? value, int count) {
+    switch (value) {
+      case 'onsite':
+        return context.tr('Onsite ({count})', {'count': count});
+      case 'online':
+        return context.tr('Online ({count})', {'count': count});
+      case 'absent':
+        return context.tr('Absent ({count})', {'count': count});
+      case 'child':
+        return context.tr('Children ({count})', {'count': count});
+      case 'visitor':
+        return context.tr('Visitors ({count})', {'count': count});
+      case null:
+      default:
+        return context.tr('All ({count})', {'count': count});
     }
   }
 
@@ -1659,7 +1741,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           ),
           SizedBox(height: AppDimensions.spacingXS),
           Text(
-            'onsite attendees',
+            context.tr('onsite attendees'),
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: context.mic.textSecondary),
@@ -1670,7 +1752,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               Expanded(
                 child: _buildMobileSummaryHeroChip(
                   icon: Icons.video_call_outlined,
-                  label: 'Online',
+                  label: context.tr('Online'),
                   value: online,
                   color: AppColors.primary,
                 ),
@@ -1679,7 +1761,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               Expanded(
                 child: _buildMobileSummaryHeroChip(
                   icon: Icons.person_add_alt_1_outlined,
-                  label: 'Visitors',
+                  label: context.tr('Visitors'),
                   value: visitors,
                   color: AppColors.secondary,
                 ),
@@ -1753,33 +1835,33 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         _buildMobileSummaryHero(stats),
         SizedBox(height: AppDimensions.spacingLG),
         _buildMobileSummarySection(
-          title: 'Onsite breakdown',
+          title: context.tr('Onsite breakdown'),
           children: [
             _buildMobileSummaryMetric(
               icon: Icons.people_outline,
               iconColor: AppColors.primary,
-              label: 'Adults',
+              label: context.tr('Adults'),
               value: stats['adults'] ?? 0,
             ),
             metricDivider(),
             _buildMobileSummaryMetric(
               icon: Icons.child_care_outlined,
               iconColor: AppColors.accent,
-              label: 'Children',
+              label: context.tr('Children'),
               value: stats['children'] ?? 0,
             ),
             metricDivider(),
             _buildMobileSummaryMetric(
               icon: Icons.star_outline,
               iconColor: AppColors.warning,
-              label: 'New comers',
+              label: context.tr('New comers'),
               value: stats['newComers'] ?? 0,
             ),
             metricDivider(),
             _buildMobileSummaryMetric(
               icon: Icons.family_restroom_outlined,
               iconColor: AppColors.warning,
-              label: 'New comer children',
+              label: context.tr('New comer children'),
               value: stats['newComerChildren'] ?? 0,
             ),
           ],
@@ -1800,14 +1882,14 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           ),
           SizedBox(height: AppDimensions.spacingMD),
           Text(
-            'No results found',
+            context.tr('No results found'),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (_searchController.text.isNotEmpty ||
               _selectedAttendanceFilter != null) ...[
             SizedBox(height: AppDimensions.spacingXS),
             Text(
-              'Try adjusting search or filters',
+              context.tr('Try adjusting search or filters'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -1857,8 +1939,8 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 context,
               ).dividerColor.withValues(alpha: 0.5),
               tabs: [
-                Tab(text: 'Attendees'),
-                Tab(text: 'Summary'),
+                Tab(text: context.tr('Attendees')),
+                Tab(text: context.tr('Summary')),
               ],
             ),
           ),
@@ -1894,18 +1976,18 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                   AppDimensions.spacingSM,
                 ),
                 child: Text(
-                  'Filter attendees',
+                  context.tr('Filter attendees'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              _buildMobileFilterOption(sheetContext, null, 'All'),
-              _buildMobileFilterOption(sheetContext, 'onsite', 'Onsite'),
-              _buildMobileFilterOption(sheetContext, 'online', 'Online'),
-              _buildMobileFilterOption(sheetContext, 'absent', 'Absent'),
-              _buildMobileFilterOption(sheetContext, 'child', 'Children'),
-              _buildMobileFilterOption(sheetContext, 'visitor', 'Visitors'),
+              _buildMobileFilterOption(sheetContext, null),
+              _buildMobileFilterOption(sheetContext, 'onsite'),
+              _buildMobileFilterOption(sheetContext, 'online'),
+              _buildMobileFilterOption(sheetContext, 'absent'),
+              _buildMobileFilterOption(sheetContext, 'child'),
+              _buildMobileFilterOption(sheetContext, 'visitor'),
               SizedBox(height: AppDimensions.spacingSM),
             ],
           ),
@@ -1917,13 +1999,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   Widget _buildMobileFilterOption(
     BuildContext sheetContext,
     String? value,
-    String label,
   ) {
     final isSelected = _selectedAttendanceFilter == value;
     final count = _getAttendanceTypeCount(value);
 
     return ListTile(
-      title: Text(context.tr('$label ($count)')),
+      title: Text(_attendanceFilterLabelWithCount(value, count)),
       trailing: isSelected ? Icon(Icons.check, color: AppColors.primary) : null,
       onTap: () {
         setState(() => _selectedAttendanceFilter = value);
@@ -1948,14 +2029,16 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             child: OutlinedButton.icon(
               onPressed: _showAbsentPeopleDialog,
               icon: const Icon(Icons.person_off_outlined, size: 18),
-              label: Text('Absent ($absentCount)'),
+              label: Text(
+                context.tr('Absent ({count})', {'count': absentCount}),
+              ),
             ),
           ),
           SizedBox(width: AppDimensions.spacingSM),
           IconButton.filledTonal(
             onPressed: _generateAbsentPeoplePdf,
             icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'Export absent PDF',
+            tooltip: context.tr('Export absent PDF'),
           ),
         ],
       ),
@@ -2085,13 +2168,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       ),
                       if (isVisitor)
                         Text(
-                          'Visitor',
+                          context.tr('Visitor'),
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(color: context.mic.textSecondary),
                         ),
                       if (isNewComer)
                         Text(
-                          'New comer',
+                          context.tr('New comer'),
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(color: AppColors.warning),
                         ),
@@ -2165,7 +2248,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
-              'No active members found',
+              context.tr('No active members found'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             SizedBox(height: AppDimensions.spacingLG),
@@ -2234,13 +2317,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       ),
                       SizedBox(height: AppDimensions.spacingMD),
                       Text(
-                        'No results found',
+                        context.tr('No results found'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       if (_searchController.text.isNotEmpty) ...[
                         SizedBox(height: AppDimensions.spacingXS),
                         Text(
-                          'Try adjusting your search',
+                          context.tr('Try adjusting your search'),
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                       ],
@@ -2396,7 +2479,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           _buildVisitorTag(),
           if (!forThisService)
             Text(
-              'Other visit date',
+              context.tr('Other visit date'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
         ],
@@ -2443,7 +2526,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                     children: [
                       Icon(Icons.star, size: 16, color: AppColors.warning),
                       Text(
-                        'New Comer',
+                        context.tr('New Comer'),
                         style: TextStyle(
                           color: AppColors.warning,
                           fontSize: 12,
@@ -2562,7 +2645,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
-              'No active members found',
+              context.tr('No active members found'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ],
@@ -2582,12 +2665,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
-              'No attendance recorded for this service',
+              context.tr('No attendance recorded for this service'),
               style: Theme.of(context).textTheme.titleMedium,
             ),
             SizedBox(height: AppDimensions.spacingSM),
             Text(
-              'Tap Edit to mark attendance or add visitors',
+              context.tr('Tap Edit to mark attendance or add visitors'),
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),
@@ -2661,43 +2744,43 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSummaryLine(
-                'Children attended',
+                context.tr('Children attended'),
                 childrenAttended,
                 Icons.child_care,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'New comer children attended',
+                context.tr('New comer children attended'),
                 newComerChildrenAttended,
                 Icons.child_care,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'Adults attended',
+                context.tr('Adults attended'),
                 adultsAttended,
                 Icons.people,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'New comers attended',
+                context.tr('New comers attended'),
                 newComersAttended,
                 Icons.star,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'Visitors attended',
+                context.tr('Visitors attended'),
                 _visitorsForSelectedService.where(_visitorAttended).length,
                 Icons.person_add_alt_1,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'Online attendance',
+                context.tr('Online attendance'),
                 onlineAttended,
                 Icons.video_call,
               ),
               SizedBox(height: AppDimensions.spacingXS),
               _buildSummaryLine(
-                'Total (excluding online)',
+                context.tr('Total (excluding online)'),
                 totalExcludingOnline,
                 Icons.calculate,
               ),
@@ -2743,7 +2826,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 Row(
                   children: [
                     Text(
-                      'Filter:',
+                      context.tr('Filter:'),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w500,
                       ),
@@ -2755,37 +2838,31 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                         child: Row(
                           children: [
                             _buildFilterChip(
-                              label: 'All',
                               value: null,
                               icon: Icons.filter_list,
                             ),
                             SizedBox(width: AppDimensions.spacingXS),
                             _buildFilterChip(
-                              label: 'Onsite',
                               value: 'onsite',
                               icon: Icons.church,
                             ),
                             SizedBox(width: AppDimensions.spacingXS),
                             _buildFilterChip(
-                              label: 'Online',
                               value: 'online',
                               icon: Icons.video_call,
                             ),
                             SizedBox(width: AppDimensions.spacingXS),
                             _buildFilterChip(
-                              label: 'Absent',
                               value: 'absent',
                               icon: Icons.cancel_outlined,
                             ),
                             SizedBox(width: AppDimensions.spacingXS),
                             _buildFilterChip(
-                              label: 'Children',
                               value: 'child',
                               icon: Icons.child_care,
                             ),
                             SizedBox(width: AppDimensions.spacingXS),
                             _buildFilterChip(
-                              label: 'Visitors',
                               value: 'visitor',
                               icon: Icons.person_add_alt_1,
                             ),
@@ -2803,12 +2880,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                     FilledButton.icon(
                       onPressed: _showAbsentPeopleDialog,
                       icon: const Icon(Icons.person_off_outlined),
-                      label: const Text('Absent people'),
+                      label: Text(context.tr('Absent people')),
                     ),
                     FilledButton.tonalIcon(
                       onPressed: _generateAbsentPeoplePdf,
                       icon: const Icon(Icons.picture_as_pdf),
-                      label: const Text('Generate PDF'),
+                      label: Text(context.tr('Generate PDF')),
                     ),
                   ],
                 ),
@@ -2831,14 +2908,14 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
                   Text(
-                    'No results found',
+                    context.tr('No results found'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   if (_searchController.text.isNotEmpty ||
                       _selectedAttendanceFilter != null) ...[
                     SizedBox(height: AppDimensions.spacingXS),
                     Text(
-                      'Try adjusting search or filters',
+                      context.tr('Try adjusting search or filters'),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -2974,7 +3051,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     if (entries.isEmpty) {
       return Center(
         child: Text(
-          'No absent people',
+          context.tr('No absent people'),
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: context.mic.textSecondary,
           ),
@@ -2992,6 +3069,8 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       itemBuilder: (context, index) {
         final e = entries[index];
         final name = e['name'] ?? '-';
+        final displayName =
+            name == 'Unknown' ? context.tr('Unknown') : name;
         final kind = e['kind'] ?? '';
         final phone = e['phone'] ?? '';
         final email = e['email'] ?? '';
@@ -3005,25 +3084,27 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             backgroundColor: AppColors.error.withValues(alpha: 0.12),
             child: const Icon(Icons.person_off_outlined, color: AppColors.error),
           ),
-          title: Text(name),
+          title: Text(displayName),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (kind.isNotEmpty)
                 Text(
-                  kind,
+                  context.tr(kind),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: context.mic.textSecondary,
                   ),
                 ),
-              if (phone.isNotEmpty) Text('Phone: $phone'),
-              if (email.isNotEmpty) Text('Email: $email'),
+              if (phone.isNotEmpty)
+                Text(context.tr('Phone: {phone}', {'phone': phone})),
+              if (email.isNotEmpty)
+                Text(context.tr('Email: {email}', {'email': email})),
             ],
           ),
           trailing: phone.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.chat, color: Colors.green),
-                  tooltip: 'Open WhatsApp',
+                  tooltip: context.tr('Open WhatsApp'),
                   onPressed: () => _openWhatsApp(phone),
                 )
               : null,
@@ -3036,9 +3117,11 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     final opened = await WhatsAppUtils.openChat(phone: phone);
     if (opened || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Text(
-          'Could not open WhatsApp. Make sure it is installed on this device.',
+          context.tr(
+            'Could not open WhatsApp. Make sure it is installed on this device.',
+          ),
         ),
         backgroundColor: AppColors.error,
       ),
@@ -3073,7 +3156,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Absent people (${entries.length})',
+                            context.tr(
+                              'Absent people ({count})',
+                              {'count': entries.length},
+                            ),
                             style: Theme.of(sheetContext)
                                 .textTheme
                                 .titleMedium
@@ -3086,7 +3172,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                             _generateAbsentPeoplePdf();
                           },
                           icon: const Icon(Icons.picture_as_pdf),
-                          tooltip: 'Export PDF',
+                          tooltip: context.tr('Export PDF'),
                         ),
                       ],
                     ),
@@ -3105,7 +3191,9 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Absent people (${entries.length})'),
+          title: Text(
+            context.tr('Absent people ({count})', {'count': entries.length}),
+          ),
           content: SizedBox(
             width: 720,
             height: 480,
@@ -3114,7 +3202,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Close'),
+              child: Text(context.tr('Close')),
             ),
             FilledButton.icon(
               onPressed: () {
@@ -3122,7 +3210,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 _generateAbsentPeoplePdf();
               },
               icon: const Icon(Icons.picture_as_pdf),
-              label: const Text('Export PDF'),
+              label: Text(context.tr('Export PDF')),
             ),
           ],
         );
@@ -3141,10 +3229,21 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         builder: (_) => const Center(child: CircularProgressIndicator()),
       );
 
+      if (_churchServiceId == null || _churchServiceId!.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.tr('Save attendance before exporting PDF')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
       final filePath =
           await AttendanceReportPdfService.generateChurchAttendanceAbsentPeopleReport(
-        serviceDate: _selectedDate,
-        serviceType: _selectedServiceType,
+        churchServiceId: _churchServiceId!,
         localizations: l10n,
       );
 
@@ -3154,7 +3253,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Absent PDF generated successfully: $filePath',
+            context.tr(
+              'Absent PDF generated successfully: {path}',
+              {'path': filePath},
+            ),
           ),
           backgroundColor: AppColors.success,
         ),
@@ -3165,7 +3267,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Error generating absent PDF: $e',
+            context.tr('Error generating absent PDF: {error}', {'error': e}),
           ),
           backgroundColor: AppColors.error,
         ),
@@ -3260,7 +3362,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
   Widget _buildVisitorViewTile(Map<String, dynamic> record) {
     final member = record['member'] as Map<String, dynamic>?;
-    final firstName = member?['first_name'] ?? 'Unknown';
+    final firstName = member?['first_name'] ?? context.tr('Unknown');
     final lastName = member?['last_name'] ?? '';
     final visitorId = record['visitor_id']?.toString() ?? '';
     final attendanceType = record['attendance_type']?.toString() ?? 'onsite';
@@ -3295,11 +3397,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       );
     }
 
-    final attendanceTypeLabel = attendanceType == 'onsite'
-        ? 'Onsite'
-        : attendanceType == 'online'
-        ? 'Online'
-        : 'Absent';
+    final attendanceTypeLabel = _attendanceStatusLabel(attendanceType);
     final attendanceTypeIcon = attendanceType == 'onsite'
         ? Icons.church
         : attendanceType == 'online'
@@ -3336,7 +3434,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ],
           ),
           Text(
-            'Logged: ${_formatDateTime(record['created_at'])}',
+            context.tr(
+              'Logged: {datetime}',
+              {'datetime': _formatDateTime(record['created_at'])},
+            ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -3362,7 +3463,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
   Widget _buildMemberViewTile(Map<String, dynamic> record) {
     final member = record['member'] as Map<String, dynamic>?;
-    final firstName = member?['first_name'] ?? 'Unknown';
+    final firstName = member?['first_name'] ?? context.tr('Unknown');
     final lastName = member?['last_name'] ?? '';
     final attendanceId = record['id']?.toString() ?? '';
     final attendanceType = record['attendance_type']?.toString() ?? 'onsite';
@@ -3413,11 +3514,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       );
     }
 
-    final attendanceTypeLabel = attendanceType == 'onsite'
-        ? 'Onsite'
-        : attendanceType == 'online'
-        ? 'Online'
-        : 'Absent';
+    final attendanceTypeLabel = _attendanceStatusLabel(attendanceType);
     final attendanceTypeIcon = attendanceType == 'onsite'
         ? Icons.church
         : attendanceType == 'online'
@@ -3452,7 +3549,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               if (isNewComer) ...[
                 Icon(Icons.star, size: 14, color: AppColors.warning),
                 Text(
-                  'New Comer',
+                  context.tr('New Comer'),
                   style: TextStyle(
                     color: AppColors.warning,
                     fontSize: 12,
@@ -3470,7 +3567,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               ).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
             ),
           Text(
-            'Recorded: ${_formatDateTime(record['created_at'])}',
+            context.tr(
+              'Recorded: {datetime}',
+              {'datetime': _formatDateTime(record['created_at'])},
+            ),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -3520,7 +3620,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   String _formatDateTime(dynamic dateTime) {
-    if (dateTime == null) return 'Unknown';
+    if (dateTime == null) return context.tr('Unknown');
     try {
       final dt = DateTime.parse(dateTime.toString());
       return DateFormat('MMM d, yyyy • h:mm a').format(dt);
@@ -3530,12 +3630,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Widget _buildFilterChip({
-    required String label,
     required String? value,
     required IconData icon,
   }) {
     final isSelected = _selectedAttendanceFilter == value;
     final count = _getAttendanceTypeCount(value);
+    final label = _attendanceFilterLabel(value);
 
     return FilterChip(
       label: Row(
@@ -3628,7 +3728,12 @@ class _MemberObservationEditor extends StatefulWidget {
 class _MemberObservationEditorState extends State<_MemberObservationEditor> {
   late final TextEditingController _controller;
   static const _maxLength = 500;
-  static const _suggestions = ['Traveling', 'Sick', 'Arrived late', 'Away'];
+  static const _suggestionKeys = [
+    'Traveling',
+    'Sick',
+    'Arrived late',
+    'Away',
+  ];
 
   @override
   void initState() {
@@ -3654,7 +3759,8 @@ class _MemberObservationEditorState extends State<_MemberObservationEditor> {
     return '$first$last'.toUpperCase();
   }
 
-  void _applySuggestion(String suggestion) {
+  void _applySuggestion(String suggestionKey) {
+    final suggestion = context.tr(suggestionKey);
     final current = _controller.text.trim();
     _controller.text = current.isEmpty ? suggestion : '$current — $suggestion';
     _controller.selection = TextSelection.collapsed(
@@ -3706,7 +3812,7 @@ class _MemberObservationEditorState extends State<_MemberObservationEditor> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Service note',
+                          context.tr('Service note'),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: context.mic.textSecondary,
                           ),
@@ -3731,7 +3837,7 @@ class _MemberObservationEditorState extends State<_MemberObservationEditor> {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   hintText: context.tr('Write a note for this service…'),
-                  counterText: '$_remaining left',
+                  counterText: context.tr('{count} left', {'count': _remaining}),
                   filled: true,
                   fillColor: theme.colorScheme.surfaceContainerHighest
                       .withValues(alpha: 0.4),
@@ -3755,7 +3861,7 @@ class _MemberObservationEditorState extends State<_MemberObservationEditor> {
               ),
               SizedBox(height: AppDimensions.spacingSM),
               Text(
-                'Quick add',
+                context.tr('Quick add'),
                 style: theme.textTheme.labelMedium?.copyWith(
                   color: context.mic.textTertiary,
                 ),
@@ -3764,15 +3870,15 @@ class _MemberObservationEditorState extends State<_MemberObservationEditor> {
               Wrap(
                 spacing: AppDimensions.spacingSM,
                 runSpacing: AppDimensions.spacingSM,
-                children: _suggestions.map((suggestion) {
+                children: _suggestionKeys.map((suggestionKey) {
                   return ActionChip(
-                    label: Text(suggestion),
+                    label: Text(context.tr(suggestionKey)),
                     visualDensity: VisualDensity.compact,
                     labelStyle: theme.textTheme.bodySmall,
                     side: BorderSide(
                       color: theme.dividerColor.withValues(alpha: 0.6),
                     ),
-                    onPressed: () => _applySuggestion(suggestion),
+                    onPressed: () => _applySuggestion(suggestionKey),
                   );
                 }).toList(),
               ),

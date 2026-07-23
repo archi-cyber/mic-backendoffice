@@ -9,6 +9,9 @@ class AppConfig {
   static const String appName = 'SysteMIC';
   static const String appVersion = '1.0.0';
 
+  /// Default ISO country for phone numbers without a country code (e.g. CM, FR).
+  static const String defaultPhoneCountryIso = 'CM';
+
   // Push Notifications
   // Push notifications are sent via Supabase Edge Functions
   // See: supabase/functions/send-push-notification/README.md for setup instructions

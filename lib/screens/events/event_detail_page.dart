@@ -10,6 +10,7 @@ import '../../core/utils/permission_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
+import '../../widgets/phone_number_field.dart';
 
 /// Event detail page with registration and leader management
 class EventDetailPage extends StatefulWidget {
@@ -163,7 +164,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
               onPressed: widget.onClose,
             )
           : null,
-      title: Text(_event!['title'] ?? 'Event'),
+      title: Text(_event!['title'] ?? context.tr('Event')),
       actions: [
         if (_canEdit)
           IconButton(icon: Icon(Icons.edit), onPressed: _openEditEvent),
@@ -172,8 +173,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
       ],
       bottom: TabBar(
         tabs: [
-          Tab(text: 'Overview', icon: Icon(Icons.info)),
-          Tab(text: 'Registrations', icon: Icon(Icons.people)),
+          Tab(text: context.tr('Overview'), icon: Icon(Icons.info)),
+          Tab(text: context.tr('Registrations'), icon: Icon(Icons.people)),
         ],
       ),
     );
@@ -186,7 +187,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     return DesktopPageShell(
       maxWidth: kDesktopContentMaxWidth,
       banner: DesktopHeroBanner(
-        title: event['title']?.toString() ?? 'Event',
+        title: event['title']?.toString() ?? context.tr('Event'),
         subtitle: _eventSubtitle(event),
         icon: Icons.event,
         accent: AppColors.primary,
@@ -413,7 +414,7 @@ class _OverviewTab extends StatelessWidget {
                   Icon(Icons.repeat, size: 20, color: AppColors.primary),
                   SizedBox(width: AppDimensions.spacingSM),
                   Text(
-                    'Repeated Event',
+                    context.tr('Repeated Event'),
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -460,7 +461,7 @@ class _OverviewTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    event['title'] ?? 'Event',
+                    event['title'] ?? context.tr('Event'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
@@ -514,7 +515,7 @@ class _OverviewTab extends StatelessWidget {
                         Icon(Icons.repeat, size: 20, color: AppColors.primary),
                         SizedBox(width: AppDimensions.spacingSM),
                         Text(
-                          'Repeated Event',
+                          context.tr('Repeated Event'),
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: AppColors.primary,
@@ -530,7 +531,7 @@ class _OverviewTab extends StatelessWidget {
           ),
           SizedBox(height: AppDimensions.spacingMD),
           if (event['description'] != null) ...[
-            Text('Description', style: Theme.of(context).textTheme.titleLarge),
+            Text(context.tr('Description'), style: Theme.of(context).textTheme.titleLarge),
             SizedBox(height: AppDimensions.spacingSM),
             Text(
               event['description'],
@@ -720,7 +721,9 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Successfully registered ${selectedMembers.length} member(s)',
+              context.tr('Successfully registered {count} member(s)', {
+                'count': selectedMembers.length,
+              }),
             ),
             backgroundColor: AppColors.success,
           ),
@@ -849,7 +852,9 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                       )
                     : Icon(Icons.person_add),
                 label: Text(
-                  _isRegistering ? 'Registering...' : 'Register for Event',
+                  _isRegistering
+                      ? context.tr('Registering...')
+                      : context.tr('Register for Event'),
                 ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: Size(
@@ -936,7 +941,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                           ),
                           title: Text(
                             isGuest
-                                ? guestName ?? 'Guest'
+                                ? guestName ?? context.tr('Guest')
                                 : '${member['first_name']} ${member['last_name']}',
                           ),
                           subtitle: isGuest
@@ -960,7 +965,7 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
-                                        'Guest',
+                                        context.tr('Guest'),
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: AppColors.warning,
@@ -1179,13 +1184,13 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneInput = PhoneNumberInputController();
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
+    _phoneInput.dispose();
     super.dispose();
   }
 
@@ -1204,7 +1209,7 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Register Guest',
+                  context.tr('Register Guest'),
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: AppDimensions.spacingMD),
@@ -1217,7 +1222,7 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter guest name';
+                      return context.tr('Please enter guest name');
                     }
                     return null;
                   },
@@ -1234,14 +1239,13 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 SizedBox(height: AppDimensions.spacingMD),
-                TextFormField(
-                  controller: _phoneController,
+                PhoneNumberField(
+                  controller: _phoneInput,
+                  optional: true,
                   decoration: InputDecoration(
                     labelText: context.tr('Phone (Optional)'),
-                    prefixIcon: Icon(Icons.phone),
                     border: OutlineInputBorder(),
                   ),
-                  keyboardType: TextInputType.phone,
                 ),
                 SizedBox(height: AppDimensions.spacingXL),
                 Row(
@@ -1262,9 +1266,7 @@ class _GuestRegistrationDialogState extends State<_GuestRegistrationDialog> {
                               'email': _emailController.text.trim().isEmpty
                                   ? null
                                   : _emailController.text.trim(),
-                              'phone': _phoneController.text.trim().isEmpty
-                                  ? null
-                                  : _phoneController.text.trim(),
+                              'phone': _phoneInput.storedValue,
                             });
                           }
                         },

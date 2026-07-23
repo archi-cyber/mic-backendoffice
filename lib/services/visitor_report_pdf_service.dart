@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import '../config/app_config.dart';
+import 'supabase_service.dart';
 import 'visitor_service.dart';
 
 /// Service for generating PDF reports of church visitors.
@@ -16,12 +17,9 @@ class VisitorReportPdfService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    final visitors = await VisitorService.getVisitors(
-      fromDate: startDate,
-      toDate: endDate,
-      limit: 5000,
-      orderBy: 'visit_date',
-      ascending: false,
+    final visitors = await _fetchVisitorsWithServiceName(
+      startDate: startDate,
+      endDate: endDate,
     );
 
     if (visitors.isEmpty) {
@@ -76,20 +74,57 @@ class VisitorReportPdfService {
     return _savePdf(pdf, 'visitors_report');
   }
 
+  static Future<List<Map<String, dynamic>>> _fetchVisitorsWithServiceName({
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    try {
+      var query = SupabaseService.client
+          .from('visitors')
+          .select('*, church_service:church_services(name)');
+
+      if (startDate != null) {
+        query = query.gte(
+          'visit_date',
+          '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
+        );
+      }
+      if (endDate != null) {
+        query = query.lte(
+          'visit_date',
+          '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
+        );
+      }
+
+      final response = await query
+          .order('visit_date', ascending: false)
+          .order('created_at', ascending: false)
+          .limit(5000);
+
+      return List<Map<String, dynamic>>.from(response)
+          .where((r) => r['deleted_at'] == null)
+          .toList();
+    } catch (e) {
+      final fallback = await VisitorService.getVisitors(
+        fromDate: startDate,
+        toDate: endDate,
+        limit: 5000,
+        orderBy: 'visit_date',
+        ascending: false,
+      );
+      return fallback;
+    }
+  }
+
   static pw.Widget _buildSummary(List<Map<String, dynamic>> visitors) {
-    var sunday = 0;
-    var wednesday = 0;
+    final byService = <String, int>{};
     var onsite = 0;
     var online = 0;
     var absent = 0;
 
     for (final visitor in visitors) {
-      switch (visitor['service_type']?.toString()) {
-        case 'sunday':
-          sunday++;
-        case 'wednesday':
-          wednesday++;
-      }
+      final serviceName = _serviceNameFromVisitor(visitor);
+      byService[serviceName] = (byService[serviceName] ?? 0) + 1;
       switch (visitor['attendance_type']?.toString()) {
         case 'onsite':
           onsite++;
@@ -100,21 +135,37 @@ class VisitorReportPdfService {
       }
     }
 
+    final serviceStats = byService.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(
         border: pw.Border.all(color: PdfColors.grey300),
         borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
       ),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          _stat('Total Visitors', '${visitors.length}'),
-          _stat('Sunday Service', '$sunday'),
-          _stat('Wednesday Service', '$wednesday'),
-          _stat('On-site', '$onsite'),
-          _stat('Online', '$online'),
-          _stat('Absent', '$absent'),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+            children: [
+              _stat('Total Visitors', '${visitors.length}'),
+              _stat('On-site', '$onsite'),
+              _stat('Online', '$online'),
+              _stat('Absent', '$absent'),
+            ],
+          ),
+          if (serviceStats.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: serviceStats
+                  .map((entry) => _stat(entry.key, '${entry.value}'))
+                  .toList(),
+            ),
+          ],
         ],
       ),
     );
@@ -203,7 +254,7 @@ class VisitorReportPdfService {
                   cell(
                     visitDate != null ? dateFormat.format(visitDate) : '-',
                   ),
-                  cell(_serviceLabel(visitor['service_type']?.toString())),
+                  cell(_serviceNameFromVisitor(visitor)),
                   cell(
                     _attendanceLabel(visitor['attendance_type']?.toString()),
                   ),
@@ -236,15 +287,13 @@ class VisitorReportPdfService {
     return DateTime.tryParse(s);
   }
 
-  static String _serviceLabel(String? value) {
-    switch (value) {
-      case 'sunday':
-        return 'Sunday';
-      case 'wednesday':
-        return 'Wednesday';
-      default:
-        return '-';
+  static String _serviceNameFromVisitor(Map<String, dynamic> visitor) {
+    final joined = visitor['church_service'];
+    if (joined is Map) {
+      final name = joined['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
     }
+    return '-';
   }
 
   static String _attendanceLabel(String? value) {

@@ -332,7 +332,9 @@ class NewComerService {
     try {
       dynamic query = _client
           .from('church_attendance')
-          .select('id, member_id, service_date, service_type, attendance_type')
+          .select(
+            'id, member_id, service_date, church_service_id, attendance_type',
+          )
           .inFilter('member_id', memberIds)
           .isFilter('deleted_at', null);
 
@@ -384,8 +386,11 @@ class NewComerService {
         if (memberId == null) continue;
         final type = attendance['attendance_type']?.toString() ?? 'absent';
         final serviceDate = attendance['service_date']?.toString();
-        final serviceType = attendance['service_type']?.toString() ?? '';
-        if (serviceDate != null) serviceKeys.add('$serviceDate|$serviceType');
+        final churchServiceId =
+            attendance['church_service_id']?.toString() ?? '';
+        if (serviceDate != null) {
+          serviceKeys.add('$serviceDate|$churchServiceId');
+        }
 
         final row = rowsByMember[memberId];
         if (row == null) continue;

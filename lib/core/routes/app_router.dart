@@ -29,6 +29,7 @@ import '../../screens/tasks/add_project_page.dart';
 import '../../screens/tasks/edit_project_page.dart';
 import '../../screens/tasks/manage_projects_page.dart';
 import '../../screens/tasks/manage_tags_page.dart';
+import '../../screens/service_schedule/service_schedule_page.dart';
 import '../../screens/classes/classes_list_page.dart';
 import '../../screens/classes/class_detail_page.dart';
 import '../../screens/classes/add_class_page.dart';
@@ -214,12 +215,10 @@ class AppRouter {
         );
 
       case RouteNames.churchAttendance:
-        // Check if arguments are provided (for viewing specific service)
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
           builder: (_) => ChurchAttendancePage(
-            serviceDate: args?['serviceDate'] as String?,
-            serviceType: args?['serviceType'] as String?,
+            churchServiceId: args?['churchServiceId'] as String?,
           ),
           settings: settings,
         );
@@ -320,6 +319,20 @@ class AppRouter {
         final tagDepartmentId = settings.arguments as String?;
         return MaterialPageRoute(
           builder: (_) => ManageTagsPage(departmentId: tagDepartmentId),
+          settings: settings,
+        );
+
+      case RouteNames.serviceSchedule:
+        final scheduleDepartmentId = settings.arguments as String?;
+        return MaterialPageRoute(
+          builder: (_) {
+            if (scheduleDepartmentId == null || scheduleDepartmentId.isEmpty) {
+              return Scaffold(
+                body: Center(child: Text('Department is required')),
+              );
+            }
+            return ServiceSchedulePage(departmentId: scheduleDepartmentId);
+          },
           settings: settings,
         );
 

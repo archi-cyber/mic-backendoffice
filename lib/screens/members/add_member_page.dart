@@ -12,6 +12,7 @@ import '../../services/storage_service.dart';
 import '../../services/visitor_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
+import '../../widgets/phone_number_field.dart';
 import 'member_form_ui.dart';
 
 /// Add member page
@@ -30,7 +31,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneInput = PhoneNumberInputController();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
@@ -74,7 +75,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
+    _phoneInput.dispose();
     _addressController.dispose();
     _cityController.dispose();
     _stateController.dispose();
@@ -95,7 +96,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           DateTime.now().subtract(Duration(days: 365 * 25)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
-      helpText: 'Select Birthday',
+      helpText: context.tr('Select Birthday'),
     );
     if (picked != null) {
       setState(() {
@@ -174,9 +175,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       'email': _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
           : null,
-      'phone': _phoneController.text.trim().isNotEmpty
-          ? _phoneController.text.trim()
-          : null,
+      'phone': _phoneInput.storedValue,
       'birthday': _selectedBirthday!.toIso8601String().split('T')[0],
       'address': _addressController.text.trim().isNotEmpty
           ? _addressController.text.trim()
@@ -225,7 +224,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       initialDate: _newcomerJoinDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      helpText: 'Select Join Date',
+      helpText: context.tr('Select Join Date'),
     );
     if (picked != null) {
       setState(() {
@@ -236,7 +235,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
 
   Future<void> _handleSave() async {
     if (_selectedBirthday == null) {
-      setState(() => _birthdayError = 'Birthday is required');
+      setState(() => _birthdayError = context.tr('Birthday is required'));
     } else {
       setState(() => _birthdayError = null);
     }
@@ -259,9 +258,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             'email': _emailController.text.trim().isNotEmpty
                 ? _emailController.text.trim()
                 : null,
-            'phone': _phoneController.text.trim().isNotEmpty
-                ? _phoneController.text.trim()
-                : null,
+            'phone': _phoneInput.storedValue,
             'address': _addressController.text.trim().isNotEmpty
                 ? _addressController.text.trim()
                 : null,
@@ -278,9 +275,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           email: _emailController.text.trim().isNotEmpty
               ? _emailController.text.trim()
               : null,
-          phone: _phoneController.text.trim().isNotEmpty
-              ? _phoneController.text.trim()
-              : null,
+          phone: _phoneInput.storedValue,
           newcomerJoinDate: _newcomerJoinDate ?? DateTime.now(),
           newcomerIntention: 'just_passing',
         );
@@ -299,8 +294,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
           SnackBar(
             content: Text(
               isJustPassingNewComer
-                  ? 'Visitor created successfully'
-                  : 'Member created successfully',
+                  ? context.tr('Visitor created successfully')
+                  : context.tr('Member created successfully'),
             ),
             backgroundColor: AppColors.success,
           ),
@@ -440,7 +435,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? 'First name is required' : null,
+                  (v == null || v.isEmpty) ? context.tr('First name is required') : null,
             ),
           ),
           SizedBox(width: AppDimensions.spacingMD),
@@ -452,7 +447,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Last name is required' : null,
+                  (v == null || v.isEmpty) ? context.tr('Last name is required') : null,
             ),
           ),
         ],
@@ -511,7 +506,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           SizedBox(height: AppDimensions.spacingSM),
           Text(
-            'Profile photo (optional)',
+            context.tr('Profile photo (optional)'),
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: context.mic.textSecondary),
@@ -542,7 +537,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
         child: Text(
           _selectedBirthday != null
               ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
-              : 'Select birthday',
+              : context.tr('Select birthday'),
           style: TextStyle(
             color: _selectedBirthday != null
                 ? Theme.of(context).textTheme.bodyLarge?.color
@@ -564,18 +559,17 @@ class _AddMemberPageState extends State<AddMemberPage> {
         ),
         validator: (v) {
           if (v != null && v.isNotEmpty && !v.contains('@')) {
-            return 'Invalid email format';
+            return context.tr('Invalid email format');
           }
           return null;
         },
       ),
       SizedBox(height: AppDimensions.spacingMD),
-      TextFormField(
-        controller: _phoneController,
-        keyboardType: TextInputType.phone,
+      PhoneNumberField(
+        controller: _phoneInput,
+        optional: true,
         decoration: InputDecoration(
           labelText: context.tr('Phone'),
-          prefixIcon: Icon(Icons.phone),
         ),
       ),
     ];
@@ -766,6 +760,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
         children: [
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _selectedRole,
               decoration: InputDecoration(
                 labelText: context.tr('Role *'),
@@ -797,12 +792,13 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 if (value != null) setState(() => _selectedRole = value);
               },
               validator: (value) =>
-                  (value == null || value.isEmpty) ? 'Role is required' : null,
+                  (value == null || value.isEmpty) ? context.tr('Role is required') : null,
             ),
           ),
           SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _selectedGender,
               decoration: InputDecoration(
                 labelText: context.tr('Gender'),
@@ -828,6 +824,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           SizedBox(width: AppDimensions.spacingMD),
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _selectedMaritalStatus,
               decoration: InputDecoration(
                 labelText: context.tr('Marital Status'),
@@ -881,7 +878,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
       CheckboxListTile(
         title: Text(context.tr('New Comer')),
         subtitle: Text(
-          'Status will change to member after 9+ service attendances in 3 months.',
+          context.tr(
+            'Status will change to member after 9+ service attendances in 3 months.',
+          ),
         ),
         value: _isNewComer,
         onChanged: (value) {
@@ -910,7 +909,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             child: Text(
               _newcomerJoinDate != null
                   ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
-                  : 'Select join date',
+                  : context.tr('Select join date'),
               style: TextStyle(
                 color: _newcomerJoinDate != null
                     ? Theme.of(context).textTheme.bodyLarge?.color
@@ -926,7 +925,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
             labelText: context.tr('Newcomer Intention'),
             prefixIcon: Icon(Icons.help_outline),
             helperText: context.tr(
-              'Selecting "Just passing" creates a Visitor, not a Member.',
+              context.tr(
+                'Selecting "Just passing" creates a Visitor, not a Member.',
+              ),
             ),
           ),
           items: [
@@ -971,7 +972,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'First name is required';
+              return context.tr('First name is required');
             }
             return null;
           },
@@ -985,7 +986,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Last name is required';
+              return context.tr('Last name is required');
             }
             return null;
           },
@@ -1000,18 +1001,17 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value != null && value.isNotEmpty && !value.contains('@')) {
-              return 'Invalid email format';
+              return context.tr('Invalid email format');
             }
             return null;
           },
         ),
         SizedBox(height: AppDimensions.spacingMD),
-        TextFormField(
-          controller: _phoneController,
-          keyboardType: TextInputType.phone,
+        PhoneNumberField(
+          controller: _phoneInput,
+          optional: true,
           decoration: InputDecoration(
             labelText: context.tr('Phone'),
-            prefixIcon: Icon(Icons.phone),
           ),
         ),
         SizedBox(height: AppDimensions.spacingMD),
@@ -1228,7 +1228,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             }
           },
           validator: (value) =>
-              (value == null || value.isEmpty) ? 'Role is required' : null,
+              (value == null || value.isEmpty) ? context.tr('Role is required') : null,
         ),
         SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
@@ -1309,7 +1309,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
         CheckboxListTile(
           title: Text(context.tr('New Comer')),
           subtitle: Text(
-            'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
+            context.tr(
+              'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
+            ),
           ),
           value: _isNewComer,
           onChanged: (value) {
@@ -1335,13 +1337,13 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.event_available),
                 suffixIcon: Icon(Icons.calendar_today),
                 helperText: context.tr(
-                  'Select the date when the newcomer joined',
+                  context.tr('Select the date when the newcomer joined'),
                 ),
               ),
               child: Text(
                 _newcomerJoinDate != null
                     ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
-                    : 'Select join date',
+                    : context.tr('Select join date'),
                 style: TextStyle(
                   color: _newcomerJoinDate != null
                       ? Theme.of(context).textTheme.bodyLarge?.color
@@ -1357,7 +1359,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
               labelText: context.tr('Newcomer Intention'),
               prefixIcon: Icon(Icons.help_outline),
               helperText: context.tr(
+                context.tr(
                 'Selecting "Just passing" creates a Visitor, not a Member.',
+              ),
               ),
             ),
             items: [
@@ -1408,7 +1412,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             Icon(Icons.star, size: 20),
             SizedBox(width: AppDimensions.spacingSM),
             Text(
-              'Key Skills',
+              context.tr('Key Skills'),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],

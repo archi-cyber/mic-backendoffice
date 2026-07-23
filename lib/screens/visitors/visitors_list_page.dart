@@ -74,10 +74,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              localizations?.errorLoadingVisitor ??
-                  'Error loading visitors: $e',
-            ),
+            content: Text(context.tr('Error loading visitors: $e')),
           ),
         );
       }
@@ -368,7 +365,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
     final notes = visitor['notes']?.toString() ?? '';
     final visitDate = VisitorFormUi.parseVisitDate(visitor['visit_date']);
     final visitorId = visitor['id'].toString();
-    final serviceType = visitor['service_type']?.toString();
+    final serviceLabel = _visitorServiceLabel(visitor);
 
     return Container(
       margin: EdgeInsets.fromLTRB(
@@ -459,13 +456,10 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                               ),
                             ),
                           ],
-                          if (serviceType == 'sunday' ||
-                              serviceType == 'wednesday') ...[
+                          if (serviceLabel != '—') ...[
                             SizedBox(height: 4),
                             Text(
-                              serviceType == 'sunday'
-                                  ? context.tr('Sunday service')
-                                  : context.tr('Wednesday service'),
+                              serviceLabel,
                               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                 color: context.mic.textSecondary,
                               ),
@@ -632,7 +626,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.delete ?? 'Delete'),
+        title: Text(context.tr('Delete')),
         content: Text(
           localizations?.deleteVisitorConfirmWithName(visitorName) ??
               'Are you sure you want to delete "$visitorName"?',
@@ -640,12 +634,12 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: Text(localizations?.delete ?? 'Delete'),
+            child: Text(context.tr('Delete')),
           ),
         ],
       ),
@@ -657,9 +651,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                localizations?.visitorDeleted ?? 'Visitor deleted successfully',
-              ),
+            content: Text(context.tr('Visitor deleted successfully')),
               backgroundColor: AppColors.success,
             ),
           );
@@ -669,10 +661,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                localizations?.errorDeletingVisitor ??
-                    'Error deleting visitor: $e',
-              ),
+              content: Text(context.tr('Error deleting visitor: $e')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -710,10 +699,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              localizations?.visitorConvertedToMember ??
-                  'Visitor converted to member successfully',
-            ),
+            content: Text(context.tr('Visitor converted to member successfully')),
             backgroundColor: AppColors.success,
           ),
         );
@@ -723,9 +709,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              '${localizations?.errorConvertingVisitor ?? 'Error converting visitor to member'}: $e',
-            ),
+            content: Text(context.tr('Error converting visitor to member: $e')),
             backgroundColor: AppColors.error,
           ),
         );
@@ -818,9 +802,12 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
     return visitors.sublist(start, end);
   }
 
-  String _serviceTypeLabel(String? serviceType) {
-    if (serviceType == 'sunday') return context.tr('Sunday service');
-    if (serviceType == 'wednesday') return context.tr('Wednesday service');
+  String _visitorServiceLabel(Map<String, dynamic> visitor) {
+    final nested = visitor['church_service'];
+    if (nested is Map<String, dynamic>) {
+      final name = nested['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
+    }
     return '—';
   }
 
@@ -967,7 +954,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                   visitor['visit_date'],
                 );
                 final visitorId = visitor['id'].toString();
-                final serviceType = visitor['service_type']?.toString();
+                final serviceLabel = _visitorServiceLabel(visitor);
 
                 return DataRow(
                   cells: [
@@ -1012,7 +999,7 @@ class _VisitorsListPageState extends State<VisitorsListPage> {
                         visitDate != null ? _formatDate(visitDate) : '—',
                       ),
                     ),
-                    DataCell(Text(_serviceTypeLabel(serviceType))),
+                    DataCell(Text(serviceLabel)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_horiz, size: 20),
@@ -1281,9 +1268,7 @@ class _ConvertVisitorToMemberDialogState
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text(
-        localizations?.convertVisitorToMember ?? 'Convert visitor to member',
-      ),
+      title: Text(context.tr('Convert visitor to member')),
       content: SizedBox(
         width: 420,
         child: Form(
@@ -1294,10 +1279,10 @@ class _ConvertVisitorToMemberDialogState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  localizations?.convertVisitorToMemberConfirm(
-                        widget.visitorName,
-                      ) ??
-                      'Create a member profile for "${widget.visitorName}" using the visitor\'s contact details. The visitor record will be removed.',
+                  context.tr(
+                    'Create a member profile for "{name}" using the visitor\'s contact details. The visitor record will be removed.',
+                    {'name': widget.visitorName},
+                  ),
                 ),
                 SizedBox(height: AppDimensions.spacingMD),
                 InkWell(
@@ -1414,7 +1399,7 @@ class _ConvertVisitorToMemberDialogState
         ),
         ElevatedButton(
           onPressed: _submit,
-          child: Text(localizations?.convertToMember ?? 'Convert to Member'),
+          child: Text(context.tr('Convert to Member')),
         ),
       ],
     );

@@ -6,6 +6,15 @@ import 'members_report_service.dart';
 class ReportService {
   static final _client = SupabaseService.client;
 
+  static String _churchServiceDisplayName(Map<String, dynamic> record) {
+    final joined = record['church_service'];
+    if (joined is Map) {
+      final name = joined['name']?.toString().trim();
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return 'Church service';
+  }
+
   /// Get member report
   /// GET /reports/member/:memberId?from=&to=
   static Future<Map<String, dynamic>> getMemberReport({
@@ -17,7 +26,7 @@ class ReportService {
       // Get church attendance records
       var churchAttendanceQuery = _client
           .from('church_attendance')
-          .select('*')
+          .select('*, church_service:church_services(name)')
           .eq('member_id', memberId);
 
       if (fromDate != null) {
@@ -66,9 +75,7 @@ class ReportService {
             ...record,
             'attendance_category': 'church',
             'display_date': record['service_date'],
-            'display_type': record['service_type'] == 'sunday'
-                ? 'Sunday Service'
-                : 'Wednesday Service',
+            'display_type': _churchServiceDisplayName(record),
             'attendance_type_display': record['attendance_type'] == 'onsite'
                 ? 'Onsite'
                 : record['attendance_type'] == 'online'
@@ -159,7 +166,7 @@ class ReportService {
     try {
       var churchAttendanceQuery = _client
           .from('church_attendance')
-          .select('*')
+          .select('*, church_service:church_services(name)')
           .eq('member_id', memberId);
 
       if (fromDate != null) {
@@ -184,9 +191,7 @@ class ReportService {
           ...record,
           'attendance_category': 'church',
           'display_date': record['service_date'],
-          'display_type': record['service_type'] == 'sunday'
-              ? 'Sunday Service'
-              : 'Wednesday Service',
+          'display_type': _churchServiceDisplayName(record),
           'attendance_type_display': record['attendance_type'] == 'onsite'
               ? 'Onsite'
               : record['attendance_type'] == 'online'

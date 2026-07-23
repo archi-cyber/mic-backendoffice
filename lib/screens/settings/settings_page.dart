@@ -157,19 +157,20 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.exportAllData ?? 'Export All Data'),
+        title: Text(context.tr('Export All Data')),
         content: Text(
-          localizations?.exportAllDataConfirm ??
-              'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
+          context.tr(
+            'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(localizations?.export ?? 'Export'),
+            child: Text(context.tr('Export')),
           ),
         ],
       ),
@@ -257,23 +258,24 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.syncUsersMembers ?? 'Sync Users & Members'),
+        title: Text(context.tr('Sync Users & Members')),
         content: Text(
-          localizations?.syncUsersMembersConfirm ??
-              'This will:\n'
-                  '1. Create a member for every user\n'
-                  '2. Create a user (with default password "Password123") for every leader member\n\n'
-                  'Leaders will be required to change their password on first login.\n\n'
-                  'Continue?',
+          context.tr(
+            'This will:\n'
+            '1. Create a member for every user\n'
+            '2. Create a user (with default password "Password123") for every leader member\n\n'
+            'Leaders will be required to change their password on first login.\n\n'
+            'Continue?',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(localizations?.sync ?? 'Sync'),
+            child: Text(context.tr('Sync')),
           ),
         ],
       ),
@@ -388,21 +390,22 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.importData ?? 'Import Data'),
+        title: Text(context.tr('Import Data')),
         content: Text(
-          localizations?.importDataConfirm ??
-              'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?',
+          context.tr(
+            'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?',
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(localizations?.import ?? 'Import'),
+            child: Text(context.tr('Import')),
           ),
-        ],
+       ],
       ),
     );
 
@@ -527,7 +530,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   subtitle: Text(
                     localizations?.receivePushNotifications ??
-                        'Receive push notifications',
+                        context.tr('Receive push notifications'),
                   ),
                   value: settingsProvider.notificationsEnabled,
                   onChanged: _toggleNotifications,
@@ -552,7 +555,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       subtitle: Text(
                         localizations?.exportAllDataSubtitle ??
-                            'Export all data to JSON file',
+                            context.tr('Export all data to JSON file'),
                       ),
                       trailing: Icon(Icons.chevron_right),
                       onTap: _exportAllData,
@@ -566,7 +569,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: Text(localizations?.importData ?? 'Import Data'),
                       subtitle: Text(
                         localizations?.importDataSubtitle ??
-                            'Import data from JSON file',
+                            context.tr('Import data from JSON file'),
                       ),
                       trailing: Icon(Icons.chevron_right),
                       onTap: _importData,
@@ -579,7 +582,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       subtitle: Text(
                         localizations?.exportMembersSubtitle ??
-                            'Export members to CSV',
+                            context.tr('Export members to CSV'),
                       ),
                       trailing: Icon(Icons.chevron_right),
                       onTap: _exportMembers,
@@ -593,7 +596,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       subtitle: Text(
                         localizations?.syncUsersMembers ??
-                            'Create members for all users and users for all leaders',
+                            context.tr(
+                              'Create members for all users and users for all leaders',
+                            ),
                       ),
                       trailing: Icon(Icons.chevron_right),
                       onTap: _syncUsersAndMembers,
@@ -614,7 +619,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   subtitle: Text(
                     localizations?.generateReportComprehensive ??
-                        'Generate comprehensive report for all users',
+                        context.tr(
+                          'Generate comprehensive report for all users',
+                        ),
                   ),
                   trailing: Icon(Icons.chevron_right),
                   onTap: _generateAllUsersReport,
@@ -633,7 +640,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   subtitle: Text(
                     localizations?.configureBirthdayNotifications ??
-                        'Configure birthday notification settings',
+                        context.tr('Configure birthday notification settings'),
                   ),
                   trailing: Icon(Icons.chevron_right),
                   onTap: () {
@@ -671,7 +678,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     subtitle: Text(
                       localizations?.defineFeatureAccess ??
-                          'Define feature access for each leader',
+                          context.tr('Define feature access for each leader'),
                     ),
                     trailing: Icon(Icons.chevron_right),
                     onTap: () {
@@ -692,8 +699,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     leading: Icon(Icons.person_add, color: AppColors.primary),
                     title: Text(context.tr('Member Accounts')),
                     subtitle: Text(
+                    context.tr(
                       'Create login accounts for members and manage their access',
                     ),
+                  ),
                     trailing: Icon(Icons.chevron_right),
                     onTap: () {
                       final scope = DesktopShellScope.maybeOf(context);
@@ -732,7 +741,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       subtitle: Text(
                         localizations?.signOutAccount ??
-                            'Sign out of your account',
+                            context.tr('Sign out of your account'),
                       ),
                       onTap: _handleLogout,
                     ),
@@ -765,19 +774,17 @@ class _SettingsPageState extends State<SettingsPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.logout ?? 'Logout'),
-        content: Text(
-          localizations?.logoutConfirm ?? 'Are you sure you want to logout?',
-        ),
+        title: Text(context.tr('Logout')),
+        content: Text(context.tr('Are you sure you want to logout?')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: Text(localizations?.logout ?? 'Logout'),
+            child: Text(context.tr('Logout')),
           ),
         ],
       ),
@@ -823,8 +830,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return DesktopPageShell(
       banner: DesktopHeroBanner(
         title: localizations?.settings ?? 'Settings',
-        subtitle: localizations?.configureBirthdayNotifications ??
-            'Manage preferences, data, and admin tools',
+        subtitle: context.tr('Manage preferences, data, and admin tools'),
         icon: Icons.settings_outlined,
         accent: AppColors.secondary,
         trailing: Container(
@@ -915,7 +921,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     subtitle: Text(
                       localizations?.receivePushNotifications ??
-                          'Receive push notifications',
+                          context.tr('Receive push notifications'),
                     ),
                     value: settingsProvider.notificationsEnabled,
                     onChanged: _toggleNotifications,
@@ -939,7 +945,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: localizations?.birthdayNotifications ??
                           'Birthday Notifications',
                       subtitle: localizations?.configureBirthdayNotifications ??
-                          'Configure birthday notification settings',
+                          context.tr('Configure birthday notification settings'),
                       color: AppColors.accent,
                       onTap: () {
                         if (scope != null) {
@@ -954,7 +960,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       icon: Icons.upload_file,
                       title: localizations?.exportAllData ?? 'Export All Data',
                       subtitle: localizations?.exportAllDataSubtitle ??
-                          'Export all data to JSON file',
+                          context.tr('Export all data to JSON file'),
                       color: AppColors.primary,
                       onTap: _exportAllData,
                     ),
@@ -962,7 +968,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       icon: Icons.file_download_outlined,
                       title: localizations?.importData ?? 'Import Data',
                       subtitle: localizations?.importDataSubtitle ??
-                          'Import data from JSON file',
+                          context.tr('Import data from JSON file'),
                       color: AppColors.primary,
                       onTap: _importData,
                     ),
@@ -970,7 +976,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       icon: Icons.people_outline,
                       title: localizations?.exportMembers ?? 'Export Members',
                       subtitle: localizations?.exportMembersSubtitle ??
-                          'Export members to CSV',
+                          context.tr('Export members to CSV'),
                       color: AppColors.primary,
                       onTap: _exportMembers,
                     ),
@@ -979,7 +985,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: localizations?.syncUsersMembers ??
                           'Sync Users & Members',
                       subtitle: localizations?.syncUsersMembers ??
-                          'Create members for all users and users for all leaders',
+                          context.tr(
+                            'Create members for all users and users for all leaders',
+                          ),
                       color: AppColors.secondary,
                       onTap: _syncUsersAndMembers,
                     ),
@@ -988,7 +996,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       title: localizations?.generateAllUsersReport ??
                           'Generate All Users Report',
                       subtitle: localizations?.generateReportComprehensive ??
-                          'Generate comprehensive report for all users',
+                          context.tr(
+                            'Generate comprehensive report for all users',
+                          ),
                       color: AppColors.info,
                       onTap: _generateAllUsersReport,
                     ),
@@ -998,7 +1008,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         title: localizations?.leaderAccessManagement ??
                             'Leader Access Management',
                         subtitle: localizations?.defineFeatureAccess ??
-                            'Define feature access for each leader',
+                            context.tr('Define feature access for each leader'),
                         color: AppColors.warning,
                         onTap: () {
                           scope?.pushDetail(RouteNames.leaderAccess, '');
@@ -1008,8 +1018,9 @@ class _SettingsPageState extends State<SettingsPage> {
                       DesktopSettingsTile(
                         icon: Icons.person_add_alt_1_outlined,
                         title: context.tr('Member Accounts'),
-                        subtitle:
-                            'Create login accounts for members and manage their access',
+                        subtitle: context.tr(
+                          'Create login accounts for members and manage their access',
+                        ),
                         color: AppColors.success,
                         onTap: () {
                           scope?.pushDetail(RouteNames.memberAccounts, '');
@@ -1060,7 +1071,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     subtitle: Text(
                       localizations?.signOutAccount ??
-                          'Sign out of your account',
+                          context.tr('Sign out of your account'),
                     ),
                     onTap: _handleLogout,
                   ),
@@ -1103,11 +1114,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showLanguageDialog(Locale? currentLocale) async {
-    final localizations = AppLocalizations.of(context);
     final selected = await showDialog<Locale>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.language ?? 'Language'),
+        title: Text(context.tr('Language')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1134,7 +1144,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
         ],
       ),
@@ -1146,28 +1156,27 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showThemeDialog(ThemeMode currentThemeMode) async {
-    final localizations = AppLocalizations.of(context);
     final selected = await showDialog<ThemeMode>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(localizations?.selectTheme ?? 'Select Theme'),
+        title: Text(context.tr('Select Theme')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             RadioListTile<ThemeMode>(
-              title: Text(localizations?.light ?? 'Light'),
+              title: Text(context.tr('Light')),
               value: ThemeMode.light,
               groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<ThemeMode>(
-              title: Text(localizations?.dark ?? 'Dark'),
+              title: Text(context.tr('Dark')),
               value: ThemeMode.dark,
               groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
             ),
             RadioListTile<ThemeMode>(
-              title: Text(localizations?.systemDefault ?? 'System Default'),
+              title: Text(context.tr('System Default')),
               value: ThemeMode.system,
               groupValue: currentThemeMode,
               onChanged: (value) => Navigator.pop(context, value),
@@ -1177,7 +1186,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(localizations?.cancel ?? 'Cancel'),
+            child: Text(context.tr('Cancel')),
           ),
         ],
       ),

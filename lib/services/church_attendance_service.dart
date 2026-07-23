@@ -1,25 +1,31 @@
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'church_service_service.dart';
 import 'supabase_service.dart';
 
-/// Service for managing church attendance (Wednesday and Sunday services)
+/// Service for managing church attendance linked to [church_services].
 class ChurchAttendanceService {
   static final _client = SupabaseService.client;
 
-  /// Mark attendance for a member
-  /// serviceType: 'wednesday' or 'sunday'
+  static String _dateOnly(DateTime date) =>
+      date.toIso8601String().split('T')[0];
+
+  static Future<Map<String, dynamic>> _requireService(String churchServiceId) async {
+    final service = await ChurchServiceService.getById(churchServiceId);
+    if (service == null) {
+      throw Exception('Church service not found');
+    }
+    return service;
+  }
+
+  /// Mark attendance for a member on a church service.
   /// attendanceType: 'onsite', 'online', or 'absent'
   static Future<Map<String, dynamic>> markAttendance({
     required String memberId,
-    required DateTime serviceDate,
-    required String serviceType, // 'wednesday' or 'sunday'
-    String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
+    required String churchServiceId,
+    String attendanceType = 'onsite',
     String? specificObservation,
   }) async {
     try {
-      if (serviceType != 'wednesday' && serviceType != 'sunday') {
-        throw Exception('Service type must be "wednesday" or "sunday"');
-      }
-
       if (attendanceType != 'onsite' &&
           attendanceType != 'online' &&
           attendanceType != 'absent') {
@@ -33,9 +39,11 @@ class ChurchAttendanceService {
         throw Exception('User must be authenticated to mark attendance');
       }
 
-      debugPrint(
-        '[ChurchAttendanceService] Marking attendance for member: $memberId, date: $serviceDate, type: $serviceType, attendance: $attendanceType',
-      );
+      final service = await _requireService(churchServiceId);
+      final serviceDate = service['service_date']?.toString();
+      if (serviceDate == null || serviceDate.isEmpty) {
+        throw Exception('Church service has no date');
+      }
 
       final observation = specificObservation?.trim();
 
@@ -43,10 +51,8 @@ class ChurchAttendanceService {
           .from('church_attendance')
           .insert({
             'member_id': memberId,
-            'service_date': serviceDate.toIso8601String().split(
-              'T',
-            )[0], // Date only
-            'service_type': serviceType,
+            'church_service_id': churchServiceId,
+            'service_date': serviceDate,
             'attendance_type': attendanceType,
             if (observation != null && observation.isNotEmpty)
               'specific_observation': observation,
@@ -57,7 +63,6 @@ class ChurchAttendanceService {
           .select()
           .single();
 
-      debugPrint('[ChurchAttendanceService] Attendance marked successfully');
       return response;
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error marking attendance: $e');
@@ -65,20 +70,14 @@ class ChurchAttendanceService {
     }
   }
 
-  /// Mark attendance for multiple members (bulk operation)
-  /// attendanceType: 'onsite', 'online', or 'absent'
+  /// Mark attendance for multiple members (bulk operation).
   static Future<List<Map<String, dynamic>>> markBulkAttendance({
     required List<String> memberIds,
-    required DateTime serviceDate,
-    required String serviceType,
-    String attendanceType = 'onsite', // 'onsite', 'online', or 'absent'
+    required String churchServiceId,
+    String attendanceType = 'onsite',
     Map<String, String?>? specificObservationsByMemberId,
   }) async {
     try {
-      if (serviceType != 'wednesday' && serviceType != 'sunday') {
-        throw Exception('Service type must be "wednesday" or "sunday"');
-      }
-
       if (attendanceType != 'onsite' &&
           attendanceType != 'online' &&
           attendanceType != 'absent') {
@@ -92,18 +91,19 @@ class ChurchAttendanceService {
         throw Exception('User must be authenticated to mark attendance');
       }
 
-      debugPrint(
-        '[ChurchAttendanceService] Marking bulk attendance for ${memberIds.length} members',
-      );
+      final service = await _requireService(churchServiceId);
+      final serviceDate = service['service_date']?.toString();
+      if (serviceDate == null || serviceDate.isEmpty) {
+        throw Exception('Church service has no date');
+      }
 
-      final dateString = serviceDate.toIso8601String().split('T')[0];
       final attendanceRecords = memberIds.map((memberId) {
         final observation =
             specificObservationsByMemberId?[memberId]?.trim();
         return {
           'member_id': memberId,
-          'service_date': dateString,
-          'service_type': serviceType,
+          'church_service_id': churchServiceId,
+          'service_date': serviceDate,
           'attendance_type': attendanceType,
           if (observation != null && observation.isNotEmpty)
             'specific_observation': observation,
@@ -118,9 +118,6 @@ class ChurchAttendanceService {
           .insert(attendanceRecords)
           .select();
 
-      debugPrint(
-        '[ChurchAttendanceService] Bulk attendance marked successfully: ${response.length} records',
-      );
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error marking bulk attendance: $e');
@@ -133,40 +130,39 @@ class ChurchAttendanceService {
     required String memberId,
     DateTime? startDate,
     DateTime? endDate,
-    String? serviceType,
+    String? churchServiceId,
     int? limit,
     int? offset,
   }) async {
     try {
-      // Build base query with filters
       dynamic filterQuery = _client
           .from('church_attendance')
-          .select('*')
+          .select(
+            '*, church_service:church_services(id, name, service_date)',
+          )
           .eq('member_id', memberId);
 
       if (startDate != null) {
         filterQuery = filterQuery.gte(
           'service_date',
-          startDate.toIso8601String().split('T')[0],
+          _dateOnly(startDate),
         );
       }
       if (endDate != null) {
         filterQuery = filterQuery.lte(
           'service_date',
-          endDate.toIso8601String().split('T')[0],
+          _dateOnly(endDate),
         );
       }
-      if (serviceType != null) {
-        filterQuery = filterQuery.eq('service_type', serviceType);
+      if (churchServiceId != null) {
+        filterQuery = filterQuery.eq('church_service_id', churchServiceId);
       }
 
-      // Apply ordering (returns PostgrestTransformBuilder)
       dynamic transformQuery = filterQuery.order(
         'service_date',
         ascending: false,
       );
 
-      // Apply pagination (on PostgrestTransformBuilder)
       if (limit != null) {
         transformQuery = transformQuery.limit(limit);
       }
@@ -179,7 +175,6 @@ class ChurchAttendanceService {
 
       final response = await transformQuery;
       final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
       return records.where((r) => r['deleted_at'] == null).toList();
     } catch (e) {
       debugPrint(
@@ -189,24 +184,20 @@ class ChurchAttendanceService {
     }
   }
 
-  /// Get attendance for a specific service date
+  /// Get attendance for a specific church service
   static Future<List<Map<String, dynamic>>> getServiceAttendance({
-    required DateTime serviceDate,
-    required String serviceType,
+    required String churchServiceId,
   }) async {
     try {
-      final dateString = serviceDate.toIso8601String().split('T')[0];
       final response = await _client
           .from('church_attendance')
           .select(
             '*, member:members(id, first_name, last_name, email, birthday, is_new_comer)',
           )
-          .eq('service_date', dateString)
-          .eq('service_type', serviceType)
+          .eq('church_service_id', churchServiceId)
           .order('created_at', ascending: false);
 
       final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
       return records.where((r) => r['deleted_at'] == null).toList();
     } catch (e) {
       debugPrint(
@@ -216,15 +207,20 @@ class ChurchAttendanceService {
     }
   }
 
-  /// Get all unique service dates and types (for listing services)
-  /// Returns services with attendance counts
+  /// List church services with attendance counts (onsite/online members).
   static Future<List<Map<String, dynamic>>> getAllServices({
     DateTime? startDate,
     DateTime? endDate,
     int? limit,
   }) async {
     try {
-      // Fetch all rows in chunks because PostgREST may cap a single response.
+      final services = await ChurchServiceService.getAllServices(
+        startDate: startDate,
+        endDate: endDate,
+        limit: limit,
+      );
+      if (services.isEmpty) return services;
+
       const pageSize = 1000;
       var offset = 0;
       var hasMore = true;
@@ -234,24 +230,18 @@ class ChurchAttendanceService {
         dynamic query = _client
             .from('church_attendance')
             .select(
-              'service_date, service_type, id, attendance_type, member_id, deleted_at, created_at',
-            );
+              'church_service_id, id, attendance_type, member_id, deleted_at, created_at',
+            )
+            .isFilter('deleted_at', null);
 
         if (startDate != null) {
-          query = query.gte(
-            'service_date',
-            startDate.toIso8601String().split('T')[0],
-          );
+          query = query.gte('service_date', _dateOnly(startDate));
         }
         if (endDate != null) {
-          query = query.lte(
-            'service_date',
-            endDate.toIso8601String().split('T')[0],
-          );
+          query = query.lte('service_date', _dateOnly(endDate));
         }
 
         query = query
-            .order('service_date', ascending: false)
             .order('created_at', ascending: false)
             .range(offset, offset + pageSize - 1);
 
@@ -261,78 +251,43 @@ class ChurchAttendanceService {
         offset += page.length;
       }
 
-      // Build effective attendance per member per service using latest row.
-      // This avoids unstable counts when duplicate rows exist for same member.
       final latestByServiceMember = <String, Map<String, dynamic>>{};
-      final serviceMap = <String, Map<String, dynamic>>{};
-
       for (final record in records) {
-        if (record['deleted_at'] == null) {
-          final serviceDate = record['service_date'] as String;
-          final serviceType = record['service_type'] as String;
-          final key = '${serviceDate}_$serviceType';
-          final memberId = record['member_id']?.toString();
-
-          if (!serviceMap.containsKey(key)) {
-            serviceMap[key] = {
-              'service_date': serviceDate,
-              'service_type': serviceType,
-            };
-          }
-
-          if (memberId != null) {
-            final smKey = '${key}_$memberId';
-            final existing = latestByServiceMember[smKey];
-            if (existing == null) {
-              latestByServiceMember[smKey] = record;
-            } else {
-              final existingCreatedAt =
-                  existing['created_at']?.toString() ?? '';
-              final incomingCreatedAt = record['created_at']?.toString() ?? '';
-              if (incomingCreatedAt.compareTo(existingCreatedAt) >= 0) {
-                latestByServiceMember[smKey] = record;
-              }
-            }
-          }
-        }
-      }
-
-      // Count only effective attended members (onsite/online) per service.
-      final attendedMemberSets = <String, Set<String>>{};
-      for (final entry in latestByServiceMember.entries) {
-        final row = entry.value;
-        final serviceDate = row['service_date']?.toString();
-        final serviceType = row['service_type']?.toString();
-        final memberId = row['member_id']?.toString();
-        final attendanceType = row['attendance_type']?.toString();
-        if (serviceDate == null || serviceType == null || memberId == null) {
+        final serviceId = record['church_service_id']?.toString();
+        final memberId = record['member_id']?.toString();
+        if (serviceId == null || memberId == null) continue;
+        final key = '${serviceId}_$memberId';
+        final existing = latestByServiceMember[key];
+        if (existing == null) {
+          latestByServiceMember[key] = record;
           continue;
         }
-        final key = '${serviceDate}_$serviceType';
-        if (attendanceType == 'onsite' || attendanceType == 'online') {
-          attendedMemberSets.putIfAbsent(key, () => <String>{});
-          attendedMemberSets[key]!.add(memberId);
+        final existingCreatedAt = existing['created_at']?.toString() ?? '';
+        final incomingCreatedAt = record['created_at']?.toString() ?? '';
+        if (incomingCreatedAt.compareTo(existingCreatedAt) >= 0) {
+          latestByServiceMember[key] = record;
         }
       }
 
-      final servicesWithCounts = serviceMap.entries.map((entry) {
-        final attendedCount = attendedMemberSets[entry.key]?.length ?? 0;
-        return {...entry.value, 'attendance_count': attendedCount};
-      }).toList();
-
-      // Sort by date descending
-      servicesWithCounts.sort((a, b) {
-        final dateA = DateTime.parse(a['service_date'] as String);
-        final dateB = DateTime.parse(b['service_date'] as String);
-        return dateB.compareTo(dateA);
-      });
-
-      // Apply limit after grouping
-      if (limit != null && servicesWithCounts.length > limit) {
-        return servicesWithCounts.take(limit).toList();
+      final attendedMemberSets = <String, Set<String>>{};
+      for (final row in latestByServiceMember.values) {
+        final serviceId = row['church_service_id']?.toString();
+        final memberId = row['member_id']?.toString();
+        final attendanceType = row['attendance_type']?.toString();
+        if (serviceId == null || memberId == null) continue;
+        if (attendanceType == 'onsite' || attendanceType == 'online') {
+          attendedMemberSets.putIfAbsent(serviceId, () => <String>{});
+          attendedMemberSets[serviceId]!.add(memberId);
+        }
       }
 
-      return servicesWithCounts;
+      return services.map((service) {
+        final id = service['id']?.toString() ?? '';
+        return {
+          ...service,
+          'attendance_count': attendedMemberSets[id]?.length ?? 0,
+        };
+      }).toList();
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error getting all services: $e');
       throw Exception('Failed to get all services: $e');
@@ -343,7 +298,7 @@ class ChurchAttendanceService {
   static Future<List<Map<String, dynamic>>> getRawAttendanceRows({
     DateTime? startDate,
     DateTime? endDate,
-    String? serviceType,
+    String? churchServiceId,
     bool includeDeleted = false,
     int limit = 300,
     int offset = 0,
@@ -352,37 +307,29 @@ class ChurchAttendanceService {
       dynamic query = _client
           .from('church_attendance')
           .select(
-            'id, member_id, service_date, service_type, attendance_type, deleted_at',
+            'id, member_id, service_date, church_service_id, attendance_type, deleted_at',
           );
 
       if (startDate != null) {
-        query = query.gte(
-          'service_date',
-          startDate.toIso8601String().split('T')[0],
-        );
+        query = query.gte('service_date', _dateOnly(startDate));
       }
       if (endDate != null) {
-        query = query.lte(
-          'service_date',
-          endDate.toIso8601String().split('T')[0],
-        );
+        query = query.lte('service_date', _dateOnly(endDate));
       }
-      if (serviceType != null) {
-        query = query.eq('service_type', serviceType);
+      if (churchServiceId != null) {
+        query = query.eq('church_service_id', churchServiceId);
       }
       if (!includeDeleted) {
         query = query.isFilter('deleted_at', null);
       }
 
-      // Apply transforms after filters
       query = query
           .order('service_date', ascending: false)
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
 
       final response = await query;
-      final rows = List<Map<String, dynamic>>.from(response);
-      return rows;
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       debugPrint(
         '[ChurchAttendanceService] Error getting raw attendance rows: $e',
@@ -392,13 +339,12 @@ class ChurchAttendanceService {
   }
 
   /// Get attendance count for a member in the last 3 months
-  /// Used to check if new comer should be promoted to member
   static Future<int> getMemberAttendanceCountLast3Months(
     String memberId,
   ) async {
     try {
       final threeMonthsAgo = DateTime.now().subtract(const Duration(days: 90));
-      final dateString = threeMonthsAgo.toIso8601String().split('T')[0];
+      final dateString = _dateOnly(threeMonthsAgo);
 
       final response = await _client
           .from('church_attendance')
@@ -406,14 +352,8 @@ class ChurchAttendanceService {
           .eq('member_id', memberId)
           .gte('service_date', dateString);
 
-      // Filter out deleted records and get count
       final records = List<Map<String, dynamic>>.from(response);
-      final count = records.where((r) => r['deleted_at'] == null).length;
-
-      debugPrint(
-        '[ChurchAttendanceService] Member $memberId has $count attendances in last 3 months',
-      );
-      return count;
+      return records.where((r) => r['deleted_at'] == null).length;
     } catch (e) {
       debugPrint(
         '[ChurchAttendanceService] Error getting attendance count: $e',
@@ -428,8 +368,7 @@ class ChurchAttendanceService {
     String? attendanceType,
     String? specificObservation,
     bool clearSpecificObservation = false,
-    DateTime? serviceDate,
-    String? serviceType,
+    String? churchServiceId,
   }) async {
     try {
       final updates = <String, dynamic>{
@@ -447,15 +386,10 @@ class ChurchAttendanceService {
         updates['attendance_type'] = attendanceType;
       }
 
-      if (serviceDate != null) {
-        updates['service_date'] = serviceDate.toIso8601String().split('T')[0];
-      }
-
-      if (serviceType != null) {
-        if (serviceType != 'wednesday' && serviceType != 'sunday') {
-          throw Exception('Service type must be "wednesday" or "sunday"');
-        }
-        updates['service_type'] = serviceType;
+      if (churchServiceId != null) {
+        final service = await _requireService(churchServiceId);
+        updates['church_service_id'] = churchServiceId;
+        updates['service_date'] = service['service_date'];
       }
 
       if (clearSpecificObservation) {
@@ -473,7 +407,6 @@ class ChurchAttendanceService {
           .select()
           .single();
 
-      debugPrint('[ChurchAttendanceService] Attendance updated successfully');
       return response;
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error updating attendance: $e');
@@ -481,23 +414,19 @@ class ChurchAttendanceService {
     }
   }
 
-  /// Soft-delete every attendance row for a service (date + type).
+  /// Soft-delete a church service and all of its attendance rows.
   static Future<void> deleteService({
-    required String serviceDate,
-    required String serviceType,
+    required String churchServiceId,
   }) async {
     try {
       final deletedAt = DateTime.now().toIso8601String();
       await _client
           .from('church_attendance')
           .update({'deleted_at': deletedAt, 'updated_at': deletedAt})
-          .eq('service_date', serviceDate)
-          .eq('service_type', serviceType)
+          .eq('church_service_id', churchServiceId)
           .isFilter('deleted_at', null);
 
-      debugPrint(
-        '[ChurchAttendanceService] Service deleted: $serviceDate $serviceType',
-      );
+      await ChurchServiceService.softDelete(churchServiceId);
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error deleting service: $e');
       throw Exception('Failed to delete service: $e');
@@ -511,7 +440,6 @@ class ChurchAttendanceService {
           .from('church_attendance')
           .update({'deleted_at': DateTime.now().toIso8601String()})
           .eq('id', attendanceId);
-      debugPrint('[ChurchAttendanceService] Attendance removed successfully');
     } catch (e) {
       debugPrint('[ChurchAttendanceService] Error removing attendance: $e');
       throw Exception('Failed to remove attendance: $e');
@@ -519,36 +447,17 @@ class ChurchAttendanceService {
   }
 
   /// Check and update new comer status for a member
-  /// This calls the database function that checks if member has 9+ attendances in 3 months
   static Future<bool> checkAndUpdateNewComerStatus(String memberId) async {
     try {
-      debugPrint(
-        '[ChurchAttendanceService] Checking new comer status for member: $memberId',
-      );
-
-      // Call the database function
       final response = await _client.rpc(
         'check_and_update_new_comer_status',
         params: {'member_uuid': memberId},
       );
-
-      final wasUpdated = response == true;
-      if (wasUpdated) {
-        debugPrint(
-          '[ChurchAttendanceService] Member $memberId promoted from new comer to member',
-        );
-      } else {
-        debugPrint(
-          '[ChurchAttendanceService] Member $memberId still needs more attendances',
-        );
-      }
-
-      return wasUpdated;
+      return response == true;
     } catch (e) {
       debugPrint(
         '[ChurchAttendanceService] Error checking new comer status: $e',
       );
-      // Don't throw - this is a background check
       return false;
     }
   }

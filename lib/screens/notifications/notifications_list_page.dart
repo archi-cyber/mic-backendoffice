@@ -400,15 +400,15 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
         if (difference.inMinutes == 0) {
-          return 'Just now';
+          return context.tr('Just now');
         }
-        return '${difference.inMinutes}m ago';
+        return context.tr('{count}m ago', {'count': difference.inMinutes});
       }
-      return '${difference.inHours}h ago';
+      return context.tr('{count}h ago', {'count': difference.inHours});
     } else if (difference.inDays == 1) {
-      return 'Yesterday';
+      return context.tr('Yesterday');
     } else if (difference.inDays < 7) {
-      return '${difference.inDays}d ago';
+      return context.tr('{count}d ago', {'count': difference.inDays});
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }

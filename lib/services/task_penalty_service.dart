@@ -85,8 +85,10 @@ class TaskPenaltyService {
     }
   }
 
-  static Future<int> getTaskPenaltyAmount(Map<String, dynamic> task) async {
-    final settings = await getSettings();
+  static int taskPenaltyAmountFromSettings(
+    Map<String, dynamic> task,
+    Map<String, dynamic> settings,
+  ) {
     final fallback = _asInt(
       settings['default_daily_penalty_amount'],
       fallbackDailyPenaltyAmount,
@@ -101,6 +103,11 @@ class TaskPenaltyService {
     }
 
     return fallback;
+  }
+
+  static Future<int> getTaskPenaltyAmount(Map<String, dynamic> task) async {
+    final settings = await getSettings();
+    return taskPenaltyAmountFromSettings(task, settings);
   }
 
   static Future<void> calculatePenaltiesOnStartup() async {
@@ -138,11 +145,11 @@ class TaskPenaltyService {
         final firstPenaltyDate = dueDate.add(const Duration(days: 1));
         if (firstPenaltyDate.isAfter(todayDate)) continue;
 
-        final amount = await getTaskPenaltyAmount({
+        final amount = taskPenaltyAmountFromSettings({
           ...rawTask,
           if (rawTask['penalty_amount_per_day'] == null)
             'penalty_amount_per_day': defaultAmount,
-        });
+        }, settings);
         if (amount <= 0) continue;
 
         final assignments =
@@ -182,7 +189,9 @@ class TaskPenaltyService {
         '[TaskPenaltyService] Calculated ${rowsToInsert.length} penalty rows',
       );
     } catch (e) {
-      debugPrint('[TaskPenaltyService] Penalty calculation skipped: $e');
+      debugPrint(
+        '[TaskPenaltyService] Penalty calculation skipped: ${_sanitizeLogError(e)}',
+      );
     }
   }
 
@@ -220,9 +229,19 @@ class TaskPenaltyService {
       balances.updateAll((_, balance) => balance < 0 ? 0 : balance);
       return balances;
     } catch (e) {
-      debugPrint('[TaskPenaltyService] Could not load balances: $e');
+      debugPrint(
+        '[TaskPenaltyService] Could not load balances: ${_sanitizeLogError(e)}',
+      );
       return {for (final id in memberIds) id: 0};
     }
+  }
+
+  static String _sanitizeLogError(Object e) {
+    var text = e.toString();
+    text = text.replaceAll(RegExp(r'https?://[^\s,)]+'), '[url]');
+    text = text.replaceAll(RegExp(r'uri=[^\s,)]+'), 'uri=[url]');
+    if (text.length > 160) text = '${text.substring(0, 157)}...';
+    return text;
   }
 
   static Future<int> getMemberPenaltyBalance(String memberId) async {

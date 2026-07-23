@@ -70,7 +70,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select at least one member for targeted announcement',
+            context.tr('Please select at least one member for targeted announcement'),
           ),
           backgroundColor: AppColors.error,
         ),
@@ -152,7 +152,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter announcement title';
+                    return context.tr('Please enter announcement title');
                   }
                   return null;
                 },
@@ -171,7 +171,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 maxLines: 6,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter announcement message';
+                    return context.tr('Please enter announcement message');
                   }
                   return null;
                 },
@@ -184,7 +184,9 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 child: SwitchListTile(
                   title: Text(context.tr('Global Announcement')),
                   subtitle: Text(
-                    'Send to all members. If disabled, select specific members.',
+                    context.tr(
+                      'Send to all members. If disabled, select specific members.',
+                    ),
                   ),
                   value: _isGlobal,
                   onChanged: (value) {
@@ -220,7 +222,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                     ..._departments.map((dept) {
                       return DropdownMenuItem<String>(
                         value: dept['id'].toString(),
-                        child: Text(dept['name']?.toString() ?? 'Unnamed'),
+                        child: Text(dept['name']?.toString() ?? context.tr('Unnamed')),
                       );
                     }),
                   ],
@@ -237,8 +239,10 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                   icon: Icon(Icons.people),
                   label: Text(
                     _selectedMemberIds.isEmpty
-                        ? 'Select Members'
-                        : '${_selectedMemberIds.length} member(s) selected',
+                        ? context.tr('Select Members')
+                        : context.tr('{count} member(s) selected', {
+                            'count': _selectedMemberIds.length,
+                          }),
                   ),
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size(
@@ -261,7 +265,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                         label: Text(
                           member.isNotEmpty
                               ? '${member['first_name']} ${member['last_name']}'
-                              : 'Unknown',
+                              : context.tr('Unknown'),
                         ),
                         onDeleted: () {
                           setState(() => _selectedMemberIds.remove(memberId));

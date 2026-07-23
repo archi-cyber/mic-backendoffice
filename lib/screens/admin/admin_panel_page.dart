@@ -17,15 +17,15 @@ class AdminPanelPage extends StatelessWidget {
         padding: EdgeInsets.all(AppDimensions.paddingMD),
         children: [
           _AdminCard(
-            title: 'Create User',
-            description: 'Create admin, pastor, or admin users',
+            title: context.tr('Create User'),
+            description: context.tr('Create admin, pastor, or admin users'),
             icon: Icons.person_add_outlined,
             onTap: () => _showCreateUserDialog(context),
           ),
           SizedBox(height: AppDimensions.spacingMD),
           _AdminCard(
-            title: 'Role Assignment',
-            description: 'Assign roles to users',
+            title: context.tr('Role Assignment'),
+            description: context.tr('Assign roles to users'),
             icon: Icons.admin_panel_settings_outlined,
             onTap: () {
               // Navigate to role assignment
@@ -33,8 +33,8 @@ class AdminPanelPage extends StatelessWidget {
           ),
           SizedBox(height: AppDimensions.spacingMD),
           _AdminCard(
-            title: 'Activity Logs',
-            description: 'View system activity logs',
+            title: context.tr('Activity Logs'),
+            description: context.tr('View system activity logs'),
             icon: Icons.history_outlined,
             onTap: () {
               // Navigate to logs

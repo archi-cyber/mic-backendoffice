@@ -1,5 +1,11 @@
 # Church Management System
 
+> **Documentation**
+> - [Full documentation (English)](docs/DOCUMENTATION.md)
+> - [Documentation complète (Français)](docs/DOCUMENTATION.fr.md)
+> - [User guide (English)](docs/USER_GUIDE.md)
+> - [Guide utilisateur (Français)](docs/USER_GUIDE.fr.md)
+
 A comprehensive Flutter application for managing church operations including member management, attendance tracking, giving, ministries, events, follow-ups, and analytics.
 
 ## Features

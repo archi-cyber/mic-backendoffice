@@ -5,6 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/visitor_service.dart';
 import '../../widgets/desktop/desktop_ui.dart';
+import '../../widgets/phone_number_field.dart';
 import 'visitor_form_ui.dart';
 
 /// Add visitor page
@@ -22,11 +23,11 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _phoneInput = PhoneNumberInputController();
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _visitDate;
-  String? _serviceType;
+  String? _churchServiceId;
   String _attendanceType = 'onsite';
   String? _visitDateError;
   bool _isLoading = false;
@@ -42,7 +43,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
+    _phoneInput.dispose();
     _addressController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -64,6 +65,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
       setState(() {
         _visitDate = picked;
         _visitDateError = null;
+        _churchServiceId = null;
       });
     }
   }
@@ -75,14 +77,12 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
       'email': _emailController.text.trim().isEmpty
           ? null
           : _emailController.text.trim(),
-      'phone': _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
+      'phone': _phoneInput.storedValue,
       'address': _addressController.text.trim().isEmpty
           ? null
           : _addressController.text.trim(),
       'visit_date': VisitorFormUi.formatVisitDate(_visitDate!),
-      'service_type': _serviceType,
+      'church_service_id': _churchServiceId,
       'attendance_type': _attendanceType,
       'notes': _notesController.text.trim().isEmpty
           ? null
@@ -107,9 +107,9 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
         await VisitorService.createVisitor(visitorData: payload);
       } catch (e) {
         final msg = e.toString().toLowerCase();
-        if (msg.contains('service_type') || msg.contains('attendance_type')) {
+        if (msg.contains('church_service_id') || msg.contains('attendance_type')) {
           payload = Map<String, dynamic>.from(payload)
-            ..remove('service_type')
+            ..remove('church_service_id')
             ..remove('attendance_type');
           await VisitorService.createVisitor(visitorData: payload);
         } else {
@@ -122,7 +122,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            localizations?.visitorAdded ?? 'Visitor added successfully',
+            localizations?.visitorAdded ?? context.tr('Visitor added successfully'),
           ),
           backgroundColor: AppColors.success,
         ),
@@ -252,13 +252,13 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
             keyboardType: TextInputType.emailAddress,
           ),
           SizedBox(height: AppDimensions.spacingMD),
-          TextFormField(
-            controller: _phoneController,
-            decoration: VisitorFormUi.fieldDecoration(
-              label: '${localizations?.phone ?? context.tr('Phone')} $optional',
-              icon: Icons.phone_outlined,
+          PhoneNumberField(
+            controller: _phoneInput,
+            optional: true,
+            decoration: InputDecoration(
+              labelText:
+                  '${localizations?.phone ?? context.tr('Phone')} $optional',
             ),
-            keyboardType: TextInputType.phone,
           ),
           SizedBox(height: AppDimensions.spacingMD),
           TextFormField(
@@ -284,10 +284,11 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
             errorText: _visitDateError,
           ),
           SizedBox(height: AppDimensions.spacingMD),
-          VisitorFormUi.serviceTypeDropdown(
+          VisitorFormUi.churchServiceDropdown(
             context: context,
-            value: _serviceType,
-            onChanged: (value) => setState(() => _serviceType = value),
+            visitDate: _visitDate,
+            value: _churchServiceId,
+            onChanged: (value) => setState(() => _churchServiceId = value),
           ),
           SizedBox(height: AppDimensions.spacingMD),
           VisitorFormUi.attendanceTypeDropdown(
@@ -364,7 +365,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
   @override
   Widget build(BuildContext context) {
     final localizations = AppLocalizations.of(context);
-    final title = localizations?.addVisitor ?? 'Add Visitor';
+    final title = context.tr('Add Visitor');
     final inShell = _inShell;
     final embedded = isDesktopEmbedded(context, inShell: inShell);
 
@@ -468,13 +469,13 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               keyboardType: TextInputType.emailAddress,
             ),
             SizedBox(height: AppDimensions.spacingMD),
-            TextFormField(
-              controller: _phoneController,
-              decoration: VisitorFormUi.fieldDecoration(
-                label: '${localizations?.phone ?? context.tr('Phone')} $optional',
-                icon: Icons.phone_outlined,
+            PhoneNumberField(
+              controller: _phoneInput,
+              optional: true,
+              decoration: InputDecoration(
+                labelText:
+                    '${localizations?.phone ?? context.tr('Phone')} $optional',
               ),
-              keyboardType: TextInputType.phone,
             ),
             SizedBox(height: AppDimensions.spacingMD),
             TextFormField(
@@ -502,10 +503,11 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               errorText: _visitDateError,
             ),
             SizedBox(height: AppDimensions.spacingMD),
-            VisitorFormUi.serviceTypeDropdown(
+            VisitorFormUi.churchServiceDropdown(
               context: context,
-              value: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
+              visitDate: _visitDate,
+              value: _churchServiceId,
+              onChanged: (value) => setState(() => _churchServiceId = value),
             ),
             SizedBox(height: AppDimensions.spacingMD),
             VisitorFormUi.attendanceTypeDropdown(

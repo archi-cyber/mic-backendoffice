@@ -137,7 +137,7 @@ class _AddEventPageState extends State<AddEventPage> {
         ),
         validator: (value) {
           if (value == null || value.trim().isEmpty) {
-            return 'Please enter event title';
+            return context.tr('Please enter event title');
           }
           return null;
         },
@@ -315,7 +315,7 @@ class _AddEventPageState extends State<AddEventPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Please enter event title';
+                          return context.tr('Please enter event title');
                         }
                         return null;
                       },

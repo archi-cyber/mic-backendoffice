@@ -546,7 +546,7 @@ class DesktopPaginationBar extends StatelessWidget {
                 ),
               ),
             Text(
-              'Page ${currentPage + 1} of $totalPages',
+              context.tr('Page ${currentPage + 1} of $totalPages'),
               style: theme.textTheme.bodySmall,
             ),
             IconButton(
@@ -572,12 +572,14 @@ class DesktopDataTableCard extends StatelessWidget {
     required this.rows,
     this.emptyMessage,
     this.emptyIcon = Icons.inbox_outlined,
+    this.fitToWidth = false,
   });
 
   final List<DataColumn> columns;
   final List<DataRow> rows;
   final String? emptyMessage;
   final IconData emptyIcon;
+  final bool fitToWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -621,19 +623,30 @@ class DesktopDataTableCard extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
+            final table = DataTable(
+              headingRowColor: WidgetStateProperty.all(
+                theme.colorScheme.surfaceContainerHighest,
+              ),
+              dataRowMinHeight: fitToWidth ? 48 : 52,
+              dataRowMaxHeight: fitToWidth ? 56 : 64,
+              columnSpacing: fitToWidth ? 8 : 24,
+              horizontalMargin: fitToWidth ? 8 : 24,
+              columns: columns,
+              rows: rows,
+            );
+
+            if (fitToWidth) {
+              return SizedBox(
+                width: constraints.maxWidth,
+                child: table,
+              );
+            }
+
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
                 constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: DataTable(
-                  headingRowColor: WidgetStateProperty.all(
-                    theme.colorScheme.surfaceContainerHighest,
-                  ),
-                  dataRowMinHeight: 52,
-                  dataRowMaxHeight: 64,
-                  columns: columns,
-                  rows: rows,
-                ),
+                child: table,
               ),
             );
           },

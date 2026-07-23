@@ -413,7 +413,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Department name is required';
+                      return context.tr('Department name is required');
                     }
                     return null;
                   },
@@ -503,7 +503,7 @@ class _AddDepartmentPageState extends State<AddDepartmentPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Department name is required';
+                          return context.tr('Department name is required');
                         }
                         return null;
                       },

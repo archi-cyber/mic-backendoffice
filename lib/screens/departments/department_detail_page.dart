@@ -5,6 +5,8 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/navigation/file_viewer_navigation.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../services/department_service.dart';
 import '../../services/task_service.dart';
@@ -13,7 +15,7 @@ import '../../services/department_report_service.dart';
 import '../../services/department_report_pdf_service.dart';
 import '../../services/task_report_pdf_service.dart';
 import '../../services/task_report_service.dart';
-import '../../services/storage_service.dart';
+import '../../services/service_schedule_service.dart';
 import 'edit_department_page.dart';
 import 'department_form_ui.dart';
 import '../../widgets/desktop/desktop_ui.dart';
@@ -50,16 +52,36 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final department = await DepartmentService.getDepartmentById(
+      final departmentFuture = DepartmentService.getDepartmentById(
         widget.departmentId,
       );
-      final departmentMembers = await DepartmentService.getDepartmentMembers(
+      final membersFuture = DepartmentService.getDepartmentMembers(
         widget.departmentId,
       );
-      final departmentTasks = await TaskService.getDepartmentTasks(
+      final tasksFuture = TaskService.getDepartmentTasks(
         departmentId: widget.departmentId,
         limit: 100,
       );
+      final canEditFuture = DepartmentService.canEditDepartment(
+        widget.departmentId,
+      );
+      final canDeleteFuture = DepartmentService.canDeleteDepartment(
+        widget.departmentId,
+      );
+
+      final results = await Future.wait([
+        departmentFuture,
+        membersFuture,
+        tasksFuture,
+        canEditFuture,
+        canDeleteFuture,
+      ]);
+
+      final department = results[0] as Map<String, dynamic>?;
+      final departmentMembers = results[1] as List<Map<String, dynamic>>;
+      final departmentTasks = results[2] as List<Map<String, dynamic>>;
+      final canEdit = results[3] as bool;
+      final canDelete = results[4] as bool;
 
       // Load reports (might fail if table doesn't exist, so catch separately)
       List<Map<String, dynamic>> departmentReports = [];
@@ -71,16 +93,6 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         // Reports table might not exist yet, that's okay
         debugPrint('Could not load reports: $e');
       }
-
-      // Check if user can edit this department (admin, leader, or subleader)
-      final canEdit = await DepartmentService.canEditDepartment(
-        widget.departmentId,
-      );
-
-      // Check if user can delete this department (admin or leader only, not subleader)
-      final canDelete = await DepartmentService.canDeleteDepartment(
-        widget.departmentId,
-      );
 
       if (!mounted) return;
       setState(() {
@@ -96,11 +108,11 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.tr('Error loading department: $e'))),
-        );
-      }
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Error loading department'),
+      );
     }
   }
 
@@ -192,6 +204,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                   ),
                   _TasksTab(
                     departmentId: widget.departmentId,
+                    department: _department,
                     tasks: _tasks,
                     onTasksUpdated: _loadDepartmentData,
                     isDesktop: false,
@@ -362,6 +375,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                             ),
                             _TasksTab(
                               departmentId: widget.departmentId,
+                              department: _department,
                               tasks: _tasks,
                               onTasksUpdated: _loadDepartmentData,
                               isDesktop: true,
@@ -410,7 +424,9 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Department')),
         content: Text(
-          'Are you sure you want to delete this department? This will deactivate it.',
+          context.tr(
+            'Are you sure you want to delete this department? This will deactivate it.',
+          ),
         ),
         actions: [
           TextButton(
@@ -546,14 +562,16 @@ class _DepartmentDesktopSummary extends StatelessWidget {
             ),
             SizedBox(height: AppDimensions.spacingSM),
             _StatusPill(
-              label: isActive ? 'Active department' : 'Inactive department',
+              label: isActive
+                  ? context.tr('Active department')
+                  : context.tr('Inactive department'),
               color: isActive ? AppColors.success : AppColors.error,
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
               description?.isNotEmpty == true
                   ? description!
-                  : 'No description provided for this department.',
+                  : context.tr('No description provided for this department.'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: context.mic.textSecondary,
                 height: 1.45,
@@ -566,22 +584,22 @@ class _DepartmentDesktopSummary extends StatelessWidget {
               children: [
                 _DepartmentMetricPill(
                   icon: Icons.person_outline,
-                  label: 'Leader',
+                  label: context.tr('Leader'),
                   value: leaderNames,
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.people_outline,
-                  label: 'Members',
+                  label: context.tr('Members'),
                   value: '$memberCount',
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.task_alt_outlined,
-                  label: 'Tasks',
+                  label: context.tr('Tasks'),
                   value: '$taskCount',
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.check_circle_outline,
-                  label: 'Done',
+                  label: context.tr('Done'),
                   value: '$completedTaskCount',
                 ),
               ],
@@ -852,7 +870,7 @@ class _OverviewTab extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                title: 'Members',
+                title: context.tr('Members'),
                 value: memberCount.toString(),
                 icon: Icons.people,
               ),
@@ -860,7 +878,7 @@ class _OverviewTab extends StatelessWidget {
             SizedBox(width: AppDimensions.spacingMD),
             Expanded(
               child: _StatCard(
-                title: 'Tasks',
+                title: context.tr('Tasks'),
                 value: taskCount.toString(),
                 icon: Icons.task,
               ),
@@ -889,8 +907,8 @@ class _OverviewTab extends StatelessWidget {
           children: [
             _DepartmentSectionTitle(
               icon: Icons.folder_outlined,
-              title: 'Department files',
-              subtitle: 'Documents attached to this department',
+              title: context.tr('Department files'),
+              subtitle: context.tr('Documents attached to this department'),
             ),
             SizedBox(height: AppDimensions.spacingLG),
             if (_hasDocuments(department)) ...[
@@ -940,14 +958,14 @@ class _OverviewTab extends StatelessWidget {
                     ),
                     SizedBox(height: AppDimensions.spacingSM),
                     Text(
-                      'No files uploaded',
+                      context.tr('No files uploaded'),
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     SizedBox(height: AppDimensions.spacingXS),
                     Text(
-                      'Use edit department to attach documents.',
+                      context.tr('Use edit department to attach documents.'),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: context.mic.textSecondary,
                       ),
@@ -994,37 +1012,11 @@ class _OverviewTab extends StatelessWidget {
     String fileUrl,
     String fileName,
   ) async {
-    try {
-      // Try to create a signed URL first (works for both public and private buckets)
-      String urlToOpen = fileUrl;
-
-      try {
-        // Create a signed URL that's valid for 1 hour
-        // This ensures the file can be accessed even if the bucket is private
-        urlToOpen = await StorageService.createSignedUrl(fileUrl);
-      } catch (e) {
-        // If creating signed URL fails, try using the original URL
-        // This might work if the bucket is public
-        debugPrint('Could not create signed URL, using original URL: $e');
-      }
-
-      // Navigate to webview to display the file
-      if (context.mounted) {
-        Navigator.of(context).pushNamed(
-          RouteNames.fileViewer,
-          arguments: {'fileUrl': urlToOpen, 'fileName': fileName},
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(context.tr('Error opening file: $e')),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    }
+    await FileViewerNavigation.open(
+      context,
+      fileUrl: fileUrl,
+      fileName: fileName,
+    );
   }
 }
 
@@ -1357,46 +1349,86 @@ class _MembersTabState extends State<_MembersTab> {
     }
   }
 
-  Widget _buildRoleChip(String role) {
+  Widget _buildRoleChip(String role, {bool compact = false}) {
     Color color;
     IconData icon;
+    String label;
 
     switch (role) {
       case 'leader':
         color = AppColors.error;
         icon = Icons.star;
+        label = compact ? 'Lead' : role.toUpperCase();
         break;
       case 'subleader':
         color = AppColors.primary;
         icon = Icons.star_border;
+        label = compact ? 'Sub' : role.toUpperCase();
         break;
       default:
         color = context.mic.textSecondary;
         icon = Icons.person;
+        label = compact ? 'Mem' : role.toUpperCase();
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 6 : 8,
+        vertical: compact ? 2 : 4,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(compact ? 8 : 12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          SizedBox(width: 4),
+          Icon(icon, size: compact ? 12 : 14, color: color),
+          SizedBox(width: compact ? 3 : 4),
           Text(
-            role.toUpperCase(),
+            label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: compact ? 9 : 10,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  String _compactText(String value, {int maxLength = 24}) {
+    final trimmed = value.trim();
+    if (trimmed.length <= maxLength) return trimmed;
+    return '${trimmed.substring(0, maxLength - 1)}…';
+  }
+
+  String _memberDisplayName(Map<String, dynamic> member, {int maxLength = 22}) {
+    final name = '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
+        .trim();
+    if (name.isEmpty) return context.tr('Unnamed member');
+    return _compactText(name, maxLength: maxLength);
+  }
+
+  String _compactEmail(String? email, {int maxLength = 26}) {
+    final value = email?.trim() ?? '';
+    if (value.isEmpty) return '—';
+    return _compactText(value, maxLength: maxLength);
+  }
+
+  void _openMemberProfile(String memberId) {
+    if (memberId.isEmpty) return;
+
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null && widget.isDesktop) {
+      scope.pushDetail(RouteNames.memberDetail, memberId);
+      return;
+    }
+
+    Navigator.of(context).pushNamed(
+      RouteNames.memberDetail.replaceAll(':id', memberId),
     );
   }
 
@@ -1453,108 +1485,137 @@ class _MembersTabState extends State<_MembersTab> {
       listContent = RefreshIndicator(
         onRefresh: _loadMembers,
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              return ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: DataTable(
-                  columns: [
-                    DataColumn(label: Text(context.tr('Member'))),
-                    DataColumn(label: Text(context.tr('Email'))),
-                    DataColumn(label: Text(context.tr('Role'))),
-                    DataColumn(label: Text(context.tr('Actions'))),
-                  ],
-                  rows: _members.map((dm) {
-                    final member = dm['members'] as Map<String, dynamic>?;
-                    if (member == null) {
+              final theme = Theme.of(context);
+              return Material(
+                color: theme.colorScheme.surface,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+                  side: BorderSide(
+                    color: theme.dividerColor.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                    child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(
+                      theme.colorScheme.surfaceContainerHighest,
+                    ),
+                    dataRowMinHeight: 48,
+                    dataRowMaxHeight: 52,
+                    columnSpacing: 8,
+                    horizontalMargin: 8,
+                    columns: [
+                      DataColumn(label: Text(context.tr('Member'))),
+                      DataColumn(label: Text(context.tr('Email'))),
+                      DataColumn(label: Text(context.tr('Role'))),
+                      DataColumn(label: Text(context.tr('Actions'))),
+                    ],
+                    rows: _members.map((dm) {
+                      final member = dm['members'] as Map<String, dynamic>?;
+                      if (member == null) {
+                        return DataRow(
+                          cells: [
+                            const DataCell(Text('—')),
+                            const DataCell(Text('—')),
+                            const DataCell(Text('—')),
+                            const DataCell(SizedBox.shrink()),
+                          ],
+                        );
+                      }
+                      final role = dm['role']?.toString() ?? 'member';
+                      final memberId = dm['member_id']?.toString() ?? '';
+                      final memberName =
+                          '${member['first_name']} ${member['last_name']}';
                       return DataRow(
                         cells: [
-                          DataCell(Text('—')),
-                          DataCell(Text('—')),
-                          DataCell(Text('—')),
-                          DataCell(SizedBox.shrink()),
+                          DataCell(
+                            InkWell(
+                              onTap: () => _openMemberProfile(memberId),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    child: Text(
+                                      member['first_name']?[0]
+                                              ?.toString()
+                                              .toUpperCase() ??
+                                          'M',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      _memberDisplayName(member),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              _compactEmail(member['email']?.toString()),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                          DataCell(_buildRoleChip(role, compact: true)),
+                          DataCell(
+                            PopupMenuButton(
+                              icon: const Icon(Icons.more_vert, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              itemBuilder: (context) => [
+                                PopupMenuItem(
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.badge, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(context.tr('Change Role')),
+                                    ],
+                                  ),
+                                  onTap: () =>
+                                      _changeMemberRole(memberId, role),
+                                ),
+                                PopupMenuItem(
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.remove_circle,
+                                        color: AppColors.error,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(context.tr('Remove')),
+                                    ],
+                                  ),
+                                  onTap: () =>
+                                      _removeMember(memberId, memberName),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       );
-                    }
-                    final role = dm['role']?.toString() ?? 'member';
-                    final memberId = dm['member_id']?.toString() ?? '';
-                    final memberName =
-                        '${member['first_name']} ${member['last_name']}';
-                    return DataRow(
-                      cells: [
-                        DataCell(
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 18,
-                                child: Text(
-                                  member['first_name']?[0]
-                                          ?.toString()
-                                          .toUpperCase() ??
-                                      'M',
-                                ),
-                              ),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  memberName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail.replaceAll(
-                                ':id',
-                                member['id'].toString(),
-                              ),
-                            );
-                          },
-                        ),
-                        DataCell(
-                          Text(
-                            member['email']?.toString() ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        DataCell(_buildRoleChip(role)),
-                        DataCell(
-                          PopupMenuButton(
-                            itemBuilder: (context) => [
-                              PopupMenuItem(
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.badge, size: 20),
-                                    SizedBox(width: 8),
-                                    Text(context.tr('Change Role')),
-                                  ],
-                                ),
-                                onTap: () => _changeMemberRole(memberId, role),
-                              ),
-                              PopupMenuItem(
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.remove_circle,
-                                      color: AppColors.error,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(context.tr('Remove')),
-                                  ],
-                                ),
-                                onTap: () =>
-                                    _removeMember(memberId, memberName),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                    }).toList(),
+                  ),
+                  ),
                 ),
               );
             },
@@ -1626,14 +1687,7 @@ class _MembersTabState extends State<_MembersTab> {
                     ),
                   ],
                 ),
-                onTap: () {
-                  Navigator.of(context).pushNamed(
-                    RouteNames.memberDetail.replaceAll(
-                      ':id',
-                      member['id'].toString(),
-                    ),
-                  );
-                },
+                onTap: () => _openMemberProfile(memberId),
               ),
             );
           },
@@ -1653,12 +1707,14 @@ class _MembersTabState extends State<_MembersTab> {
 /// Tasks tab
 class _TasksTab extends StatefulWidget {
   final String departmentId;
+  final Map<String, dynamic>? department;
   final List<Map<String, dynamic>> tasks;
   final VoidCallback? onTasksUpdated;
   final bool isDesktop;
 
   _TasksTab({
     required this.departmentId,
+    this.department,
     required this.tasks,
     this.onTasksUpdated,
     this.isDesktop = false,
@@ -2090,6 +2146,28 @@ class _TasksTabState extends State<_TasksTab> {
                             onTap: _generateReport,
                             compact: useCompact,
                           ),
+                          if (ServiceScheduleService.isMediaTeamDepartment(
+                            widget.department,
+                          ))
+                            _TaskActionTile(
+                              icon: Icons.event_available_outlined,
+                              label: 'Service schedule',
+                              onTap: () async {
+                                final scope = DesktopShellScope.maybeOf(context);
+                                if (scope != null) {
+                                  scope.pushDetail(
+                                    RouteNames.serviceSchedule,
+                                    widget.departmentId,
+                                  );
+                                } else {
+                                  await Navigator.of(context).pushNamed(
+                                    RouteNames.serviceSchedule,
+                                    arguments: widget.departmentId,
+                                  );
+                                }
+                              },
+                              compact: useCompact,
+                            ),
                         ],
                       );
                     },
@@ -2321,7 +2399,12 @@ class _ReportsTabState extends State<_ReportsTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Report')),
-        content: Text('Are you sure you want to delete "${report['title']}"?'),
+        content: Text(
+          context.tr(
+            'Are you sure you want to delete "{title}"?',
+            {'title': report['title']},
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -2423,11 +2506,13 @@ class _ReportsTabState extends State<_ReportsTab> {
                     padding: EdgeInsets.all(AppDimensions.paddingMD),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        return ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minWidth: constraints.maxWidth,
-                          ),
-                          child: DataTable(
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
                             columns: [
                               DataColumn(label: Text(context.tr('Report'))),
                               DataColumn(label: Text(context.tr('Created'))),
@@ -2520,6 +2605,7 @@ class _ReportsTabState extends State<_ReportsTab> {
                                 ],
                               );
                             }).toList(),
+                          ),
                           ),
                         );
                       },

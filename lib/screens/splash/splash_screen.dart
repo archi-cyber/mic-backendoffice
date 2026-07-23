@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
@@ -80,7 +81,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     // Navigate based on auth status and screen size (desktop when width >= 500px)
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      await TaskPenaltyService.calculatePenaltiesOnStartup();
+      // Run in background — don't block navigation to the home screen.
+      unawaited(TaskPenaltyService.calculatePenaltiesOnStartup());
       if (!mounted) return;
 
       if (authProvider.mustChangePassword) {

@@ -61,7 +61,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            authProvider.errorMessage ?? 'Failed to change password',
+            authProvider.errorMessage ??
+                context.tr('Failed to change password'),
           ),
           backgroundColor: AppColors.error,
         ),
@@ -93,13 +94,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingXL),
                     Text(
-                      'Change Password Required',
+                      context.tr('Change Password Required'),
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: AppDimensions.spacingSM),
                     Text(
-                      'You must change your password before continuing.',
+                      context.tr(
+                        'You must change your password before continuing.',
+                      ),
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: context.mic.textSecondary,
                       ),
@@ -128,10 +131,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'New password is required';
+                          return context.tr('New password is required');
                         }
                         if (value.length < 6) {
-                          return 'Password must be at least 6 characters';
+                          return context.tr(
+                            'Password must be at least 6 characters',
+                          );
                         }
                         return null;
                       },
@@ -160,10 +165,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Please confirm your password';
+                          return context.tr('Please confirm your password');
                         }
                         if (value != _newPasswordController.text) {
-                          return 'Passwords do not match';
+                          return context.tr('Passwords do not match');
                         }
                         return null;
                       },

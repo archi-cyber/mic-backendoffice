@@ -10,6 +10,7 @@ import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/tag_color_picker.dart';
 
 /// Add task page
 class AddTaskPage extends StatefulWidget {
@@ -48,6 +49,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
   bool _isLoadingTags = true;
   final TextEditingController _memberSearchController = TextEditingController();
   final TextEditingController _newTagController = TextEditingController();
+  String _newTagColor = TagColors.presetHex.first;
 
   /// Add tag by name: select existing or create if not found.
   Future<void> _addTagByName(String name) async {
@@ -84,13 +86,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
       final created = await TagService.createTag(
         name: trimmed,
         departmentId: deptId,
-        color: TagColors.defaultHex,
+        color: _newTagColor,
       );
       if (!mounted) return;
       final id = created['id'].toString();
       setState(() {
         _tags.add(created);
         if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
+        _newTagColor = TagColors.presetHex.first;
       });
       _newTagController.clear();
     } catch (e) {
@@ -306,7 +309,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       (m) => m['id'].toString() == memberId,
       orElse: () => {},
     );
-    if (member.isEmpty) return 'Unknown';
+    if (member.isEmpty) return context.tr('Unknown');
     return '${member['first_name']} ${member['last_name']}';
   }
 
@@ -396,7 +399,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       ),
                                     if (isBlocked)
                                       Text(
-                                        'Blocked: ${balance}frs unpaid penalties',
+                                        context.tr(
+                                          'Blocked: {balance}frs unpaid penalties',
+                                          {'balance': balance},
+                                        ),
                                         style: TextStyle(
                                           color: AppColors.error,
                                           fontSize: 12,
@@ -459,7 +465,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
         if (trimmed.isEmpty) return null;
         final amount = int.tryParse(trimmed);
         if (amount == null || amount < 0) {
-          return 'Enter a valid amount';
+          return context.tr('Enter a valid amount');
         }
         return null;
       },
@@ -550,14 +556,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Create a new task',
+                  context.tr('Create a new task'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(height: AppDimensions.spacingXS),
                 Text(
-                  'Set the task details, delivery expectations, and assignment in one place.',
+                  context.tr(
+                    'Set the task details, delivery expectations, and assignment in one place.',
+                  ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: context.mic.textSecondary,
                   ),
@@ -625,7 +633,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
-                          'Task details',
+                          context.tr('Task details'),
                           Icons.task_alt,
                           [
                             TextFormField(
@@ -637,7 +645,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Task title is required';
+                                  return context.tr('Task title is required');
                                 }
                                 return null;
                               },
@@ -664,7 +672,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 child: Text(
                                   _dueDate != null
                                       ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                                      : 'Select due date (optional)',
+                                      : context.tr('Select due date (optional)'),
                                   style: TextStyle(
                                     color: _dueDate != null
                                         ? Theme.of(
@@ -745,8 +753,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: _isLoadingProjects
-                                    ? 'Project (loading…)'
-                                    : 'Project (optional)',
+                                    ? context.tr('Project (loading…)')
+                                    : context.tr('Project (optional)'),
                                 prefixIcon: Icon(Icons.folder_outlined),
                                 border: OutlineInputBorder(),
                               ),
@@ -773,7 +781,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               Padding(
                                 padding: EdgeInsets.only(top: 8.0),
                                 child: Text(
-                                  'Tags (loading…)',
+                                  context.tr('Tags (loading…)'),
                                   style: TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 12,
@@ -782,7 +790,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                             SizedBox(height: AppDimensions.spacingMD),
                             Text(
-                              'Tags (optional)',
+                              context.tr('Tags (optional)'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
@@ -813,6 +821,21 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   tooltip: context.tr('Add tag'),
                                 ),
                               ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              context.tr('Color'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            TagColorPicker(
+                              selectedHex: _newTagColor,
+                              onChanged: (hex) =>
+                                  setState(() => _newTagColor = hex),
+                              swatchSize: 26,
                             ),
                             SizedBox(height: 8),
                             Wrap(
@@ -849,19 +872,23 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           SizedBox(height: AppDimensions.spacingMD),
                           _desktopSectionCard(
                             context,
-                            'Assignment',
+                            context.tr('Assignment'),
                             Icons.group_work,
                             [
                               SwitchListTile(
                                 title: Text(
                                   _assignToIndividual
-                                      ? 'Assign to Individual'
-                                      : 'Assign to Department',
+                                      ? context.tr('Assign to Individual')
+                                      : context.tr('Assign to Department'),
                                 ),
                                 subtitle: Text(
                                   _assignToIndividual
-                                      ? 'Assign this task to a specific member'
-                                      : 'Assign this task to a department',
+                                      ? context.tr(
+                                          'Assign this task to a specific member',
+                                        )
+                                      : context.tr(
+                                          'Assign this task to a department',
+                                        ),
                                 ),
                                 value: _assignToIndividual,
                                 onChanged: (value) {
@@ -891,7 +918,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       return DropdownMenuItem<String>(
                                         value: dept['id'].toString(),
                                         child: Text(
-                                          dept['name']?.toString() ?? 'Unnamed',
+                                          dept['name']?.toString() ??
+                                              context.tr('Unnamed'),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       );
@@ -917,13 +945,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       errorText:
                                           _assignToIndividual &&
                                               _selectedMemberId == null
-                                          ? 'Member is required'
+                                          ? context.tr('Member is required')
                                           : null,
                                     ),
                                     child: Text(
                                       _selectedMemberId != null
                                           ? _getMemberName(_selectedMemberId!)
-                                          : 'Select a member',
+                                          : context.tr('Select a member'),
                                       style: TextStyle(
                                         color: _selectedMemberId != null
                                             ? Theme.of(
@@ -960,7 +988,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Task title is required';
+                          return context.tr('Task title is required');
                         }
                         return null;
                       },
@@ -990,16 +1018,20 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   children: [
                                     Text(
                                       _assignToIndividual
-                                          ? 'Assign to Individual'
-                                          : 'Assign to Department',
+                                          ? context.tr('Assign to Individual')
+                                          : context.tr('Assign to Department'),
                                       style: Theme.of(
                                         context,
                                       ).textTheme.titleMedium,
                                     ),
                                     Text(
                                       _assignToIndividual
-                                          ? 'Assign this task to a specific member'
-                                          : 'Assign this task to a department',
+                                          ? context.tr(
+                                              'Assign this task to a specific member',
+                                            )
+                                          : context.tr(
+                                              'Assign this task to a department',
+                                            ),
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -1048,7 +1080,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             return DropdownMenuItem<String>(
                               value: dept['id'].toString(),
                               child: Text(
-                                dept['name']?.toString() ?? 'Unnamed',
+                                dept['name']?.toString() ??
+                                    context.tr('Unnamed'),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             );
@@ -1061,7 +1094,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           },
                           validator: (value) {
                             if (!_assignToIndividual && value == null) {
-                              return 'Department is required';
+                              return context.tr('Department is required');
                             }
                             return null;
                           },
@@ -1078,13 +1111,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             suffixIcon: Icon(Icons.arrow_drop_down),
                             errorText:
                                 _assignToIndividual && _selectedMemberId == null
-                                ? 'Member is required'
+                                ? context.tr('Member is required')
                                 : null,
                           ),
                           child: Text(
                             _selectedMemberId != null
                                 ? _getMemberName(_selectedMemberId!)
-                                : 'Select a member',
+                                : context.tr('Select a member'),
                             style: TextStyle(
                               color: _selectedMemberId != null
                                   ? Theme.of(context).textTheme.bodyLarge?.color
@@ -1107,7 +1140,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         child: Text(
                           _dueDate != null
                               ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                              : 'Select due date (optional)',
+                              : context.tr('Select due date (optional)'),
                           style: TextStyle(
                             color: _dueDate != null
                                 ? context.mic.textPrimary
@@ -1190,8 +1223,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       isExpanded: true,
                       decoration: InputDecoration(
                         labelText: _isLoadingProjects
-                            ? 'Project (loading…)'
-                            : 'Project (optional)',
+                            ? context.tr('Project (loading…)')
+                            : context.tr('Project (optional)'),
                         prefixIcon: Icon(Icons.folder_outlined),
                       ),
                       items: [
@@ -1217,7 +1250,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       Padding(
                         padding: EdgeInsets.only(top: 8.0),
                         child: Text(
-                          'Tags (loading…)',
+                          context.tr('Tags (loading…)'),
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: 12,
@@ -1226,7 +1259,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       ),
                     SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      'Tags (optional)',
+                      context.tr('Tags (optional)'),
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
@@ -1255,6 +1288,20 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           tooltip: context.tr('Add tag'),
                         ),
                       ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      context.tr('Color'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    TagColorPicker(
+                      selectedHex: _newTagColor,
+                      onChanged: (hex) => setState(() => _newTagColor = hex),
+                      swatchSize: 26,
                     ),
                     SizedBox(height: 8),
                     Wrap(

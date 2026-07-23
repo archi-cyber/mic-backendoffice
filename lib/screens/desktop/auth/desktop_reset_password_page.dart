@@ -75,7 +75,6 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
-    final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     if (_passwordReset) {
@@ -96,13 +95,15 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                   ),
                   SizedBox(height: AppDimensions.spacingXL),
                   Text(
-                    'Password Reset Successful!',
+                    context.tr('Password Reset Successful!'),
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
                   Text(
-                    'You can now sign in with your new password.',
+                    context.tr(
+                      'You can now sign in with your new password.',
+                    ),
                     style: theme.textTheme.bodyMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -149,13 +150,15 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                   ),
                   SizedBox(height: AppDimensions.spacingXL),
                   Text(
-                    'Set New Password',
+                    context.tr('Set New Password'),
                     style: theme.textTheme.headlineMedium,
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: AppDimensions.spacingSM),
                   Text(
-                    'Enter the token from your email and your new password.',
+                    context.tr(
+                      'Enter the token from your email and your new password.',
+                    ),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: context.mic.textSecondary,
                     ),
@@ -172,11 +175,10 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return localizations?.emailRequired ??
-                            'Email is required';
+                        return context.tr('Email is required');
                       }
                       if (!value.contains('@')) {
-                        return localizations?.invalidEmail ?? 'Invalid email';
+                        return context.tr('Invalid email format');
                       }
                       return null;
                     },
@@ -191,7 +193,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Token is required';
+                        return context.tr('Token is required');
                       }
                       return null;
                     },
@@ -201,7 +203,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
-                      labelText: localizations?.password ?? 'New Password',
+                      labelText: context.tr('New Password'),
                       prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -217,11 +219,12 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return localizations?.passwordRequired ??
-                            'Password is required';
+                        return context.tr('Password is required');
                       }
                       if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
+                        return context.tr(
+                          'Password must be at least 6 characters',
+                        );
                       }
                       return null;
                     },
@@ -231,8 +234,7 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
                     decoration: InputDecoration(
-                      labelText:
-                          localizations?.confirmPassword ?? 'Confirm Password',
+                      labelText: context.tr('Confirm Password'),
                       prefixIcon: Icon(Icons.lock_outlined),
                       suffixIcon: IconButton(
                         icon: Icon(
@@ -249,10 +251,10 @@ class _DesktopResetPasswordPageState extends State<DesktopResetPasswordPage> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
+                        return context.tr('Please confirm your password');
                       }
                       if (value != _passwordController.text) {
-                        return 'Passwords do not match';
+                        return context.tr('Passwords do not match');
                       }
                       return null;
                     },

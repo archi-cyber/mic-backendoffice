@@ -8,6 +8,7 @@ import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/tag_color_picker.dart';
 
 /// Edit task page
 class EditTaskPage extends StatefulWidget {
@@ -39,6 +40,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
   bool _isLoading = false;
   bool _isLoadingData = true;
   final TextEditingController _newTagController = TextEditingController();
+  String _newTagColor = TagColors.presetHex.first;
 
   @override
   void initState() {
@@ -92,13 +94,14 @@ class _EditTaskPageState extends State<EditTaskPage> {
       final created = await TagService.createTag(
         name: trimmed,
         departmentId: deptId,
-        color: TagColors.defaultHex,
+        color: _newTagColor,
       );
       if (!mounted) return;
       final id = created['id'].toString();
       setState(() {
         _tags.add(created);
         if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
+        _newTagColor = TagColors.presetHex.first;
       });
       _newTagController.clear();
     } catch (e) {
@@ -160,7 +163,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         .map(
           (dept) => DropdownMenuItem<String>(
             value: dept['id'].toString(),
-            child: Text(dept['name']?.toString() ?? 'Unnamed'),
+            child: Text(dept['name']?.toString() ?? context.tr('Unnamed')),
           ),
         )
         .toList();
@@ -411,7 +414,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         if (trimmed.isEmpty) return null;
         final amount = int.tryParse(trimmed);
         if (amount == null || amount < 0) {
-          return 'Enter a valid amount';
+          return context.tr('Enter a valid amount');
         }
         return null;
       },
@@ -502,14 +505,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Edit task',
+                  context.tr('Edit task'),
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(height: AppDimensions.spacingXS),
                 Text(
-                  'Update the task details, schedule, status, and penalty settings.',
+                  context.tr(
+                    'Update the task details, schedule, status, and penalty settings.',
+                  ),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: context.mic.textSecondary,
                   ),
@@ -592,7 +597,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
-                          'Task details',
+                          context.tr('Task details'),
                           Icons.task_alt,
                           [
                             TextFormField(
@@ -604,7 +609,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Task title is required';
+                                  return context.tr('Task title is required');
                                 }
                                 return null;
                               },
@@ -648,7 +653,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 child: Text(
                                   _dueDate != null
                                       ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                                      : 'Select due date (optional)',
+                                      : context.tr('Select due date (optional)'),
                                   style: TextStyle(
                                     color: _dueDate != null
                                         ? Theme.of(
@@ -736,7 +741,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
                             Text(
-                              'Tags (optional)',
+                              context.tr('Tags (optional)'),
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
@@ -767,6 +772,21 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                   tooltip: context.tr('Add tag'),
                                 ),
                               ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              context.tr('Color'),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            TagColorPicker(
+                              selectedHex: _newTagColor,
+                              onChanged: (hex) =>
+                                  setState(() => _newTagColor = hex),
+                              swatchSize: 26,
                             ),
                             SizedBox(height: 8),
                             Wrap(
@@ -820,7 +840,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Task title is required';
+                          return context.tr('Task title is required');
                         }
                         return null;
                       },
@@ -861,7 +881,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         child: Text(
                           _dueDate != null
                               ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                              : 'Select due date (optional)',
+                              : context.tr('Select due date (optional)'),
                           style: TextStyle(
                             color: _dueDate != null
                                 ? context.mic.textPrimary
@@ -948,7 +968,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      'Tags (optional)',
+                      context.tr('Tags (optional)'),
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
@@ -977,6 +997,20 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           tooltip: context.tr('Add tag'),
                         ),
                       ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      context.tr('Color'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 12,
+                      ),
+                    ),
+                    SizedBox(height: 6),
+                    TagColorPicker(
+                      selectedHex: _newTagColor,
+                      onChanged: (hex) => setState(() => _newTagColor = hex),
+                      swatchSize: 26,
                     ),
                     SizedBox(height: 8),
                     Wrap(

@@ -138,7 +138,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Title is required';
+                    return context.tr('Title is required');
                   }
                   return null;
                 },
@@ -153,7 +153,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Defined objectives are required';
+                    return context.tr('Defined objectives are required');
                   }
                   return null;
                 },
@@ -168,7 +168,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Positive points are required';
+                    return context.tr('Positive points are required');
                   }
                   return null;
                 },
@@ -183,7 +183,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Difficulties encountered are required';
+                    return context.tr('Difficulties encountered are required');
                   }
                   return null;
                 },
@@ -198,7 +198,7 @@ class _EditDepartmentReportPageState extends State<EditDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Suggestions are required';
+                    return context.tr('Suggestions are required');
                   }
                   return null;
                 },

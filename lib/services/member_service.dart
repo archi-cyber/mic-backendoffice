@@ -2,10 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'supabase_service.dart';
 import 'new_comer_service.dart';
 import 'user_management_service.dart';
+import '../core/utils/phone_number_utils.dart';
 
 /// Member service for member management operations
 class MemberService {
   static final _client = SupabaseService.client;
+
+  static Map<String, dynamic> _withNormalizedPhone(Map<String, dynamic> data) {
+    if (!data.containsKey('phone')) return data;
+    final copy = Map<String, dynamic>.from(data);
+    copy['phone'] = PhoneNumberUtils.normalizeOrNull(copy['phone']?.toString());
+    return copy;
+  }
 
   /// Create member (admin only) - auto-creates user (inactive) when email/phone provided
   /// POST /members
@@ -32,7 +40,7 @@ class MemberService {
       final response = await _client
           .from('members')
           .insert({
-            ...memberData,
+            ..._withNormalizedPhone(memberData),
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
           })
@@ -140,7 +148,10 @@ class MemberService {
     try {
       final response = await _client
           .from('members')
-          .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
+          .update({
+            ..._withNormalizedPhone(updates),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
           .eq('id', memberId)
           .select()
           .single();

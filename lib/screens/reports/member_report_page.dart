@@ -145,7 +145,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
           children: [
             Expanded(
               child: _StatCard(
-                title: 'Attendance',
+                title: context.tr('Attendance'),
                 value: '${attendance?['total'] ?? 0}',
                 icon: Icons.event,
                 color: AppColors.primary,
@@ -155,7 +155,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
               SizedBox(width: AppDimensions.spacingMD),
               Expanded(
                 child: _StatCard(
-                  title: 'Total Giving',
+                  title: context.tr('Total Giving'),
                   value:
                       '\$${giving?['total']?.toStringAsFixed(2) ?? '0.00'}',
                   icon: Icons.attach_money,
@@ -168,7 +168,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
         SizedBox(height: AppDimensions.spacingMD),
         AttendanceChart(
           attendanceData: attendanceData,
-          title: 'Attendance Trend',
+          title: context.tr('Attendance Trend'),
         ),
         SizedBox(height: AppDimensions.spacingMD),
         AttendancePieChart(present: present, absent: absent, late: late),
@@ -302,7 +302,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
               ),
               SizedBox(height: AppDimensions.spacingSM),
               Text(
-                'No attendance records found',
+                context.tr('No attendance records found'),
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ],
@@ -322,7 +322,7 @@ class _MemberReportPageState extends State<MemberReportPage> {
                 Icon(Icons.list, color: AppColors.primary),
                 SizedBox(width: AppDimensions.spacingSM),
                 Text(
-                  'Attendance Details',
+                  context.tr('Attendance Details'),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -412,7 +412,9 @@ class _MemberReportPageState extends State<MemberReportPage> {
                     if (createdAt != null) ...[
                       SizedBox(height: 4),
                       Text(
-                        'Recorded: ${_formatDateTime(createdAt)}',
+                        context.tr('Recorded: {datetime}', {
+                          'datetime': _formatDateTime(createdAt),
+                        }),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 11,
                           color: context.mic.textSecondary,

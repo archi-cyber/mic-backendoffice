@@ -1,4 +1,5 @@
 import 'supabase_service.dart';
+import '../core/utils/phone_number_utils.dart';
 
 /// Event service for event management
 class EventService {
@@ -389,7 +390,7 @@ class EventService {
         'member_id': null, // NULL for guests
         'guest_name': guestName,
         'guest_email': guestEmail,
-        'guest_phone': guestPhone,
+        'guest_phone': PhoneNumberUtils.normalizeOrNull(guestPhone),
         'registered_at': DateTime.now().toIso8601String(),
         'created_at': DateTime.now().toIso8601String(),
       });

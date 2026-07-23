@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../core/utils/phone_number_utils.dart';
+
 /// Helpers for opening WhatsApp chats from phone numbers.
 class WhatsAppUtils {
   static String? phoneDigits(String? phone) {
-    final raw = phone ?? '';
-    if (raw.trim().isEmpty) return null;
-    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    final digits = PhoneNumberUtils.digitsOnly(phone);
     return digits.isEmpty ? null : digits;
   }
 

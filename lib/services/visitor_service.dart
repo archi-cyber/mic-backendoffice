@@ -1,9 +1,17 @@
 import 'member_service.dart';
 import 'supabase_service.dart';
+import '../core/utils/phone_number_utils.dart';
 
 /// Visitor service for visitor management operations
 class VisitorService {
   static final _client = SupabaseService.client;
+
+  static Map<String, dynamic> _withNormalizedPhone(Map<String, dynamic> data) {
+    if (!data.containsKey('phone')) return data;
+    final copy = Map<String, dynamic>.from(data);
+    copy['phone'] = PhoneNumberUtils.normalizeOrNull(copy['phone']?.toString());
+    return copy;
+  }
 
   /// Create visitor
   /// POST /visitors
@@ -19,7 +27,7 @@ class VisitorService {
       final response = await _client
           .from('visitors')
           .insert({
-            ...visitorData,
+            ..._withNormalizedPhone(visitorData),
             'created_by': currentUser.id,
             'created_at': DateTime.now().toIso8601String(),
             'updated_at': DateTime.now().toIso8601String(),
@@ -50,7 +58,9 @@ class VisitorService {
   }) async {
     try {
       // Build base query with filters
-      var filterQuery = _client.from('visitors').select();
+      var filterQuery = _client.from('visitors').select(
+        '*, church_service:church_services(name, service_date)',
+      );
 
       // Apply date filters
       if (fromDate != null) {
@@ -129,7 +139,10 @@ class VisitorService {
     try {
       final response = await _client
           .from('visitors')
-          .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
+          .update({
+            ..._withNormalizedPhone(updates),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
           .eq('id', visitorId)
           .select()
           .single();
@@ -205,8 +218,7 @@ class VisitorService {
 
   /// Soft-delete visitors logged for a specific church service.
   static Future<void> deleteVisitorsForService({
-    required String visitDate,
-    required String serviceType,
+    required String churchServiceId,
   }) async {
     try {
       final deletedAt = DateTime.now().toIso8601String();
@@ -216,8 +228,7 @@ class VisitorService {
             'deleted_at': deletedAt,
             'updated_at': deletedAt,
           })
-          .eq('visit_date', visitDate)
-          .eq('service_type', serviceType)
+          .eq('church_service_id', churchServiceId)
           .isFilter('deleted_at', null);
     } catch (e) {
       throw Exception('Failed to delete visitors for service: $e');

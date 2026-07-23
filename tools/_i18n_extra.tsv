@@ -1,0 +1,326 @@
+Absent	Absent	Ausente
+Backoffice	Backoffice	Backoffice
+Date	Date	Fecha
+Description	Description	Descripción
+Intention	Intention	Intención
+Notes	Notes	Notas
+(Optional)	(Facultatif)	(Opcional)
+Actions	Actions	Acciones
+Active	Actif	Activo
+Add Department	Ajouter un département	Agregar departamento
+Add First Record	Ajouter le premier enregistrement	Agregar primer registro
+Add Giving Record	Ajouter un enregistrement de don	Agregar registro de ofrenda
+Add Member	Ajouter un membre	Agregar miembro
+Add Members	Ajouter des membres	Agregar miembros
+Add Members to Training	Ajouter des membres à la formation	Agregar miembros a la formación
+Add Task	Ajouter une tâche	Agregar tarea
+Add Visitor	Ajouter un visiteur	Agregar visitante
+Add skill	Ajouter une compétence	Agregar habilidad
+Add task	Ajouter une tâche	Agregar tarea
+Additional comments or notes (optional)	Commentaires ou notes supplémentaires (facultatif)	Comentarios o notas adicionales (opcional)
+Address	Adresse	Dirección
+Admin	Admin	Administrador
+Admin Panel	Panneau d'administration	Panel de administración
+All church services	Tous les cultes	Todos los servicios de la iglesia
+All members are already enrolled in this class	Tous les membres sont déjà inscrits à cette classe	Todos los miembros ya están inscritos en esta clase
+Announcement created successfully	Annonce créée avec succès	Anuncio creado correctamente
+Apply	Appliquer	Aplicar
+Are you sure you want to delete this event?	Êtes-vous sûr de vouloir supprimer cet événement ?	¿Está seguro de que desea eliminar este evento?
+Are you sure you want to remove this registration?	Êtes-vous sûr de vouloir supprimer cette inscription ?	¿Está seguro de que desea eliminar este registro?
+Assignee filter	Filtre par assigné	Filtro por asignado
+At least email or phone is required	Au moins un e-mail ou un téléphone est requis	Se requiere al menos un correo electrónico o un teléfono
+Attendance	Présence	Asistencia
+Attendance Trend	Tendance de présence	Tendencia de asistencia
+Avg attendance	Présence moyenne	Asistencia promedio
+Basic information	Informations de base	Información básica
+Birthday	Date de naissance	Fecha de nacimiento
+Birthday *	Date de naissance *	Fecha de nacimiento *
+Change Password	Changer le mot de passe	Cambiar contraseña
+Choose from gallery	Choisir dans la galerie	Elegir de la galería
+Church Attendance	Présence au culte	Asistencia a la iglesia
+Church service	Culte	Servicio de la iglesia
+City	Ville	Ciudad
+Clear All	Tout effacer	Borrar todo
+Comments	Commentaires	Comentarios
+Contact	Contact	Contacto
+Could not create task	Impossible de créer la tâche	No se pudo crear la tarea
+Could not move task	Impossible de déplacer la tâche	No se pudo mover la tarea
+Could not pick photo: \$e	Impossible de sélectionner la photo : \$e	No se pudo seleccionar la foto: \$e
+Could not update assignment	Impossible de mettre à jour l'affectation	No se pudo actualizar la asignación
+Could not update tags	Impossible de mettre à jour les étiquettes	No se pudieron actualizar las etiquetas
+Could not update task	Impossible de mettre à jour la tâche	No se pudo actualizar la tarea
+Could not update task status	Impossible de mettre à jour le statut de la tâche	No se pudo actualizar el estado de la tarea
+Country	Pays	País
+Create Announcement	Créer une annonce	Crear anuncio
+Create Department	Créer un département	Crear departamento
+Create Member	Créer un membre	Crear miembro
+Create Report	Créer un rapport	Crear informe
+Create a department and attach reference documents	Créer un département et joindre des documents de référence	Crear un departamento y adjuntar documentos de referencia
+Create a new church member profile	Créer un nouveau profil de membre	Crear un nuevo perfil de miembro de la iglesia
+Created {date}	Créé le {date}	Creado el {date}
+Date TBD	Date à confirmer	Fecha por confirmar
+Day	Jour	Día
+Defined Objectives *	Objectifs définis *	Objetivos definidos *
+Delete Class	Supprimer la classe	Eliminar clase
+Delete Event	Supprimer l'événement	Eliminar evento
+Delete Report	Supprimer le rapport	Eliminar informe
+Delete Session	Supprimer la session	Eliminar sesión
+Delete service attendance?	Supprimer la présence au culte ?	¿Eliminar la asistencia al servicio?
+Department	Département	Departamento
+Department (Optional)	Département (facultatif)	Departamento (opcional)
+Department Name *	Nom du département *	Nombre del departamento *
+Department updated successfully	Département mis à jour avec succès	Departamento actualizado correctamente
+Describe any difficulties or challenges faced	Décrivez les difficultés ou défis rencontrés	Describa las dificultades o desafíos enfrentados
+Difficulties Encountered *	Difficultés rencontrées *	Dificultades encontradas *
+Disable birthday notifications for this member	Désactiver les notifications d'anniversaire pour ce membre	Desactivar notificaciones de cumpleaños para este miembro
+Divorced	Divorcé(e)	Divorciado/a
+Document Upload Errors	Erreurs de téléversement de documents	Errores al subir documentos
+Documents (Optional)	Documents (facultatif)	Documentos (opcional)
+Does not know yet	Ne sait pas encore	Aún no lo sabe
+Domain of Activity	Domaine d'activité	Ámbito de actividad
+Domain of Activity *	Domaine d'activité *	Ámbito de actividad *
+Edit Department	Modifier le département	Editar departamento
+Edit Event	Modifier l'événement	Editar evento
+Edit Member	Modifier le membre	Editar miembro
+Edit Report	Modifier le rapport	Editar informe
+Edit Training	Modifier la formation	Editar formación
+Email (Optional)	E-mail (facultatif)	Correo electrónico (opcional)
+Email (recommended)	E-mail (recommandé)	Correo electrónico (recomendado)
+Email is required	L'e-mail est requis	El correo electrónico es obligatorio
+Email: \$guestEmail	E-mail : \$guestEmail	Correo electrónico: \$guestEmail
+End Date	Date de fin	Fecha de fin
+Enter a descriptive title for this report	Saisissez un titre descriptif pour ce rapport	Introduzca un título descriptivo para este informe
+Enter a skill	Saisissez une compétence	Introduzca una habilidad
+Enter custom number of sessions	Saisissez le nombre personnalisé de sessions	Introduzca el número personalizado de sesiones
+Enter number of sessions to generate	Saisissez le nombre de sessions à générer	Introduzca el número de sesiones a generar
+Enter the name of the department	Saisissez le nom du département	Introduzca el nombre del departamento
+Error adding members: \$e	Erreur lors de l'ajout des membres : \$e	Error al agregar miembros: \$e
+Error creating announcement: \$e	Erreur lors de la création de l'annonce : \$e	Error al crear el anuncio: \$e
+Error creating report: \${e.toString()}	Erreur lors de la création du rapport : \${e.toString()}	Error al crear el informe: \${e.toString()}
+Error deleting class: \$e	Erreur lors de la suppression de la classe : \$e	Error al eliminar la clase: \$e
+Error deleting event: \$e	Erreur lors de la suppression de l'événement : \$e	Error al eliminar el evento: \$e
+Error deleting report: \$e	Erreur lors de la suppression du rapport : \$e	Error al eliminar el informe: \$e
+Error deleting service: \$e	Erreur lors de la suppression du culte : \$e	Error al eliminar el servicio: \$e
+Error generating report: \$e	Erreur lors de la génération du rapport : \$e	Error al generar el informe: \$e
+Error generating sessions: \$e	Erreur lors de la génération des sessions : \$e	Error al generar las sesiones: \$e
+Error loading data: \$e	Erreur lors du chargement des données : \$e	Error al cargar los datos: \$e
+Error loading department: \$e	Erreur lors du chargement du département : \$e	Error al cargar el departamento: \$e
+Error loading event: \$e	Erreur lors du chargement de l'événement : \$e	Error al cargar el evento: \$e
+Error loading member: \$e	Erreur lors du chargement du membre : \$e	Error al cargar el miembro: \$e
+Error loading members	Erreur lors du chargement des membres	Error al cargar los miembros
+Error loading members: \$e	Erreur lors du chargement des membres : \$e	Error al cargar los miembros: \$e
+Error loading registrations: \$e	Erreur lors du chargement des inscriptions : \$e	Error al cargar las inscripciones: \$e
+Error loading report: \$e	Erreur lors du chargement du rapport : \$e	Error al cargar el informe: \$e
+Error loading services: \$e	Erreur lors du chargement des cultes : \$e	Error al cargar los servicios: \$e
+Error loading sessions: \$e	Erreur lors du chargement des sessions : \$e	Error al cargar las sesiones: \$e
+Error loading tasks	Erreur lors du chargement des tâches	Error al cargar las tareas
+Error loading training: \$e	Erreur lors du chargement de la formation : \$e	Error al cargar la formación: \$e
+Error picking file: \$e	Erreur lors de la sélection du fichier : \$e	Error al seleccionar el archivo: \$e
+Error recording payment	Erreur lors de l'enregistrement du paiement	Error al registrar el pago
+Error registering guest: \$e	Erreur lors de l'inscription de l'invité : \$e	Error al registrar al invitado: \$e
+Error registering members: \$e	Erreur lors de l'inscription des membres : \$e	Error al registrar a los miembros: \$e
+Error removing member: \$e	Erreur lors du retrait du membre : \$e	Error al eliminar al miembro: \$e
+Error removing registration: \$e	Erreur lors de la suppression de l'inscription : \$e	Error al eliminar el registro: \$e
+Error saving report	Erreur lors de l'enregistrement du rapport	Error al guardar el informe
+Error sending reminders	Erreur lors de l'envoi des rappels	Error al enviar los recordatorios
+Error updating report: \${e.toString()}	Erreur lors de la mise à jour du rapport : \${e.toString()}	Error al actualizar el informe: \${e.toString()}
+Error: \$e	Erreur : \$e	Error: \$e
+Event	Événement	Evento
+Event deleted successfully	Événement supprimé avec succès	Evento eliminado correctamente
+Event information	Informations sur l'événement	Información del evento
+Event not found	Événement introuvable	Evento no encontrado
+Export failed: \$e	Échec de l'exportation : \$e	Error al exportar: \$e
+Export to CSV	Exporter en CSV	Exportar a CSV
+Failed to get department: \$e	Impossible d'obtenir le département : \$e	No se pudo obtener el departamento: \$e
+Female	Féminin	Femenino
+Filter Services	Filtrer les cultes	Filtrar servicios
+Filtered church services	Cultes filtrés	Servicios de la iglesia filtrados
+Finance	Finances	Finanzas
+First Name	Prénom	Nombre
+First Name *	Prénom *	Nombre *
+First name is required	Le prénom est requis	El nombre es obligatorio
+From	Du	Desde
+Full Name *	Nom complet *	Nombre completo *
+Gender	Sexe	Género
+Generate	Générer	Generar
+Generate 4	Générer 4	Generar 4
+Generate Church Attendance Report	Générer le rapport de présence au culte	Generar informe de asistencia a la iglesia
+Generate Next Sessions	Générer les prochaines sessions	Generar próximas sesiones
+Generate PDF	Générer le PDF	Generar PDF
+Generate Report	Générer le rapport	Generar informe
+Generate Sessions	Générer les sessions	Generar sesiones
+Generate Summary Report	Générer le rapport de synthèse	Generar informe resumido
+Generated \$numberOfSessions sessions	\$numberOfSessions sessions générées	Se generaron \$numberOfSessions sesiones
+Generating PDF report...	Génération du rapport PDF...	Generando informe PDF...
+Generating PDF...	Génération du PDF...	Generando PDF...
+Generating summary report...	Génération du rapport de synthèse...	Generando informe resumido...
+Giver	Donateur	Donante
+Global Announcement	Annonce générale	Anuncio global
+Guest	Invité	Invitado
+How many weeks between each session	Nombre de semaines entre chaque session	Cuántas semanas hay entre cada sesión
+Inactive	Inactif	Inactivo
+Invalid email format	Format d'e-mail invalide	Formato de correo electrónico no válido
+Is this member active?	Ce membre est-il actif ?	¿Este miembro está activo?
+Just passing	De passage	Solo de paso
+Last Diplomas	Derniers diplômes	Últimos diplomas
+Last Name	Nom	Apellido
+Last Name *	Nom *	Apellido *
+Last name is required	Le nom est requis	El apellido es obligatorio
+Leader	Responsable	Líder
+Level of Study	Niveau d'études	Nivel de estudios
+List positive achievements or points	Listez les réalisations ou points positifs	Enumere los logros o puntos positivos
+List the objectives that were defined	Listez les objectifs qui ont été définis	Enumere los objetivos que se definieron
+Listener added successfully	Auditeur ajouté avec succès	Oyente agregado correctamente
+Listener removed successfully	Auditeur retiré avec succès	Oyente eliminado correctamente
+Listeners	Auditeurs	Oyentes
+Male	Masculin	Masculino
+Marital Status	État civil	Estado civil
+Mark Attendance	Marquer la présence	Registrar asistencia
+Mark New Attendance	Marquer une nouvelle présence	Registrar nueva asistencia
+Mark attendance for a new church service	Marquer la présence pour un nouveau culte	Registrar asistencia para un nuevo servicio de la iglesia
+Married	Marié(e)	Casado/a
+Member	Membre	Miembro
+Member Report	Rapport de membre	Informe de miembro
+Member added successfully	Membre ajouté avec succès	Miembro agregado correctamente
+Member removed successfully	Membre retiré avec succès	Miembro eliminado correctamente
+Member updated successfully	Membre mis à jour avec succès	Miembro actualizado correctamente
+Members	Membres	Miembros
+Message *	Message *	Mensaje *
+New Comer	Nouveau venu	Nuevo visitante
+New Password	Nouveau mot de passe	Nueva contraseña
+Newcomer	Nouveau venu	Nuevo visitante
+Newcomer Intention	Intention du nouveau venu	Intención del nuevo visitante
+Newcomer Join Date	Date d'adhésion du nouveau venu	Fecha de ingreso del nuevo visitante
+No Department	Aucun département	Sin departamento
+No date selected	Aucune date sélectionnée	Ninguna fecha seleccionada
+No members enrolled	Aucun membre inscrit	Ningún miembro inscrito
+No members found in this department	Aucun membre trouvé dans ce département	No se encontraron miembros en este departamento
+No registrations yet	Aucune inscription pour le moment	Aún no hay registros
+No reports yet	Aucun rapport pour le moment	Aún no hay informes
+No services found	Aucun culte trouvé	No se encontraron servicios
+No sessions generated yet	Aucune session générée pour le moment	Aún no se han generado sesiones
+No sessions yet	Aucune session pour le moment	Aún no hay sesiones
+No visitors found matching your search	Aucun visiteur trouvé correspondant à votre recherche	No se encontraron visitantes que coincidan con su búsqueda
+No visitors yet	Aucun visiteur pour le moment	Aún no hay visitantes
+Not set	Non défini	No establecido
+Not specified	Non précisé	No especificado
+Number of Sessions	Nombre de sessions	Número de sesiones
+Opt out of birthday notifications	Se désabonner des notifications d'anniversaire	Optar por no recibir notificaciones de cumpleaños
+Optional description for the department	Description facultative du département	Descripción opcional del departamento
+Other	Autre	Otro
+Overview	Aperçu	Resumen
+PDF report saved successfully	Rapport PDF enregistré avec succès	Informe PDF guardado correctamente
+Page \${currentPage + 1} of \${maxPage + 1}	Page \${currentPage + 1} sur \${maxPage + 1}	Página \${currentPage + 1} de \${maxPage + 1}
+Password	Mot de passe	Contraseña
+Password changed successfully	Mot de passe modifié avec succès	Contraseña cambiada correctamente
+Password is required	Le mot de passe est requis	La contraseña es obligatoria
+Password must be at least 6 characters	Le mot de passe doit comporter au moins 6 caractères	La contraseña debe tener al menos 6 caracteres
+Passwords do not match	Les mots de passe ne correspondent pas	Las contraseñas no coinciden
+Pastor	Pasteur	Pastor
+Payment recorded	Paiement enregistré	Pago registrado
+Personal information	Informations personnelles	Información personal
+Phone	Téléphone	Teléfono
+Phone (Optional)	Téléphone (facultatif)	Teléfono (opcional)
+Phone: \$guestPhone	Téléphone : \$guestPhone	Teléfono: \$guestPhone
+Please enter first name	Veuillez saisir le prénom	Introduzca el nombre
+Please enter last name	Veuillez saisir le nom	Introduzca el apellido
+Positive Points *	Points positifs *	Puntos positivos *
+Profession	Profession	Profesión
+Professional details	Informations professionnelles	Detalles profesionales
+Provide suggestions for improvement	Proposez des suggestions d'amélioration	Proporcione sugerencias de mejora
+Quarter	Trimestre	Trimestre
+Record someone who visited the church	Enregistrer une personne ayant visité l'église	Registrar a alguien que visitó la iglesia
+Register	S'inscrire	Registrar
+Register Members	Inscrire des membres	Registrar miembros
+Registration failed: \$e	Échec de l'inscription : \$e	Error en el registro: \$e
+Registration removed successfully	Inscription supprimée avec succès	Registro eliminado correctamente
+Remove	Retirer	Eliminar
+Remove Listener	Retirer l'auditeur	Eliminar oyente
+Remove Member	Retirer le membre	Eliminar miembro
+Remove Registration	Supprimer l'inscription	Eliminar registro
+Remove from training	Retirer de la formation	Eliminar de la formación
+Remove photo	Supprimer la photo	Eliminar foto
+Report	Rapport	Informe
+Report Title *	Titre du rapport *	Título del informe *
+Report created successfully	Rapport créé avec succès	Informe creado correctamente
+Report deleted successfully	Rapport supprimé avec succès	Informe eliminado correctamente
+Report exported successfully	Rapport exporté avec succès	Informe exportado correctamente
+Report generated successfully: \$filePath	Rapport généré avec succès : \$filePath	Informe generado correctamente: \$filePath
+Report updated successfully	Rapport mis à jour avec succès	Informe actualizado correctamente
+Required	Requis	Obligatorio
+Required for job seeking and workers	Requis pour les demandeurs d'emploi et les travailleurs	Requerido para quienes buscan empleo y trabajadores
+Role	Rôle	Rol
+Role & status	Rôle et statut	Rol y estado
+Role *	Rôle *	Rol *
+Search members...	Rechercher des membres...	Buscar miembros...
+Search visitors...	Rechercher des visiteurs...	Buscar visitantes...
+Sector of Studies	Secteur d'études	Sector de estudios
+Select	Sélectionner	Seleccionar
+Select Date Range	Sélectionner la plage de dates	Seleccionar rango de fechas
+Select End Date	Sélectionner la date de fin	Seleccionar fecha de fin
+Select Start Date	Sélectionner la date de début	Seleccionar fecha de inicio
+Select date range for report	Sélectionner la plage de dates pour le rapport	Seleccionar rango de fechas para el informe
+Select member role	Sélectionner le rôle du membre	Seleccionar rol del miembro
+Select members to add:	Sélectionner les membres à ajouter :	Seleccionar miembros para agregar:
+Select the newcomer\'s intention	Sélectionner l'intention du nouveau venu	Seleccionar la intención del nuevo visitante
+Select your current profession/status	Sélectionner votre profession/statut actuel	Seleccionar su profesión/estado actual
+Service	Culte	Servicio
+Service attendance deleted	Présence au culte supprimée	Asistencia al servicio eliminada
+Service name	Nom du culte	Nombre del servicio
+Session {number}	Session {number}	Sesión {number}
+Sessions	Sessions	Sesiones
+Sessions generated successfully	Sessions générées avec succès	Sesiones generadas correctamente
+Showing	Affichage de	Mostrando
+Single	Célibataire	Soltero/a
+Sort	Trier	Ordenar
+Sort ascending	Tri croissant	Orden ascendente
+Sort descending	Tri décroissant	Orden descendente
+Speaker	Orateur	Orador
+Start Date	Date de début	Fecha de inicio
+State	Région	Estado/Provincia
+Successfully registered guest	Invité inscrit avec succès	Invitado registrado correctamente
+Suggestions *	Suggestions *	Sugerencias *
+Summary report generated successfully	Rapport de synthèse généré avec succès	Informe resumido generado correctamente
+Sympathiser	Sympathisant	Simpatizante
+Tag	Étiquette	Etiqueta
+Tag filter	Filtre par étiquette	Filtro por etiqueta
+Take a photo	Prendre une photo	Tomar una foto
+Tap to select date	Appuyez pour sélectionner une date	Toque para seleccionar la fecha
+Task has no department; cannot add tags	La tâche n'a pas de département ; impossible d'ajouter des étiquettes	La tarea no tiene departamento; no se pueden agregar etiquetas
+Task must be assigned to a department first	La tâche doit d'abord être affectée à un département	La tarea debe asignarse primero a un departamento
+Task title	Titre de la tâche	Título de la tarea
+Task title is required	Le titre de la tâche est requis	El título de la tarea es obligatorio
+Teaching	Enseignement	Enseñanza
+Teaching Details	Détails de l'enseignement	Detalles de la enseñanza
+This month	Ce mois	Este mes
+Title *	Titre *	Título *
+Total	Total	Total
+Track and follow up with church visitors	Suivre et assurer le suivi des visiteurs de l'église	Hacer seguimiento de los visitantes de la iglesia
+Track church service attendance	Suivre la présence au culte	Registrar la asistencia a los servicios de la iglesia
+Training	Formation	Formación
+Training deleted successfully	Formation supprimée avec succès	Formación eliminada correctamente
+Training not found	Formation introuvable	Formación no encontrada
+Type	Type	Tipo
+Unnamed	Sans nom	Sin nombre
+Unnamed Visitor	Visiteur sans nom	Visitante sin nombre
+Update Department	Mettre à jour le département	Actualizar departamento
+Update Member	Mettre à jour le membre	Actualizar miembro
+Update Report	Mettre à jour le rapport	Actualizar informe
+Update department details and documents	Mettre à jour les détails et documents du département	Actualizar detalles y documentos del departamento
+Update member profile and details	Mettre à jour le profil et les détails du membre	Actualizar perfil y detalles del miembro
+Upload	Téléverser	Subir
+User created successfully	Utilisateur créé avec succès	Usuario creado correctamente
+Visit Date	Date de visite	Fecha de visita
+Visit date is required	La date de visite est requise	La fecha de visita es obligatoria
+Visit details	Détails de la visite	Detalles de la visita
+Visitor	Visiteur	Visitante
+Visitor added successfully	Visiteur ajouté avec succès	Visitante agregado correctamente
+Visitors	Visiteurs	Visitantes
+Wants to stay	Souhaite rester	Desea quedarse
+Weeks	Semaines	Semanas
+Widowed	Veuf/Veuve	Viudo/a
+Worker	Travailleur	Trabajador
+Zip Code	Code postal	Código postal
+attended	présent	asistió
+e.g., 20	p. ex., 20	p. ej., 20
+member	membre	miembro

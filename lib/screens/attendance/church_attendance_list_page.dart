@@ -28,7 +28,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   bool _isLoading = false;
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
-  String? _filterServiceType;
+  String? _filterNameQuery;
   final int _rowsPerPage = 10;
   int _currentPage = 0;
 
@@ -39,12 +39,19 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   }
 
   List<Map<String, dynamic>> get _filteredServices {
-    if (_filterServiceType == null) return _services;
-    return _services
-        .where(
-          (service) => service['service_type']?.toString() == _filterServiceType,
-        )
-        .toList();
+    var list = _services;
+    final query = _filterNameQuery?.trim().toLowerCase();
+    if (query != null && query.isNotEmpty) {
+      list = list
+          .where(
+            (service) =>
+                (service['name']?.toString().toLowerCase() ?? '').contains(
+                  query,
+                ),
+          )
+          .toList();
+    }
+    return list;
   }
 
   Future<void> _loadServices() async {
@@ -78,7 +85,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     setState(() {
       _filterStartDate = null;
       _filterEndDate = null;
-      _filterServiceType = null;
+      _filterNameQuery = null;
     });
     _loadServices();
   }
@@ -86,7 +93,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   bool get _hasActiveFilters {
     return _filterStartDate != null ||
         _filterEndDate != null ||
-        _filterServiceType != null;
+        (_filterNameQuery != null && _filterNameQuery!.trim().isNotEmpty);
   }
 
   int get _thisMonthCount {
@@ -97,33 +104,14 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     }).length;
   }
 
-  int get _sundayCount {
-    return _filteredServices
-        .where((service) => service['service_type']?.toString() == 'sunday')
-        .length;
-  }
-
-  int get _wednesdayCount {
-    return _filteredServices
-        .where((service) => service['service_type']?.toString() == 'wednesday')
-        .length;
-  }
-
-  int _avgAttendanceForType(String serviceType) {
-    final services = _filteredServices
-        .where((service) => service['service_type']?.toString() == serviceType)
-        .toList();
-    if (services.isEmpty) return 0;
-    final total = services.fold<int>(
+  int get _avgAttendance {
+    if (_filteredServices.isEmpty) return 0;
+    final total = _filteredServices.fold<int>(
       0,
       (sum, service) => sum + (service['attendance_count'] as int? ?? 0),
     );
-    return (total / services.length).round();
+    return (total / _filteredServices.length).round();
   }
-
-  int get _avgSundayAttendance => _avgAttendanceForType('sunday');
-
-  int get _avgWednesdayAttendance => _avgAttendanceForType('wednesday');
 
   DateTime? _parseServiceDate(String? dateString) {
     if (dateString == null || dateString.isEmpty) return null;
@@ -146,34 +134,21 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     return DateFormat('EEEE').format(date);
   }
 
-  String _getServiceTypeLabel(String serviceType) {
-    return serviceType == 'sunday'
-        ? context.tr('Sunday Service')
-        : context.tr('Wednesday Service');
+  String _serviceName(Map<String, dynamic> service) {
+    final name = service['name']?.toString().trim();
+    return name != null && name.isNotEmpty
+        ? name
+        : context.tr('Church service');
   }
 
-  Color _serviceColor(String serviceType) {
-    return serviceType == 'sunday' ? AppColors.accent : AppColors.primary;
-  }
-
-  IconData _serviceIcon(String serviceType) {
-    return serviceType == 'sunday' ? Icons.wb_sunny_outlined : Icons.nightlight_outlined;
-  }
-
-  Future<void> _viewServiceDetails(
-    String serviceDate,
-    String serviceType,
-  ) async {
+  Future<void> _viewServiceDetails(String churchServiceId) async {
     final scope = DesktopShellScope.maybeOf(context);
     if (scope != null) {
-      scope.pushDetail(
-        RouteNames.churchAttendance,
-        '$serviceDate|$serviceType',
-      );
+      scope.pushDetail(RouteNames.churchAttendance, churchServiceId);
     } else {
       final result = await Navigator.of(context).pushNamed(
         RouteNames.churchAttendance,
-        arguments: {'serviceDate': serviceDate, 'serviceType': serviceType},
+        arguments: {'churchServiceId': churchServiceId},
       );
       if (result == true) _loadServices();
     }
@@ -192,19 +167,22 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   }
 
   Future<void> _confirmDeleteService(
+    String churchServiceId,
+    String serviceName,
     String serviceDate,
-    String serviceType,
   ) async {
     final label =
-        '${_getServiceTypeLabel(serviceType)} on ${_formatDate(serviceDate)}';
+        '${_serviceName({'name': serviceName})} · ${_formatDate(serviceDate)}';
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete service attendance?')),
         content: Text(
-          'This will permanently remove all attendance records for $label, '
-          'including visitors logged for that service.',
+          context.tr(
+            'This will permanently remove all attendance records for {label}, including visitors logged for that service.',
+            {'label': label},
+          ),
         ),
         actions: [
           TextButton(
@@ -224,12 +202,10 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
 
     try {
       await ChurchAttendanceService.deleteService(
-        serviceDate: serviceDate,
-        serviceType: serviceType,
+        churchServiceId: churchServiceId,
       );
       await VisitorService.deleteVisitorsForService(
-        visitDate: serviceDate,
-        serviceType: serviceType,
+        churchServiceId: churchServiceId,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -287,7 +263,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                 ),
                 SizedBox(height: AppDimensions.spacingXS),
                 Text(
-                  context.tr('Track Sunday and Wednesday service attendance'),
+                  context.tr('Track church service attendance'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: context.mic.textSecondary,
                   ),
@@ -334,29 +310,8 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           ),
           SizedBox(width: AppDimensions.spacingSM),
           _ChurchStatChip(
-            label: context.tr('Sunday Service'),
-            value: _isLoading ? '…' : '$_sundayCount',
-            icon: Icons.wb_sunny_outlined,
-            color: AppColors.warning,
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          _ChurchStatChip(
-            label: context.tr('Avg / Sunday'),
-            value: _isLoading ? '…' : '$_avgSundayAttendance',
-            icon: Icons.trending_up,
-            color: AppColors.warning,
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          _ChurchStatChip(
-            label: context.tr('Wednesday Service'),
-            value: _isLoading ? '…' : '$_wednesdayCount',
-            icon: Icons.nightlight_outlined,
-            color: AppColors.info,
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          _ChurchStatChip(
-            label: context.tr('Avg / Wednesday'),
-            value: _isLoading ? '…' : '$_avgWednesdayAttendance',
+            label: context.tr('Avg attendance'),
+            value: _isLoading ? '…' : '$_avgAttendance',
             icon: Icons.trending_up,
             color: AppColors.info,
           ),
@@ -409,17 +364,15 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                           },
                         ),
                       ),
-                    if (_filterServiceType != null)
+                    if (_filterNameQuery != null &&
+                        _filterNameQuery!.trim().isNotEmpty)
                       Padding(
                         padding: EdgeInsets.only(right: AppDimensions.spacingSM),
                         child: Chip(
-                          avatar: Icon(
-                            _serviceIcon(_filterServiceType!),
-                            size: 16,
-                          ),
-                          label: Text(_getServiceTypeLabel(_filterServiceType!)),
+                          avatar: const Icon(Icons.search, size: 16),
+                          label: Text(_filterNameQuery!.trim()),
                           onDeleted: () {
-                            setState(() => _filterServiceType = null);
+                            setState(() => _filterNameQuery = null);
                           },
                         ),
                       ),
@@ -519,11 +472,12 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   }
 
   Widget _buildServiceTile(Map<String, dynamic> service) {
+    final churchServiceId = service['id']?.toString() ?? '';
     final serviceDate = service['service_date'] as String;
-    final serviceType = service['service_type'] as String;
+    final name = _serviceName(service);
     final attendanceCount = service['attendance_count'] as int? ?? 0;
     final weekday = _formatWeekday(serviceDate);
-    final color = _serviceColor(serviceType);
+    const color = AppColors.primary;
 
     return Container(
       margin: EdgeInsets.fromLTRB(
@@ -547,7 +501,9 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _viewServiceDetails(serviceDate, serviceType),
+          onTap: churchServiceId.isEmpty
+              ? null
+              : () => _viewServiceDetails(churchServiceId),
           borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
           child: IntrinsicHeight(
             child: Row(
@@ -575,7 +531,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                             color: color.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Icon(_serviceIcon(serviceType), color: color),
+                          child: const Icon(Icons.church_outlined, color: color),
                         ),
                         SizedBox(width: AppDimensions.spacingMD),
                         Expanded(
@@ -583,7 +539,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _getServiceTypeLabel(serviceType),
+                                name,
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleSmall
@@ -658,10 +614,15 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                         PopupMenuButton<String>(
                           icon: Icon(Icons.more_vert, color: color),
                           onSelected: (action) {
+                            if (churchServiceId.isEmpty) return;
                             if (action == 'view') {
-                              _viewServiceDetails(serviceDate, serviceType);
+                              _viewServiceDetails(churchServiceId);
                             } else if (action == 'delete') {
-                              _confirmDeleteService(serviceDate, serviceType);
+                              _confirmDeleteService(
+                                churchServiceId,
+                                name,
+                                serviceDate,
+                              );
                             }
                           },
                           itemBuilder: (context) => [
@@ -837,19 +798,16 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                           },
                         ),
                       ),
-                    if (_filterServiceType != null)
+                    if (_filterNameQuery != null &&
+                        _filterNameQuery!.trim().isNotEmpty)
                       Padding(
                         padding:
                             EdgeInsets.only(right: AppDimensions.spacingSM),
                         child: Chip(
-                          avatar: Icon(
-                            _serviceIcon(_filterServiceType!),
-                            size: 16,
-                          ),
-                          label:
-                              Text(_getServiceTypeLabel(_filterServiceType!)),
+                          avatar: const Icon(Icons.search, size: 16),
+                          label: Text(_filterNameQuery!.trim()),
                           onDeleted: () {
-                            setState(() => _filterServiceType = null);
+                            setState(() => _filterNameQuery = null);
                           },
                         ),
                       ),
@@ -914,7 +872,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       banner: DesktopHeroBanner(
         title: context.tr('Church Attendance'),
         subtitle:
-            context.tr('Track Sunday and Wednesday service attendance'),
+            context.tr('Track church service attendance'),
         icon: Icons.church_outlined,
         accent: AppColors.primary,
         trailing: Text(
@@ -938,26 +896,8 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           color: AppColors.accent,
         ),
         DesktopStatChip(
-          label: context.tr('Sunday Service'),
-          value: _isLoading ? '…' : '$_sundayCount',
-          icon: Icons.wb_sunny_outlined,
-          color: AppColors.warning,
-        ),
-        DesktopStatChip(
-          label: context.tr('Avg / Sunday'),
-          value: _isLoading ? '…' : '$_avgSundayAttendance',
-          icon: Icons.trending_up,
-          color: AppColors.warning,
-        ),
-        DesktopStatChip(
-          label: context.tr('Wednesday Service'),
-          value: _isLoading ? '…' : '$_wednesdayCount',
-          icon: Icons.nightlight_outlined,
-          color: AppColors.info,
-        ),
-        DesktopStatChip(
-          label: context.tr('Avg / Wednesday'),
-          value: _isLoading ? '…' : '$_avgWednesdayAttendance',
+          label: context.tr('Avg attendance'),
+          value: _isLoading ? '…' : '$_avgAttendance',
           icon: Icons.trending_up,
           color: AppColors.info,
         ),
@@ -986,19 +926,21 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                 DataColumn(label: Text(context.tr('Actions'))),
               ],
               rows: pageItems.map((service) {
+                final churchServiceId = service['id']?.toString() ?? '';
                 final serviceDate = service['service_date'] as String;
-                final serviceType = service['service_type'] as String;
+                final name = _serviceName(service);
                 final attendanceCount =
                     service['attendance_count'] as int? ?? 0;
-                final color = _serviceColor(serviceType);
+                const color = AppColors.primary;
                 final weekday = _formatWeekday(serviceDate);
 
                 return DataRow(
                   cells: [
                     DataCell(
                       InkWell(
-                        onTap: () =>
-                            _viewServiceDetails(serviceDate, serviceType),
+                        onTap: churchServiceId.isEmpty
+                            ? null
+                            : () => _viewServiceDetails(churchServiceId),
                         child: Text(
                           _formatDate(serviceDate),
                           style: const TextStyle(fontWeight: FontWeight.w600),
@@ -1018,11 +960,11 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(_serviceIcon(serviceType), size: 14, color: color),
+                            const Icon(Icons.church_outlined, size: 14, color: color),
                             const SizedBox(width: 4),
                             Text(
-                              _getServiceTypeLabel(serviceType),
-                              style: TextStyle(
+                              name,
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: color,
@@ -1046,18 +988,20 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                           IconButton(
                             icon: const Icon(Icons.visibility_outlined, size: 20),
                             tooltip: context.tr('View'),
-                            onPressed: () => _viewServiceDetails(
-                              serviceDate,
-                              serviceType,
-                            ),
+                            onPressed: churchServiceId.isEmpty
+                                ? null
+                                : () => _viewServiceDetails(churchServiceId),
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 20),
                             tooltip: context.tr('Delete'),
-                            onPressed: () => _confirmDeleteService(
-                              serviceDate,
-                              serviceType,
-                            ),
+                            onPressed: churchServiceId.isEmpty
+                                ? null
+                                : () => _confirmDeleteService(
+                                      churchServiceId,
+                                      name,
+                                      serviceDate,
+                                    ),
                           ),
                         ],
                       ),
@@ -1141,12 +1085,12 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       builder: (context) => _FilterDialog(
         startDate: _filterStartDate,
         endDate: _filterEndDate,
-        serviceType: _filterServiceType,
-        onApply: (startDate, endDate, serviceType) {
+        nameQuery: _filterNameQuery,
+        onApply: (startDate, endDate, nameQuery) {
           setState(() {
             _filterStartDate = startDate;
             _filterEndDate = endDate;
-            _filterServiceType = serviceType;
+            _filterNameQuery = nameQuery;
             _currentPage = 0;
           });
           _loadServices();
@@ -1161,7 +1105,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       builder: (context) => _ReportOptionsDialog(
         startDate: _filterStartDate,
         endDate: _filterEndDate,
-        serviceType: _filterServiceType,
       ),
     );
 
@@ -1180,7 +1123,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
           await AttendanceReportPdfService.generateChurchAttendanceReport(
             startDate: result['startDate'] as DateTime?,
             endDate: result['endDate'] as DateTime?,
-            serviceType: result['serviceType'] as String?,
             localizations: l10n,
           );
 
@@ -1266,12 +1208,10 @@ class _ReportOptionsDialog extends StatefulWidget {
   const _ReportOptionsDialog({
     required this.startDate,
     required this.endDate,
-    required this.serviceType,
   });
 
   final DateTime? startDate;
   final DateTime? endDate;
-  final String? serviceType;
 
   @override
   State<_ReportOptionsDialog> createState() => _ReportOptionsDialogState();
@@ -1280,14 +1220,12 @@ class _ReportOptionsDialog extends StatefulWidget {
 class _ReportOptionsDialogState extends State<_ReportOptionsDialog> {
   late DateTime? _startDate;
   late DateTime? _endDate;
-  late String? _serviceType;
 
   @override
   void initState() {
     super.initState();
     _startDate = widget.startDate;
     _endDate = widget.endDate;
-    _serviceType = widget.serviceType;
   }
 
   Future<void> _selectStartDate() async {
@@ -1357,32 +1295,6 @@ class _ReportOptionsDialogState extends State<_ReportOptionsDialog> {
               ),
               onTap: _selectEndDate,
             ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                context.tr('Service Type'),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            RadioListTile<String?>(
-              title: Text(context.tr('All Services')),
-              value: null,
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
-            ),
-            RadioListTile<String>(
-              title: Text(context.tr('Sunday Service')),
-              value: 'sunday',
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
-            ),
-            RadioListTile<String>(
-              title: Text(context.tr('Wednesday Service')),
-              value: 'wednesday',
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
-            ),
           ],
         ),
       ),
@@ -1396,7 +1308,6 @@ class _ReportOptionsDialogState extends State<_ReportOptionsDialog> {
             Navigator.of(context).pop({
               'startDate': _startDate,
               'endDate': _endDate,
-              'serviceType': _serviceType,
             });
           },
           child: Text(context.tr('Generate')),
@@ -1410,13 +1321,13 @@ class _FilterDialog extends StatefulWidget {
   const _FilterDialog({
     required this.startDate,
     required this.endDate,
-    required this.serviceType,
+    required this.nameQuery,
     required this.onApply,
   });
 
   final DateTime? startDate;
   final DateTime? endDate;
-  final String? serviceType;
+  final String? nameQuery;
   final void Function(DateTime?, DateTime?, String?) onApply;
 
   @override
@@ -1426,14 +1337,20 @@ class _FilterDialog extends StatefulWidget {
 class _FilterDialogState extends State<_FilterDialog> {
   late DateTime? _startDate;
   late DateTime? _endDate;
-  late String? _serviceType;
+  late TextEditingController _nameController;
 
   @override
   void initState() {
     super.initState();
     _startDate = widget.startDate;
     _endDate = widget.endDate;
-    _serviceType = widget.serviceType;
+    _nameController = TextEditingController(text: widget.nameQuery ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   Future<void> _selectStartDate() async {
@@ -1505,29 +1422,15 @@ class _FilterDialogState extends State<_FilterDialog> {
             ),
             const Divider(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                context.tr('Service Type'),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: context.tr('Service name'),
+                  prefixIcon: const Icon(Icons.search),
+                ),
+                textCapitalization: TextCapitalization.words,
               ),
-            ),
-            RadioListTile<String?>(
-              title: Text(context.tr('All Services')),
-              value: null,
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
-            ),
-            RadioListTile<String>(
-              title: Text(context.tr('Sunday Service')),
-              value: 'sunday',
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
-            ),
-            RadioListTile<String>(
-              title: Text(context.tr('Wednesday Service')),
-              value: 'wednesday',
-              groupValue: _serviceType,
-              onChanged: (value) => setState(() => _serviceType = value),
             ),
           ],
         ),
@@ -1539,7 +1442,12 @@ class _FilterDialogState extends State<_FilterDialog> {
         ),
         FilledButton(
           onPressed: () {
-            widget.onApply(_startDate, _endDate, _serviceType);
+            final query = _nameController.text.trim();
+            widget.onApply(
+              _startDate,
+              _endDate,
+              query.isEmpty ? null : query,
+            );
             Navigator.of(context).pop();
           },
           child: Text(context.tr('Apply')),

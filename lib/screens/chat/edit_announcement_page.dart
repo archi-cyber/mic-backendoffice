@@ -184,7 +184,7 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter announcement title';
+                    return context.tr('Please enter announcement title');
                   }
                   return null;
                 },
@@ -203,7 +203,7 @@ class _EditAnnouncementPageState extends State<EditAnnouncementPage> {
                 maxLines: 6,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Please enter announcement message';
+                    return context.tr('Please enter announcement message');
                   }
                   return null;
                 },

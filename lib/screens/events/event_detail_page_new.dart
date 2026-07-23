@@ -51,7 +51,9 @@ class _EventDetailPageState extends State<EventDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Event')),
         content: Text(
-          'Are you sure you want to delete this event? This will deactivate it.',
+          context.tr(
+            'Are you sure you want to delete this event? This will deactivate it.',
+          ),
         ),
         actions: [
           TextButton(
@@ -114,7 +116,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
       length: tabCount,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_event!['title'] ?? 'Event'),
+          title: Text(_event!['title'] ?? context.tr('Event')),
           actions: [
             IconButton(
               icon: Icon(Icons.edit),
@@ -145,10 +147,10 @@ class _EventDetailPageState extends State<EventDetailPage> {
           ],
           bottom: TabBar(
             tabs: [
-              Tab(text: 'Overview'),
-              if (isRepeated) Tab(text: 'Sessions'),
-              Tab(text: 'Registrations'),
-              Tab(text: 'Attendance'),
+              Tab(text: context.tr('Overview')),
+              if (isRepeated) Tab(text: context.tr('Sessions')),
+              Tab(text: context.tr('Registrations')),
+              Tab(text: context.tr('Attendance')),
             ],
           ),
         ),
@@ -214,7 +216,7 @@ class _OverviewTab extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    event['title'] ?? 'Event',
+                    event['title'] ?? context.tr('Event'),
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
@@ -266,7 +268,7 @@ class _OverviewTab extends StatelessWidget {
                         Icon(Icons.repeat, size: 20, color: AppColors.primary),
                         SizedBox(width: AppDimensions.spacingSM),
                         Text(
-                          'Repeated Event',
+                          context.tr('Repeated Event'),
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(
                                 color: AppColors.primary,
@@ -283,7 +285,7 @@ class _OverviewTab extends StatelessWidget {
           SizedBox(height: AppDimensions.spacingMD),
           // Description
           if (event['description'] != null) ...[
-            Text('Description', style: Theme.of(context).textTheme.titleLarge),
+            Text(context.tr('Description'), style: Theme.of(context).textTheme.titleLarge),
             SizedBox(height: AppDimensions.spacingSM),
             Text(
               event['description'],
@@ -409,7 +411,7 @@ class _SessionsTabState extends State<_SessionsTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Event Sessions',
+                context.tr('Event Sessions'),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               ElevatedButton.icon(
@@ -467,7 +469,9 @@ class _SessionsTabState extends State<_SessionsTab> {
                           title: Text(
                             sessionDate != null
                                 ? _formatDate(sessionDate)
-                                : 'Session ${index + 1}',
+                                : context.tr('Session {number}', {
+                                    'number': index + 1,
+                                  }),
                           ),
                           trailing: IconButton(
                             icon: Icon(Icons.delete, color: AppColors.error),
@@ -477,7 +481,9 @@ class _SessionsTabState extends State<_SessionsTab> {
                                 builder: (context) => AlertDialog(
                                   title: Text(context.tr('Delete Session')),
                                   content: Text(
-                                    'Are you sure you want to delete this session?',
+                                    context.tr(
+                                      'Are you sure you want to delete this session?',
+                                    ),
                                   ),
                                   actions: [
                                     TextButton(
@@ -511,7 +517,10 @@ class _SessionsTabState extends State<_SessionsTab> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          'Error deleting session: $e',
+                                          context.tr(
+                                            'Error deleting session: {error}',
+                                            {'error': '$e'},
+                                          ),
                                         ),
                                         backgroundColor: AppColors.error,
                                       ),
@@ -626,8 +635,8 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
           SnackBar(
             content: Text(
               _isRegistered
-                  ? 'Successfully registered for event'
-                  : 'Successfully unregistered from event',
+                  ? context.tr('Successfully registered for event')
+                  : context.tr('Successfully unregistered from event'),
             ),
             backgroundColor: AppColors.success,
           ),
@@ -668,7 +677,11 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Icon(_isRegistered ? Icons.cancel : Icons.check),
-              label: Text(_isRegistered ? 'Unregister' : 'Register for Event'),
+              label: Text(
+                _isRegistered
+                    ? context.tr('Unregister')
+                    : context.tr('Register for Event'),
+              ),
               style: ElevatedButton.styleFrom(
                 minimumSize: Size(
                   double.infinity,
@@ -763,8 +776,8 @@ class _AttendanceTab extends StatelessWidget {
           SizedBox(height: AppDimensions.spacingMD),
           Text(
             isRepeated
-                ? 'Attendance is tracked per session'
-                : 'Attendance tracking coming soon',
+                ? context.tr('Attendance is tracked per session')
+                : context.tr('Attendance tracking coming soon'),
             style: Theme.of(context).textTheme.bodyLarge,
           ),
         ],

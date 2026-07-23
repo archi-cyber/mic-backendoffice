@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import '../core/localization/app_localizations.dart';
 import 'church_attendance_service.dart';
+import 'church_service_service.dart';
 import 'church_attendance_report_builder.dart';
 import 'member_service.dart';
 import 'visitor_service.dart';
@@ -19,7 +20,7 @@ class AttendanceReportPdfService {
   static Future<String?> generateChurchAttendanceReport({
     DateTime? startDate,
     DateTime? endDate,
-    String? serviceType,
+    String? churchServiceId,
     required AppLocalizations localizations,
   }) async {
     try {
@@ -40,11 +41,11 @@ class AttendanceReportPdfService {
         limit: 1000,
       );
 
-      // Filter by service type if specified
+      // Filter by church service if specified
       List<Map<String, dynamic>> filteredServices = services;
-      if (serviceType != null) {
+      if (churchServiceId != null) {
         filteredServices = services
-            .where((s) => s['service_type'] == serviceType)
+            .where((s) => s['id']?.toString() == churchServiceId)
             .toList();
       }
 
@@ -52,12 +53,18 @@ class AttendanceReportPdfService {
         throw Exception('No attendance records found for the selected period');
       }
 
+      String? filterServiceName;
+      if (churchServiceId != null) {
+        filterServiceName =
+            filteredServices.first['name']?.toString() ?? 'Church service';
+      }
+
       // Get detailed attendance and visitors for each service
       final visitorsByDate = <String, List<Map<String, dynamic>>>{};
       final List<Map<String, dynamic>> detailedServices = [];
       for (final service in filteredServices) {
+        final id = service['id']?.toString() ?? '';
         final serviceDate = DateTime.parse(service['service_date'] as String);
-        final serviceType = service['service_type'] as String;
         final dateKey = service['service_date'] as String;
 
         if (!visitorsByDate.containsKey(dateKey)) {
@@ -76,15 +83,14 @@ class AttendanceReportPdfService {
 
         final visitorsForService = visitorsByDate[dateKey]!
             .where((visitor) {
-              final st = visitor['service_type']?.toString();
-              if (st == null || st.isEmpty) return true;
-              return st == serviceType;
+              final csId = visitor['church_service_id']?.toString();
+              if (csId == null || csId.isEmpty) return true;
+              return csId == id;
             })
             .toList();
 
         final attendance = await ChurchAttendanceService.getServiceAttendance(
-          serviceDate: serviceDate,
-          serviceType: serviceType,
+          churchServiceId: id,
         );
         detailedServices.add({
           ...service,
@@ -104,7 +110,7 @@ class AttendanceReportPdfService {
               localizations,
               startDate,
               endDate,
-              serviceType,
+              filterServiceName,
             ),
             pw.SizedBox(height: 12),
             ...ChurchAttendanceReportBuilder.buildMonthlySections(
@@ -184,13 +190,23 @@ class AttendanceReportPdfService {
   /// Generate a single-service PDF containing members/visitors marked absent,
   /// along with their contact info (phone, email) and WhatsApp deep-link.
   static Future<String?> generateChurchAttendanceAbsentPeopleReport({
-    required DateTime serviceDate,
-    required String serviceType, // 'sunday' or 'wednesday'
+    required String churchServiceId,
     required AppLocalizations localizations,
   }) async {
     try {
       final localeTag = localizations.locale.toString();
       final df = DateFormat.yMMMd(localeTag);
+
+      final service = await ChurchServiceService.getById(churchServiceId);
+      if (service == null) {
+        throw Exception('Church service not found');
+      }
+      final serviceDateRaw = service['service_date']?.toString();
+      if (serviceDateRaw == null || serviceDateRaw.isEmpty) {
+        throw Exception('Church service has no date');
+      }
+      final serviceDate = DateTime.parse(serviceDateRaw.split('T').first);
+      final serviceName = service['name']?.toString() ?? 'Church service';
 
       final allActiveMembers = await MemberService.getMembers(
         filters: {'is_active': true},
@@ -199,8 +215,7 @@ class AttendanceReportPdfService {
       );
 
       final attendance = await ChurchAttendanceService.getServiceAttendance(
-        serviceDate: serviceDate,
-        serviceType: serviceType,
+        churchServiceId: churchServiceId,
       );
 
       // "Absent" list = active members that are not onsite/online for this service.
@@ -226,12 +241,12 @@ class AttendanceReportPdfService {
       );
 
       // Match the UI logic:
-      // - visitor.service_type is null/empty => match any service type
-      // - otherwise it must equal the selected serviceType
+      // - visitor.church_service_id is null/empty => match any service on that date
+      // - otherwise it must equal the selected church service
       final visitorsForService = visitors.where((v) {
-        final st = v['service_type']?.toString();
-        if (st == null || st.isEmpty) return true;
-        return st == serviceType;
+        final csId = v['church_service_id']?.toString();
+        if (csId == null || csId.isEmpty) return true;
+        return csId == churchServiceId;
       }).toList();
 
       // "Absent" visitors = visitors logged for this service that are not onsite/online.
@@ -255,20 +270,7 @@ class AttendanceReportPdfService {
         return name.isEmpty ? row['id']?.toString() ?? '-' : name;
       }
 
-      // Local helper for language-specific label without adding new localization keys.
-      String contextLabel(AppLocalizations l10n, String en, String other) {
-        final code = l10n.locale.languageCode;
-        if (code == 'fr' || code == 'es') return other; // best-effort
-        return en;
-      }
-
-      final serviceLabel = serviceType == 'sunday'
-          ? contextLabel(localizations, 'Sunday service', 'Service dominical')
-          : contextLabel(
-              localizations,
-              'Wednesday service',
-              'Service du mercredi',
-            );
+      final serviceLabel = serviceName;
 
       pw.Widget cell(String t, {pw.TextStyle? style, pw.Alignment align = pw.Alignment.centerLeft}) {
         return pw.Padding(
@@ -358,7 +360,10 @@ class AttendanceReportPdfService {
         ),
       );
 
-      return await _savePdf(pdf, 'church_attendance_absent_people_${serviceDate.toIso8601String().split('T').first}_${serviceType}');
+      return await _savePdf(
+        pdf,
+        'church_attendance_absent_people_${serviceDate.toIso8601String().split('T').first}_$churchServiceId',
+      );
     } catch (e) {
       debugPrint(
         '[AttendanceReportPdfService] Error generating absent people PDF: $e',
@@ -371,7 +376,7 @@ class AttendanceReportPdfService {
     AppLocalizations l10n,
     DateTime? startDate,
     DateTime? endDate,
-    String? serviceType,
+    String? serviceName,
   ) {
     final localeTag = l10n.locale.toString();
     final df = DateFormat.yMMMd(localeTag);
@@ -395,10 +400,10 @@ class AttendanceReportPdfService {
             style: const pw.TextStyle(fontSize: 10),
           ),
         ],
-        if (serviceType != null) ...[
+        if (serviceName != null) ...[
           pw.SizedBox(height: 5),
           pw.Text(
-            '${l10n.churchAttendanceReportPdfServiceFilter}: ${serviceType == 'sunday' ? l10n.churchAttendanceReportPdfSundayService : l10n.churchAttendanceReportPdfWednesdayService}',
+            '${l10n.churchAttendanceReportPdfServiceFilter}: $serviceName',
             style: const pw.TextStyle(fontSize: 10),
           ),
         ],

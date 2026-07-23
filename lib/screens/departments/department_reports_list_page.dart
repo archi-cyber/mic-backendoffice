@@ -134,7 +134,11 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${_department?['name'] ?? 'Department'} Reports'),
+        title: Text(
+          context.tr('{name} Reports', {
+            'name': _department?['name']?.toString() ?? context.tr('Department'),
+          }),
+        ),
         actions: [
           if (_reports.isNotEmpty)
             IconButton(
@@ -185,7 +189,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                         Text(context.tr('No reports yet')),
                         SizedBox(height: AppDimensions.spacingXS),
                         Text(
-                          'Create your first report to get started',
+                          context.tr('Create your first report to get started'),
                           style: TextStyle(color: context.mic.textSecondary),
                         ),
                       ],
@@ -208,7 +212,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                               color: AppColors.primary,
                             ),
                             title: Text(
-                              report['title'] ?? 'Untitled Report',
+                              report['title'] ?? context.tr('Untitled Report'),
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             subtitle: Column(
@@ -293,7 +297,7 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
                                       ).showSnackBar(
                                         SnackBar(
                                           content: Text(
-                                            'PDF generated successfully',
+                                            context.tr('PDF generated successfully'),
                                           ),
                                           backgroundColor: AppColors.success,
                                         ),
@@ -352,7 +356,11 @@ class _DepartmentReportsListPageState extends State<DepartmentReportsListPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Report')),
-        content: Text('Are you sure you want to delete "${report['title']}"?'),
+        content: Text(
+          context.tr('Are you sure you want to delete "{title}"?', {
+            'title': report['title'],
+          }),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

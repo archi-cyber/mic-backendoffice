@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 /// In a separate file to avoid circular imports (dashboard_page -> desktop_shell -> desktop_home_page -> dashboard_page).
 class DesktopShellScope extends InheritedWidget {
   final void Function(String route) pushList;
-  final void Function(String route, String id) pushDetail;
+  final void Function(String route, String id, {Map<String, dynamic>? arguments})
+      pushDetail;
   final void Function() pop;
   final bool canPop;
 

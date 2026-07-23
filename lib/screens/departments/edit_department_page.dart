@@ -395,7 +395,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Department name is required';
+                      return context.tr('Department name is required');
                     }
                     return null;
                   },
@@ -507,7 +507,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Department name is required';
+                          return context.tr('Department name is required');
                         }
                         return null;
                       },
@@ -639,7 +639,7 @@ class _EditDepartmentPageState extends State<EditDepartmentPage> {
                           );
                         }
                       },
-                      child: Text('View', style: TextStyle(fontSize: 12)),
+                      child: Text(context.tr('View'), style: TextStyle(fontSize: 12)),
                     ),
                 ],
               ),

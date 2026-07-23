@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../services/member_service.dart';
 import '../../services/department_service.dart';
@@ -82,6 +84,11 @@ class _TasksListPageState extends State<TasksListPage> {
   double _timelineZoom = 1.0;
   int? _taskTableSortColumnIndex;
   bool _taskTableSortAscending = true;
+  /// Project currently showing an inline new-task draft row (`''` = No project).
+  String? _draftingProjectKey;
+  bool _isSavingDraftTask = false;
+  final _draftTitleController = TextEditingController();
+  final _draftTitleFocusNode = FocusNode();
 
   static const Map<String, int> _taskStatusSortOrder = {
     'pending': 0,
@@ -93,7 +100,7 @@ class _TasksListPageState extends State<TasksListPage> {
   @override
   void initState() {
     super.initState();
-    _taskTableColumnWidths = [300, 140, 200, 150, 160, 240, 56];
+    _taskTableColumnWidths = [300, 140, 200, 150, 160, 260, 128];
     _timelineHeaderScrollController.addListener(_syncTimelineBodyToHeader);
     _timelineBodyScrollController.addListener(_syncTimelineHeaderToBody);
     _timelineLabelsVerticalScrollController.addListener(
@@ -128,6 +135,8 @@ class _TasksListPageState extends State<TasksListPage> {
     _timelineBodyVerticalScrollController.dispose();
     _timelineLabelsVerticalScrollController.dispose();
     _searchController.dispose();
+    _draftTitleController.dispose();
+    _draftTitleFocusNode.dispose();
     super.dispose();
   }
 
@@ -182,12 +191,10 @@ class _TasksListPageState extends State<TasksListPage> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              context.tr('Error loading tasks: {error}', {'error': e}),
-            ),
-          ),
+        ErrorMessageHelper.showErrorSnackBar(
+          context,
+          e,
+          title: context.tr('Error loading tasks'),
         );
       }
     }
@@ -271,13 +278,10 @@ class _TasksListPageState extends State<TasksListPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Error sending reminders: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Error sending reminders'),
       );
     }
   }
@@ -403,13 +407,10 @@ class _TasksListPageState extends State<TasksListPage> {
       _loadDesktopMeta();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Error recording payment: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Error recording payment'),
       );
     }
   }
@@ -717,7 +718,7 @@ class _TasksListPageState extends State<TasksListPage> {
                           .trim();
                       return DropdownMenuItem(
                         value: id,
-                        child: Text(name.isEmpty ? '—' : name),
+                        child: Text(name.isEmpty ? context.tr('—') : name),
                       );
                     }),
                   ],
@@ -739,8 +740,11 @@ class _TasksListPageState extends State<TasksListPage> {
                     ),
                     ..._filterProjectOptions.map((p) {
                       final id = p['id']?.toString();
-                      final title = p['title']?.toString() ?? '—';
-                      return DropdownMenuItem(value: id, child: Text(title));
+                      final title = p['title']?.toString();
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text(title ?? context.tr('—')),
+                      );
                     }),
                   ],
                   onChanged: (value) {
@@ -761,8 +765,11 @@ class _TasksListPageState extends State<TasksListPage> {
                     ),
                     ..._filterTagOptions.map((t) {
                       final id = t['id']?.toString();
-                      final name = t['name']?.toString() ?? '—';
-                      return DropdownMenuItem(value: id, child: Text(name));
+                      final name = t['name']?.toString();
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Text(name ?? context.tr('—')),
+                      );
                     }),
                   ],
                   onChanged: (value) {
@@ -1058,6 +1065,11 @@ class _TasksListPageState extends State<TasksListPage> {
                   if (view.$1 == 'projects' || view.$1 == 'all') {
                     _selectedProjectId = null;
                   }
+                  if (view.$1 != 'projects') {
+                    _draftingProjectKey = null;
+                    _draftTitleController.clear();
+                    _isSavingDraftTask = false;
+                  }
                 }),
                 selectedColor: AppColors.primary,
                 visualDensity: VisualDensity.compact,
@@ -1189,12 +1201,338 @@ class _TasksListPageState extends State<TasksListPage> {
         padding: EdgeInsets.all(AppDimensions.paddingMD),
         children: [
           for (var i = 0; i < groups.length; i++) ...[
-            _buildProjectSectionHeader(theme, groups[i]),
-            _buildTasksTableContent(theme, groups[i].tasks),
+            _buildProjectDropSection(theme, groups[i]),
             if (i < groups.length - 1)
               SizedBox(height: AppDimensions.spacingXL),
           ],
         ],
+      ),
+    );
+  }
+
+  String _projectGroupKey(_TaskProjectGroup group) =>
+      group.projectId ?? '__no_project__';
+
+  Widget _buildProjectDropSection(ThemeData theme, _TaskProjectGroup group) {
+    final groupKey = _projectGroupKey(group);
+    final isDrafting = _draftingProjectKey == groupKey;
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) {
+        Map<String, dynamic>? task;
+        for (final t in _tasks) {
+          if (t['id']?.toString() == details.data) {
+            task = t;
+            break;
+          }
+        }
+        if (task == null) return false;
+        return _taskProjectId(task) != group.projectId;
+      },
+      onAcceptWithDetails: (details) {
+        unawaited(_moveTaskToProject(details.data, group.projectId));
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovering = candidateData.isNotEmpty;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+            border: isHovering
+                ? Border.all(color: AppColors.primary, width: 2)
+                : Border.all(color: Colors.transparent, width: 2),
+            color: isHovering
+                ? AppColors.primary.withValues(alpha: 0.04)
+                : null,
+          ),
+          padding: const EdgeInsets.all(2),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildProjectSectionHeader(theme, group),
+              _buildTasksTableContent(
+                theme,
+                group.tasks,
+                enableDrag: true,
+              ),
+              if (isDrafting) _buildInlineDraftTaskRow(theme, group),
+              if (_canCreate) ...[
+                SizedBox(height: AppDimensions.spacingSM),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _isSavingDraftTask
+                        ? null
+                        : () => _startInlineDraft(groupKey),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(context.tr('Add task')),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _startInlineDraft(String projectKey) {
+    setState(() {
+      _draftingProjectKey = projectKey;
+      _draftTitleController.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _draftTitleFocusNode.requestFocus();
+    });
+  }
+
+  void _cancelInlineDraft() {
+    setState(() {
+      _draftingProjectKey = null;
+      _draftTitleController.clear();
+      _isSavingDraftTask = false;
+    });
+  }
+
+  Future<void> _saveInlineDraftTask(_TaskProjectGroup group) async {
+    final title = _draftTitleController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Task title is required'))),
+      );
+      return;
+    }
+    if (_isSavingDraftTask) return;
+
+    setState(() => _isSavingDraftTask = true);
+    try {
+      var departmentId = widget.departmentId;
+      if (departmentId == null && group.projectId != null) {
+        for (final project in _projects) {
+          if (project['id']?.toString() == group.projectId) {
+            departmentId = project['department_id']?.toString();
+            break;
+          }
+        }
+      }
+
+      await TaskService.createTask(
+        departmentId: departmentId,
+        taskData: {
+          'title': title,
+          'status': 'pending',
+          'priority': 'medium',
+          if (group.projectId != null) 'project_id': group.projectId,
+        },
+      );
+      if (!mounted) return;
+      _cancelInlineDraft();
+      await _loadTasks();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSavingDraftTask = false);
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not create task'),
+      );
+    }
+  }
+
+  Future<void> _moveTaskToProject(String taskId, String? projectId) async {
+    final taskIndex = _tasks.indexWhere((t) => t['id']?.toString() == taskId);
+    if (taskIndex < 0) return;
+
+    final task = _tasks[taskIndex];
+    if (_taskProjectId(task) == projectId) return;
+
+    final previousProjectId = task['project_id'];
+    final previousProjects = task['projects'];
+
+    setState(() {
+      task['project_id'] = projectId;
+      if (projectId == null) {
+        task['projects'] = null;
+      } else {
+        Map<String, dynamic>? project;
+        for (final p in _projects) {
+          if (p['id']?.toString() == projectId) {
+            project = p;
+            break;
+          }
+        }
+        if (project != null) {
+          task['projects'] = {
+            'id': project['id'],
+            'title': project['title'],
+          };
+        }
+      }
+    });
+
+    try {
+      await TaskService.updateTask(
+        taskId: taskId,
+        updates: {'project_id': projectId},
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        task['project_id'] = previousProjectId;
+        task['projects'] = previousProjects;
+      });
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not move task'),
+      );
+    }
+  }
+
+  Widget _buildInlineDraftTaskRow(ThemeData theme, _TaskProjectGroup group) {
+    final borderColor = _taskTableBorderColor(theme);
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SizedBox(
+        width: _taskTableTotalWidth,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[0],
+                borderColor: borderColor,
+                showLeftBorder: true,
+                child: TextField(
+                  controller: _draftTitleController,
+                  focusNode: _draftTitleFocusNode,
+                  enabled: !_isSavingDraftTask,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: context.tr('Task title'),
+                    hintStyle: theme.textTheme.titleSmall?.copyWith(
+                      color: context.mic.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _saveInlineDraftTask(group),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[1],
+                borderColor: borderColor,
+                child: Text(
+                  context.l10n.statusLabel('pending'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[2],
+                borderColor: borderColor,
+                child: Text(
+                  context.tr('—'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[3],
+                borderColor: borderColor,
+                child: Text(
+                  context.tr('—'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[4],
+                borderColor: borderColor,
+                child: Text(
+                  context.tr('—'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[5],
+                borderColor: borderColor,
+                child: Text(
+                  context.tr('—'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ),
+              _buildTasksTableGridCell(
+                theme: theme,
+                width: _taskTableColumnWidths[6],
+                borderColor: borderColor,
+                showRightBorder: true,
+                alignment: Alignment.center,
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppDimensions.paddingSM,
+                  vertical: AppDimensions.spacingSM,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSavingDraftTask)
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      )
+                    else ...[
+                      IconButton(
+                        tooltip: context.tr('Save'),
+                        iconSize: 24,
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        onPressed: () => _saveInlineDraftTask(group),
+                        icon: Icon(
+                          Icons.check_circle,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: context.tr('Cancel'),
+                        iconSize: 24,
+                        constraints: const BoxConstraints(
+                          minWidth: 44,
+                          minHeight: 44,
+                        ),
+                        onPressed: _cancelInlineDraft,
+                        icon: Icon(
+                          Icons.cancel_outlined,
+                          color: context.mic.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1278,7 +1616,6 @@ class _TasksListPageState extends State<TasksListPage> {
       if (id == null) continue;
       final projectTasks =
           tasks.where((task) => _taskProjectId(task) == id).toList();
-      if (projectTasks.isEmpty) continue;
 
       final endDateStr = project['end_date']?.toString();
       String endDateText = '—';
@@ -1289,6 +1626,7 @@ class _TasksListPageState extends State<TasksListPage> {
 
       groups.add(
         _TaskProjectGroup(
+          projectId: id,
           title:
               project['title']?.toString() ?? context.tr('Untitled project'),
           endDateText: endDateText,
@@ -1308,6 +1646,7 @@ class _TasksListPageState extends State<TasksListPage> {
     if (noProjectTasks.isNotEmpty) {
       groups.add(
         _TaskProjectGroup(
+          projectId: null,
           title: context.tr('No project'),
           tasks: noProjectTasks,
         ),
@@ -2885,13 +3224,10 @@ class _TasksListPageState extends State<TasksListPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => task['status'] = previousStatus);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Could not update task status: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not update task status'),
       );
     }
   }
@@ -2918,13 +3254,10 @@ class _TasksListPageState extends State<TasksListPage> {
       if (!mounted) return;
       revertLocal?.call();
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Could not update task: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not update task'),
       );
     }
   }
@@ -2967,13 +3300,10 @@ class _TasksListPageState extends State<TasksListPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => task['status'] = previousStatus);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Could not update task status: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not update task status'),
       );
     }
   }
@@ -3016,13 +3346,10 @@ class _TasksListPageState extends State<TasksListPage> {
       await _loadTasks();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Could not update assignment: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not update assignment'),
       );
     }
   }
@@ -3052,21 +3379,19 @@ class _TasksListPageState extends State<TasksListPage> {
       await _loadTasks();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr('Could not update tags: {error}', {'error': e}),
-          ),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Could not update tags'),
       );
     }
   }
 
   Future<String?> _createTagForTaskDepartment(
     Map<String, dynamic> task,
-    String name,
-  ) async {
+    String name, {
+    String? color,
+  }) async {
     final deptId =
         task['department_id']?.toString() ?? widget.departmentId;
     if (deptId == null) {
@@ -3097,7 +3422,7 @@ class _TasksListPageState extends State<TasksListPage> {
     final created = await TagService.createTag(
       name: trimmed,
       departmentId: deptId,
-      color: TagColors.defaultHex,
+      color: color ?? TagColors.defaultHex,
     );
     if (widget.departmentId == deptId) {
       setState(() => _tags = [..._tags, created]);
@@ -3214,11 +3539,10 @@ class _TasksListPageState extends State<TasksListPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(context.tr('Error loading members: $e')),
-          backgroundColor: AppColors.error,
-        ),
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        e,
+        title: context.tr('Error loading members'),
       );
     }
   }
@@ -3264,7 +3588,7 @@ class _TasksListPageState extends State<TasksListPage> {
     final currentTagId = firstTag?['id']?.toString();
 
     if (!mounted || !anchorContext.mounted) return;
-    final selected = await showTaskTableAnchoredPopup<String>(
+    final selected = await showTaskTableAnchoredPopup<TaskTagPickerResult>(
       anchorContext: anchorContext,
       child: TaskTagPickerPanel(
         tags: tags,
@@ -3273,9 +3597,12 @@ class _TasksListPageState extends State<TasksListPage> {
     );
 
     if (selected == null) return;
-    if (selected.startsWith('create:')) {
-      final name = selected.substring('create:'.length);
-      final tagId = await _createTagForTaskDepartment(task, name);
+    if (selected.isCreate) {
+      final tagId = await _createTagForTaskDepartment(
+        task,
+        selected.name ?? '',
+        color: selected.color,
+      );
       if (tagId != null) {
         await _updateTaskTagInline(task, tagId);
       }
@@ -3283,7 +3610,9 @@ class _TasksListPageState extends State<TasksListPage> {
     }
     await _updateTaskTagInline(
       task,
-      selected.isEmpty ? null : selected,
+      (selected.tagId == null || selected.tagId!.isEmpty)
+          ? null
+          : selected.tagId,
     );
   }
 
@@ -3768,8 +4097,9 @@ class _TasksListPageState extends State<TasksListPage> {
 
   Widget _buildTasksTableContent(
     ThemeData theme,
-    List<Map<String, dynamic>> tasks,
-  ) {
+    List<Map<String, dynamic>> tasks, {
+    bool enableDrag = false,
+  }) {
     final borderColor = _taskTableBorderColor(theme);
     final displayTasks = _sortedTasksForTable(tasks);
 
@@ -3781,9 +4111,44 @@ class _TasksListPageState extends State<TasksListPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTasksTableHeaderRow(theme, borderColor),
-            ...displayTasks.map(
-              (task) => _buildTasksTableDataRow(theme, task, borderColor),
-            ),
+            ...displayTasks.map((task) {
+              final row = _buildTasksTableDataRow(theme, task, borderColor);
+              if (!enableDrag) return row;
+              final taskId = task['id']?.toString() ?? '';
+              if (taskId.isEmpty) return row;
+              final title = task['title']?.toString().trim();
+              return Draggable<String>(
+                data: taskId,
+                feedback: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.primary),
+                    ),
+                    child: Text(
+                      (title == null || title.isEmpty)
+                          ? context.tr('Untitled task')
+                          : title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                childWhenDragging: Opacity(opacity: 0.35, child: row),
+                child: row,
+              );
+            }),
           ],
         ),
       ),
@@ -3880,6 +4245,8 @@ class _TasksListPageState extends State<TasksListPage> {
 
     final description = task['description']?.toString().trim() ?? '';
     final canEdit = taskId.isNotEmpty;
+    final createdAt = _taskCreatedDate(task);
+    final createdText = createdAt != null ? _formatDate(createdAt) : null;
 
     return IntrinsicHeight(
       child: Row(
@@ -3963,7 +4330,7 @@ class _TasksListPageState extends State<TasksListPage> {
                     : null,
                 child: tagName == null || tagName.isEmpty
                     ? Text(
-                        '—',
+                        context.tr('—'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: context.mic.textSecondary,
                           fontWeight: FontWeight.w800,
@@ -3977,16 +4344,35 @@ class _TasksListPageState extends State<TasksListPage> {
             theme: theme,
             width: _taskTableColumnWidths[5],
             borderColor: borderColor,
-            child: TaskTableInlineTextCell(
-              text: description,
-              hint: '—',
-              maxLines: 2,
-              enabled: canEdit,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.mic.textSecondary,
-                fontWeight: FontWeight.w700,
-              ),
-              onCommit: (value) => _updateTaskDescriptionInline(task, value),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TaskTableInlineTextCell(
+                  text: description,
+                  hint: context.tr('—'),
+                  maxLines: 2,
+                  enabled: canEdit,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.mic.textSecondary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  onCommit: (value) =>
+                      _updateTaskDescriptionInline(task, value),
+                ),
+                if (createdText != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    context.tr('Created {date}', {'date': createdText}),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: context.mic.textSecondary.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           _buildTasksTableGridCell(
@@ -4025,14 +4411,17 @@ class _TasksListPageState extends State<TasksListPage> {
     int? columnIndex,
     VoidCallback? onTap,
     Alignment alignment = Alignment.centerLeft,
+    EdgeInsetsGeometry? padding,
   }) {
     final cell = Container(
       width: width,
       constraints: BoxConstraints(minHeight: isHeader ? 44 : 52),
-      padding: EdgeInsets.symmetric(
-        horizontal: AppDimensions.paddingMD,
-        vertical: AppDimensions.spacingSM,
-      ),
+      padding:
+          padding ??
+          EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+            vertical: AppDimensions.spacingSM,
+          ),
       decoration: BoxDecoration(
         color: isHeader ? null : theme.colorScheme.surface,
         border: Border(
@@ -4261,9 +4650,11 @@ class _TaskProjectGroup {
   _TaskProjectGroup({
     required this.title,
     required this.tasks,
+    this.projectId,
     this.endDateText,
   });
 
+  final String? projectId;
   final String title;
   final String? endDateText;
   final List<Map<String, dynamic>> tasks;

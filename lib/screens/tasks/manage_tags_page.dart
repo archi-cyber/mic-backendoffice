@@ -6,6 +6,7 @@ import '../../core/constants/tag_colors.dart';
 import '../../services/tag_service.dart';
 import '../../services/department_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../widgets/tag_color_picker.dart';
 
 /// Manage tags page (tags are per department). Pass [departmentId] or select one.
 class ManageTagsPage extends StatefulWidget {
@@ -93,7 +94,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: Text(tag == null ? 'Create tag' : 'Edit tag'),
+            title: Text(tag == null ? context.tr('Create tag') : context.tr('Edit tag')),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -109,38 +110,15 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                     textCapitalization: TextCapitalization.none,
                   ),
                   SizedBox(height: 16),
-                  Text('Color', style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    context.tr('Color'),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: TagColors.presetHex.map((hex) {
-                      final isSelected = selectedColor == hex;
-                      return GestureDetector(
-                        onTap: () => setDialogState(() => selectedColor = hex),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: TagColors.colorFromHex(hex),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.transparent,
-                              width: 3,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black26,
-                                blurRadius: 2,
-                                offset: Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  TagColorPicker(
+                    selectedHex: selectedColor,
+                    onChanged: (hex) =>
+                        setDialogState(() => selectedColor = hex),
                   ),
                 ],
               ),
@@ -158,7 +136,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                     'color': selectedColor,
                   });
                 },
-                child: Text(tag == null ? 'Create' : 'Update'),
+                child: Text(tag == null ? context.tr('Create') : context.tr('Update')),
               ),
             ],
           );
@@ -245,7 +223,10 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete tag?')),
         content: Text(
-          'Remove tag "${tag['name']}"? Tasks will no longer have this tag.',
+          context.tr(
+            'Remove tag "{name}"? Tasks will no longer have this tag.',
+            {'name': tag['name']?.toString() ?? ''},
+          ),
         ),
         actions: [
           TextButton(
@@ -383,7 +364,7 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                       ),
                       SizedBox(height: AppDimensions.spacingMD),
                       Text(
-                        'No tags in this department',
+                        context.tr('No tags in this department'),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       SizedBox(height: AppDimensions.spacingSM),
@@ -493,8 +474,8 @@ class _ManageTagsPageState extends State<ManageTagsPage> {
                         child: Center(
                           child: Text(
                             _selectedDepartmentId == null
-                                ? 'Select a department'
-                                : 'Select a tag',
+                                ? context.tr('Select a department')
+                                : context.tr('Select a tag'),
                           ),
                         ),
                       )
@@ -560,7 +541,7 @@ class _TagsListPanel extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        'Tags',
+                        context.tr('Tags'),
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
@@ -622,7 +603,7 @@ class _TagsListPanel extends StatelessWidget {
                           ),
                           SizedBox(height: AppDimensions.spacingMD),
                           Text(
-                            'No tags yet',
+                            context.tr('No tags yet'),
                             style: theme.textTheme.titleMedium,
                           ),
                           SizedBox(height: AppDimensions.spacingSM),
@@ -721,7 +702,7 @@ class _TagDetailsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = TagColors.colorFromHex(tag['color']?.toString());
-    final name = tag['name']?.toString() ?? 'Tag';
+    final name = tag['name']?.toString() ?? context.tr('Tag');
 
     return Material(
       color: theme.colorScheme.surface,
@@ -765,7 +746,7 @@ class _TagDetailsPanel extends StatelessWidget {
                       ),
                       SizedBox(height: AppDimensions.spacingXS),
                       Text(
-                        tag['color']?.toString() ?? 'Default color',
+                        tag['color']?.toString() ?? context.tr('Default color'),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: context.mic.textSecondary,
                         ),
@@ -790,7 +771,9 @@ class _TagDetailsPanel extends StatelessWidget {
                 border: Border.all(color: color.withValues(alpha: 0.35)),
               ),
               child: Text(
-                'Use this tag to classify tasks inside the selected department.',
+                context.tr(
+                  'Use this tag to classify tasks inside the selected department.',
+                ),
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.45),
               ),
             ),

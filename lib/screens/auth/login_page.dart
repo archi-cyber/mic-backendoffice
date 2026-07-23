@@ -5,6 +5,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
+import '../../core/utils/phone_number_utils.dart';
 import '../../core/routes/route_names.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_logo.dart';
@@ -38,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final success = await authProvider.login(
-      _emailController.text.trim(),
+      PhoneNumberUtils.normalizeLoginIdentifier(_emailController.text.trim()),
       _passwordController.text,
     );
 

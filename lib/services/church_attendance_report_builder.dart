@@ -13,29 +13,28 @@ import '../utils/member_utils.dart';
 const double kDiligenceDiligentMin = 0.8;
 const double kDiligenceModerateMin = 0.5;
 
-/// One service slot in a month (date + sunday|wednesday).
+/// One church service slot in a month (date + church_service_id + name).
 class _ServiceSlot {
   _ServiceSlot({
     required this.serviceDate,
-    required this.serviceType,
+    required this.churchServiceId,
+    required this.serviceName,
     required this.records,
     required this.visitors,
   });
 
   final DateTime serviceDate;
-  final String serviceType;
+  final String churchServiceId;
+  final String serviceName;
   final List<Map<String, dynamic>> records;
   final List<Map<String, dynamic>> visitors;
 
   String get columnKey =>
-      '${serviceDate.toIso8601String().split('T')[0]}_$serviceType';
+      '${serviceDate.toIso8601String().split('T')[0]}|$churchServiceId';
 
   String shortHeader(AppLocalizations l10n) {
-    final d = DateFormat('d/M').format(serviceDate);
-    final t = serviceType == 'sunday'
-        ? l10n.attendanceReportSundayShort
-        : l10n.attendanceReportWednesdayShort;
-    return '$t $d';
+    final d = DateFormat.yMMMd(l10n.locale.toString()).format(serviceDate);
+    return '$serviceName — $d';
   }
 }
 
@@ -65,16 +64,17 @@ class ChurchAttendanceReportBuilder {
         final db = DateTime.parse(b['service_date'] as String);
         final c = da.compareTo(db);
         if (c != 0) return c;
-        final ta = a['service_type'] == 'sunday' ? 0 : 1;
-        final tb = b['service_type'] == 'sunday' ? 0 : 1;
-        return ta.compareTo(tb);
+        final na = (a['name'] ?? '').toString().toLowerCase();
+        final nb = (b['name'] ?? '').toString().toLowerCase();
+        return na.compareTo(nb);
       });
 
       final slots = list
           .map(
             (s) => _ServiceSlot(
               serviceDate: DateTime.parse(s['service_date'] as String),
-              serviceType: s['service_type'] as String,
+              churchServiceId: s['id']?.toString() ?? '',
+              serviceName: s['name']?.toString() ?? 'Church service',
               records: List<Map<String, dynamic>>.from(
                 s['attendance'] as List<Map<String, dynamic>>? ?? [],
               ),
@@ -130,8 +130,14 @@ class ChurchAttendanceReportBuilder {
       return membersPresent + visitorsPresent;
     }
 
-    final sunSlots = slots.where((s) => s.serviceType == 'sunday').toList();
-    final wedSlots = slots.where((s) => s.serviceType == 'wednesday').toList();
+    final slotsByServiceName = <String, List<_ServiceSlot>>{};
+    for (final slot in slots) {
+      slotsByServiceName.putIfAbsent(slot.serviceName, () => []).add(slot);
+    }
+    for (final group in slotsByServiceName.values) {
+      group.sort((a, b) => a.serviceDate.compareTo(b.serviceDate));
+    }
+    final sortedServiceNames = slotsByServiceName.keys.toList()..sort();
 
     // memberId -> attendance status per slot: onsite / online / absent
     final memberStatusBySlot = <String, Map<String, String>>{};
@@ -283,29 +289,41 @@ class ChurchAttendanceReportBuilder {
         style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
       ),
       pw.SizedBox(height: 8),
-      _presenceLineChart(
-        chartTitle: l10n.attendanceReportSundayMonthlyPresenceChart,
-        xLabels: sunSlots.map((s) => s.shortHeader(l10n)).toList(),
-        values: sunSlots.map(presentCountForSlot).toList(),
-        lineAndMarkerColor: PdfColors.green,
-        l10n: l10n,
-      ),
-      pw.SizedBox(height: 12),
-      _presenceLineChart(
-        chartTitle: l10n.attendanceReportWednesdayMonthlyPresenceChart,
-        xLabels: wedSlots.map((s) => s.shortHeader(l10n)).toList(),
-        values: wedSlots.map(presentCountForSlot).toList(),
-        lineAndMarkerColor: PdfColors.orange,
-        l10n: l10n,
-      ),
-      pw.SizedBox(height: 12),
-      _presenceLineChart(
-        chartTitle: l10n.attendanceReportTotalMonthlyPresenceChart,
-        xLabels: slots.map((s) => s.shortHeader(l10n)).toList(),
-        values: slots.map(presentCountForSlot).toList(),
-        lineAndMarkerColor: PdfColors.blue,
-        l10n: l10n,
-      ),
+      ...() {
+        const chartColors = [
+          PdfColors.green,
+          PdfColors.orange,
+          PdfColors.purple,
+          PdfColors.teal,
+          PdfColors.indigo,
+        ];
+        final chartWidgets = <pw.Widget>[];
+        for (var i = 0; i < sortedServiceNames.length; i++) {
+          final name = sortedServiceNames[i];
+          final group = slotsByServiceName[name]!;
+          chartWidgets.add(
+            _presenceLineChart(
+              chartTitle: '$name — ${l10n.attendanceReportPresenceChartsSection}',
+              xLabels: group.map((s) => s.shortHeader(l10n)).toList(),
+              values: group.map(presentCountForSlot).toList(),
+              lineAndMarkerColor: chartColors[i % chartColors.length],
+              l10n: l10n,
+            ),
+          );
+          chartWidgets.add(pw.SizedBox(height: 12));
+        }
+        chartWidgets.add(
+          _presenceLineChart(
+            chartTitle: l10n.attendanceReportTotalMonthlyPresenceChart,
+            xLabels: slots.map((s) => s.shortHeader(l10n)).toList(),
+            values: slots.map(presentCountForSlot).toList(),
+            lineAndMarkerColor: PdfColors.blue,
+            l10n: l10n,
+          ),
+        );
+        chartWidgets.add(pw.SizedBox(height: 12));
+        return chartWidgets;
+      }(),
       pw.SizedBox(height: 24),
     ];
   }
@@ -479,10 +497,10 @@ class ChurchAttendanceReportBuilder {
         visitDate.day != slot.serviceDate.day) {
       return false;
     }
-    final serviceType = visitor['service_type']?.toString();
-    if (serviceType != null &&
-        serviceType.isNotEmpty &&
-        serviceType != slot.serviceType) {
+    final churchServiceId = visitor['church_service_id']?.toString();
+    if (churchServiceId != null &&
+        churchServiceId.isNotEmpty &&
+        churchServiceId != slot.churchServiceId) {
       return false;
     }
     return true;

@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../services/church_service_service.dart';
 
 /// Shared colorful layout widgets for add/edit visitor forms.
 class VisitorFormUi {
@@ -258,34 +259,72 @@ class VisitorFormUi {
     );
   }
 
-  static Widget serviceTypeDropdown({
+  static Widget churchServiceDropdown({
     required BuildContext context,
+    required DateTime? visitDate,
     required String? value,
     required ValueChanged<String?> onChanged,
   }) {
-    return DropdownButtonFormField<String?>(
-      isExpanded: true,
-      initialValue: value,
-      decoration: fieldDecoration(
-        label: context.tr('Service (Optional)'),
-        icon: Icons.church_outlined,
-        helperText: context.tr('Sunday or Wednesday service, if known'),
-      ),
-      items: [
-        DropdownMenuItem<String?>(
-          value: null,
-          child: Text(context.tr('Any / not specified')),
+    if (visitDate == null) {
+      return DropdownButtonFormField<String?>(
+        isExpanded: true,
+        initialValue: null,
+        decoration: fieldDecoration(
+          label: context.tr('Service (Optional)'),
+          icon: Icons.church_outlined,
+          helperText: context.tr('Select a visit date first'),
         ),
-        DropdownMenuItem(
-          value: 'sunday',
-          child: Text(context.tr('Sunday')),
-        ),
-        DropdownMenuItem(
-          value: 'wednesday',
-          child: Text(context.tr('Wednesday')),
-        ),
-      ],
-      onChanged: onChanged,
+        items: [
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text(context.tr('Any / not specified')),
+          ),
+        ],
+        onChanged: null,
+      );
+    }
+
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: ChurchServiceService.getServicesForDate(visitDate),
+      builder: (context, snapshot) {
+        final services = snapshot.data ?? [];
+        final validValue = value != null &&
+                services.any((s) => s['id']?.toString() == value)
+            ? value
+            : null;
+
+        return DropdownButtonFormField<String?>(
+          isExpanded: true,
+          initialValue: validValue,
+          decoration: fieldDecoration(
+            label: context.tr('Service (Optional)'),
+            icon: Icons.church_outlined,
+            helperText: context.tr('Church service on the visit date, if known'),
+          ),
+          items: [
+            DropdownMenuItem<String?>(
+              value: null,
+              child: Text(context.tr('Any / not specified')),
+            ),
+            ...services.map((service) {
+              final id = service['id']?.toString() ?? '';
+              final name = service['name']?.toString().trim() ?? '';
+              final dateRaw = service['service_date']?.toString();
+              final date = dateRaw != null ? parseVisitDate(dateRaw) : null;
+              final label = date != null && services.length > 1
+                  ? '${formatVisitDateDisplay(date)} — $name'
+                  : (name.isNotEmpty ? name : context.tr('Church service'));
+              return DropdownMenuItem<String?>(
+                value: id.isEmpty ? null : id,
+                child: Text(label, overflow: TextOverflow.ellipsis),
+              );
+            }),
+          ],
+          onChanged: snapshot.connectionState == ConnectionState.waiting
+              ? null
+              : onChanged,
+        );
+      },
     );
   }
 

@@ -44,6 +44,8 @@ import '../../screens/tasks/add_project_page.dart';
 import '../../screens/tasks/manage_projects_page.dart';
 import '../../screens/tasks/manage_tags_page.dart';
 import '../../screens/tasks/tasks_list_page.dart';
+import '../../screens/service_schedule/service_schedule_page.dart';
+import '../../screens/common/file_viewer_page.dart';
 import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
@@ -71,8 +73,14 @@ class _DesktopViewEntry {
   final bool isList;
   final String route;
   final String? id;
+  final Map<String, dynamic>? arguments;
 
-  _DesktopViewEntry({required this.isList, required this.route, this.id});
+  _DesktopViewEntry({
+    required this.isList,
+    required this.route,
+    this.id,
+    this.arguments,
+  });
 }
 
 /// Desktop shell: sidebar + content area. Shown when screen width >= [kDesktopBreakpoint].
@@ -117,9 +125,20 @@ class _DesktopShellState extends State<DesktopShell> {
     });
   }
 
-  void _pushDetail(String route, String id) {
+  void _pushDetail(
+    String route,
+    String id, {
+    Map<String, dynamic>? arguments,
+  }) {
     setState(() {
-      _stack.add(_DesktopViewEntry(isList: false, route: route, id: id));
+      _stack.add(
+        _DesktopViewEntry(
+          isList: false,
+          route: route,
+          id: id,
+          arguments: arguments,
+        ),
+      );
     });
   }
 
@@ -247,6 +266,10 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.tasks && (entry.id ?? '').isNotEmpty) {
       return context.tr('Manage Tasks');
     }
+    if (entry.route == RouteNames.serviceSchedule &&
+        (entry.id ?? '').isNotEmpty) {
+      return context.tr('Service schedule');
+    }
     if (entry.route == RouteNames.addClass) {
       return context.tr('Add Training');
     }
@@ -294,6 +317,11 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.manageTags) {
       return context.tr('Manage Tags');
+    }
+    if (entry.route == RouteNames.fileViewer) {
+      final fileName = entry.arguments?['fileName']?.toString();
+      if (fileName != null && fileName.isNotEmpty) return fileName;
+      return context.tr('Open file');
     }
     return context.tr('Details');
   }
@@ -409,13 +437,8 @@ class _DesktopShellState extends State<DesktopShell> {
       return EditClassPage(classId: id, onClose: (_) => onClose());
     }
     if (entry.route == RouteNames.churchAttendance) {
-      final serviceDate = id.contains('|') ? id.split('|').first : null;
-      final serviceType = id.contains('|') && id.split('|').length > 1
-          ? id.split('|')[1]
-          : null;
       return ChurchAttendancePage(
-        serviceDate: serviceDate,
-        serviceType: serviceType,
+        churchServiceId: id.isNotEmpty ? id : null,
         onClose: onClose,
       );
     }
@@ -469,6 +492,22 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.tasks && id.isNotEmpty) {
       return TasksListPage(departmentId: id, hideAppBarAndBottomNav: true);
+    }
+    if (entry.route == RouteNames.serviceSchedule && id.isNotEmpty) {
+      return ServiceSchedulePage(
+        departmentId: id,
+        hideAppBarAndBottomNav: true,
+        onClose: onClose,
+      );
+    }
+    if (entry.route == RouteNames.fileViewer) {
+      final args = entry.arguments ?? const {};
+      return FileViewerPage(
+        fileUrl: args['fileUrl'] as String? ?? '',
+        fileName: args['fileName'] as String? ?? context.tr('File'),
+        hideAppBarAndBottomNav: true,
+        onClose: onClose,
+      );
     }
     return SizedBox.shrink();
   }
@@ -778,7 +817,7 @@ class _DesktopShellState extends State<DesktopShell> {
                             },
                             child: KeyedSubtree(
                               key: ValueKey<String>(
-                                '${_stack.last.route}_${_stack.last.id}_$_refreshSeed',
+                                '${_stack.last.route}_${_stack.last.id}_${_stack.last.arguments?.hashCode ?? 0}_$_refreshSeed',
                               ),
                               child: _buildContent(_stack.last),
                             ),

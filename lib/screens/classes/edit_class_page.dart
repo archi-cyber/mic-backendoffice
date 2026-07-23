@@ -157,7 +157,7 @@ class _EditClassPageState extends State<EditClassPage> {
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Training name is required';
+                  return context.tr('Training name is required');
                 }
                 return null;
               },
@@ -294,7 +294,7 @@ class _EditClassPageState extends State<EditClassPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return 'Training name is required';
+                          return context.tr('Training name is required');
                         }
                         return null;
                       },

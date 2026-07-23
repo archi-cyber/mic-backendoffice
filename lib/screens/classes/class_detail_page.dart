@@ -319,7 +319,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Class')),
         content: Text(
-          'Are you sure you want to delete this class? This will deactivate it.',
+          context.tr(
+            'Are you sure you want to delete this class? This will deactivate it.',
+          ),
         ),
         actions: [
           TextButton(
@@ -604,7 +606,9 @@ class _SessionsTabState extends State<_SessionsTab> {
                           title: Text(
                             sessionDate != null
                                 ? _formatDate(sessionDate)
-                                : 'Session ${index + 1}',
+                                : context.tr('Session {number}', {
+                                    'number': index + 1,
+                                  }),
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: sessionDate != null
@@ -745,7 +749,7 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'How many sessions would you like to generate?',
+              context.tr('How many sessions would you like to generate?'),
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: AppDimensions.spacingMD),
@@ -839,7 +843,7 @@ class _GenerateSessionsDialogState extends State<_GenerateSessionsDialog> {
             SizedBox(height: AppDimensions.spacingMD),
             // Weeks between sessions
             Text(
-              'Weeks between sessions:',
+              context.tr('Weeks between sessions:'),
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: AppDimensions.spacingSM),
@@ -1112,8 +1116,8 @@ class _MembersTabState extends State<_MembersTab> {
                           },
                           child: Text(
                             selectedMemberIds.length == availableMembers.length
-                                ? 'Deselect All'
-                                : 'Select All',
+                                ? context.tr('Deselect All')
+                                : context.tr('Select All'),
                           ),
                         ),
                         Text(
@@ -1163,7 +1167,9 @@ class _MembersTabState extends State<_MembersTab> {
                 child: Text(
                   selectedMemberIds.isEmpty
                       ? 'Add'
-                      : 'Add ${selectedMemberIds.length}',
+                      : context.tr('Add {count}', {
+                          'count': selectedMemberIds.length,
+                        }),
                 ),
               ),
             ],
@@ -1197,7 +1203,7 @@ class _MembersTabState extends State<_MembersTab> {
               SnackBar(
                 content: Text(
                   successCount == 1
-                      ? 'Member added successfully'
+                      ? context.tr('Member added successfully')
                       : '$successCount members added successfully',
                 ),
                 backgroundColor: AppColors.success,
@@ -1234,7 +1240,9 @@ class _MembersTabState extends State<_MembersTab> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Remove Member')),
         content: Text(
-          'Are you sure you want to remove this member from the class?',
+          context.tr(
+            'Are you sure you want to remove this member from the class?',
+          ),
         ),
         actions: [
           TextButton(

@@ -382,15 +382,94 @@ class DepartmentFormUi {
   static TabBar coloredTabBar({
     required BuildContext context,
     required List<Tab> tabs,
+    TabController? controller,
   }) {
-    return TabBar(
+    return _segmentedTabBar(
+      context: context,
       tabs: tabs,
-      labelColor: DepartmentFormUi.accent,
-      unselectedLabelColor: context.mic.textSecondary,
-      indicatorColor: AppColors.accent,
-      indicatorWeight: 3,
-      labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+      controller: controller,
     );
+  }
+
+  /// Segmented tab bar with a filled indicator for the selected tab.
+  static Widget listPageTabBar({
+    required BuildContext context,
+    required List<Tab> tabs,
+    TabController? controller,
+    EdgeInsetsGeometry margin = const EdgeInsets.symmetric(
+      horizontal: AppDimensions.paddingMD,
+    ),
+    Color? selectedColor,
+  }) {
+    return Container(
+      margin: margin,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        border: Border.all(color: context.mic.border.withValues(alpha: 0.45)),
+      ),
+      child: _segmentedTabBar(
+        context: context,
+        tabs: tabs,
+        controller: controller,
+        selectedColor: selectedColor,
+      ),
+    );
+  }
+
+  static TabBar _segmentedTabBar({
+    required BuildContext context,
+    required List<Tab> tabs,
+    TabController? controller,
+    Color? selectedColor,
+  }) {
+    final accentColor = selectedColor ?? DepartmentFormUi.accent;
+    final theme = Theme.of(context);
+
+    return TabBar(
+      controller: controller,
+      tabs: tabs,
+      indicator: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+        border: Border.all(color: accentColor.withValues(alpha: 0.28)),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withValues(alpha: 0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      indicatorSize: TabBarIndicatorSize.tab,
+      dividerColor: Colors.transparent,
+      labelColor: accentColor,
+      unselectedLabelColor: context.mic.textSecondary,
+      labelStyle: const TextStyle(
+        fontWeight: FontWeight.w700,
+        fontSize: 13,
+      ),
+      unselectedLabelStyle: const TextStyle(
+        fontWeight: FontWeight.w500,
+        fontSize: 13,
+      ),
+      overlayColor: WidgetStateProperty.all(Colors.transparent),
+      splashFactory: NoSplash.splashFactory,
+    );
+  }
+
+  static Color departmentsTabTint(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Color.alphaBlend(accent.withValues(alpha: 0.025), surface);
+  }
+
+  static Color workersTabTint(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Color.alphaBlend(AppColors.secondary.withValues(alpha: 0.025), surface);
   }
 
   static InputDecoration fieldDecoration({

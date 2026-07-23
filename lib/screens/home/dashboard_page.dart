@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show CountOption;
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/error_message_helper.dart';
 import '../../services/supabase_service.dart';
 import '../../services/finance_service.dart';
 import '../../services/teaching_service.dart';
+import '../../services/church_attendance_service.dart';
+import '../../widgets/church_attendance_presence_chart.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Dashboard with summary cards
@@ -42,6 +46,9 @@ class _DashboardPageState extends State<DashboardPage> {
   /// Newcomers (members with is_new_comer=true) for desktop table.
   List<Map<String, dynamic>> _newcomersList = [];
 
+  /// Church attendance services for desktop trend charts.
+  List<Map<String, dynamic>> _churchAttendanceServices = [];
+
   static const double _kDesktopMaxWidth = 1200;
   static const int _kUpcomingEventsLimit = 10;
   static const int _kRecentTeachingsLimit = 3;
@@ -58,204 +65,221 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadDashboardData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    final errors = <String>[];
+    final errors = <Object>[];
+    final now = DateTime.now();
+    final client = SupabaseService.client;
 
-    try {
-      final now = DateTime.now();
+    final sessionsEndDate = now.add(const Duration(days: 35));
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final tomorrowStart = todayStart.add(const Duration(days: 1));
+    final dateStr =
+        '${tomorrowStart.year}-${tomorrowStart.month.toString().padLeft(2, '0')}-${tomorrowStart.day.toString().padLeft(2, '0')}';
 
-      // Load upcoming sessions from trainings (next 5 weeks = 35 days)
-      try {
-        final sessionsEndDate = now.add(Duration(days: 35));
-        final sessions = await SupabaseService.client
-            .from('sessions')
-            .select()
-            .not('class_id', 'is', null)
-            .gte('session_date', now.toIso8601String())
-            .lte('session_date', sessionsEndDate.toIso8601String());
-        _upcomingSessions = (sessions as List).length;
-      } catch (e) {
-        errors.add('Sessions: $e');
-      }
+    var upcomingSessions = 0;
+    var upcomingEvents = 0;
+    var tasks = 0;
+    var birthdays = 0;
+    var members = 0;
+    var upcomingEventsList = <Map<String, dynamic>>[];
+    var recentTeachingsList = <Map<String, dynamic>>[];
+    var upcomingBirthdaysList = <Map<String, dynamic>>[];
+    var newcomersList = <Map<String, dynamic>>[];
+    var churchAttendanceServices = <Map<String, dynamic>>[];
 
-      // Load upcoming events (all events after current date)
-      try {
-        final todayStart = DateTime(now.year, now.month, now.day);
-        final tomorrowStart = todayStart.add(Duration(days: 1));
-        final dateStr =
-            '${tomorrowStart.year}-${tomorrowStart.month.toString().padLeft(2, '0')}-${tomorrowStart.day.toString().padLeft(2, '0')}';
-        final events = await SupabaseService.client
-            .from('events')
-            .select('id, title, event_date')
-            .eq('is_active', true)
-            .gte('event_date', dateStr)
-            .order('event_date', ascending: true);
-        final eventsList = events as List;
-        _upcomingEvents = eventsList.length;
-        _upcomingEventsList = eventsList
-            .take(_kUpcomingEventsLimit)
-            .map(
-              (e) =>
-                  e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{},
-            )
-            .where((m) => m.isNotEmpty)
-            .toList();
-      } catch (e) {
-        errors.add('Events: $e');
-        _upcomingEventsList = [];
-      }
-
-      // Load task count
-      try {
-        final tasksList = await SupabaseService.client
-            .from('tasks')
-            .select('id')
-            .inFilter('status', ['pending', 'in_progress']);
-        _tasks = (tasksList as List).length;
-      } catch (e) {
-        errors.add('Tasks: $e');
-      }
-
-      // Load total active members count
-      try {
-        final membersList = await SupabaseService.client
-            .from('members')
-            .select('id')
-            .eq('is_active', true);
-        _members = (membersList as List).length;
-      } catch (e) {
-        errors.add('Members: $e');
-      }
-
-      // Load upcoming birthdays
-      try {
-        final allMembers = await SupabaseService.client
-            .from('members')
-            .select('id, birthday')
-            .not('birthday', 'is', null);
-        final list = allMembers as List;
-        final upcomingBirthdays = list.where((member) {
-          if (member is! Map || member['birthday'] == null) return false;
-          try {
-            final birthday = DateTime.parse(member['birthday'].toString());
-            return birthday.month == now.month && birthday.day >= now.day;
-          } catch (_) {
-            return false;
-          }
-        }).toList();
-        _birthdays = upcomingBirthdays.length;
-      } catch (e) {
-        errors.add('Birthdays: $e');
-      }
-
-      // Load recent teachings (max 3)
-      try {
-        final teachings = await TeachingService.getTeachings(
-          limit: _kRecentTeachingsLimit,
-        );
-        _recentTeachingsList = teachings
-            .take(_kRecentTeachingsLimit)
-            .map((t) => Map<String, dynamic>.from(t))
-            .toList();
-      } catch (e) {
-        errors.add('Teachings: $e');
-        _recentTeachingsList = [];
-      }
-
-      // Load upcoming birthdays for desktop (max 5): current month from today + next month
-      try {
-        final membersResponse = await SupabaseService.client
-            .from('members')
-            .select('id, first_name, last_name, birthday')
-            .not('birthday', 'is', null)
-            .eq('is_active', true);
-        final list = membersResponse as List;
-        final currentMonth = now.month;
-        final nextMonth = (now.month % 12) + 1;
-        final currentDay = now.day;
-        final upcoming = list.where((m) {
-          if (m is! Map || m['birthday'] == null) return false;
-          try {
-            final date = DateTime.parse(m['birthday'].toString());
-            if (date.month == currentMonth) return date.day >= currentDay;
-            if (date.month == nextMonth) return true;
-            return false;
-          } catch (_) {
-            return false;
-          }
-        }).toList();
-        upcoming.sort((a, b) {
-          try {
-            final dateA = DateTime.parse((a as Map)['birthday'].toString());
-            final dateB = DateTime.parse((b as Map)['birthday'].toString());
-            if (dateA.month != dateB.month) {
-              return dateA.month.compareTo(dateB.month);
-            }
-            final dayCmp = dateA.day.compareTo(dateB.day);
-            if (dayCmp != 0) return dayCmp;
-            final nameA = '${(a['first_name'] ?? '')} ${a['last_name'] ?? ''}';
-            final nameB = '${(b['first_name'] ?? '')} ${b['last_name'] ?? ''}';
-            return nameA.toLowerCase().compareTo(nameB.toLowerCase());
-          } catch (_) {
-            return 0;
-          }
-        });
-        _upcomingBirthdaysList = upcoming
-            .take(_kUpcomingBirthdaysLimit)
-            .map((m) => Map<String, dynamic>.from(m as Map))
-            .toList();
-      } catch (e) {
-        errors.add('Birthdays list: $e');
-        _upcomingBirthdaysList = [];
-      }
-
-      // Load newcomers (members with is_new_comer = true)
-      try {
-        final newcomersResponse = await SupabaseService.client
-            .from('members')
-            .select('id, first_name, last_name, phone')
-            .eq('is_new_comer', true)
-            .eq('is_active', true)
-            .order('created_at', ascending: false)
-            .limit(_kNewcomersLimit);
-        final list = newcomersResponse as List;
-        _newcomersList = list
-            .map(
-              (m) =>
-                  m is Map ? Map<String, dynamic>.from(m) : <String, dynamic>{},
-            )
-            .where((m) => m.isNotEmpty)
-            .toList();
-      } catch (e) {
-        errors.add('Newcomers: $e');
-        _newcomersList = [];
-      }
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-        if (errors.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${AppLocalizations.of(context)?.errorLoadingDashboard ?? 'Error loading dashboard'}: ${errors.join('; ')}',
-              ),
-              duration: Duration(seconds: 6),
-            ),
-          );
+    await Future.wait([
+      () async {
+        try {
+          final response = await client
+              .from('sessions')
+              .select('id')
+              .not('class_id', 'is', null)
+              .gte('session_date', now.toIso8601String())
+              .lte('session_date', sessionsEndDate.toIso8601String())
+              .count(CountOption.exact);
+          upcomingSessions = response.count;
+        } catch (e) {
+          errors.add(e);
         }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${AppLocalizations.of(context)?.errorLoadingDashboard ?? 'Error loading dashboard'}: $e',
-            ),
-            duration: Duration(seconds: 6),
-          ),
-        );
-      }
+      }(),
+      () async {
+        try {
+          final eventsCountResponse = await client
+              .from('events')
+              .select('id')
+              .eq('is_active', true)
+              .gte('event_date', dateStr)
+              .count(CountOption.exact);
+          upcomingEvents = eventsCountResponse.count;
+
+          final events = await client
+              .from('events')
+              .select('id, title, event_date')
+              .eq('is_active', true)
+              .gte('event_date', dateStr)
+              .order('event_date', ascending: true)
+              .limit(_kUpcomingEventsLimit);
+          upcomingEventsList = (events as List)
+              .map(
+                (e) =>
+                    e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{},
+              )
+              .where((m) => m.isNotEmpty)
+              .toList();
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          final response = await client
+              .from('tasks')
+              .select('id')
+              .inFilter('status', ['pending', 'in_progress'])
+              .count(CountOption.exact);
+          tasks = response.count;
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          final response = await client
+              .from('members')
+              .select('id')
+              .eq('is_active', true)
+              .count(CountOption.exact);
+          members = response.count;
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          final membersResponse = await client
+              .from('members')
+              .select('id, first_name, last_name, birthday')
+              .not('birthday', 'is', null)
+              .eq('is_active', true);
+          final list = membersResponse as List;
+          final currentMonth = now.month;
+          final nextMonth = (now.month % 12) + 1;
+          final currentDay = now.day;
+
+          birthdays = list.where((member) {
+            if (member is! Map || member['birthday'] == null) return false;
+            try {
+              final birthday = DateTime.parse(member['birthday'].toString());
+              return birthday.month == currentMonth && birthday.day >= currentDay;
+            } catch (_) {
+              return false;
+            }
+          }).length;
+
+          final upcoming = list.where((m) {
+            if (m is! Map || m['birthday'] == null) return false;
+            try {
+              final date = DateTime.parse(m['birthday'].toString());
+              if (date.month == currentMonth) return date.day >= currentDay;
+              if (date.month == nextMonth) return true;
+              return false;
+            } catch (_) {
+              return false;
+            }
+          }).toList();
+          upcoming.sort((a, b) {
+            try {
+              final dateA = DateTime.parse((a as Map)['birthday'].toString());
+              final dateB = DateTime.parse((b as Map)['birthday'].toString());
+              if (dateA.month != dateB.month) {
+                return dateA.month.compareTo(dateB.month);
+              }
+              final dayCmp = dateA.day.compareTo(dateB.day);
+              if (dayCmp != 0) return dayCmp;
+              final nameA =
+                  '${(a['first_name'] ?? '')} ${a['last_name'] ?? ''}';
+              final nameB =
+                  '${(b['first_name'] ?? '')} ${b['last_name'] ?? ''}';
+              return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+            } catch (_) {
+              return 0;
+            }
+          });
+          upcomingBirthdaysList = upcoming
+              .take(_kUpcomingBirthdaysLimit)
+              .map((m) => Map<String, dynamic>.from(m as Map))
+              .toList();
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          final teachings = await TeachingService.getTeachings(
+            limit: _kRecentTeachingsLimit,
+          );
+          recentTeachingsList = teachings
+              .take(_kRecentTeachingsLimit)
+              .map((t) => Map<String, dynamic>.from(t))
+              .toList();
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          final newcomersResponse = await client
+              .from('members')
+              .select('id, first_name, last_name, phone')
+              .eq('is_new_comer', true)
+              .eq('is_active', true)
+              .order('created_at', ascending: false)
+              .limit(_kNewcomersLimit);
+          newcomersList = (newcomersResponse as List)
+              .map(
+                (m) =>
+                    m is Map ? Map<String, dynamic>.from(m) : <String, dynamic>{},
+              )
+              .where((m) => m.isNotEmpty)
+              .toList();
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          churchAttendanceServices = await ChurchAttendanceService.getAllServices(
+            startDate: now.subtract(const Duration(days: 90)),
+          );
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _upcomingSessions = upcomingSessions;
+      _upcomingEvents = upcomingEvents;
+      _tasks = tasks;
+      _birthdays = birthdays;
+      _members = members;
+      _upcomingEventsList = upcomingEventsList;
+      _recentTeachingsList = recentTeachingsList;
+      _upcomingBirthdaysList = upcomingBirthdaysList;
+      _newcomersList = newcomersList;
+      _churchAttendanceServices = churchAttendanceServices;
+      _isLoading = false;
+    });
+
+    if (errors.isNotEmpty && mounted) {
+      ErrorMessageHelper.showErrorSnackBar(
+        context,
+        errors.first,
+        title: AppLocalizations.of(context)?.errorLoadingDashboard ??
+            'Error loading dashboard',
+      );
     }
   }
 
@@ -392,6 +416,21 @@ class _DashboardPageState extends State<DashboardPage> {
                           ).pushReplacementNamed(RouteNames.desktopBirthdays);
                         }
                       },
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppDimensions.spacingXL),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: ChurchAttendancePresenceChart(
+                      title: context.tr('Church attendance'),
+                      serviceLineLabel: context.tr('Daily presence'),
+                      totalLineLabel: context.tr('dashboardChurchWeeklyAttendance'),
+                      services: _churchAttendanceServices,
+                      isLoading: _isLoading,
                     ),
                   ),
                 ],

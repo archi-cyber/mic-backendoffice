@@ -79,6 +79,9 @@ class RouteNames {
   static const String editProject = '/tasks/projects/:id/edit';
   static const String manageTags = '/tasks/tags';
 
+  // Service schedule (Media Team)
+  static const String serviceSchedule = '/service-schedule';
+
   // Report Routes
   static const String reports = '/reports';
   static const String memberReport = '/reports/member/:id';
