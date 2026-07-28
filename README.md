@@ -5,6 +5,8 @@
 > - [Documentation complète (Français)](docs/DOCUMENTATION.fr.md)
 > - [User guide (English)](docs/USER_GUIDE.md)
 > - [Guide utilisateur (Français)](docs/USER_GUIDE.fr.md)
+> - [Database schema (readable)](docs/DATABASE_SCHEMA.md)
+> - [Database schema (SQL DDL)](docs/schema.sql)
 
 A comprehensive Flutter application for managing church operations including member management, attendance tracking, giving, ministries, events, follow-ups, and analytics.
 
