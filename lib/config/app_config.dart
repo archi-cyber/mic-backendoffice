@@ -1,9 +1,8 @@
-class AppConfig {
+﻿class AppConfig {
   // Supabase Configuration
-  // TODO: Replace with your Supabase project credentials
-  static const String supabaseUrl = 'https://lihdbwqaacezrzfzjmhu.supabase.co';
+  static const String supabaseUrl = 'https://wusgqajwogsmdtsytelt.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxpaGRid3FhYWNlenJ6ZnpqbWh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyOTkwNDQsImV4cCI6MjA3OTg3NTA0NH0.4VZAsGTuLpypmVLwHji6bOhxWnG71khaa360vaw1voE';
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind1c2dxYWp3b2dzbWR0c3l0ZWx0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNzkyODksImV4cCI6MjEwMDc1NTI4OX0.oBCkwu16XGwBalmyo1F4h7PHqGCwBOrbKO0kC8lEYm0';
 
   // App Configuration
   static const String appName = 'SysteMIC';
