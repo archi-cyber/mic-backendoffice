@@ -1,0 +1,1073 @@
+// =============================================================================
+// SysteMIC — Schéma de données
+// PostgreSQL (Railway) — remplace le schéma Supabase
+// =============================================================================
+//
+// Conventions :
+//   - Base de données : snake_case (via @map / @@map)
+//   - Prisma / TypeScript : camelCase
+//   - Suppression logique : colonne deletedAt (jamais de DELETE physique)
+//   - Identifiants : UUID v4 générés par PostgreSQL (gen_random_uuid)
+//
+// Les index uniques PARTIELS (WHERE deleted_at IS NULL) ne sont pas exprimables
+// en Prisma. Ils sont créés par la migration SQL dédiée :
+//   prisma/migrations/<timestamp>_partial_indexes/migration.sql
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ÉNUMÉRATIONS
+// =============================================================================
+
+/// Rôle global du compte applicatif
+enum UserRole {
+  admin
+  pastor
+  leader
+  member
+
+  @@map("user_role")
+}
+
+/// Rôle du membre dans l'église
+enum MemberRole {
+  admin
+  leader
+  member
+  worker
+  sympathiser
+
+  @@map("member_role")
+}
+
+/// Rôle au sein d'un département
+enum DepartmentRole {
+  leader
+  subleader
+  member
+
+  @@map("department_role")
+}
+
+enum Profession {
+  primary_school_student
+  secondary_school_student
+  university_student
+  job_seeking
+  worker
+
+  @@map("profession")
+}
+
+enum Gender {
+  male
+  female
+
+  @@map("gender")
+}
+
+enum MaritalStatus {
+  single
+  married
+  divorced
+  widowed
+
+  @@map("marital_status")
+}
+
+/// Intention déclarée par un nouveau venu
+enum NewcomerIntention {
+  wants_to_stay
+  does_not_know_yet
+  just_passing
+
+  @@map("newcomer_intention")
+}
+
+/// Mode de participation à un culte
+enum AttendanceType {
+  onsite
+  online
+  absent
+
+  @@map("attendance_type")
+}
+
+/// Statut de présence à une session de formation ou un événement
+enum AttendanceStatus {
+  present
+  absent
+  excused
+  late
+
+  @@map("attendance_status")
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+
+  @@map("task_priority")
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+
+  @@map("task_status")
+}
+
+/// Type de tâche de montage générée automatiquement par un enseignement
+enum TeachingTaskType {
+  mid
+  short
+  full
+
+  @@map("teaching_task_type")
+}
+
+enum GivingTag {
+  construction
+  special_op
+  tithe
+  offering
+  gift
+  other
+
+  @@map("giving_tag_enum")
+}
+
+enum GivingType {
+  expense
+  receiving
+
+  @@map("giving_type")
+}
+
+/// Poste attribué lors d'un planning de service (équipe média)
+enum ServiceScheduleRole {
+  projection
+  call_recording
+  principal_cameraman
+  secondary_cameraman
+  photographer
+
+  @@map("service_schedule_role")
+}
+
+enum DevicePlatform {
+  ios
+  android
+  web
+
+  @@map("device_platform")
+}
+
+// =============================================================================
+// IDENTITÉ ET ACCÈS
+// =============================================================================
+
+/// Compte applicatif permettant de se connecter.
+/// Remplace auth.users de Supabase : le hachage du mot de passe est géré ici.
+model User {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email    String    @unique
+  phone    String?
+  role     UserRole  @default(member)
+  memberId String?   @unique @map("member_id") @db.Uuid
+  isActive Boolean   @default(true) @map("is_active")
+
+  // --- Authentification ---
+  passwordHash           String    @map("password_hash")
+  mustChangePassword     Boolean   @default(false) @map("must_change_password")
+  emailVerifiedAt        DateTime? @map("email_verified_at") @db.Timestamptz(6)
+  lastLoginAt            DateTime? @map("last_login_at") @db.Timestamptz(6)
+  passwordResetToken     String?   @map("password_reset_token")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at") @db.Timestamptz(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  // --- Relations ---
+  member        Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  devices       UserDevice[]
+  refreshTokens RefreshToken[]
+
+  leaderAccess  LeaderAccess[] @relation("LeaderAccessOwner")
+  grantedAccess LeaderAccess[] @relation("LeaderAccessGrantedBy")
+
+  createdChurchServices          ChurchService[]          @relation("ChurchServiceCreatedBy")
+  createdChurchAttendances       ChurchAttendance[]       @relation("ChurchAttendanceCreatedBy")
+  createdSundaySchoolAttendances SundaySchoolAttendance[] @relation("SundaySchoolCreatedBy")
+  createdVisitors                Visitor[]                @relation("VisitorCreatedBy")
+  createdNewComers               NewComer[]               @relation("NewComerCreatedBy")
+  createdTeachings               Teaching[]               @relation("TeachingCreatedBy")
+  createdTeachingListeners       TeachingListener[]       @relation("TeachingListenerCreatedBy")
+  createdAnnouncements           Announcement[]           @relation("AnnouncementCreatedBy")
+  createdDepartmentReports       DepartmentReport[]       @relation("DepartmentReportCreatedBy")
+  createdServiceSchedules        ServiceSchedule[]        @relation("ServiceScheduleCreatedBy")
+
+  @@index([memberId])
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+/// Jeton de rafraîchissement — un par appareil connecté.
+/// Permet la rotation, la révocation ciblée et l'audit des sessions.
+model RefreshToken {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  deviceInfo String?   @map("device_info")
+  ipAddress  String?   @map("ip_address")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Jeton d'appareil pour les notifications push (FCM)
+model UserDevice {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  deviceToken String          @map("device_token")
+  platform    DevicePlatform?
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceToken])
+  @@index([userId])
+  @@map("user_devices")
+}
+
+/// Permissions granulaires par module — remplace les politiques RLS
+model LeaderAccess {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  featureName String    @map("feature_name")
+  canView     Boolean   @default(false) @map("can_view")
+  canCreate   Boolean   @default(false) @map("can_create")
+  canEdit     Boolean   @default(false) @map("can_edit")
+  canDelete   Boolean   @default(false) @map("can_delete")
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  user    User  @relation("LeaderAccessOwner", fields: [userId], references: [id], onDelete: Cascade)
+  grantor User? @relation("LeaderAccessGrantedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([userId, featureName])
+  @@index([userId])
+  @@map("leader_access")
+}
+
+// =============================================================================
+// MEMBRES
+// =============================================================================
+
+model Member {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName String  @map("first_name")
+  lastName  String  @map("last_name")
+  email     String?
+  phone     String?
+  birthday  DateTime? @db.Date
+
+  // --- Adresse ---
+  address String?
+  city    String?
+  state   String?
+  zipCode String? @map("zip_code")
+  country String?
+  quarter String?
+
+  // --- Profil professionnel ---
+  profession       Profession?
+  levelOfStudy     String?     @map("level_of_study")
+  sectorOfStudies  String?     @map("sector_of_studies")
+  domainOfActivity String?     @map("domain_of_activity")
+  keySkills        String[]    @map("key_skills")
+  lastDiplomas     String?     @map("last_diplomas")
+
+  // --- Informations personnelles ---
+  gender        Gender?
+  maritalStatus MaritalStatus? @map("marital_status")
+  photoUrl      String?        @map("photo_url")
+
+  // --- Appartenance ---
+  role         MemberRole @default(member)
+  departmentId String?    @map("department_id") @db.Uuid
+
+  // --- Suivi nouveau venu ---
+  isNewComer        Boolean            @default(false) @map("is_new_comer")
+  newcomerJoinDate  DateTime?          @map("newcomer_join_date") @db.Date
+  newcomerIntention NewcomerIntention? @map("newcomer_intention")
+
+  isActive                    Boolean @default(true) @map("is_active")
+  birthdayNotificationsOptOut Boolean @default(false) @map("birthday_notifications_opt_out")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  // --- Relations ---
+  user             User?
+  mainDepartment   Department? @relation("MemberMainDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+
+  departmentMembers          DepartmentMember[]
+  classMembers               ClassMember[]
+  classAttendances           Attendance[]
+  eventRegistrations         EventRegistration[]
+  eventAttendances           EventAttendance[]
+  churchAttendances          ChurchAttendance[]
+  sundaySchoolAttendances    SundaySchoolAttendance[]
+  newComerRecords            NewComer[]
+  teachingListeners          TeachingListener[]
+  personalTasks              Task[]                       @relation("TaskPersonalMember")
+  projectsInCharge           Project[]                    @relation("ProjectPersonInCharge")
+  taskAssignments            TaskAssignment[]
+  taskPenalties              TaskPenalty[]
+  taskPenaltyPayments        TaskPenaltyPayment[]
+  giving                     Giving[]
+  notifications              Notification[]
+  serviceScheduleAssignments ServiceScheduleAssignment[]
+
+  @@index([role])
+  @@index([departmentId])
+  @@index([isActive])
+  @@index([isNewComer])
+  @@index([lastName, firstName])
+  @@map("members")
+}
+
+/// Historique d'arrivée d'un nouveau venu (distinct du drapeau sur Member)
+model NewComer {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId          String?            @map("member_id") @db.Uuid
+  firstName         String?            @map("first_name")
+  lastName          String?            @map("last_name")
+  email             String?
+  phone             String?
+  newcomerJoinDate  DateTime           @default(now()) @map("newcomer_join_date") @db.Date
+  newcomerIntention NewcomerIntention? @map("newcomer_intention")
+  createdBy         String?            @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  member  Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  creator User?   @relation("NewComerCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([newcomerJoinDate])
+  @@map("new_comers")
+}
+
+/// Personne ayant visité l'église sans être membre
+model Visitor {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName       String         @map("first_name")
+  lastName        String         @map("last_name")
+  email           String?
+  phone           String?
+  address         String?
+  visitDate       DateTime       @default(now()) @map("visit_date") @db.Date
+  churchServiceId String?        @map("church_service_id") @db.Uuid
+  attendanceType  AttendanceType @default(onsite) @map("attendance_type")
+  notes           String?
+  createdBy       String?        @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  churchService ChurchService? @relation(fields: [churchServiceId], references: [id], onDelete: SetNull)
+  creator       User?          @relation("VisitorCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([visitDate])
+  @@index([churchServiceId])
+  @@map("visitors")
+}
+
+// =============================================================================
+// ORGANISATION — DÉPARTEMENTS
+// =============================================================================
+
+model Department {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  // --- Documents de référence ---
+  document1Url  String? @map("document_1_url")
+  document1Name String? @map("document_1_name")
+  document2Url  String? @map("document_2_url")
+  document2Name String? @map("document_2_name")
+  document3Url  String? @map("document_3_url")
+  document3Name String? @map("document_3_name")
+
+  /// Montant de pénalité journalière propre au département (frs)
+  taskPenaltyAmount Int? @map("task_penalty_amount")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  // --- Relations ---
+  mainMembers       Member[]           @relation("MemberMainDepartment")
+  departmentMembers DepartmentMember[]
+  reports           DepartmentReport[]
+  classes           Class[]
+  projects          Project[]
+  tags              Tag[]
+  tasks             Task[]
+  announcements     Announcement[]
+  serviceSchedules  ServiceSchedule[]
+
+  @@index([isActive])
+  @@map("departments")
+}
+
+/// Appartenance d'un membre à un département, avec son rôle interne
+model DepartmentMember {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId String         @map("department_id") @db.Uuid
+  memberId     String         @map("member_id") @db.Uuid
+  role         DepartmentRole @default(member)
+  /// Département principal du membre — un seul par membre (index partiel)
+  isMain       Boolean        @default(false) @map("is_main")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  member     Member     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, memberId])
+  @@index([memberId])
+  @@index([departmentId, role])
+  @@map("department_members")
+}
+
+/// Rapport d'activité rédigé par un responsable de département
+model DepartmentReport {
+  id                      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId            String @map("department_id") @db.Uuid
+  createdBy               String @map("created_by") @db.Uuid
+  title                   String
+  definedObjectives       String @map("defined_objectives")
+  positivePoints          String @map("positive_points")
+  difficultiesEncountered String @map("difficulties_encountered")
+  suggestions             String
+  comments                String?
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  author     User       @relation("DepartmentReportCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([departmentId])
+  @@map("department_reports")
+}
+
+// =============================================================================
+// CULTES ET PRÉSENCES
+// =============================================================================
+
+/// Un rassemblement identifié par une date et un nom.
+/// Plusieurs cultes peuvent avoir lieu le même jour (noms différents).
+model ChurchService {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceDate DateTime @map("service_date") @db.Date
+  name        String
+  createdBy   String? @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  creator     User?              @relation("ChurchServiceCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  attendances ChurchAttendance[]
+  visitors    Visitor[]
+
+  @@index([serviceDate])
+  @@map("church_services")
+}
+
+model ChurchAttendance {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId            String         @map("member_id") @db.Uuid
+  churchServiceId     String         @map("church_service_id") @db.Uuid
+  /// Date dénormalisée (copiée du culte) pour accélérer les filtres par période
+  serviceDate         DateTime       @map("service_date") @db.Date
+  attendanceType      AttendanceType @default(onsite) @map("attendance_type")
+  specificObservation String?        @map("specific_observation")
+  createdBy           String?        @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  member        Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  churchService ChurchService @relation(fields: [churchServiceId], references: [id], onDelete: Restrict)
+  creator       User?         @relation("ChurchAttendanceCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([churchServiceId])
+  @@index([memberId])
+  @@index([serviceDate])
+  @@index([attendanceType])
+  @@map("church_attendance")
+}
+
+/// Présence à l'école du dimanche — enfants de 0 à 12 ans uniquement
+model SundaySchoolAttendance {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId       String   @map("member_id") @db.Uuid
+  attendanceDate DateTime @map("attendance_date") @db.Date
+  createdBy      String?  @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  member  Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  creator User?  @relation("SundaySchoolCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([attendanceDate])
+  @@map("sunday_school_attendance")
+}
+
+// =============================================================================
+// ENSEIGNEMENTS
+// =============================================================================
+
+model Teaching {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String
+  teachingDate DateTime @map("teaching_date") @db.Date
+  description  String?
+  speaker      String?
+  createdBy    String?  @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  creator   User?              @relation("TeachingCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  listeners TeachingListener[]
+  /// Tâches de montage générées automatiquement à la création
+  tasks     Task[]
+
+  @@index([teachingDate])
+  @@map("teachings")
+}
+
+/// Membre ayant écouté un enseignement.
+/// Alimenté automatiquement depuis la présence au culte du même jour.
+model TeachingListener {
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teachingId String  @map("teaching_id") @db.Uuid
+  memberId   String  @map("member_id") @db.Uuid
+  createdBy  String? @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  teaching Teaching @relation(fields: [teachingId], references: [id], onDelete: Cascade)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  creator  User?    @relation("TeachingListenerCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([teachingId, memberId])
+  @@index([memberId])
+  @@map("teaching_listeners")
+}
+
+// =============================================================================
+// FORMATIONS (CLASSES) ET SESSIONS
+// =============================================================================
+
+model Class {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  description  String?
+  departmentId String? @map("department_id") @db.Uuid
+  isActive     Boolean @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  members    ClassMember[]
+  sessions   Session[]
+
+  @@index([departmentId])
+  @@index([isActive])
+  @@map("classes")
+}
+
+model ClassMember {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId    String    @map("class_id") @db.Uuid
+  memberId   String    @map("member_id") @db.Uuid
+  enrolledAt DateTime? @map("enrolled_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class  Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, memberId])
+  @@index([memberId])
+  @@map("class_members")
+}
+
+/// Séance planifiée d'une formation
+model Session {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId     String   @map("class_id") @db.Uuid
+  sessionDate DateTime @map("session_date") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  class       Class        @relation(fields: [classId], references: [id], onDelete: Cascade)
+  attendances Attendance[]
+
+  @@index([classId])
+  @@index([sessionDate])
+  @@map("sessions")
+}
+
+/// Présence à une séance de formation
+model Attendance {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId String           @map("session_id") @db.Uuid
+  memberId  String           @map("member_id") @db.Uuid
+  status    AttendanceStatus
+  notes     String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, memberId])
+  @@index([memberId])
+  @@map("attendance")
+}
+
+// =============================================================================
+// ÉVÉNEMENTS
+// =============================================================================
+
+model Event {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  description String?
+  eventDate   DateTime  @map("event_date") @db.Date
+  eventTime   DateTime? @map("event_time") @db.Time(6)
+  location    String?
+  isRepeated  Boolean   @default(false) @map("is_repeated")
+  isActive    Boolean   @default(true) @map("is_active")
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  sessions      EventSession[]
+  registrations EventRegistration[]
+  attendances   EventAttendance[]
+
+  @@index([eventDate])
+  @@index([isActive])
+  @@map("events")
+}
+
+model EventSession {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String   @map("event_id") @db.Uuid
+  sessionDate DateTime @map("session_date") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  event       Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  attendances EventAttendance[]
+
+  @@index([eventId])
+  @@map("event_sessions")
+}
+
+/// Inscription à un événement — soit un membre, soit un invité externe
+model EventRegistration {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId      String    @map("event_id") @db.Uuid
+  memberId     String?   @map("member_id") @db.Uuid
+  guestName    String?   @map("guest_name")
+  guestEmail   String?   @map("guest_email")
+  guestPhone   String?   @map("guest_phone")
+  registeredAt DateTime? @map("registered_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([memberId])
+  @@index([guestName])
+  @@map("event_registrations")
+}
+
+model EventAttendance {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId   String           @map("event_id") @db.Uuid
+  sessionId String?          @map("session_id") @db.Uuid
+  memberId  String           @map("member_id") @db.Uuid
+  status    AttendanceStatus
+  notes     String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  event   Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  session EventSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member  Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@index([memberId])
+  @@map("event_attendance")
+}
+
+// =============================================================================
+// TÂCHES, PROJETS, ÉTIQUETTES
+// =============================================================================
+
+model Project {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            String
+  departmentId     String        @map("department_id") @db.Uuid
+  personInChargeId String?       @map("person_in_charge_id") @db.Uuid
+  endDate          DateTime?     @map("end_date") @db.Date
+  priority         TaskPriority? @default(medium)
+  description      String?
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  personInCharge Member?    @relation("ProjectPersonInCharge", fields: [personInChargeId], references: [id], onDelete: SetNull)
+  tasks          Task[]
+
+  @@index([departmentId])
+  @@map("projects")
+}
+
+/// Étiquette colorée, propre à un département
+model Tag {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId String  @map("department_id") @db.Uuid
+  name         String
+  color        String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  taskTags   TaskTag[]
+
+  @@unique([departmentId, name])
+  @@map("tags")
+}
+
+/// Tâche affectée soit à un département, soit à un membre (jamais les deux)
+model Task {
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId String? @map("department_id") @db.Uuid
+  memberId     String? @map("member_id") @db.Uuid
+  projectId    String? @map("project_id") @db.Uuid
+
+  // --- Origine « enseignement » (tâches de montage générées) ---
+  teachingId        String?           @map("teaching_id") @db.Uuid
+  teachingTaskType  TeachingTaskType? @map("teaching_task_type")
+  teachingTaskIndex Int?              @map("teaching_task_index")
+
+  /// Pénalité journalière spécifique à cette tâche (prioritaire sur le département)
+  penaltyAmountPerDay Int?      @map("penalty_amount_per_day")
+  /// Une tâche archivée est exclue du calcul des pénalités
+  archivedAt          DateTime? @map("archived_at") @db.Timestamptz(6)
+
+  title       String
+  description String?
+  dueDate     DateTime?     @map("due_date") @db.Date
+  priority    TaskPriority? @default(medium)
+  status      TaskStatus?   @default(pending)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department  Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  member      Member?     @relation("TaskPersonalMember", fields: [memberId], references: [id], onDelete: Cascade)
+  project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  teaching    Teaching?   @relation(fields: [teachingId], references: [id], onDelete: SetNull)
+
+  assignments TaskAssignment[]
+  tags        TaskTag[]
+  penalties   TaskPenalty[]
+
+  @@index([departmentId])
+  @@index([memberId])
+  @@index([projectId])
+  @@index([teachingId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+/// Une tâche peut être assignée à plusieurs membres
+model TaskAssignment {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId     String      @map("task_id") @db.Uuid
+  memberId   String      @map("member_id") @db.Uuid
+  assignedAt DateTime    @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  status     TaskStatus? @default(pending)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, memberId])
+  @@index([memberId])
+  @@index([status])
+  @@map("task_assignments")
+}
+
+model TaskTag {
+  taskId String @map("task_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, tagId])
+  @@map("task_tags")
+}
+
+// =============================================================================
+// PÉNALITÉS
+// =============================================================================
+
+/// Paramètres globaux — une seule ligne, identifiant fixe « global »
+model TaskPenaltySettings {
+  id                         String @id @default("global")
+  /// Montant par défaut si ni la tâche ni le département n'en définissent (frs)
+  defaultDailyPenaltyAmount  Int    @default(100) @map("default_daily_penalty_amount")
+  /// Au-delà de ce solde, le membre ne peut plus recevoir de nouvelles tâches
+  blockingThresholdAmount    Int    @default(3500) @map("blocking_threshold_amount")
+  /// Délai accordé aux tâches de montage après la date d'enseignement
+  teachingTaskDueOffsetDays  Int    @default(10) @map("teaching_task_due_offset_days")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("task_penalty_settings")
+}
+
+/// Une ligne par jour de retard et par membre
+model TaskPenalty {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId      String   @map("task_id") @db.Uuid
+  memberId    String   @map("member_id") @db.Uuid
+  penaltyDate DateTime @map("penalty_date") @db.Date
+  amount      Int
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, memberId, penaltyDate])
+  @@index([memberId])
+  @@index([penaltyDate])
+  @@map("task_penalties")
+}
+
+model TaskPenaltyPayment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId   String   @map("member_id") @db.Uuid
+  amount     Int
+  note       String?
+  paidAt     DateTime @default(now()) @map("paid_at") @db.Timestamptz(6)
+  recordedBy String?  @map("recorded_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+  @@index([paidAt])
+  @@map("task_penalty_payments")
+}
+
+// =============================================================================
+// FINANCES
+// =============================================================================
+
+/// Mouvement financier : don reçu ou dépense
+model Giving {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  giverName String     @map("giver_name")
+  memberId  String?    @map("member_id") @db.Uuid
+  amount    Decimal    @db.Decimal(10, 2)
+  tag       GivingTag
+  type      GivingType
+  notes     String?
+  date      DateTime   @default(now()) @db.Date
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([memberId])
+  @@index([date])
+  @@index([type])
+  @@index([tag])
+  @@map("giving")
+}
+
+// =============================================================================
+// COMMUNICATION
+// =============================================================================
+
+model Notification {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId     String?   @map("member_id") @db.Uuid
+  type         String
+  title        String?
+  message      String?
+  /// Identifiant de l'objet lié (tâche, événement…) — polymorphe, sans clé étrangère
+  relatedId    String?   @map("related_id") @db.Uuid
+  relatedType  String?   @map("related_type")
+  isRead       Boolean   @default(false) @map("is_read")
+  readAt       DateTime? @map("read_at") @db.Timestamptz(6)
+  scheduledFor DateTime? @map("scheduled_for") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  member Member? @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, isRead])
+  @@index([createdAt])
+  @@index([scheduledFor])
+  @@map("notifications")
+}
+
+/// Annonce diffusée : globale, par département, ou ciblée sur des membres
+model Announcement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  message         String
+  isGlobal        Boolean  @default(true) @map("is_global")
+  departmentId    String?  @map("department_id") @db.Uuid
+  targetMemberIds String[] @map("target_member_ids") @db.Uuid
+  createdBy       String?  @map("created_by") @db.Uuid
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  author     User?       @relation("AnnouncementCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([departmentId])
+  @@index([createdAt])
+  @@map("announcements")
+}
+
+// =============================================================================
+// PARAMÈTRES ET PLANNING
+// =============================================================================
+
+/// Paramètres applicatifs sous forme clé/valeur JSON
+model AppSetting {
+  key   String @id
+  value Json?
+
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("app_settings")
+}
+
+/// Planning de service d'un département (typiquement l'équipe média)
+model ServiceSchedule {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  serviceDate  DateTime @map("service_date") @db.Date
+  notes        String?
+  createdBy    String   @map("created_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  department  Department                  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  creator     User                        @relation("ServiceScheduleCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  assignments ServiceScheduleAssignment[]
+
+  @@unique([departmentId, serviceDate])
+  @@index([serviceDate])
+  @@map("service_schedules")
+}
+
+model ServiceScheduleAssignment {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  scheduleId String              @map("schedule_id") @db.Uuid
+  role       ServiceScheduleRole
+  memberId   String              @map("member_id") @db.Uuid
+  isDone     Boolean             @default(false) @map("is_done")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  schedule ServiceSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  member   Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, role, memberId])
+  @@index([memberId])
+  @@map("service_schedule_assignments")
+}
