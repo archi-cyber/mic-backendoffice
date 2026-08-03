@@ -14,6 +14,9 @@ import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { HealthController } from './health.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { DepartmentsModule } from './modules/departments/departments.module';
+import { MembersModule } from './modules/members/members.module';
+import { UsersModule } from './modules/users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -37,7 +40,9 @@ import { PrismaModule } from './prisma/prisma.module';
 
     // --- Modules metier ---
     AuthModule,
-    // Phase 3 : MembersModule, DepartmentsModule, UsersModule
+    UsersModule,
+    MembersModule,
+    DepartmentsModule,
     // Phase 4 : ChurchServicesModule, ChurchAttendanceModule, VisitorsModule
     // Phase 5 : TasksModule, ProjectsModule, TagsModule, PenaltiesModule
     // Phase 6 : TeachingsModule, ClassesModule, EventsModule
@@ -49,25 +54,11 @@ import { PrismaModule } from './prisma/prisma.module';
   controllers: [HealthController],
 
   providers: [
-    // --- Filtres d'exception ---
-    // NestJS consulte les filtres du dernier declare au premier :
-    // PrismaExceptionFilter, plus specifique, doit donc venir apres.
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_FILTER, useClass: PrismaExceptionFilter },
 
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
 
-    // --- Chaine de securite ---
-    // L'ordre de declaration est l'ordre d'execution. Chaque maillon suppose
-    // le precedent satisfait :
-    //   1. ThrottlerGuard    - limite le debit avant tout travail couteux
-    //   2. JwtAuthGuard      - etablit l'identite
-    //   3. RolesGuard        - verifie le niveau de privilege
-    //   4. PermissionsGuard  - verifie le droit sur le module concerne
-    //
-    // Toute route est protegee par defaut. @Public() est l'exception
-    // explicite : c'est le sens sur, puisqu'un oubli rend la route
-    // inaccessible plutot que publique.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
