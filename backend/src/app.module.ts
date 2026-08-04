@@ -14,9 +14,12 @@ import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { HealthController } from './health.controller';
 import { AuthModule } from './modules/auth/auth.module';
+import { ChurchModule } from './modules/church/church.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { MembersModule } from './modules/members/members.module';
+import { SundaySchoolModule } from './modules/sunday-school/sunday-school.module';
 import { UsersModule } from './modules/users/users.module';
+import { VisitorsModule } from './modules/visitors/visitors.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -43,7 +46,9 @@ import { PrismaModule } from './prisma/prisma.module';
     UsersModule,
     MembersModule,
     DepartmentsModule,
-    // Phase 4 : ChurchServicesModule, ChurchAttendanceModule, VisitorsModule
+    ChurchModule,
+    SundaySchoolModule,
+    VisitorsModule,
     // Phase 5 : TasksModule, ProjectsModule, TagsModule, PenaltiesModule
     // Phase 6 : TeachingsModule, ClassesModule, EventsModule
     // Phase 7 : GivingModule, AnnouncementsModule, NotificationsModule
