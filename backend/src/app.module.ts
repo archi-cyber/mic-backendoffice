@@ -26,6 +26,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { TeachingsModule } from './modules/teachings/teachings.module';
 import { UsersModule } from './modules/users/users.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -63,7 +64,7 @@ import { PrismaModule } from './prisma/prisma.module';
     GivingModule,
     CommunicationsModule,
     ReportsModule,
-    // Phase 9 : RealtimeModule
+    RealtimeModule,
   ],
 
   controllers: [HealthController],
