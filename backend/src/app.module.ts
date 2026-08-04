@@ -15,9 +15,13 @@ import { envValidationSchema } from './config/env.validation';
 import { HealthController } from './health.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChurchModule } from './modules/church/church.module';
+import { ClassesModule } from './modules/classes/classes.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
+import { EventsModule } from './modules/events/events.module';
 import { MembersModule } from './modules/members/members.module';
 import { SundaySchoolModule } from './modules/sunday-school/sunday-school.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { TeachingsModule } from './modules/teachings/teachings.module';
 import { UsersModule } from './modules/users/users.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -49,8 +53,10 @@ import { PrismaModule } from './prisma/prisma.module';
     ChurchModule,
     SundaySchoolModule,
     VisitorsModule,
-    // Phase 5 : TasksModule, ProjectsModule, TagsModule, PenaltiesModule
-    // Phase 6 : TeachingsModule, ClassesModule, EventsModule
+    TasksModule,
+    TeachingsModule,
+    ClassesModule,
+    EventsModule,
     // Phase 7 : GivingModule, AnnouncementsModule, NotificationsModule
     // Phase 8 : ReportsModule
     // Phase 9 : RealtimeModule
