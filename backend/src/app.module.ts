@@ -16,14 +16,17 @@ import { HealthController } from './health.controller';
 import { AuthModule } from './modules/auth/auth.module';
 import { ChurchModule } from './modules/church/church.module';
 import { ClassesModule } from './modules/classes/classes.module';
+import { CommunicationsModule } from './modules/communications/communications.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { EventsModule } from './modules/events/events.module';
+import { GivingModule } from './modules/giving/giving.module';
 import { MembersModule } from './modules/members/members.module';
 import { SundaySchoolModule } from './modules/sunday-school/sunday-school.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { TeachingsModule } from './modules/teachings/teachings.module';
 import { UsersModule } from './modules/users/users.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -57,8 +60,9 @@ import { PrismaModule } from './prisma/prisma.module';
     TeachingsModule,
     ClassesModule,
     EventsModule,
-    // Phase 7 : GivingModule, AnnouncementsModule, NotificationsModule
-    // Phase 8 : ReportsModule
+    GivingModule,
+    CommunicationsModule,
+    ReportsModule,
     // Phase 9 : RealtimeModule
   ],
 
