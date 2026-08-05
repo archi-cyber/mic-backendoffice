@@ -1,9 +1,5 @@
 /**
- * Données initiales.
- *
- * Exécution :
- *   npm run prisma:seed
- *
+ 
  * Le script est idempotent : il peut être relancé sans créer de doublon ni
  * écraser un mot de passe déjà changé. C'est essentiel, car il s'exécute
  * potentiellement à chaque déploiement.
@@ -23,10 +19,7 @@ const ARGON2_OPTIONS: argon2.Options = {
 
 /**
  * Départements créés par défaut.
- *
- * « Finance » n'est pas un choix esthétique : la règle d'accès aux données
- * financières repose sur un département portant exactement ce nom. Sans lui,
- * personne hors administrateur ne pourrait accéder au module Finances.
+.
  */
 const DEFAULT_DEPARTMENTS = [
   { name: 'Finance', description: 'Gestion des dîmes, offrandes et dépenses' },

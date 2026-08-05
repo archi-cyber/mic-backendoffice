@@ -1,7 +1,3 @@
--- Index uniques PARTIELS
--- Prisma ne sait pas declarer d'index conditionnel dans schema.prisma.
--- Sans eux, une ligne supprimee logiquement bloquerait toute recreation
--- du meme couple de valeurs.
 
 DROP INDEX IF EXISTS "ux_church_services_date_name_active";
 CREATE UNIQUE INDEX "ux_church_services_date_name_active"

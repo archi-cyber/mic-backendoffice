@@ -12,13 +12,6 @@ export interface RequiredPermission {
 /**
  * Exige une permission granulaire sur un module.
  *
- * Remplace les politiques RLS de PostgreSQL : là où la base vérifiait
- * `is_leader()` avant chaque lecture, c'est désormais `PermissionsGuard` qui
- * consulte la table `leader_access`.
- *
- * Les administrateurs et pasteurs contournent systématiquement cette
- * vérification.
- *
  * @example
  *   @RequirePermission(FEATURES.members, 'create')
  *   @Post()
