@@ -1,154 +1,121 @@
-import 'package:flutter/foundation.dart';
-import 'supabase_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// Admin service for user management operations
+/// Administration des comptes.
 class AdminService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  /// Create admin/pastor/admin users
-  /// POST /admin/users
+  /// Crée un compte de connexion pour un membre.
+  ///
+  /// Aucun mot de passe n'est demandé : le compte reçoit celui par défaut,
+  /// avec changement obligatoire à la première connexion. Laisser un
+  /// administrateur choisir le mot de passe d'autrui signifierait qu'il le
+  /// connaît, ce qui rend impossible toute imputabilité des actions du compte.
+  ///
+  /// La réponse contient `temporary_password`, à communiquer au membre — il
+  /// n'est jamais renvoyé par la suite.
   static Future<Map<String, dynamic>> createAdminUser({
     required String email,
-    required String password,
-    required String role, // 'admin', 'pastor', etc.
-    Map<String, dynamic>? metadata,
+    String? password,
+    String role = 'member',
+    String? memberId,
+    String? phone,
+    String? firstName,
+    String? lastName,
   }) async {
-    try {
-      final response = await _client
-          .from('users')
-          .insert({
-            'email': email,
-            'password': password, // Note: In production, hash this server-side
-            'role': role,
-            'is_active': true,
-            'metadata': metadata ?? {},
-            'created_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
+    // Un compte suppose une fiche membre : la relation est de un à un côté
+    // serveur, et créer un compte orphelin le priverait de présence, de tâches
+    // et de rapports. Si aucun membre n'est fourni, on en crée un à partir de
+    // l'adresse.
+    var resolvedMemberId = memberId;
 
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create admin user: $e');
+    if (resolvedMemberId == null) {
+      final local = email.split('@').first;
+      final parts = local.split(RegExp(r'[._-]'));
+
+      final member = await _client.post('/members', body: {
+        'first_name': firstName ?? _capitalize(parts.first),
+        'last_name': lastName ??
+            (parts.length > 1
+                ? parts.sublist(1).map(_capitalize).join(' ')
+                : ''),
+        'email': email,
+        if (phone != null) 'phone': phone,
+        'role': role == 'admin' || role == 'pastor' ? 'admin' : 'member',
+        'is_active': true,
+      });
+
+      resolvedMemberId = (member as Map)['id']?.toString();
     }
+
+    // `password` est ignoré : le serveur applique le mot de passe par défaut
+    // avec changement obligatoire. Laisser un administrateur choisir celui
+    // d'autrui signifierait qu'il le connaît, ce qui rend impossible toute
+    // imputabilité des actions du compte.
+    final data = await _client.post('/users', body: {
+      'member_id': resolvedMemberId,
+      'email': email,
+      'role': role,
+      if (phone != null) 'phone': phone,
+    });
+
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Activate/deactivate user
-  /// PATCH /users/:id/activate
-  static Future<void> activateUser({
+  /// Met la première lettre en majuscule.
+  static String _capitalize(String value) =>
+      value.isEmpty ? value : value[0].toUpperCase() + value.substring(1);
+
+  static Future<List<Map<String, dynamic>>> getUsers({
+    int? limit,
+    int? offset,
+    String? role,
+    bool? isActive,
+  }) {
+    final effectiveLimit = limit ?? 100;
+    final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
+
+    return _client.getList('/users', query: {
+      'page': page,
+      'limit': effectiveLimit,
+      if (role != null) 'role': role,
+      if (isActive != null) 'is_active': isActive,
+    });
+  }
+
+  static Future<Map<String, dynamic>> getUserById(String userId) =>
+      _client.getOne('/users/$userId');
+
+  static Future<Map<String, dynamic>> updateUser({
+    required String userId,
+    required Map<String, dynamic> updates,
+  }) async {
+    final data = await _client.patch('/users/$userId', body: updates);
+    return (data as Map).cast<String, dynamic>();
+  }
+
+  /// Active ou désactive un compte.
+  ///
+  /// La désactivation ferme immédiatement toutes les sessions. Le serveur
+  /// refuse de désactiver le dernier administrateur actif — code `LAST_ADMIN` —
+  /// faute de quoi l'application deviendrait inadministrable.
+  static Future<Map<String, dynamic>> setUserActive({
     required String userId,
     required bool isActive,
   }) async {
-    try {
-      await _client
-          .from('users')
-          .update({
-            'is_active': isActive,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', userId);
-    } catch (e) {
-      throw Exception('Failed to activate/deactivate user: $e');
-    }
+    final data = await _client.patch(
+      '/users/$userId/active',
+      body: {'is_active': isActive},
+    );
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Force password reset for user
-  /// PATCH /users/:id/force-reset
-  /// Business Rule: Admins/pastor can force password reset (must_change_password=true)
-  static Future<void> forcePasswordReset({
-    required String userId,
-    bool sendEmail = false,
-  }) async {
-    try {
-      // Update user metadata - force password change
-      await _client
-          .from('users')
-          .update({
-            'must_change_password': true,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', userId);
-
-      // If sendEmail is true, trigger password reset email
-      if (sendEmail) {
-        final user = await _client
-            .from('users')
-            .select('email')
-            .eq('id', userId)
-            .maybeSingle();
-
-        if (user?['email'] != null) {
-          // Use AuthService to send reset email
-          // Note: This requires email to be in Supabase Auth
-          try {
-            // Import AuthService if needed
-            // await AuthService.forgotPassword(email: user['email']);
-          } catch (e) {
-            // Log but don't fail
-            debugPrint('Warning: Failed to send password reset email: $e');
-          }
-        }
-      }
-    } catch (e) {
-      throw Exception('Failed to force password reset: $e');
-    }
+  static Future<Map<String, dynamic>> resetUserPassword(String userId) async {
+    final data = await _client.post('/users/$userId/reset-password');
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Update user role
-  /// PATCH /users/:id/role
-  /// Business Rule: Only admins can update user roles
-  static Future<void> updateUserRole({
-    required String userId,
-    required String role, // 'admin', 'pastor', 'leader', etc.
-  }) async {
-    try {
-      // Update role in users table
-      await _client
-          .from('users')
-          .update({
-            'role': role,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', userId);
-
-      // Also update Supabase Auth metadata if possible
-      try {
-        final user = await _client
-            .from('users')
-            .select('email')
-            .eq('id', userId)
-            .maybeSingle();
-
-        if (user?['email'] != null) {
-          // Note: Updating auth metadata requires admin privileges
-          // This might need to be done through Supabase Dashboard or Admin API
-          debugPrint('Note: User role updated in users table. Auth metadata may need manual update.');
-        }
-      } catch (e) {
-        // Log but don't fail - role update in users table is the primary source
-        debugPrint('Warning: Could not update auth metadata: $e');
-      }
-    } catch (e) {
-      throw Exception('Failed to update user role: $e');
-    }
-  }
-
-  /// Update user role by email
-  /// PATCH /users/role
-  static Future<void> updateUserRoleByEmail({
-    required String email,
-    required String role, // 'admin', 'pastor', 'leader', etc.
-  }) async {
-    try {
-      await _client
-          .from('users')
-          .update({
-            'role': role,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('email', email);
-    } catch (e) {
-      throw Exception('Failed to update user role: $e');
-    }
+  static Future<void> deleteUser(String userId) async {
+    await _client.delete('/users/$userId');
   }
 }

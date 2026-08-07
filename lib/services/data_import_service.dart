@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import '../core/api/api_exception.dart';
 import 'member_service.dart';
-import 'supabase_service.dart';
 
 /// Service for importing data
 class DataImportService {
@@ -40,30 +40,32 @@ class DataImportService {
 
     for (final memberData in membersData) {
       try {
-        // Skip if member already exists (by email or ID)
-        if (memberData['email'] != null) {
-          final existing = await SupabaseService.client
-              .from('members')
-              .select('id')
-              .eq('email', memberData['email'])
-              .maybeSingle();
-
-          if (existing != null) {
-            errors.add(
-              'Member with email ${memberData['email']} already exists',
-            );
-            errorCount++;
-            continue;
-          }
-        }
-
+        // La vérification préalable de l'adresse disparaît : le serveur
+        // applique la contrainte d'unicité et renvoie `DUPLICATE_ENTRY`.
+        //
+        // Le contrôle côté client était de toute façon fragile — entre la
+        // lecture et l'écriture, un autre import pouvait créer le même membre.
+        // Laisser la base trancher supprime cette fenêtre, et divise par deux
+        // le nombre de requêtes sur un import de plusieurs centaines de lignes.
         await MemberService.createMember(
           memberData: Map<String, dynamic>.from(memberData),
         );
         successCount++;
+      } on ApiException catch (e) {
+        errorCount++;
+
+        if (e.code == ApiErrorCodes.duplicateEntry) {
+          errors.add(
+            'Le membre ${memberData['email'] ?? memberData['id']} existe déjà',
+          );
+        } else {
+          errors.add(
+            'Erreur sur ${memberData['email'] ?? memberData['id']} : ${e.message}',
+          );
+        }
       } catch (e) {
         errorCount++;
-        errors.add('Error importing member ${memberData['id']}: $e');
+        errors.add('Erreur sur le membre ${memberData['id']} : $e');
       }
     }
 

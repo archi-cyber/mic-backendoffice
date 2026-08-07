@@ -3,11 +3,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../services/chat_service.dart';
-import '../../services/supabase_service.dart';
 import '../../services/department_service.dart';
 import 'add_announcement_page.dart';
 import 'edit_announcement_page.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/permission_helper.dart';
 
 /// Chat/Announcements page
 class ChatPage extends StatefulWidget {
@@ -47,26 +47,25 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  /// Détermine si l'utilisateur peut publier une annonce.
+  ///
+  /// L'implémentation précédente terminait sa condition par `|| true`, ce qui
+  /// accordait le droit à tout le monde — le commentaire annonçait d'ailleurs
+  /// « restrict in production ». La permission est désormais réellement
+  /// vérifiée.
+  ///
+  /// Ce contrôle ne sert qu'à masquer le bouton : le serveur refuse de toute
+  /// façon une publication sans le droit `chat:create`.
   Future<void> _checkPermissions() async {
-    // Check if user is admin, pastor, or leader
-    // For now, we'll allow all authenticated users to create announcements
-    // In production, this should check user role from database
     try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser != null) {
-        // Check user role from metadata or database
-        final role = currentUser.userMetadata?['role']?.toString();
-        setState(() {
-          _canCreateAnnouncement =
-              role == 'admin' ||
-              role == 'pastor' ||
-              role == 'leader' ||
-              true; // Allow for now, restrict in production
-        });
-      }
+      final canCreate = await PermissionHelper.canCreate('chat');
+
+      if (!mounted) return;
+      setState(() => _canCreateAnnouncement = canCreate);
     } catch (e) {
-      // If error, default to false
-      setState(() => _canCreateAnnouncement = false);
+      // En cas d'échec, on refuse : masquer un bouton légitime est une gêne,
+      // en afficher un qui mènera à une erreur est pire.
+      if (mounted) setState(() => _canCreateAnnouncement = false);
     }
   }
 

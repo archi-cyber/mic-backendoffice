@@ -13,6 +13,7 @@ import '../../utils/whatsapp_utils.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/phone_number_field.dart';
+import '../../widgets/offline/sync_indicator.dart';
 
 /// Page for marking church attendance (named services on any date)
 class ChurchAttendancePage extends StatefulWidget {
@@ -864,7 +865,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           memberIds: onsiteMembers,
           churchServiceId: churchServiceId,
           attendanceType: 'onsite',
-          specificObservationsByMemberId: _memberSpecificObservations,
+          specificObservationsByMember: _memberSpecificObservations,
         );
       }
       if (onlineMembers.isNotEmpty) {
@@ -872,7 +873,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           memberIds: onlineMembers,
           churchServiceId: churchServiceId,
           attendanceType: 'online',
-          specificObservationsByMemberId: _memberSpecificObservations,
+          specificObservationsByMember: _memberSpecificObservations,
         );
       }
       if (absentMembers.isNotEmpty) {
@@ -880,7 +881,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           memberIds: absentMembers,
           churchServiceId: churchServiceId,
           attendanceType: 'absent',
-          specificObservationsByMemberId: _memberSpecificObservations,
+          specificObservationsByMember: _memberSpecificObservations,
         );
       }
 
@@ -1214,6 +1215,14 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                     : context.tr('Mark Attendance'),
               ),
               actions: [
+                // Signale les saisies en attente de synchronisation.
+                //
+                // C'est l'écran où elles se produisent : pointer un culte sans
+                // réseau les met en file, et sans cet indicateur le responsable
+                // terminerait sa feuille en croyant tout transmis.
+                //
+                // Reste invisible tant que la file est vide.
+                const SyncIndicator(),
                 if (_isViewMode) ...[
                   IconButton(
                     icon: const Icon(Icons.person_add_alt_1),

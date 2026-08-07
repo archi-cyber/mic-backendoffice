@@ -1,199 +1,101 @@
 import 'package:flutter/foundation.dart';
-import 'device_token_service.dart';
-import 'supabase_service.dart';
 
-/// Service for sending push notifications via Supabase Edge Functions
-/// The Edge Function handles FCM communication securely on the server
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
+
+/// Envoi de notifications push.
+///
+/// **Ce service n'envoie plus rien.** L'ancienne version appelait une fonction
+/// Edge Supabase, qui contactait Firebase avec les jetons d'appareil fournis
+/// par le client.
+///
+/// Ce modèle posait un problème de fond : n'importe quel client authentifié
+/// pouvait envoyer une notification à n'importe quel appareil, en fournissant
+/// simplement les jetons. Le serveur n'avait aucun moyen de vérifier que
+/// l'expéditeur avait le droit de notifier ces destinataires.
+///
+/// L'envoi relève désormais du backend, qui résout lui-même les destinataires
+/// à partir de l'action : assigner une tâche notifie les assignés, publier une
+/// annonce notifie son public. Le client déclenche l'action, pas l'envoi.
+///
+/// Les méthodes sont conservées pour ne pas casser les appels existants. Elles
+/// journalisent et renvoient un résultat neutre.
 class PushNotificationService {
-  static const String _edgeFunctionName = 'send-push-notification';
+  static ApiClient get _client => AuthService.client;
 
-  /// Send push notification to multiple device tokens via Supabase Edge Function
-  static Future<void> sendPushNotification({
+  /// Envoi direct à des appareils — n'est plus possible.
+  ///
+  /// Fournir des jetons d'appareil depuis le client reviendrait à laisser
+  /// n'importe qui notifier n'importe qui.
+  static Future<Map<String, dynamic>> sendPushNotification({
     required List<String> deviceTokens,
     required String title,
     required String body,
     Map<String, dynamic>? data,
   }) async {
-    if (deviceTokens.isEmpty) {
-      debugPrint('[PushNotificationService] No device tokens to send to');
-      return;
-    }
+    debugPrint(
+      '[PushNotification] Envoi direct non disponible : le serveur résout '
+      'lui-même les destinataires. Utilisez la route de l\'action concernée.',
+    );
 
-    try {
-      debugPrint(
-        '[PushNotificationService] Sending push notifications to ${deviceTokens.length} devices via Edge Function',
-      );
-
-      final response = await SupabaseService.client.functions.invoke(
-        _edgeFunctionName,
-        body: {
-          'deviceTokens': deviceTokens,
-          'title': title,
-          'body': body,
-          'data': data ?? {},
-        },
-      );
-
-      if (response.status == 200) {
-        final responseData = response.data as Map<String, dynamic>?;
-        final totalSuccess = responseData?['totalSuccess'] as int? ?? 0;
-        final totalFailure = responseData?['totalFailure'] as int? ?? 0;
-        debugPrint(
-          '[PushNotificationService] ✅ Successfully sent: $totalSuccess success, $totalFailure failures',
-        );
-        if (totalFailure > 0) {
-          debugPrint(
-            '[PushNotificationService] ⚠️ Some notifications failed. Check Edge Function logs for details.',
-          );
-        }
-      } else {
-        final errorData = response.data;
-        debugPrint(
-          '[PushNotificationService] ❌ Edge Function error: HTTP ${response.status}',
-        );
-        debugPrint('[PushNotificationService] Error response: $errorData');
-        
-        // Provide helpful error messages based on status code
-        if (response.status == 404) {
-          debugPrint(
-            '[PushNotificationService] ⚠️ Edge Function not found. '
-            'Please deploy the function: supabase functions deploy send-push-notification',
-          );
-        } else if (response.status == 500) {
-          debugPrint(
-            '[PushNotificationService] ⚠️ Edge Function internal error. '
-            'Check Supabase secrets (FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT) are set correctly.',
-          );
-        }
-      }
-    } catch (e, stackTrace) {
-      debugPrint(
-        '[PushNotificationService] ❌ ERROR: Failed to send push notifications: $e',
-      );
-      debugPrint('[PushNotificationService] Error type: ${e.runtimeType}');
-      debugPrint('[PushNotificationService] Stack trace: $stackTrace');
-      
-      // Provide helpful diagnostic information
-      if (e.toString().contains('Function not found') || 
-          e.toString().contains('404') ||
-          e.toString().contains('not deployed')) {
-        debugPrint(
-          '[PushNotificationService] 💡 DIAGNOSIS: Edge Function not deployed. '
-          'Run: supabase functions deploy send-push-notification',
-        );
-      } else if (e.toString().contains('secret') || 
-                 e.toString().contains('FIREBASE_PROJECT_ID') ||
-                 e.toString().contains('FIREBASE_SERVICE_ACCOUNT')) {
-        debugPrint(
-          '[PushNotificationService] 💡 DIAGNOSIS: Supabase secrets not configured. '
-          'Set FIREBASE_PROJECT_ID and FIREBASE_SERVICE_ACCOUNT secrets.',
-        );
-      }
-      
-      // Don't throw - push notifications are secondary to announcement creation
-    }
+    return {
+      'success': false,
+      'sent': 0,
+      'reason': 'server_side_only',
+    };
   }
 
-  /// Send push notifications to all users (excluding creator) for an announcement
-  static Future<void> sendAnnouncementPushNotification({
+  /// Notifie l'assemblée d'une nouvelle annonce.
+  ///
+  /// L'envoi est déjà déclenché par `POST /announcements` : publier une
+  /// annonce crée les notifications et les diffuse. Cette méthode n'a donc
+  /// plus rien à faire.
+  ///
+  /// [excludeUserId] n'a plus d'objet non plus : le serveur exclut l'auteur
+  /// de ses propres destinataires.
+  static Future<Map<String, dynamic>> sendAnnouncementPushNotification({
     required String title,
     required String message,
     required String announcementId,
     String? excludeUserId,
   }) async {
+    debugPrint(
+      '[PushNotification] Sans objet : la publication de l\'annonce a déjà '
+      'notifié ses destinataires.',
+    );
+
+    return {'success': true, 'sent': 0, 'reason': 'already_sent_by_server'};
+  }
+
+  /// Rappelle les assignés d'une tâche.
+  ///
+  /// Route dédiée : le serveur connaît les destinataires et refuse les tâches
+  /// terminées, annulées ou archivées.
+  static Future<Map<String, dynamic>> remindTask(String taskId) async {
     try {
-      debugPrint(
-        '[PushNotificationService] Sending announcement push notifications: $announcementId',
-      );
-      debugPrint(
-        '[PushNotificationService] Excluding user ID: ${excludeUserId ?? "none"}',
-      );
+      final result = await _client.post('/tasks/$taskId/remind');
+      return (result as Map).cast<String, dynamic>();
+    } catch (e) {
+      debugPrint('[PushNotification] Rappel impossible : $e');
+      return {'success': false, 'sent': 0};
+    }
+  }
 
-      // Get all active users
-      final allUsers = await SupabaseService.client
-          .from('users')
-          .select('id')
-          .eq('is_active', true)
-          .limit(10000);
-
-      debugPrint(
-        '[PushNotificationService] Found ${(allUsers as List).length} active users in database',
-      );
-
-      // Convert excludeUserId to string for comparison, handle null
-      final excludeUserIdStr = excludeUserId?.toString();
-
-      final userIds = (allUsers as List)
-          .map((u) => u['id']?.toString())
-          .whereType<String>()
-          .where((id) {
-            // Exclude the creator if excludeUserId is provided
-            if (excludeUserIdStr != null && id == excludeUserIdStr) {
-              debugPrint(
-                '[PushNotificationService] Excluding creator user ID: $id',
-              );
-              return false;
-            }
-            return true;
-          })
-          .toList();
-
-      debugPrint(
-        '[PushNotificationService] Found ${userIds.length} users to notify (excluding creator)',
-      );
-
-      if (userIds.isEmpty) {
-        debugPrint('[PushNotificationService] No users to notify');
-        return;
-      }
-
-      // Get device tokens for all users
-      final tokensMap = await DeviceTokenService.getDeviceTokensForUsers(
-        userIds,
-      );
-
-      // Collect all device tokens
-      final allTokens = <String>[];
-      tokensMap.forEach((userId, tokens) {
-        allTokens.addAll(tokens);
+  /// Rappelle toutes les tâches en attente.
+  ///
+  /// Une notification par membre, pas par tâche : quelqu'un ayant cinq tâches
+  /// en retard reçoit un récapitulatif.
+  static Future<Map<String, dynamic>> remindAllPendingTasks({
+    String? departmentId,
+  }) async {
+    try {
+      final result = await _client.post('/tasks/remind-pending', body: {
+        if (departmentId != null) 'department_id': departmentId,
       });
-
-      debugPrint(
-        '[PushNotificationService] Found ${allTokens.length} device tokens to send to',
-      );
-      debugPrint(
-        '[PushNotificationService] Users with tokens: ${tokensMap.keys.length} out of ${userIds.length}',
-      );
-
-      if (allTokens.isEmpty) {
-        debugPrint(
-          '[PushNotificationService] ⚠️ WARNING: No device tokens found for ${userIds.length} users. '
-          'Users may not have registered their device tokens. Ensure users have logged in and granted notification permissions.',
-        );
-        return;
-      }
-
-      // Send push notifications
-      await sendPushNotification(
-        deviceTokens: allTokens,
-        title: title,
-        body: message,
-        data: {
-          'type': 'announcement',
-          'announcement_id': announcementId,
-          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-        },
-      );
-
-      debugPrint(
-        '[PushNotificationService] ✅ Push notification request sent for ${allTokens.length} devices',
-      );
-    } catch (e, stackTrace) {
-      debugPrint(
-        '[PushNotificationService] ERROR: Failed to send announcement push notifications: $e',
-      );
-      debugPrint('[PushNotificationService] Stack trace: $stackTrace');
-      // Don't throw - push notifications are secondary
+      return (result as Map).cast<String, dynamic>();
+    } catch (e) {
+      debugPrint('[PushNotification] Rappel groupé impossible : $e');
+      return {'success': false, 'sent': 0};
     }
   }
 }

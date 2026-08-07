@@ -4,8 +4,8 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/notification_service.dart';
-import '../../services/supabase_service.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 import '../desktop/desktop_shell_scope.dart';
 
@@ -35,12 +35,14 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
 
   Future<void> _loadMemberId() async {
     try {
-      debugPrint('[Notifications] Starting to load member ID...');
-      final currentUserId = SupabaseService.currentUser?.id;
-      debugPrint('[Notifications] Current user ID: $currentUserId');
+      debugPrint('[Notifications] Lecture du profil en mémoire...');
+
+      // Le profil est chargé une fois à la connexion : plus de requête sur la
+      // table `users` à chaque ouverture de l'écran.
+      final currentUserId = PermissionHelper.userId;
 
       if (currentUserId == null) {
-        debugPrint('[Notifications] ERROR: No current user ID found');
+        debugPrint('[Notifications] Aucun utilisateur connecté');
         setState(() => _isLoading = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -54,36 +56,9 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
         return;
       }
 
-      // Query users table to get member_id and role
-      debugPrint(
-        '[Notifications] Querying users table for member_id and role...',
-      );
-      final user = await SupabaseService.client
-          .from('users')
-          .select('member_id, role, email')
-          .eq('id', currentUserId)
-          .maybeSingle();
-
-      debugPrint('[Notifications] User query result: $user');
-
-      if (user == null) {
-        debugPrint('[Notifications] ERROR: User not found in users table');
-        setState(() => _isLoading = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Error: User profile not found. Please contact support.',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-
-      final memberId = user['member_id']?.toString();
-      final userRole = user['role']?.toString();
-      final userEmail = user['email']?.toString();
+      final memberId = PermissionHelper.memberId;
+      final userRole = PermissionHelper.role;
+      final userEmail = PermissionHelper.currentEmail;
 
       debugPrint('[Notifications] User role: $userRole');
       debugPrint('[Notifications] User email: $userEmail');
@@ -157,15 +132,12 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Try to query notifications table directly by user_id if the table supports it
-      // Or show empty list if no member_id means no notifications
-      final currentUserId = SupabaseService.currentUser?.id;
-      debugPrint('[Notifications] Current user ID: $currentUserId');
-
-      // Check if notifications table has a user_id column or if we can query all
-      // For now, we'll show an empty list with a helpful message
+      // Un compte sans fiche membre ne reçoit pas de notification : celles-ci
+      // ciblent le membre, pas le compte de connexion. Le cas est rare — un
+      // administrateur système créé hors du flux habituel — et se traduit par
+      // une liste vide plutôt que par une erreur.
       debugPrint(
-        '[Notifications] No member_id available, showing empty notifications list',
+        '[Notifications] Compte sans fiche membre : liste vide',
       );
 
       setState(() {

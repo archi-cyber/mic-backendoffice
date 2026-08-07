@@ -1,276 +1,211 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
-import 'supabase_service.dart';
+import 'dart:io' show Platform;
 
-/// Service for managing FCM device tokens
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+
+import '../core/api/api_client.dart';
+import '../core/utils/permission_helper.dart';
+import 'auth_service.dart';
+
+/// Jetons d'appareil pour les notifications push.
+///
+/// Signatures identiques à l'implémentation Supabase.
+///
+/// La résolution de l'utilisateur disparaît : l'ancienne version cherchait
+/// l'identifiant dans la table `users`, avec un repli sur l'e-mail au cas où
+/// la synchronisation aurait échoué. Le serveur déduit désormais le
+/// destinataire du jeton d'authentification — aucun identifiant ne transite,
+/// et aucun ne serait accepté.
+///
+/// Firebase reste **optionnel**. Sans configuration, l'initialisation renvoie
+/// `null` sans erreur : les notifications arrivent de toute façon en temps réel
+/// par Socket.IO tant que l'application est ouverte. Le push ne sert qu'à
+/// prévenir un utilisateur dont l'application est fermée.
 class DeviceTokenService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
+
   static FirebaseMessaging? _firebaseMessaging;
   static String? _currentToken;
 
-  /// Get FirebaseMessaging instance (lazy initialization)
+  /// Instance Firebase, initialisée à la demande.
   static FirebaseMessaging? get _messaging {
     if (_firebaseMessaging == null) {
       try {
-        // Check if Firebase is initialized before accessing FirebaseMessaging
         if (Firebase.apps.isNotEmpty) {
           _firebaseMessaging = FirebaseMessaging.instance;
         } else {
           return null;
         }
       } catch (e) {
-        // Firebase not initialized or error accessing FirebaseMessaging
         return null;
       }
     }
     return _firebaseMessaging;
   }
 
-  /// Initialize FCM and get device token
-  static Future<String?> initialize() async {
+  /// Plateforme de l'appareil, telle que l'attend l'API.
+  static String? get _platform {
+    if (kIsWeb) return 'web';
     try {
-      // Check if Firebase is available
-      final messaging = _messaging;
-      if (messaging == null) {
-        throw Exception(
-          'Firebase is not initialized. Please configure Firebase first.',
-        );
-      }
+      if (Platform.isIOS) return 'ios';
+      if (Platform.isAndroid) return 'android';
+    } catch (_) {
+      // Platform lève sur certaines cibles : la plateforme reste indéterminée.
+    }
+    return null;
+  }
 
-      // Request permission
+  /// Initialise les notifications push et enregistre le jeton.
+  ///
+  /// Renvoie `null` si Firebase n'est pas configuré ou si l'utilisateur refuse
+  /// les notifications — deux situations normales, qui ne doivent pas
+  /// interrompre le démarrage de l'application.
+  static Future<String?> initialize() async {
+    final messaging = _messaging;
+
+    if (messaging == null) {
+      debugPrint('[DeviceToken] Firebase absent : push désactivé.');
+      return null;
+    }
+
+    try {
       final settings = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
 
-      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        // Get token
-        final token = await messaging.getToken();
-        _currentToken = token;
+      if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+        debugPrint(
+          '[DeviceToken] Notifications refusées : ${settings.authorizationStatus}',
+        );
+        return null;
+      }
 
-        debugPrint('[DeviceTokenService] ✅ FCM token generated: ${token?.substring(0, 20)}...');
-        debugPrint('[DeviceTokenService] Token length: ${token?.length}');
-        debugPrint('[DeviceTokenService] 📋 FULL TOKEN (for Firebase Console testing):');
-        debugPrint('═══════════════════════════════════════════════════════════════');
-        debugPrint('FCM TOKEN: $token');
-        debugPrint('═══════════════════════════════════════════════════════════════');
+      final token = await messaging.getToken();
+      _currentToken = token;
 
-        // Save token to database if user is authenticated
-        if (SupabaseService.isAuthenticated) {
-          debugPrint('[DeviceTokenService] User is authenticated, saving device token to database...');
-          await saveDeviceToken(token);
-        } else {
-          debugPrint('[DeviceTokenService] User is not authenticated, token will be saved after login');
-        }
+      // Le jeton n'est plus tracé en entier : il identifie l'appareil de façon
+      // unique et n'a pas à figurer dans les journaux, y compris en
+      // développement.
+      debugPrint('[DeviceToken] Jeton obtenu (${token?.length ?? 0} caractères)');
 
-        // Listen for token refresh
-        messaging.onTokenRefresh.listen((newToken) {
-          _currentToken = newToken;
-          debugPrint('[DeviceTokenService] 🔄 FCM token refreshed: ${newToken.substring(0, 20)}...');
-          debugPrint('[DeviceTokenService] 📋 FULL REFRESHED TOKEN:');
-          debugPrint('═══════════════════════════════════════════════════════════════');
-          debugPrint('FCM TOKEN: $newToken');
-          debugPrint('═══════════════════════════════════════════════════════════════');
-          if (SupabaseService.isAuthenticated) {
-            saveDeviceToken(newToken).catchError((e) {
-              debugPrint(
-                '[DeviceTokenService] ⚠️ Failed to save refreshed token: $e',
-              );
-            });
-          } else {
-            debugPrint(
-              '[DeviceTokenService] ⚠️ User not authenticated, token will be saved on next login',
-            );
-          }
-        });
-
-        return token;
+      if (PermissionHelper.userId != null) {
+        await saveDeviceToken(token);
       } else {
-        debugPrint('[DeviceTokenService] ❌ Notification permission not authorized. Status: ${settings.authorizationStatus}');
+        debugPrint('[DeviceToken] Session absente : enregistrement différé.');
       }
 
+      // Un jeton FCM est régénéré périodiquement par le système, sans que
+      // l'application en soit prévenue autrement que par ce flux.
+      messaging.onTokenRefresh.listen((newToken) {
+        _currentToken = newToken;
+        debugPrint('[DeviceToken] Jeton renouvelé.');
+
+        if (PermissionHelper.userId != null) {
+          saveDeviceToken(newToken).catchError((e) {
+            debugPrint('[DeviceToken] Enregistrement impossible : $e');
+          });
+        }
+      });
+
+      return token;
+    } catch (e) {
+      // L'échec du push ne doit pas empêcher l'application de fonctionner.
+      debugPrint('[DeviceToken] Initialisation impossible : $e');
       return null;
-    } catch (e) {
-      throw Exception('Failed to initialize FCM: $e');
     }
   }
 
-  /// Save device token to database
+  /// Enregistre le jeton auprès du serveur.
+  ///
+  /// Réenregistrer le même jeton met simplement à jour la plateforme : le
+  /// serveur traite le couple (utilisateur, jeton) comme unique.
   static Future<void> saveDeviceToken(String? token) async {
-    if (token == null) return;
+    if (token == null || token.isEmpty) return;
+
+    if (PermissionHelper.userId == null) {
+      debugPrint('[DeviceToken] Session absente : jeton non enregistré.');
+      return;
+    }
 
     try {
-      final authUserId = SupabaseService.currentUser?.id;
-      if (authUserId == null) {
-        debugPrint('[DeviceTokenService] Cannot save token: User not authenticated');
-        return;
-      }
-
-      debugPrint('[DeviceTokenService] Saving device token for user: $authUserId');
-
-      // user_devices.user_id references users.id, which in this project should
-      // match auth.uid(). Use auth user id first; fallback to email lookup only
-      // if the users table is not yet synced.
-      final user = await _client
-          .from('users')
-          .select('id')
-          .eq('id', authUserId)
-          .limit(1)
-          .maybeSingle();
-
-      Map<String, dynamic>? resolvedUser = user;
-
-      if (resolvedUser == null) {
-        final authUserEmail = SupabaseService.currentUser?.email;
-        if (authUserEmail != null && authUserEmail.isNotEmpty) {
-          resolvedUser = await _client
-              .from('users')
-              .select('id')
-              .eq('email', authUserEmail)
-              .limit(1)
-              .maybeSingle();
-        }
-      }
-
-      // If user doesn't exist in users table, we can't save the device token
-      // This can happen if the user was created in auth but not synced to users table
-      if (resolvedUser == null) {
-        // Log warning but don't throw error - device token will be saved on next login
-        // when user record is created
-        debugPrint(
-          '[DeviceTokenService] ⚠️ Warning: User record not found in users table for auth user $authUserId. '
-          'Device token will not be saved. User record may need to be created or synced.',
-        );
-        debugPrint(
-          '[DeviceTokenService] 💡 TIP: Ensure the user has logged in at least once to create their user record.',
-        );
-        return;
-      }
-
-      final userId = resolvedUser['id'].toString();
-
-      // Get device info
-      // Note: You may want to add device info like platform, model, etc.
-
-      // Upsert device token
-      await _client.from('user_devices').upsert({
-        'user_id': userId,
+      await _client.post('/users/me/devices', body: {
         'device_token': token,
-        'platform': 'mobile', // Could be 'android' or 'ios'
-        'updated_at': DateTime.now().toIso8601String(),
-      }, onConflict: 'user_id,device_token');
+        if (_platform != null) 'platform': _platform,
+      });
 
-      debugPrint('[DeviceTokenService] ✅ Device token saved successfully to user_devices table');
-      debugPrint('[DeviceTokenService] User ID: $userId, Token: ${token.substring(0, 20)}...');
+      debugPrint('[DeviceToken] Jeton enregistré.');
     } catch (e) {
-      // If it's a foreign key constraint error, provide helpful message
-      if (e.toString().contains('foreign key constraint') ||
-          e.toString().contains('user_devices_user_id_fkey')) {
-        debugPrint(
-          '[DeviceTokenService] ❌ ERROR: User record not found in users table. '
-          'User may need to log in first to create their user record.',
-        );
-        throw Exception(
-          'Failed to save device token: User record not found in users table. '
-          'Please ensure the user is properly synced. Original error: $e',
-        );
-      }
-      debugPrint('[DeviceTokenService] ❌ ERROR: Failed to save device token: $e');
-      throw Exception('Failed to save device token: $e');
+      debugPrint('[DeviceToken] Enregistrement échoué : $e');
     }
   }
 
-  /// Manually register device token for current user
-  /// Useful for re-registering tokens or fixing missing registrations
-  static Future<bool> registerCurrentDeviceToken() async {
-    try {
-      final token = _currentToken;
-      if (token == null) {
-        debugPrint(
-          '[DeviceTokenService] No device token available. Initializing FCM...',
-        );
-        final newToken = await initialize();
-        if (newToken == null) {
-          debugPrint(
-            '[DeviceTokenService] Failed to get device token. '
-            'User may need to grant notification permissions.',
-          );
-          return false;
-        }
-        await saveDeviceToken(newToken);
-        return true;
-      }
-
-      if (!SupabaseService.isAuthenticated) {
-        debugPrint(
-          '[DeviceTokenService] User not authenticated. Cannot register device token.',
-        );
-        return false;
-      }
-
-      await saveDeviceToken(token);
-      return true;
-    } catch (e) {
-      debugPrint('[DeviceTokenService] Failed to register device token: $e');
-      return false;
-    }
+  /// Enregistre le jeton courant, ou en obtient un si nécessaire.
+  ///
+  /// À appeler après la connexion : le jeton peut avoir été obtenu avant que
+  /// l'utilisateur ne s'authentifie, auquel cas il n'a pas encore été envoyé.
+  static Future<void> registerCurrentDeviceToken() async {
+    final token = _currentToken ?? await _messaging?.getToken();
+    await saveDeviceToken(token);
   }
 
-  /// Get device tokens for a user
+  /// Appareils enregistrés de l'utilisateur connecté.
+  ///
+  /// [userId] est ignoré : le serveur déduit le compte du jeton
+  /// d'authentification. Accepter un identifiant fourni par le client
+  /// permettrait de lire les appareils d'autrui.
   static Future<List<String>> getDeviceTokensForUser(String userId) async {
     try {
-      final devices = await _client
-          .from('user_devices')
-          .select('device_token')
-          .eq('user_id', userId);
-
-      return (devices as List)
-          .map((device) => device['device_token'] as String?)
+      final devices = await _client.getList('/users/me/devices');
+      return devices
+          .map((d) => d['device_token']?.toString())
           .whereType<String>()
           .toList();
     } catch (e) {
-      throw Exception('Failed to get device tokens: $e');
+      debugPrint('[DeviceToken] Lecture impossible : $e');
+      return const [];
     }
   }
 
-  /// Get all device tokens for multiple users
-  static Future<Map<String, List<String>>> getDeviceTokensForUsers(
+  /// Jetons de plusieurs utilisateurs.
+  ///
+  /// N'est plus accessible depuis le client : l'envoi de notifications relève
+  /// du serveur, qui résout lui-même les destinataires. Renvoie une liste vide.
+  ///
+  /// Conservée pour ne pas casser les appels existants — les écrans qui
+  /// l'utilisaient pour envoyer des notifications doivent passer par les
+  /// routes dédiées, comme `POST /tasks/:id/remind`.
+  static Future<List<String>> getDeviceTokensForUsers(
     List<String> userIds,
   ) async {
-    try {
-      final devices = await _client
-          .from('user_devices')
-          .select('user_id,device_token')
-          .inFilter('user_id', userIds);
-
-      final Map<String, List<String>> tokensMap = {};
-
-      for (final device in devices as List) {
-        final userId = device['user_id'].toString();
-        final token = device['device_token'] as String?;
-
-        if (token != null) {
-          tokensMap.putIfAbsent(userId, () => []).add(token);
-        }
-      }
-
-      return tokensMap;
-    } catch (e) {
-      throw Exception('Failed to get device tokens for users: $e');
-    }
+    debugPrint(
+      '[DeviceToken] Sans objet : les destinataires sont résolus côté serveur.',
+    );
+    return const [];
   }
 
-  /// Remove device token (on logout)
+  /// Retire un jeton d'appareil.
+  ///
+  /// À appeler à la déconnexion : sans cela, l'appareil continuerait de
+  /// recevoir les notifications de la personne précédente.
   static Future<void> removeDeviceToken(String token) async {
+    if (token.isEmpty) return;
+
     try {
-      await _client.from('user_devices').delete().eq('device_token', token);
+      await _client.delete('/users/me/devices/$token');
+      if (_currentToken == token) _currentToken = null;
+
+      debugPrint('[DeviceToken] Jeton retiré.');
     } catch (e) {
-      throw Exception('Failed to remove device token: $e');
+      debugPrint('[DeviceToken] Retrait impossible : $e');
     }
   }
 
-  /// Get current device token
-  static String? get currentToken => _currentToken;
+  /// Retire le jeton courant — raccourci pour la déconnexion.
+  static Future<void> clearCurrentDeviceToken() async {
+    final token = _currentToken;
+    if (token != null) await removeDeviceToken(token);
+  }
 }

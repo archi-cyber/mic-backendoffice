@@ -69,6 +69,7 @@ import '../../screens/desktop/auth/desktop_forgot_password_page.dart';
 import '../../screens/desktop/auth/desktop_reset_password_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
+import '../../screens/sync/sync_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -363,6 +364,13 @@ class AppRouter {
       case RouteNames.memberAccounts:
         return MaterialPageRoute(
           builder: (_) => MemberAccountsPage(),
+          settings: settings,
+        );
+
+        //case RouteNames.notifications:
+        case RouteNames.sync:
+        return MaterialPageRoute(
+          builder: (_) => const SyncPage(),
           settings: settings,
         );
 

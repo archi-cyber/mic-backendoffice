@@ -6,7 +6,6 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/department_service.dart';
-import '../../services/supabase_service.dart';
 import '../../core/utils/permission_helper.dart';
 import 'add_department_page.dart';
 import 'department_form_ui.dart';
@@ -47,34 +46,20 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     super.dispose();
   }
 
+  /// Indique si l'utilisateur peut créer un département.
+  ///
+  /// Deux voies : la permission explicite, ou le fait de diriger déjà un
+  /// département. Les appartenances sont connues depuis la connexion — les
+  /// deux requêtes de l'ancienne version disparaissent.
   Future<bool> _canCreateDepartment() async {
     try {
-      // Check leader access first
-      final canCreate = await PermissionHelper.canCreate('departments');
-      if (canCreate) return true;
+      if (await PermissionHelper.canCreate('departments')) return true;
 
-      // Fallback: Check if user is a leader of any department (legacy check)
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) return false;
-
-      final user = await SupabaseService.client
-          .from('users')
-          .select('member_id')
-          .eq('id', currentUser.id)
-          .maybeSingle();
-
-      if (user == null || user['member_id'] == null) return false;
-
-      final memberId = user['member_id'].toString();
-
-      final hasLeadership = await SupabaseService.client
-          .from('department_members')
-          .select('id')
-          .eq('member_id', memberId)
-          .eq('role', 'leader')
-          .maybeSingle();
-
-      return hasLeadership != null;
+      // Un responsable de département peut en créer un autre, même sans la
+      // permission explicite. Règle héritée, conservée telle quelle.
+      return PermissionHelper.departmentRoles.any(
+        (membership) => membership['role'] == 'leader',
+      );
     } catch (e) {
       return false;
     }
@@ -114,44 +99,33 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     final taskCounts = <String, int>{for (final id in departmentIds) id: 0};
     final leaderNames = <String, String>{};
 
-    try {
-      final tasks = await SupabaseService.client
-          .from('tasks')
-          .select('department_id')
-          .inFilter('department_id', departmentIds);
+    // Décomptes et responsables arrivent avec la liste des départements : le
+    // serveur les joint en une requête, là où le client en faisait deux.
+    for (final dept in departments) {
+      final id = dept['id']?.toString();
+      if (id == null) continue;
 
-      for (final task in List<Map<String, dynamic>>.from(tasks)) {
-        final departmentId = task['department_id']?.toString();
-        if (departmentId == null) continue;
-        taskCounts[departmentId] = (taskCounts[departmentId] ?? 0) + 1;
+      final counts = (dept['_count'] as Map?)?.cast<String, dynamic>();
+      taskCounts[id] = counts?['tasks'] as int? ?? 0;
+
+      final memberships =
+          (dept['department_members'] as List?) ?? const <dynamic>[];
+
+      final names = memberships
+          .map((entry) => (entry as Map).cast<String, dynamic>())
+          .where((entry) => entry['role'] == 'leader')
+          .map((entry) {
+            final member = (entry['member'] as Map?)?.cast<String, dynamic>();
+            final firstName = member?['first_name']?.toString() ?? '';
+            final lastName = member?['last_name']?.toString() ?? '';
+            return '$firstName $lastName'.trim();
+          })
+          .where((name) => name.isNotEmpty)
+          .toList();
+
+      if (names.isNotEmpty) {
+        leaderNames[id] = names.join(', ');
       }
-    } catch (_) {
-      // Keep counts at zero if the task lookup fails.
-    }
-
-    try {
-      final leaders = await SupabaseService.client
-          .from('department_members')
-          .select('department_id, role, members(first_name, last_name)')
-          .inFilter('department_id', departmentIds)
-          .eq('role', 'leader');
-
-      for (final leader in List<Map<String, dynamic>>.from(leaders)) {
-        final departmentId = leader['department_id']?.toString();
-        final member = leader['members'];
-        if (departmentId == null || member is! Map) continue;
-        final firstName = member['first_name']?.toString() ?? '';
-        final lastName = member['last_name']?.toString() ?? '';
-        final name = '$firstName $lastName'.trim();
-        if (name.isEmpty) continue;
-
-        final existing = leaderNames[departmentId];
-        leaderNames[departmentId] = existing == null || existing.isEmpty
-            ? name
-            : '$existing, $name';
-      }
-    } catch (_) {
-      // Leave leader names empty if the lookup fails.
     }
 
     return departments.map((dept) {

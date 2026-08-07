@@ -1,154 +1,123 @@
-import 'supabase_service.dart';
-import 'notification_service.dart';
+import 'package:flutter/foundation.dart';
 
-/// Service for birthday notifications with configuration options
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
+
+/// Anniversaires.
+///
+/// L'envoi des notifications relève désormais du serveur : une tâche planifiée
+/// tourne chaque matin à 7 h et annonce les anniversaires du jour. Assez tôt
+/// pour être vu dans la journée, assez tard pour ne pas réveiller les
+/// appareils.
+///
+/// Ce service se limite donc à la consultation. Les méthodes de planification
+/// et d'envoi sont conservées pour compatibilité, mais n'ont plus d'effet —
+/// laisser le client déclencher les envois signifiait qu'un anniversaire
+/// passait inaperçu si personne n'ouvrait l'application ce jour-là.
 class BirthdayNotificationService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  /// Get birthday notification configuration
+  /// Anniversaires à venir.
+  ///
+  /// Exclut les membres ayant désactivé les notifications d'anniversaire.
+  static Future<List<Map<String, dynamic>>> getUpcomingBirthdays({
+    int days = 30,
+  }) =>
+      _client.getList('/members/birthdays', query: {'days': days});
+
+  /// Anniversaires du jour.
+  static Future<List<Map<String, dynamic>>> getTodayBirthdays() async {
+    final upcoming = await getUpcomingBirthdays(days: 1);
+    return upcoming.where((row) => row['days_until'] == 0).toList();
+  }
+
+  /// Anniversaires du mois courant.
+  static Future<List<Map<String, dynamic>>> getMonthBirthdays() async {
+    final dashboard = await _client.getOne('/reports/dashboard');
+    final birthdays = (dashboard['birthdays_this_month'] as List?) ?? const [];
+    return birthdays.map((e) => (e as Map).cast<String, dynamic>()).toList();
+  }
+
+  /// Déclenche l'envoi des notifications du jour.
+  ///
+  /// Sans effet : la tâche planifiée du serveur s'en charge. Conservée pour ne
+  /// pas casser les appels existants.
+  static Future<void> sendTodayBirthdayNotifications() async {
+    // Volontairement vide.
+  }
+
+  /// Planifie les notifications à venir.
+  ///
+  /// Sans effet, pour la même raison.
+  static Future<void> scheduleBirthdayNotifications() async {
+    // Volontairement vide.
+  }
+
+  /// Traite les anniversaires du jour.
+  ///
+  /// Sans effet : la tâche planifiée du serveur tourne chaque matin à 7 h.
+  /// Elle s exécute que l application soit ouverte ou non, ce qui n était pas
+  /// le cas quand le client en avait la charge — un anniversaire passait
+  /// inaperçu si personne ne lançait l application ce jour-là.
+  ///
+  /// Renvoie le nombre d anniversaires du jour, à titre indicatif.
+  static Future<int> processBirthdayNotifications() async {
+    try {
+      final today = await getTodayBirthdays();
+      return today.length;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Configuration
+  // ---------------------------------------------------------------------------
+
+  /// Clé du réglage dans les paramètres applicatifs.
+  static const String _configKey = 'birthday_notifications';
+
+  /// Configuration des notifications d'anniversaire.
+  ///
+  /// Le réglage vaut pour **toute l'église**, pas pour un appareil : il est
+  /// stocké côté serveur. Deux responsables consultant l'écran des paramètres
+  /// voient donc la même valeur.
+  ///
+  /// `target` détermine qui est averti : `all` pour toute l'assemblée,
+  /// `workers` pour les seuls ouvriers, `leaders` pour les responsables.
   static Future<Map<String, dynamic>> getNotificationConfig() async {
     try {
-      // Try to get from settings table, or return defaults
-      final config = await _client
-          .from('app_settings')
-          .select()
-          .eq('key', 'birthday_notifications')
-          .maybeSingle();
+      final result = await _client.getOne('/settings/$_configKey');
+      final value = result['value'];
 
-      if (config != null) {
-        return {
-          'target': config['value']?['target'] ?? 'all',
-          // 'all', 'leaders_only', or 'opt_out'
-        };
+      if (value is Map) {
+        return value.cast<String, dynamic>();
       }
-
-      // Default: all church app users
-      return {'target': 'all'};
     } catch (e) {
-      // Return default if settings table doesn't exist
-      return {'target': 'all'};
+      debugPrint('[Birthday] Configuration illisible : $e');
     }
+
+    // Valeur de repli au premier démarrage, avant tout réglage.
+    return {'target': 'all', 'enabled': true};
   }
 
-  /// Update birthday notification configuration
+  /// Enregistre la configuration.
+  ///
+  /// Réservé aux administrateurs côté serveur : un réglage commun ne peut pas
+  /// être modifié par n'importe qui.
   static Future<void> updateNotificationConfig({
-    required String target, // 'all', 'leaders_only', or 'opt_out'
+    required String target,
+    bool? enabled,
   }) async {
-    try {
-      await _client.from('app_settings').upsert({
-        'key': 'birthday_notifications',
-        'value': {'target': target},
-        'updated_at': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      throw Exception('Failed to update notification config: $e');
-    }
-  }
+    final current = await getNotificationConfig();
 
-  /// Get members with birthdays in the current month
-  static Future<List<Map<String, dynamic>>> getBirthdayMembers({
-    int? month, // If null, uses current month
-  }) async {
-    try {
-      final targetMonth = month ?? DateTime.now().month;
-      final startDate = DateTime(DateTime.now().year, targetMonth, 1);
-      final endDate = DateTime(DateTime.now().year, targetMonth + 1, 0);
+    await _client.put('/settings/$_configKey', body: {
+      'value': {
+        'target': target,
+        'enabled': enabled ?? current['enabled'] ?? true,
+      },
+    });
 
-      final members = await _client
-          .from('members')
-          .select()
-          .gte('birthday', startDate.toIso8601String())
-          .lte('birthday', endDate.toIso8601String())
-          .eq('is_active', true);
-
-      return List<Map<String, dynamic>>.from(members);
-    } catch (e) {
-      throw Exception('Failed to get birthday members: $e');
-    }
-  }
-
-  /// Send birthday notifications based on configuration
-  static Future<void> sendBirthdayNotifications() async {
-    try {
-      final config = await getNotificationConfig();
-      final target = config['target'] as String;
-
-      final birthdayMembers = await getBirthdayMembers();
-
-      List<String> targetMemberIds = [];
-
-      if (target == 'all') {
-        // Get all active members who haven't opted out
-        final allMembers = await _client
-            .from('members')
-            .select('id')
-            .eq('is_active', true)
-            .eq('birthday_notifications_opt_out', false);
-
-        targetMemberIds = (allMembers as List)
-            .map((m) => m['id'].toString())
-            .toList();
-      } else if (target == 'leaders_only') {
-        // Get only leaders/admins
-        final leaders = await _client
-            .from('department_members')
-            .select('member_id')
-            .inFilter('role', ['leader', 'subleader']);
-
-        targetMemberIds = (leaders as List)
-            .map((m) => m['member_id'].toString())
-            .toSet()
-            .toList();
-      }
-      // 'opt_out' means no notifications sent
-
-      // Create notifications for target members
-      if (targetMemberIds.isNotEmpty && birthdayMembers.isNotEmpty) {
-        for (final birthdayMember in birthdayMembers) {
-          final memberId = birthdayMember['id'].toString();
-          await NotificationService.createBulkNotifications(
-            memberIds: targetMemberIds,
-            type: 'birthday',
-            title: 'Birthday Alert',
-            message:
-                '${birthdayMember['first_name']} ${birthdayMember['last_name']} has a birthday this month!',
-            relatedId: memberId,
-            relatedType: 'member',
-          );
-        }
-      }
-    } catch (e) {
-      throw Exception('Failed to send birthday notifications: $e');
-    }
-  }
-
-  /// Opt out a user from birthday notifications
-  static Future<void> optOutUser(String memberId) async {
-    try {
-      await _client
-          .from('members')
-          .update({
-            'birthday_notifications_opt_out': true,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', memberId);
-    } catch (e) {
-      throw Exception('Failed to opt out user: $e');
-    }
-  }
-
-  /// Opt in a user to birthday notifications
-  static Future<void> optInUser(String memberId) async {
-    try {
-      await _client
-          .from('members')
-          .update({
-            'birthday_notifications_opt_out': false,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', memberId);
-    } catch (e) {
-      throw Exception('Failed to opt in user: $e');
-    }
+    debugPrint('[Birthday] Configuration enregistrée : cible « $target »');
   }
 }

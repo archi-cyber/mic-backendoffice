@@ -4,7 +4,6 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/event_service.dart';
-import '../../services/supabase_service.dart';
 import '../../services/member_service.dart';
 import '../../core/utils/permission_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
@@ -622,30 +621,28 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
     }
   }
 
+  /// Indique si l'utilisateur connecté est déjà inscrit à cet événement.
+  ///
+  /// Le `memberId` vient du profil chargé à la connexion : plus besoin
+  /// d'interroger la table `users` à chaque vérification.
+  ///
+  /// Les inscriptions sont lues via le service, qui renvoie membres et invités
+  /// dans une seule liste. Seules les lignes rattachées à un membre nous
+  /// intéressent ici — un invité n'a pas de compte.
   Future<bool> _checkRegistrationStatus() async {
     try {
-      final currentUserId = SupabaseService.currentUser?.id;
-      if (currentUserId == null) return false;
+      final memberId = PermissionHelper.memberId;
+      if (memberId == null) return false;
 
-      // Get current user's member ID from users table
-      final user = await SupabaseService.client
-          .from('users')
-          .select('member_id')
-          .eq('id', currentUserId)
-          .maybeSingle();
+      final registrations = await EventService.getEventRegistrations(
+        widget.eventId,
+      );
 
-      if (user == null || user['member_id'] == null) return false;
-
-      final memberId = user['member_id'].toString();
-
-      final registration = await SupabaseService.client
-          .from('event_registrations')
-          .select()
-          .eq('event_id', widget.eventId)
-          .eq('member_id', memberId)
-          .maybeSingle();
-
-      return registration != null;
+      return registrations.any((registration) {
+        final member =
+            (registration['member'] as Map?)?.cast<String, dynamic>();
+        return member?['id'] == memberId;
+      });
     } catch (e) {
       return false;
     }
@@ -654,23 +651,13 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
   Future<void> _handleSelfRegistration() async {
     setState(() => _isRegistering = true);
     try {
-      final currentUserId = SupabaseService.currentUser?.id;
-      if (currentUserId == null) {
-        throw Exception('User not authenticated');
-      }
+      // Le membre associé au compte est connu depuis la connexion : deux
+      // requêtes disparaissent, et l'inscription part immédiatement.
+      final memberId = PermissionHelper.memberId;
 
-      // Get current user's member ID from users table
-      final user = await SupabaseService.client
-          .from('users')
-          .select('member_id')
-          .eq('id', currentUserId)
-          .maybeSingle();
-
-      if (user == null || user['member_id'] == null) {
+      if (memberId == null) {
         throw Exception('Member profile not found');
       }
-
-      final memberId = user['member_id'].toString();
 
       await EventService.registerForEvent(
         eventId: widget.eventId,

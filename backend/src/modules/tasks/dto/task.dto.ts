@@ -316,3 +316,19 @@ export class RunPenaltiesDto {
   @IsDateString()
   date?: string;
 }
+
+// =============================================================================
+// RAPPELS
+// =============================================================================
+
+export class RemindPendingDto {
+  @ApiPropertyOptional({
+    description:
+      'Restreint le rappel a un departement. Absent, toutes les taches en ' +
+      'attente sont concernees.',
+  })
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsUUID('4', { message: 'Identifiant de departement invalide.' })
+  departmentId?: string;
+}

@@ -7,7 +7,6 @@ import '../../core/constants/member_constants.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/member_service.dart';
 import '../../services/report_service.dart';
-import '../../services/supabase_service.dart';
 import '../../services/role_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
@@ -1015,23 +1014,28 @@ class _ClassesTabState extends State<_ClassesTab> {
     _loadMemberClasses();
   }
 
+  /// Charge les formations auxquelles le membre est inscrit.
+  ///
+  /// Le bilan du membre porte déjà cette liste : une seule requête suffit là
+  /// où l'ancienne version interrogeait la table de liaison avec une jointure
+  /// imbriquée.
   Future<void> _loadMemberClasses() async {
     try {
-      final enrollments = await SupabaseService.client
-          .from('class_members')
-          .select('*, classes(*)')
-          .eq('member_id', widget.memberId);
+      final report = await ReportService.getMemberReport(
+        memberId: widget.memberId,
+      );
 
+      final trainings = (report['trainings'] as List?) ?? const [];
+
+      if (!mounted) return;
       setState(() {
-        _classes = (enrollments as List)
-            .map((e) => e['classes'] as Map<String, dynamic>?)
-            .where((c) => c != null)
-            .cast<Map<String, dynamic>>()
+        _classes = trainings
+            .map((e) => (e as Map).cast<String, dynamic>())
             .toList();
         _isLoading = false;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

@@ -138,4 +138,7 @@ class RouteNames {
   static const String desktopVisitors = '/desktop/visitors';
   static const String desktopTeachings = '/desktop/teachings';
   static const String desktopSessions = '/desktop/sessions';
+
+ /// Écran de synchronisation des saisies hors ligne.
+  static const String sync = '/sync';
 }

@@ -1,170 +1,111 @@
-import 'package:flutter/foundation.dart';
-
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 import 'class_service.dart';
-import 'supabase_service.dart';
 
-/// Bulk trainings report with per-training attendance summaries.
+/// Rapports de formation.
+///
+/// Signatures identiques à l'implémentation Supabase.
+///
+/// L'assiduité de chaque formation est calculée par le serveur — routes
+/// `/classes/:id/report`. Ce service agrège ces résultats pour l'ensemble des
+/// formations actives, ce qui reste léger : une requête par formation, et une
+/// église en compte rarement plus de quelques dizaines.
 class TrainingsReportService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  static Future<Map<String, dynamic>> getWeeklyReport({
-    DateTime? referenceDate,
-  }) {
-    final ref = referenceDate ?? DateTime.now();
-    final start = DateTime(
-      ref.year,
-      ref.month,
-      ref.day,
-    ).subtract(Duration(days: ref.weekday - DateTime.monday));
-    final end = start.add(const Duration(days: 6));
-    return getReport(startDate: start, endDate: end);
-  }
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
-  static Future<Map<String, dynamic>> getMonthlyReport({
-    DateTime? referenceDate,
-  }) {
-    final ref = referenceDate ?? DateTime.now();
-    final start = DateTime(ref.year, ref.month, 1);
-    final end = DateTime(ref.year, ref.month + 1, 0);
-    return getReport(startDate: start, endDate: end);
-  }
-
-  static Future<Map<String, dynamic>> getYearlyReport({int? year}) {
-    final y = year ?? DateTime.now().year;
-    return getReport(
-      startDate: DateTime(y, 1, 1),
-      endDate: DateTime(y, 12, 31),
-    );
-  }
-
+  /// Rapport sur une période libre.
   static Future<Map<String, dynamic>> getReport({
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     final classes = await ClassService.getClasses(limit: 200);
 
-    var sessionsQuery = _client
-        .from('sessions')
-        .select('id, class_id, session_date');
-    if (startDate != null) {
-      sessionsQuery = sessionsQuery.gte('session_date', _dateOnly(startDate));
-    }
-    if (endDate != null) {
-      sessionsQuery = sessionsQuery.lte('session_date', _dateOnly(endDate));
-    }
-    final sessions = List<Map<String, dynamic>>.from(await sessionsQuery);
+    final reports = <Map<String, dynamic>>[];
+    var totalSessions = 0;
+    var totalMembers = 0;
 
-    final sessionIds = sessions
-        .map((session) => session['id']?.toString())
-        .whereType<String>()
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    var attendance = <Map<String, dynamic>>[];
-    if (sessionIds.isNotEmpty) {
-      try {
-        attendance = List<Map<String, dynamic>>.from(
-          await _client
-              .from('attendance')
-              .select('session_id, member_id, status')
-              .inFilter('session_id', sessionIds),
-        );
-      } catch (e) {
-        debugPrint('[TrainingsReportService] Attendance fetch failed: $e');
-      }
-    }
-
-    final enrollments = List<Map<String, dynamic>>.from(
-      await _client.from('class_members').select('class_id'),
-    );
-    final memberCounts = <String, int>{};
-    for (final enrollment in enrollments) {
-      final classId = enrollment['class_id']?.toString();
+    for (final training in classes) {
+      final classId = training['id'] as String?;
       if (classId == null) continue;
-      memberCounts[classId] = (memberCounts[classId] ?? 0) + 1;
-    }
 
-    final sessionsByClass = <String, int>{};
-    final sessionIdsByClass = <String, List<String>>{};
-    for (final session in sessions) {
-      final classId = session['class_id']?.toString();
-      final sessionId = session['id']?.toString();
-      if (classId == null || sessionId == null) continue;
-      sessionsByClass[classId] = (sessionsByClass[classId] ?? 0) + 1;
-      sessionIdsByClass.putIfAbsent(classId, () => []).add(sessionId);
-    }
+      try {
+        final report = await _client.getOne('/classes/$classId/report');
+        reports.add(report);
 
-    final records = classes.map((training) {
-      final classId = training['id']?.toString() ?? '';
-      final classSessionIds = sessionIdsByClass[classId] ?? const <String>[];
-      final classAttendance = attendance.where(
-        (record) =>
-            classSessionIds.contains(record['session_id']?.toString()),
-      );
-
-      var present = 0;
-      var absent = 0;
-      var late = 0;
-      for (final record in classAttendance) {
-        final status = record['status']?.toString().toLowerCase() ?? '';
-        if (status == 'present') {
-          present++;
-        } else if (status == 'absent') {
-          absent++;
-        } else if (status == 'late') {
-          late++;
-        }
+        totalSessions += (report['total_sessions'] as int?) ?? 0;
+        totalMembers += ((report['members'] as List?) ?? const []).length;
+      } catch (_) {
+        // Une formation dont le rapport échoue est ignorée plutôt que de
+        // faire échouer l'ensemble : mieux vaut un rapport partiel qu'aucun.
+        continue;
       }
+    }
 
-      final uniqueAttendees = classAttendance
-          .where(
-            (record) =>
-                record['status']?.toString().toLowerCase() == 'present',
-          )
-          .map((record) => record['member_id'])
-          .toSet()
-          .length;
+    // Le taux global est la moyenne des taux individuels, pondérée par le
+    // nombre d'inscrits. Faire la moyenne des moyennes donnerait le même poids
+    // à une formation de trois personnes et à une de cinquante.
+    var weightedSum = 0;
+    var weightTotal = 0;
 
-      return {
-        ...training,
-        'class_id': classId,
-        'member_count': memberCounts[classId] ?? 0,
-        'session_count': sessionsByClass[classId] ?? 0,
-        'present_count': present,
-        'absent_count': absent,
-        'late_count': late,
-        'attendance_count': present,
-        'unique_attendees': uniqueAttendees,
-      };
-    }).toList();
-
-    final totalPresent = attendance
-        .where(
-          (record) => record['status']?.toString().toLowerCase() == 'present',
-        )
-        .length;
+    for (final report in reports) {
+      final members = (report['members'] as List?) ?? const [];
+      for (final member in members) {
+        final rate = (member as Map)['attendance_rate'] as int? ?? 0;
+        weightedSum += rate;
+        weightTotal += 1;
+      }
+    }
 
     return {
       'period': {
-        'start': startDate?.toIso8601String().split('T').first,
-        'end': endDate?.toIso8601String().split('T').first,
+        'from': startDate != null ? _day(startDate) : null,
+        'to': endDate != null ? _day(endDate) : null,
       },
-      'summary': {
-        'total_trainings': classes.length,
-        'active_trainings':
-            classes.where((training) => training['is_active'] == true).length,
-        'total_sessions': sessions.length,
-        'total_attendance': totalPresent,
-        'total_enrollments': enrollments.length,
-      },
-      'records': records,
-      'generated_at': DateTime.now().toIso8601String(),
+      'total_classes': reports.length,
+      'total_sessions': totalSessions,
+      'total_members': totalMembers,
+      'average_attendance_rate':
+          weightTotal > 0 ? (weightedSum / weightTotal).round() : 0,
+      'classes': reports,
     };
   }
 
-  static String _dateOnly(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
+  /// La semaine commence le lundi — convention locale.
+  static Future<Map<String, dynamic>> getWeeklyReport({
+    DateTime? referenceDate,
+  }) {
+    final ref = referenceDate ?? DateTime.now();
+    final start = ref.subtract(Duration(days: ref.weekday - 1));
+
+    return getReport(
+      startDate: start,
+      endDate: start.add(const Duration(days: 6)),
+    );
+  }
+
+  static Future<Map<String, dynamic>> getMonthlyReport({
+    DateTime? referenceDate,
+  }) {
+    final ref = referenceDate ?? DateTime.now();
+
+    return getReport(
+      startDate: DateTime(ref.year, ref.month, 1),
+      // Le jour 0 du mois suivant est le dernier du mois courant.
+      endDate: DateTime(ref.year, ref.month + 1, 0),
+    );
+  }
+
+  static Future<Map<String, dynamic>> getYearlyReport({int? year}) {
+    final y = year ?? DateTime.now().year;
+
+    return getReport(
+      startDate: DateTime(y, 1, 1),
+      endDate: DateTime(y, 12, 31),
+    );
   }
 }

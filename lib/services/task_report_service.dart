@@ -1,12 +1,10 @@
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'supabase_service.dart';
+import 'auth_service.dart';
 import 'task_service.dart';
 import 'department_service.dart';
 
 /// Service for generating task reports and calculating completion percentages
 class TaskReportService {
-  static final _client = SupabaseService.client;
-
   /// Calculate task completion percentage for a department
   /// Returns a map with completion statistics
   static Future<Map<String, dynamic>> getDepartmentTaskCompletion({
@@ -19,22 +17,20 @@ class TaskReportService {
         '[TaskReportService] Calculating task completion for department: $departmentId',
       );
 
-      // Build query for tasks
-      dynamic query = _client
-          .from('tasks')
-          .select('id, status, created_at, updated_at, due_date')
-          .eq('department_id', departmentId);
-
-      // Apply date filters if provided
-      if (startDate != null) {
-        query = query.gte('created_at', startDate.toIso8601String());
-      }
-      if (endDate != null) {
-        query = query.lte('created_at', endDate.toIso8601String());
-      }
-
-      final response = await query;
-      final tasks = List<Map<String, dynamic>>.from(response);
+      // Le service porte déjà la connaissance de la route et des filtres :
+      // reconstruire la requête ici la dupliquerait, avec le risque de la
+      // laisser diverger.
+      //
+      // Les tâches archivées sont incluses : le taux d'achèvement doit refléter
+      // tout ce qui a été confié au département sur la période, y compris ce
+      // qui a été classé depuis.
+      // Toutes les pages : un département actif peut dépasser deux cents
+      // tâches sur une année, et un rapport tronqué fausserait le taux
+      // d'achèvement sans que personne ne s'en aperçoive.
+      final tasks = await AuthService.client.getAll('/tasks', query: {
+        'department_id': departmentId,
+        'include_archived': true,
+      });
 
       if (tasks.isEmpty) {
         return {

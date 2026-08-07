@@ -1,52 +1,37 @@
-import 'member_service.dart';
-import 'supabase_service.dart';
-import '../core/utils/phone_number_utils.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// Visitor service for visitor management operations
+/// Visiteurs.
+///
+/// Signatures identiques à l'implémentation Supabase : paramètres nommés,
+/// dates en `DateTime`. Les écrans n'ont rien à changer.
 class VisitorService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  static Map<String, dynamic> _withNormalizedPhone(Map<String, dynamic> data) {
-    if (!data.containsKey('phone')) return data;
-    final copy = Map<String, dynamic>.from(data);
-    copy['phone'] = PhoneNumberUtils.normalizeOrNull(copy['phone']?.toString());
-    return copy;
-  }
+  /// Formate une date pour l'API — jour seul, sans heure ni fuseau.
+  ///
+  /// Envoyer un `DateTime` complet ferait dériver la date d'un jour selon le
+  /// fuseau du serveur : une visite saisie à 23 h basculerait au lendemain.
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
-  /// Create visitor
-  /// POST /visitors
+  /// Enregistre un visiteur.
+  ///
+  /// Le rattachement à un culte est facultatif : une visite peut avoir lieu en
+  /// dehors d'un service.
   static Future<Map<String, dynamic>> createVisitor({
     required Map<String, dynamic> visitorData,
   }) async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be authenticated to create visitor');
-      }
-
-      final response = await _client
-          .from('visitors')
-          .insert({
-            ..._withNormalizedPhone(visitorData),
-            'created_by': currentUser.id,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create visitor: $e');
-    }
+    final data = await _client.post('/visitors', body: visitorData);
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Get visitors with optional filters
-  /// GET /visitors
-  static String _dateOnly(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
-
+  /// Liste des visiteurs.
+  ///
+  /// [filters] accepte les mêmes clés qu'auparavant : `church_service_id`,
+  /// `search`.
   static Future<List<Map<String, dynamic>>> getVisitors({
     Map<String, dynamic>? filters,
     int? limit,
@@ -55,183 +40,83 @@ class VisitorService {
     bool ascending = false,
     DateTime? fromDate,
     DateTime? toDate,
-  }) async {
-    try {
-      // Build base query with filters
-      var filterQuery = _client.from('visitors').select(
-        '*, church_service:church_services(name, service_date)',
-      );
+  }) {
+    final effectiveLimit = (limit ?? 200).clamp(1, 200);
+    final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
 
-      // Apply date filters
-      if (fromDate != null) {
-        filterQuery = filterQuery.gte('visit_date', _dateOnly(fromDate));
-      }
-      if (toDate != null) {
-        filterQuery = filterQuery.lte('visit_date', _dateOnly(toDate));
-      }
-
-      // Apply other filters
-      if (filters != null) {
-        filters.forEach((key, value) {
-          if (value != null) {
-            filterQuery = filterQuery.eq(key, value);
-          }
-        });
-      }
-
-      // Apply ordering (returns PostgrestTransformBuilder)
-      dynamic transformQuery = filterQuery;
-      if (orderBy != null) {
-        transformQuery = transformQuery.order(orderBy, ascending: ascending);
-      } else {
-        // Default to most recent visits first
-        transformQuery = transformQuery.order('visit_date', ascending: false)
-            .order('created_at', ascending: false);
-      }
-
-      // Apply pagination (on PostgrestTransformBuilder)
-      if (limit != null) {
-        transformQuery = transformQuery.limit(limit);
-      }
-      if (offset != null) {
-        transformQuery = transformQuery.range(
-          offset,
-          offset + (limit ?? 10) - 1,
-        );
-      }
-
-      final response = await transformQuery;
-      final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
-      return records.where((r) => r['deleted_at'] == null).toList();
-    } catch (e) {
-      throw Exception('Failed to get visitors: $e');
-    }
+    return _client.getList('/visitors', query: {
+      'page': page,
+      'limit': effectiveLimit,
+      'order': ascending ? 'asc' : 'desc',
+      if (orderBy != null) 'orderBy': orderBy,
+      if (fromDate != null) 'from': _day(fromDate),
+      if (toDate != null) 'to': _day(toDate),
+      ...?filters,
+    });
   }
 
-  /// Get visitor by ID
-  /// GET /visitors/:id
-  static Future<Map<String, dynamic>> getVisitorById(String visitorId) async {
-    try {
-      final response = await _client
-          .from('visitors')
-          .select()
-          .eq('id', visitorId)
-          .single();
-      
-      // Filter out deleted records
-      if (response['deleted_at'] != null) {
-        throw Exception('Visitor not found');
-      }
+  static Future<Map<String, dynamic>> getVisitorById(String visitorId) =>
+      _client.getOne('/visitors/$visitorId');
 
-      return response;
-    } catch (e) {
-      throw Exception('Failed to get visitor: $e');
-    }
-  }
-
-  /// Update visitor
-  /// PATCH /visitors/:id
   static Future<Map<String, dynamic>> updateVisitor({
     required String visitorId,
     required Map<String, dynamic> updates,
   }) async {
-    try {
-      final response = await _client
-          .from('visitors')
-          .update({
-            ..._withNormalizedPhone(updates),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', visitorId)
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to update visitor: $e');
-    }
+    final data = await _client.patch('/visitors/$visitorId', body: updates);
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Delete visitor (soft delete)
-  /// DELETE /visitors/:id
   static Future<void> deleteVisitor(String visitorId) async {
-    try {
-      await _client
-          .from('visitors')
-          .update({
-            'deleted_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', visitorId);
-    } catch (e) {
-      throw Exception('Failed to delete visitor: $e');
-    }
+    await _client.delete('/visitors/$visitorId');
   }
 
-  /// Convert a visitor into a member, then soft-delete the visitor record.
+  /// Convertit le visiteur en membre.
+  ///
+  /// Le visiteur est supprimé au profit de la fiche membre : le conserver
+  /// produirait un doublon dans les statistiques de fréquentation.
+  ///
+  /// Requiert le droit de **créer des membres**, et non celui de gérer les
+  /// visiteurs — c'est bien un membre qui est créé.
   static Future<Map<String, dynamic>> convertToMember({
     required String visitorId,
     required DateTime birthday,
     required String role,
     bool isNewComer = true,
     String? newcomerIntention,
+    String? departmentId,
   }) async {
-    if (isNewComer && newcomerIntention == 'just_passing') {
-      throw Exception(
-        'Cannot convert visitor to member with "just passing" intention.',
-      );
-    }
-
-    final visitor = await getVisitorById(visitorId);
-    final firstName = visitor['first_name']?.toString().trim() ?? '';
-    final lastName = visitor['last_name']?.toString().trim() ?? '';
-    if (firstName.isEmpty || lastName.isEmpty) {
-      throw Exception('Visitor must have a first and last name to convert.');
-    }
-
-    final visitDate = visitor['visit_date']?.toString();
-    final newcomerJoinDate = visitDate != null && visitDate.isNotEmpty
-        ? visitDate
-        : DateTime.now().toIso8601String().split('T')[0];
-
-    final memberData = <String, dynamic>{
-      'first_name': firstName,
-      'last_name': lastName,
-      'email': visitor['email'],
-      'phone': visitor['phone'],
-      'address': visitor['address'],
-      'birthday': birthday.toIso8601String().split('T')[0],
-      'role': role,
-      'is_active': true,
+    final data = await _client.post('/visitors/$visitorId/convert', body: {
+      'birthday': _day(birthday),
       'is_new_comer': isNewComer,
-      if (isNewComer) ...{
-        'newcomer_join_date': newcomerJoinDate,
-        'newcomer_intention': newcomerIntention ?? 'wants_to_stay',
-      },
-    };
-
-    final member = await MemberService.createMember(memberData: memberData);
-    await deleteVisitor(visitorId);
-    return member;
+      if (departmentId != null) 'department_id': departmentId,
+    });
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Soft-delete visitors logged for a specific church service.
+  /// Supprime les visiteurs rattachés à un culte.
+  ///
+  /// Côté serveur, supprimer un culte retire déjà ses visiteurs en cascade.
+  /// Cette méthode couvre le cas où l'on souhaite les retirer sans toucher au
+  /// culte lui-même.
   static Future<void> deleteVisitorsForService({
     required String churchServiceId,
   }) async {
-    try {
-      final deletedAt = DateTime.now().toIso8601String();
-      await _client
-          .from('visitors')
-          .update({
-            'deleted_at': deletedAt,
-            'updated_at': deletedAt,
-          })
-          .eq('church_service_id', churchServiceId)
-          .isFilter('deleted_at', null);
-    } catch (e) {
-      throw Exception('Failed to delete visitors for service: $e');
+    final visitors = await _client.getList('/visitors', query: {
+      'church_service_id': churchServiceId,
+      'limit': 200,
+    });
+
+    for (final visitor in visitors) {
+      await _client.delete('/visitors/${visitor['id']}');
     }
   }
+
+  /// Visiteurs d'un culte donné.
+  static Future<List<Map<String, dynamic>>> getVisitorsForService(
+    String churchServiceId,
+  ) =>
+      _client.getList('/visitors', query: {
+        'church_service_id': churchServiceId,
+        'limit': 200,
+      });
 }

@@ -1,180 +1,210 @@
-import '../../services/role_service.dart';
-import '../../services/leader_access_service.dart';
-import '../../services/supabase_service.dart';
+import 'package:flutter/foundation.dart';
 
-/// Helper utility for checking feature permissions
-/// Handles both admin/pastor (full access) and leader (granular access)
+import '../../services/auth_service.dart';
+
+/// Vérification des permissions.
+///
+/// L'API publique est inchangée — `canView`, `canCreate`, `canEdit`,
+/// `canDelete`, `isAdminOrPastor`, `getPermissions` — afin que les écrans
+/// existants continuent de fonctionner sans modification.
+///
+/// L'intérieur, en revanche, change du tout au tout. L'ancienne version
+/// déclenchait **quatre à six requêtes réseau par vérification** : rôle de
+/// l'utilisateur, appartenance départementale, puis consultation de
+/// `leader_access`. Un écran vérifiant quatre droits déclenchait donc jusqu'à
+/// vingt-quatre allers-retours avant de s'afficher.
+///
+/// Le backend renvoie maintenant l'ensemble des permissions dans `/auth/me`.
+/// Elles sont chargées une fois, gardées en mémoire, et chaque vérification
+/// devient une simple lecture — sans réseau.
+///
+/// Les méthodes restent `Future` malgré tout : les rendre synchrones
+/// obligerait à modifier tous les appelants, pour un gain nul.
 class PermissionHelper {
-  /// Check if current user is a leader (has role='leader' OR is a department leader/subleader)
-  static Future<bool> _isLeader() async {
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
+  PermissionHelper._();
 
-    // Check if user has role='leader' in users table
-    final role = await RoleService.getUserRole(userId: currentUser.id);
-    if (role == 'leader') return true;
+  static Map<String, Map<String, bool>> _permissions = {};
+  static String _role = 'member';
+  static String? _userId;
+  static String? _memberId;
+  static String? _email;
+  static List<Map<String, dynamic>> _departmentRoles = const [];
+  static bool _loaded = false;
 
-    // Also check if user is a department leader or subleader
+  // ---------------------------------------------------------------------------
+  // Chargement
+  // ---------------------------------------------------------------------------
+
+  /// Charge le profil et ses permissions.
+  ///
+  /// À appeler après la connexion, et à chaque fois qu'un administrateur
+  /// modifie les droits — sans quoi l'interface afficherait l'ancienne grille
+  /// jusqu'à la prochaine connexion.
+  static Future<void> load() async {
     try {
-      final client = SupabaseService.client;
-      final user = await client
-          .from('users')
-          .select('member_id')
-          .eq('id', currentUser.id)
-          .maybeSingle();
+      final profile = await AuthService.getProfile();
 
-      if (user == null || user['member_id'] == null) return false;
+      _role = profile['role'] as String? ?? 'member';
+      _userId = profile['id'] as String?;
+      _memberId = profile['member_id'] as String?;
+      _email = profile['email'] as String?;
 
-      final memberId = user['member_id'].toString();
+      _departmentRoles = ((profile['department_roles'] as List?) ?? [])
+          .map((e) => (e as Map).cast<String, dynamic>())
+          .toList();
 
-      // Check if member is a leader or subleader of any department
-      final assignment = await client
-          .from('department_members')
-          .select('id')
-          .eq('member_id', memberId)
-          .inFilter('role', ['leader', 'subleader'])
-          .limit(1)
-          .maybeSingle();
-
-      return assignment != null;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Check if current user has role='member' (member account - view-only by default)
-  static Future<bool> _isMember() async {
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
-    final role = await RoleService.getUserRole(userId: currentUser.id);
-    return role == 'member';
-  }
-
-  /// Check if current user can view a feature
-  static Future<bool> canView(String featureName) async {
-    // Admins and pastors have full access
-    final isAdmin = await RoleService.isCurrentUserAdmin();
-    if (isAdmin) return true;
-
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
-
-    // Members (role='member'): check leader_access; default view-only
-    final isMember = await _isMember();
-    if (isMember) {
-      final hasView = await LeaderAccessService.hasPermission(
-        userId: currentUser.id,
-        featureName: featureName,
-        permission: 'view',
+      final raw = (profile['permissions'] as Map?) ?? {};
+      _permissions = raw.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          (value as Map).map((k, v) => MapEntry(k.toString(), v == true)),
+        ),
       );
-      return hasView;
+
+      _loaded = true;
+    } catch (error) {
+      debugPrint('[PermissionHelper] Chargement impossible : $error');
+      // En cas d'échec, aucune permission n'est accordée. C'est le sens sûr :
+      // afficher un bouton inutilisable vaut mieux que d'en masquer un
+      // légitime, mais accorder des droits par défaut serait une faille.
+      _reset();
     }
-
-    // Leaders: check leader access
-    final isLeader = await _isLeader();
-    if (!isLeader) return false;
-
-    return await LeaderAccessService.hasPermission(
-      userId: currentUser.id,
-      featureName: featureName,
-      permission: 'view',
-    );
   }
 
-  /// Check if current user can create in a feature
-  static Future<bool> canCreate(String featureName) async {
-    final isAdmin = await RoleService.isCurrentUserAdmin();
-    if (isAdmin) return true;
+  /// Recharge les permissions. Alias explicite de [load].
+  static Future<void> refresh() => load();
 
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
+  /// Efface le cache — à appeler à la déconnexion.
+  static void clear() => _reset();
 
-    // Members: only if leader_access grants create (default view-only)
-    final isMember = await _isMember();
-    if (isMember) {
-      return await LeaderAccessService.hasPermission(
-        userId: currentUser.id,
-        featureName: featureName,
-        permission: 'create',
-      );
-    }
-
-    final isLeader = await _isLeader();
-    if (!isLeader) return false;
-
-    return await LeaderAccessService.hasPermission(
-      userId: currentUser.id,
-      featureName: featureName,
-      permission: 'create',
-    );
+  static void _reset() {
+    _permissions = {};
+    _role = 'member';
+    _userId = null;
+    _memberId = null;
+    _email = null;
+    _departmentRoles = const [];
+    _loaded = false;
   }
 
-  /// Check if current user can edit in a feature
-  static Future<bool> canEdit(String featureName) async {
-    final isAdmin = await RoleService.isCurrentUserAdmin();
-    if (isAdmin) return true;
+  /// Indique si les permissions ont été chargées.
+  ///
+  /// Utile pour afficher un indicateur de chargement plutôt qu'une interface
+  /// vide au démarrage.
+  static bool get isLoaded => _loaded;
 
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
+  // ---------------------------------------------------------------------------
+  // Vérifications
+  // ---------------------------------------------------------------------------
 
-    final isMember = await _isMember();
-    if (isMember) {
-      return await LeaderAccessService.hasPermission(
-        userId: currentUser.id,
-        featureName: featureName,
-        permission: 'edit',
-      );
-    }
+  static Future<bool> canView(String featureName) async =>
+      _check(featureName, 'view');
 
-    final isLeader = await _isLeader();
-    if (!isLeader) return false;
+  static Future<bool> canCreate(String featureName) async =>
+      _check(featureName, 'create');
 
-    return await LeaderAccessService.hasPermission(
-      userId: currentUser.id,
-      featureName: featureName,
-      permission: 'edit',
-    );
-  }
+  static Future<bool> canEdit(String featureName) async =>
+      _check(featureName, 'edit');
 
-  /// Check if current user can delete in a feature
-  static Future<bool> canDelete(String featureName) async {
-    final isAdmin = await RoleService.isCurrentUserAdmin();
-    if (isAdmin) return true;
+  static Future<bool> canDelete(String featureName) async =>
+      _check(featureName, 'delete');
 
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return false;
+  /// Administrateur ou pasteur — accès complet.
+  static Future<bool> isAdminOrPastor() async => _isPrivileged;
 
-    final isMember = await _isMember();
-    if (isMember) {
-      return await LeaderAccessService.hasPermission(
-        userId: currentUser.id,
-        featureName: featureName,
-        permission: 'delete',
-      );
-    }
-
-    final isLeader = await _isLeader();
-    if (!isLeader) return false;
-
-    return await LeaderAccessService.hasPermission(
-      userId: currentUser.id,
-      featureName: featureName,
-      permission: 'delete',
-    );
-  }
-
-  /// Check if current user is admin or pastor (full access)
-  static Future<bool> isAdminOrPastor() async {
-    return await RoleService.isCurrentUserAdmin();
-  }
-
-  /// Get all permissions for a feature at once
+  /// Les quatre droits d'un module en une fois.
   static Future<Map<String, bool>> getPermissions(String featureName) async {
     return {
-      'view': await canView(featureName),
-      'create': await canCreate(featureName),
-      'edit': await canEdit(featureName),
-      'delete': await canDelete(featureName),
+      'view': _check(featureName, 'view'),
+      'create': _check(featureName, 'create'),
+      'edit': _check(featureName, 'edit'),
+      'delete': _check(featureName, 'delete'),
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Versions synchrones
+  // ---------------------------------------------------------------------------
+  //
+  // Les permissions étant en mémoire, la vérification n'a plus besoin d'être
+  // asynchrone. Ces variantes évitent un `FutureBuilder` là où un simple `if`
+  // suffit — préfère-les dans les nouveaux écrans.
+
+  static bool canViewSync(String featureName) => _check(featureName, 'view');
+  static bool canCreateSync(String featureName) => _check(featureName, 'create');
+  static bool canEditSync(String featureName) => _check(featureName, 'edit');
+  static bool canDeleteSync(String featureName) => _check(featureName, 'delete');
+
+  // ---------------------------------------------------------------------------
+  // Rôles
+  // ---------------------------------------------------------------------------
+
+  /// Responsable au sens large.
+  ///
+  /// Reproduit la règle du serveur : est responsable celui dont le rôle global
+  /// le stipule, **ou** celui qui dirige un département — même si son rôle
+  /// global n'est que `member`.
+  static bool get isLeader {
+    if (_isPrivileged || _role == 'leader') return true;
+
+    return _departmentRoles.any(
+      (d) => d['role'] == 'leader' || d['role'] == 'subleader',
+    );
+  }
+
+  /// Accès aux données financières.
+  ///
+  /// Réservé aux administrateurs et aux responsables du département
+  /// « Finance ». Sert à décider d'afficher l'onglet — le serveur reste seul
+  /// juge de l'accès réel, via sa propre garde.
+  static bool get isFinanceLeader {
+    if (_isPrivileged) return true;
+
+    return _departmentRoles.any((d) {
+      final name = (d['department_name'] as String? ?? '').trim().toLowerCase();
+      return name == 'finance' &&
+          (d['role'] == 'leader' || d['role'] == 'subleader');
+    });
+  }
+
+  static String get role => _role;
+
+  /// Identifiant du compte connecté.
+  static String? get userId => _userId;
+
+  /// Identifiant de la fiche membre associée au compte.
+  ///
+  /// Vaut `null` pour un compte sans fiche — cas rare, mais possible pour un
+  /// administrateur système créé hors du flux habituel.
+  ///
+  /// Cette valeur vient du profil chargé à la connexion : aucune requête n'est
+  /// nécessaire pour l'obtenir, là où l'ancienne implémentation interrogeait la
+  /// table `users` à chaque besoin.
+  static String? get memberId => _memberId;
+
+  /// Adresse e-mail du compte connecté.
+  static String? get currentEmail => _email;
+
+  static List<Map<String, dynamic>> get departmentRoles => _departmentRoles;
+
+  // ---------------------------------------------------------------------------
+  // Interne
+  // ---------------------------------------------------------------------------
+
+  static bool get _isPrivileged => _role == 'admin' || _role == 'pastor';
+
+  /// Cœur de la vérification.
+  ///
+  /// Les administrateurs et pasteurs passent partout, exactement comme côté
+  /// serveur. Pour les autres, le droit doit avoir été accordé explicitement :
+  /// l'absence d'entrée vaut refus.
+  ///
+  /// Cette vérification sert **uniquement à l'affichage**. Masquer un bouton
+  /// inutilisable est plus agréable que de laisser tenter une action refusée,
+  /// mais elle ne protège rien : un client modifié la contournerait. La
+  /// sécurité repose entièrement sur les gardes du backend.
+  static bool _check(String featureName, String action) {
+    if (_isPrivileged) return true;
+    return _permissions[featureName]?[action] ?? false;
   }
 }

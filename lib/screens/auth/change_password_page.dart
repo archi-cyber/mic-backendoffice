@@ -10,7 +10,7 @@ import '../desktop/desktop_shell.dart';
 
 /// First-time password change screen (blocks other actions)
 class ChangePasswordPage extends StatefulWidget {
-  ChangePasswordPage({super.key});
+  const ChangePasswordPage({super.key});
 
   @override
   State<ChangePasswordPage> createState() => _ChangePasswordPageState();
@@ -37,6 +37,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     setState(() => _isLoading = true);
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    // Le mot de passe actuel n'est pas demandé : l'utilisateur vient de le
+    // saisir pour se connecter, et cet écran ne s'affiche que lors du premier
+    // changement obligatoire. Le serveur ne l'exige donc pas ici.
+    //
+    // Le champ de confirmation sert uniquement à la validation du formulaire,
+    // qui vérifie déjà l'égalité des deux saisies.
     final success = await authProvider.changePassword(
       _newPasswordController.text,
     );
@@ -74,8 +81,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return WillPopScope(
-      onWillPop: () async => false, // Prevent going back
+    // L'écran ne peut pas être quitté : tant que le mot de passe par défaut
+    // n'est pas changé, aucune autre action n'est autorisée.
+    return PopScope(
+      canPop: false,
       child: Scaffold(
         body: SafeArea(
           child: Center(

@@ -8,11 +8,21 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 
 import '../config/app_config.dart';
-import 'supabase_service.dart';
+import 'auth_service.dart';
 import 'visitor_service.dart';
 
 /// Service for generating PDF reports of church visitors.
 class VisitorReportPdfService {
+  /// Formate une date pour l'API — jour seul, sans heure ni fuseau.
+  ///
+  /// Envoyer un `DateTime` complet ferait dériver la date d'un jour selon le
+  /// fuseau du serveur : une visite du 31 janvier saisie à 23 h basculerait au
+  /// 1er février, et sortirait d'un rapport mensuel.
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
   static Future<String?> generateReport({
     DateTime? startDate,
     DateTime? endDate,
@@ -79,39 +89,19 @@ class VisitorReportPdfService {
     DateTime? endDate,
   }) async {
     try {
-      var query = SupabaseService.client
-          .from('visitors')
-          .select('*, church_service:church_services(name)');
-
-      if (startDate != null) {
-        query = query.gte(
-          'visit_date',
-          '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}',
-        );
-      }
-      if (endDate != null) {
-        query = query.lte(
-          'visit_date',
-          '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}',
-        );
-      }
-
-      final response = await query
-          .order('visit_date', ascending: false)
-          .order('created_at', ascending: false)
-          .limit(5000);
-
-      return List<Map<String, dynamic>>.from(response)
-          .where((r) => r['deleted_at'] == null)
-          .toList();
+      // Le nom du culte est déjà joint par l'API : la requête imbriquée
+      // `church_service:church_services(name)` n'a plus lieu d'être, et le
+      // filtrage des lignes supprimées est fait côté serveur.
+      return await AuthService.client.getAll('/visitors', query: {
+        if (startDate != null) 'from': _day(startDate),
+        if (endDate != null) 'to': _day(endDate),
+        'orderBy': 'visitDate',
+        'order': 'desc',
+      });
     } catch (e) {
-      final fallback = await VisitorService.getVisitors(
-        fromDate: startDate,
-        toDate: endDate,
-        limit: 5000,
-        orderBy: 'visit_date',
-        ascending: false,
-      );
+      // Repli sans bornes de dates : mieux vaut un rapport sur l'ensemble de
+      // l'historique qu'un rapport vide.
+      final fallback = await VisitorService.getVisitors(limit: 200);
       return fallback;
     }
   }

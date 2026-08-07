@@ -16,6 +16,10 @@ import type {
   SetTaskTagsDto,
   UpdateTaskDto,
 } from './dto/task.dto';
+import {
+  NOTIFICATION_TYPES,
+  NotificationsService,
+} from '../communications/notifications.service';
 import { PenaltiesService } from './penalties.service';
 
 const TASK_INCLUDE = {
@@ -44,6 +48,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly penalties: PenaltiesService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // ===========================================================================
@@ -318,6 +323,165 @@ export class TasksService {
     });
 
     return this.findOne(id);
+  }
+
+
+  // ===========================================================================
+  // Rappels
+  // ===========================================================================
+
+  /**
+   * Envoie un rappel aux membres assignés à une tâche.
+   *
+   * Une tâche terminée ou annulée ne donne pas lieu à rappel : insister sur un
+   * travail déjà fait décrédibilise les notifications, et les gens finissent
+   * par ne plus les lire.
+   */
+  async remind(id: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id, ...NOT_DELETED },
+      select: {
+        id: true,
+        title: true,
+        dueDate: true,
+        status: true,
+        archivedAt: true,
+        assignments: { select: { memberId: true } },
+      },
+    });
+
+    if (!task) {
+      throw this.notFound(id);
+    }
+
+    if (task.status === 'completed' || task.status === 'cancelled') {
+      throw new BadRequestException({
+        message: 'Cette tâche est déjà terminée ou annulée.',
+        code: 'TASK_NOT_PENDING',
+      });
+    }
+
+    if (task.archivedAt !== null) {
+      throw new BadRequestException({
+        message: 'Cette tâche est archivée.',
+        code: 'TASK_ARCHIVED',
+      });
+    }
+
+    const memberIds = task.assignments.map((a) => a.memberId);
+
+    if (memberIds.length === 0) {
+      return { message: 'Aucun membre assigné à cette tâche.', notified: 0 };
+    }
+
+    const notified = await this.notifications.notifyMany(memberIds, {
+      type: NOTIFICATION_TYPES.taskReminder,
+      title: 'Rappel de tâche',
+      message: this.buildReminderMessage(task.title, task.dueDate),
+      relatedId: task.id,
+      relatedType: 'task',
+    });
+
+    this.logger.log(`Rappel envoyé pour « ${task.title} » : ${notified} membre(s)`);
+
+    return { message: 'Rappel envoyé.', notified };
+  }
+
+  /**
+   * Rappelle toutes les tâches en attente.
+   *
+   * Les destinataires sont dédupliqués par membre : quelqu'un ayant cinq
+   * tâches en retard reçoit **une** notification récapitulative, pas cinq.
+   * L'inverse noierait sa liste et le pousserait à tout ignorer.
+   */
+  async remindAllPending(departmentId?: string) {
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        ...NOT_DELETED,
+        archivedAt: null,
+        status: { in: ['pending', 'in_progress'] },
+        ...(departmentId ? { departmentId } : {}),
+        assignments: { some: {} },
+      },
+      select: {
+        id: true,
+        title: true,
+        dueDate: true,
+        assignments: { select: { memberId: true } },
+      },
+    });
+
+    if (tasks.length === 0) {
+      return { message: 'Aucune tâche en attente.', notified: 0, tasks: 0 };
+    }
+
+    // Regroupement par membre : une notification par personne, quel que soit
+    // son nombre de tâches.
+    const byMember = new Map<string, Array<{ title: string; dueDate: Date | null }>>();
+
+    for (const task of tasks) {
+      for (const assignment of task.assignments) {
+        const list = byMember.get(assignment.memberId) ?? [];
+        list.push({ title: task.title, dueDate: task.dueDate });
+        byMember.set(assignment.memberId, list);
+      }
+    }
+
+    let notified = 0;
+
+    for (const [memberId, memberTasks] of byMember) {
+      const overdue = memberTasks.filter(
+        (t) => t.dueDate !== null && t.dueDate < today,
+      ).length;
+
+      await this.notifications.notify({
+        memberId,
+        type: NOTIFICATION_TYPES.taskReminder,
+        title: 'Vos tâches en attente',
+        message:
+          memberTasks.length === 1
+            ? this.buildReminderMessage(
+                memberTasks[0].title,
+                memberTasks[0].dueDate,
+              )
+            : `Vous avez ${memberTasks.length} tâches en attente` +
+              (overdue > 0 ? `, dont ${overdue} en retard.` : '.'),
+        relatedType: 'task',
+      });
+
+      notified += 1;
+    }
+
+    this.logger.log(
+      `Rappel groupé : ${notified} membre(s) pour ${tasks.length} tâche(s)`,
+    );
+
+    return { message: 'Rappels envoyés.', notified, tasks: tasks.length };
+  }
+
+  /** Compose un message tenant compte de l'échéance. */
+  private buildReminderMessage(title: string, dueDate: Date | null): string {
+    if (!dueDate) {
+      return `La tâche « ${title} » est toujours en attente.`;
+    }
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const days = Math.round(
+      (dueDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1_000),
+    );
+
+    if (days < 0) {
+      return `La tâche « ${title} » est en retard de ${Math.abs(days)} jour(s).`;
+    }
+    if (days === 0) {
+      return `La tâche « ${title} » est à rendre aujourd'hui.`;
+    }
+    return `La tâche « ${title} » est à rendre dans ${days} jour(s).`;
   }
 
   // ===========================================================================

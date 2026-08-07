@@ -1,350 +1,219 @@
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'supabase_service.dart';
-import 'device_token_service.dart';
-import 'role_service.dart';
 
-/// Authentication service for login, password reset, etc.
+import '../core/api/api_client.dart';
+import '../core/api/api_exception.dart';
+
+/// Authentification.
+///
+/// Remplace l'implémentation Supabase. Les signatures publiques sont
+/// conservées afin que `AuthProvider` et les écrans existants continuent de
+/// fonctionner sans modification — seul l'intérieur change.
+///
+/// Différence de fond : les jetons ne sont plus gérés par un SDK tiers mais
+/// par [ApiClient], qui les stocke dans le Keychain ou le Keystore et les
+/// rafraîchit de lui-même.
 class AuthService {
-  static final _client = SupabaseService.client;
 
-  /// Login with email and password
-  /// Returns: {token, must_change_password}
+  /// Instance partagée, initialisée au démarrage.
+  ///
+  /// Une seule instance existe : elle porte le verrou de rafraîchissement et
+  /// le cache de jetons. En créer plusieurs provoquerait des rafraîchissements
+  /// concurrents, que la rotation côté serveur interprète comme une session
+  /// compromise.
+  static late final ApiClient client;
+
+  static bool _initialized = false;
+
+  /// À appeler une fois dans `main()`, avant `runApp`.
+  static void initialize({void Function()? onSessionExpired}) {
+    if (_initialized) return;
+
+    client = ApiClient()..onSessionExpired = onSessionExpired;
+    _initialized = true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Connexion
+  // ---------------------------------------------------------------------------
+
+  /// Connexion par e-mail et mot de passe.
+  ///
+  /// Renvoie la même structure que l'ancienne implémentation :
+  /// `{token, must_change_password, user}`.
   static Future<Map<String, dynamic>> login({
     required String email,
     required String password,
+    String? deviceInfo,
   }) async {
     try {
-      debugPrint('[AuthService] Attempting login for: $email');
+      debugPrint('[AuthService] Connexion : $email');
 
-      final response = await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
+      final data = await client.post('/auth/login', body: {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+        if (deviceInfo != null) 'deviceInfo': deviceInfo,
+      }) as Map<String, dynamic>;
+
+      // Les clés arrivent en snake_case : ApiClient convertit les réponses
+      // pour que l'application garde la convention héritée de Supabase.
+      await client.tokens.save(
+        accessToken: data['access_token'] as String,
+        refreshToken: data['refresh_token'] as String,
+        expiresIn: data['expires_in'] as int? ?? 900,
       );
 
-      if (response.session == null) {
-        throw Exception('Login failed. No session returned.');
-      }
+      final mustChange = data['must_change_password'] as bool? ?? false;
 
-      // Check if password is the default password
-      const defaultPassword = 'Password123';
-      bool isDefaultPassword = password == defaultPassword;
-
-      debugPrint('[AuthService] Is default password: $isDefaultPassword');
-
-      // Check must_change_password flag from users table (primary source)
-      // Also check user metadata as fallback
-      bool mustChangePassword = false;
-      try {
-        final userRecord = await _client
-            .from('users')
-            .select('must_change_password')
-            .eq('id', response.user!.id)
-            .maybeSingle();
-
-        if (userRecord != null) {
-          mustChangePassword = userRecord['must_change_password'] == true;
-          debugPrint(
-            '[AuthService] Found user record, must_change_password: $mustChangePassword',
-          );
-        } else {
-          // Fallback to metadata if users table record doesn't exist
-          mustChangePassword =
-              response.user?.userMetadata?['must_change_password'] == true ||
-              response.user?.userMetadata?['must_change_password'] == 'true';
-          debugPrint(
-            '[AuthService] No user record found, using metadata: $mustChangePassword',
-          );
-        }
-      } catch (e) {
-        // Fallback to metadata if query fails
-        debugPrint(
-          '[AuthService] Error checking users table: $e, using metadata',
-        );
-        mustChangePassword =
-            response.user?.userMetadata?['must_change_password'] == true ||
-            response.user?.userMetadata?['must_change_password'] == 'true';
-      }
-
-      // Force password change if using default password (for newly created users)
-      if (isDefaultPassword && !mustChangePassword) {
-        debugPrint(
-          '[AuthService] Default password detected, forcing password change',
-        );
-        mustChangePassword = true;
-
-        // Update user metadata to require password change
-        try {
-          await _client.auth.updateUser(
-            UserAttributes(data: {'must_change_password': true}),
-          );
-
-          // Also update users table if it exists
-          try {
-            await _client
-                .from('users')
-                .update({
-                  'must_change_password': true,
-                  'updated_at': DateTime.now().toIso8601String(),
-                })
-                .eq('id', response.user!.id);
-          } catch (e) {
-            debugPrint(
-              '[AuthService] Warning: Could not update users table: $e',
-            );
-          }
-        } catch (e) {
-          debugPrint(
-            '[AuthService] Warning: Could not update user metadata: $e',
-          );
-          // Continue anyway - we'll still return must_change_password=true
-        }
-      }
-
-      debugPrint(
-        '[AuthService] Login successful. must_change_password: $mustChangePassword',
-      );
-
-      // Ensure mic@mic.com has admin privileges
-      final userEmail = response.user?.email;
-      if (userEmail != null && userEmail == RoleService.superAdminEmail) {
-        await RoleService.ensureSuperAdminPrivileges(userEmail);
-      }
+      debugPrint('[AuthService] Connexion réussie. Changement requis : $mustChange');
 
       return {
-        'token': response.session!.accessToken,
-        'must_change_password': mustChangePassword,
-        'user': response.user,
+        'token': data['access_token'],
+        'must_change_password': mustChange,
+        'user': data['user'],
       };
-    } on AuthException catch (e) {
-      debugPrint('[AuthService] Login failed: ${e.message}');
-
-      // Handle email not confirmed error
-      if (e.message.toLowerCase().contains('email not confirmed') ||
-          e.message.toLowerCase().contains('email_not_confirmed')) {
-        throw Exception('Email not confirmed');
-      }
-
-      // Handle invalid credentials
-      if (e.message.toLowerCase().contains('invalid') ||
-          e.message.toLowerCase().contains('wrong password') ||
-          e.message.toLowerCase().contains('incorrect')) {
-        throw Exception('Invalid credentials');
-      }
-
-      throw Exception('Login failed');
-    } catch (e, stackTrace) {
-      debugPrint('[AuthService] Login error: $e');
-      debugPrint('[AuthService] Stack trace: $stackTrace');
-
-      // Handle email not confirmed error in generic catch
-      if (e.toString().toLowerCase().contains('email not confirmed') ||
-          e.toString().toLowerCase().contains('email_not_confirmed')) {
-        throw Exception('Email not confirmed');
-      }
-
-      throw Exception('Login failed');
+    } on ApiException catch (error) {
+      debugPrint('[AuthService] Échec : ${error.code}');
+      throw Exception(_translate(error));
     }
   }
 
-  /// Resend email confirmation
-  /// Sends a new confirmation email to the user
-  static Future<void> resendConfirmationEmail({required String email}) async {
+  /// Profil complet de l'utilisateur connecté.
+  ///
+  /// Appelé au démarrage pour reconstituer l'état : rôle, fiche membre,
+  /// départements et permissions. Ces informations ne sont volontairement pas
+  /// mémorisées localement — elles deviendraient obsolètes dès qu'un
+  /// administrateur modifie les droits.
+  static Future<Map<String, dynamic>> getProfile() async {
+    final data = await client.get('/auth/me');
+    return (data as Map).cast<String, dynamic>();
+  }
+
+  /// Indique si une session existe, sans garantir qu'elle soit encore valide.
+  static Future<bool> hasSession() => client.tokens.hasSession();
+
+  // ---------------------------------------------------------------------------
+  // Déconnexion
+  // ---------------------------------------------------------------------------
+
+  /// Ferme la session courante.
+  ///
+  /// L'appel serveur peut échouer — appareil hors ligne, jeton déjà invalide.
+  /// Les jetons locaux sont effacés dans tous les cas : refuser de déconnecter
+  /// quelqu'un parce que le réseau est coupé serait absurde.
+  static Future<void> logout() async {
     try {
-      await _client.auth.resend(type: OtpType.signup, email: email);
-    } on AuthException {
-      throw Exception('Failed to resend confirmation email');
-    } catch (_) {
-      throw Exception('Failed to resend confirmation email');
-    }
-  }
-
-  /// Send password reset OTP token via email
-  /// Business Rule: Active leaders and members with accounts can reset password
-  static Future<void> forgotPassword({required String email}) async {
-    try {
-      // Check if user is active (leader or member) before allowing password reset
-      final user = await _client
-          .from('users')
-          .select('is_active, role')
-          .eq('email', email)
-          .maybeSingle();
-
-      if (user != null) {
-        final isActive = user['is_active'] == true;
-        final role = user['role'] as String?;
-
-        // Allow active leaders and members with accounts to reset password
-        if (!isActive || (role != 'leader' && role != 'member')) {
-          throw Exception(
-            'Password reset only available for active leaders and members with accounts',
-          );
-        }
+      final refreshToken = await client.tokens.getRefreshToken();
+      if (refreshToken != null) {
+        await client.post('/auth/logout', body: {'refreshToken': refreshToken});
       }
-
-      // Send OTP token via email for password recovery
-      await _client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: null, // Not using redirect, using token instead
-      );
-    } on AuthException catch (e) {
-      debugPrint('[AuthService] Password reset error: ${e.message}');
-      throw Exception('Failed to send reset token: ${e.message}');
-    } catch (e) {
-      debugPrint('[AuthService] Password reset error: $e');
-      throw Exception('Failed to send reset token');
+    } catch (error) {
+      debugPrint('[AuthService] Déconnexion serveur échouée : $error');
+    } finally {
+      await client.tokens.clear();
     }
   }
 
-  /// Verify password reset token and reset password
-  /// This method verifies the OTP token from email and then resets the password
-  static Future<void> resetPassword({
-    required String token,
-    required String email,
+  /// Ferme toutes les sessions, sur tous les appareils.
+  static Future<void> logoutEverywhere() async {
+    try {
+      await client.delete('/auth/sessions');
+    } finally {
+      await client.tokens.clear();
+    }
+  }
+
+  /// Liste les appareils connectés.
+  static Future<List<Map<String, dynamic>>> listSessions() async {
+    final data = await client.get('/auth/sessions') as List;
+    return data.map((item) => (item as Map).cast<String, dynamic>()).toList();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mots de passe
+  // ---------------------------------------------------------------------------
+
+  /// Change le mot de passe.
+  ///
+  /// Le serveur ferme toutes les sessions à cette occasion : si le changement
+  /// fait suite à une compromission, laisser les jetons actifs annulerait tout
+  /// le bénéfice. L'utilisateur doit donc se reconnecter.
+  static Future<void> changePassword({
+    String? currentPassword,
     required String newPassword,
   }) async {
     try {
-      debugPrint('[AuthService] Verifying password reset token for: $email');
+      await client.post('/auth/change-password', body: {
+        // Facultatif lors du premier changement obligatoire : l'utilisateur
+        // vient de saisir le mot de passe par défaut pour se connecter.
+        if (currentPassword != null && currentPassword.isNotEmpty)
+          'current_password': currentPassword,
+        'new_password': newPassword,
+      });
 
-      // Verify the OTP token by attempting to exchange it for a session
-      // Supabase will verify the token and create a temporary session
-      final response = await _client.auth.verifyOTP(
-        type: OtpType.recovery,
-        token: token,
-        email: email,
-      );
-
-      if (response.session == null) {
-        throw Exception(
-          'Invalid or expired token. Please request a new reset token.',
-        );
-      }
-
-      debugPrint('[AuthService] Token verified successfully');
-
-      // Now update the password using the temporary session
-      await _client.auth.updateUser(UserAttributes(password: newPassword));
-
-      // Also update users table to clear must_change_password flag
-      try {
-        final userId = response.user?.id;
-        if (userId != null) {
-          await _client
-              .from('users')
-              .update({
-                'must_change_password': false,
-                'updated_at': DateTime.now().toIso8601String(),
-              })
-              .eq('id', userId);
-        }
-      } catch (e) {
-        debugPrint('[AuthService] Warning: Could not update users table: $e');
-        // Don't fail password change if users table update fails
-      }
-
-      // Sign out the temporary session after password reset
-      await _client.auth.signOut();
-
-      debugPrint('[AuthService] Password reset successful');
-    } on AuthException catch (e) {
-      debugPrint('[AuthService] Password reset error: ${e.message}');
-      if (e.message.toLowerCase().contains('invalid') ||
-          e.message.toLowerCase().contains('expired') ||
-          e.message.toLowerCase().contains('token')) {
-        throw Exception(
-          'Invalid or expired token. Please request a new reset token.',
-        );
-      }
-      throw Exception('Password reset failed: ${e.message}');
-    } catch (e) {
-      debugPrint('[AuthService] Password reset error: $e');
-      if (e.toString().toLowerCase().contains('invalid') ||
-          e.toString().toLowerCase().contains('expired') ||
-          e.toString().toLowerCase().contains('token')) {
-        throw Exception(
-          'Invalid or expired token. Please request a new reset token.',
-        );
-      }
-      throw Exception('Password reset failed');
+      await client.tokens.clear();
+    } on ApiException catch (error) {
+      throw Exception(_translate(error));
     }
   }
 
-  /// Logout current user
-  /// Also removes device token if FCM is available
-  static Future<void> logout() async {
+  /// Demande un jeton de réinitialisation.
+  ///
+  /// La réponse est identique que l'adresse existe ou non : le serveur ne
+  /// révèle pas quels comptes sont enregistrés.
+  static Future<void> forgotPassword({required String email}) async {
     try {
-      // Remove device token before logout
-      try {
-        final currentToken = DeviceTokenService.currentToken;
-        if (currentToken != null) {
-          await DeviceTokenService.removeDeviceToken(currentToken);
-        }
-      } catch (e) {
-        // Ignore errors when removing device token
-        debugPrint('Warning: Failed to remove device token on logout: $e');
-      }
-
-      await _client.auth.signOut();
-    } catch (e) {
-      throw Exception('Logout failed');
+      await client.post('/auth/forgot-password', body: {
+        'email': email.trim().toLowerCase(),
+      });
+    } on ApiException catch (error) {
+      throw Exception(_translate(error));
     }
   }
 
-  /// Get current authenticated user
-  static User? getCurrentUser() {
-    return SupabaseService.currentUser;
-  }
-
-  /// Check if the current session token is expired or about to expire
-  /// Returns true if token is expired or will expire within the next 5 minutes
-  static bool isTokenExpiredOrExpiringSoon() {
-    final session = SupabaseService.currentSession;
-    if (session == null) return true;
-
-    final expiresAt = session.expiresAt;
-    if (expiresAt == null) return true;
-
-    // Check if token is expired or will expire in the next 5 minutes
-    final expirationTime = DateTime.fromMillisecondsSinceEpoch(
-      expiresAt * 1000,
-    );
-    final now = DateTime.now();
-    final fiveMinutesFromNow = now.add(const Duration(minutes: 5));
-
-    return expirationTime.isBefore(fiveMinutesFromNow);
-  }
-
-  /// Refresh the current session token
-  /// Returns true if refresh was successful, false otherwise
-  static Future<bool> refreshToken() async {
+  static Future<void> resetPassword({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
     try {
-      final session = SupabaseService.currentSession;
-      if (session == null) return false;
-
-      // Supabase automatically refreshes tokens, but we can force a refresh
-      final refreshedSession = await _client.auth.refreshSession();
-      return refreshedSession.session != null;
-    } catch (e) {
-      return false;
+      await client.post('/auth/reset-password', body: {
+        'email': email.trim().toLowerCase(),
+        'token': token,
+        'newPassword': newPassword,
+      });
+    } on ApiException catch (error) {
+      throw Exception(_translate(error));
     }
   }
 
-  /// Check token and refresh if needed
-  /// Returns true if session is valid (either already valid or successfully refreshed)
-  /// Returns false if session is invalid and cannot be refreshed
-  static Future<bool> ensureValidSession() async {
-    try {
-      final session = SupabaseService.currentSession;
-      if (session == null) return false;
+  // ---------------------------------------------------------------------------
+  // Traduction des erreurs
+  // ---------------------------------------------------------------------------
 
-      // If token is expired or expiring soon, try to refresh
-      if (isTokenExpiredOrExpiringSoon()) {
-        return await refreshToken();
-      }
-
-      return true;
-    } catch (e) {
-      return false;
-    }
+  /// Convertit un code d'erreur en message affichable.
+  ///
+  /// La traduction s'appuie sur [ApiException.code], jamais sur le texte du
+  /// message : le code est stable, le texte peut changer côté serveur sans
+  /// prévenir.
+  static String _translate(ApiException error) {
+    return switch (error.code) {
+      ApiErrorCodes.invalidCredentials =>
+        'Adresse e-mail ou mot de passe incorrect.',
+      ApiErrorCodes.accountDisabled =>
+        'Ce compte a été désactivé. Contactez votre administrateur.',
+      ApiErrorCodes.currentPasswordInvalid =>
+        'Le mot de passe actuel est incorrect.',
+      ApiErrorCodes.resetTokenInvalid =>
+        'Jeton invalide ou expiré. Demandez-en un nouveau.',
+      ApiErrorCodes.rateLimited =>
+        'Trop de tentatives. Patientez une minute avant de réessayer.',
+      ApiErrorCodes.networkError =>
+        'Impossible de joindre le serveur. Vérifiez votre connexion.',
+      ApiErrorCodes.timeout =>
+        'Le serveur met trop de temps à répondre. Réessayez.',
+      ApiErrorCodes.databaseUnavailable =>
+        'Service momentanément indisponible. Réessayez dans un instant.',
+      _ => error.message,
+    };
   }
 }

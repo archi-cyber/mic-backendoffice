@@ -1,61 +1,43 @@
-import 'package:workmanager/workmanager.dart';
-import 'birthday_scheduler_service.dart';
-import 'supabase_service.dart';
+import 'package:flutter/foundation.dart';
 
-/// Background task service for scheduled jobs
-/// Note: For production, the birthday scheduler should run server-side
+import '../core/offline/offline_queue.dart';
+
+/// Tâches de fond.
+///
+/// **Vidée de sa substance, et c'est voulu.** Elle planifiait les
+/// notifications d'anniversaire via WorkManager : une tâche de fond réveillait
+/// l'application pour vérifier les anniversaires du jour.
+///
+/// Ce modèle est fragile — Android et iOS suspendent librement les tâches de
+/// fond pour économiser la batterie, et un anniversaire pouvait passer
+/// inaperçu. Le serveur exécute désormais cette vérification chaque matin à
+/// 7 h, qu'un téléphone soit allumé ou non.
+///
+/// La seule tâche de fond qui reste utile est la **synchronisation hors
+/// ligne**, gérée par `OfflineQueue` : elle se déclenche au retour du réseau,
+/// pas sur une minuterie.
 class BackgroundTaskService {
-  static const String birthdayTaskName = 'birthdayScheduler';
-
-  /// Initialize background tasks
+  /// Démarre la surveillance réseau pour la synchronisation.
+  ///
+  /// À appeler après l'authentification : synchroniser sans jeton valide
+  /// produirait des 401 en série.
   static Future<void> initialize() async {
-    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    debugPrint('[BackgroundTask] Surveillance réseau active.');
   }
 
-  /// Register daily birthday scheduler task
-  /// Note: This is a client-side implementation
-  /// For production, use server-side cron job or Supabase Edge Functions
+  /// Sans effet — voir la description de la classe.
   static Future<void> registerBirthdayScheduler({
     Duration? initialDelay,
   }) async {
-    // Register periodic task (runs approximately every 24 hours)
-    // Note: Exact timing depends on OS scheduling
-    await Workmanager().registerPeriodicTask(
-      birthdayTaskName,
-      birthdayTaskName,
-      frequency: const Duration(hours: 24),
-      initialDelay: initialDelay ?? const Duration(minutes: 15),
-      constraints: Constraints(networkType: NetworkType.connected),
+    debugPrint(
+      '[BackgroundTask] Sans objet : les anniversaires sont annoncés par le '
+      'serveur chaque matin à 7 h.',
     );
   }
 
-  /// Cancel birthday scheduler task
-  static Future<void> cancelBirthdayScheduler() async {
-    await Workmanager().cancelByUniqueName(birthdayTaskName);
-  }
-}
+  /// Sans effet.
+  static Future<void> cancelBirthdayScheduler() async {}
 
-/// Callback dispatcher for background tasks
-@pragma('vm:entry-point')
-void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
-    try {
-      switch (task) {
-        case BackgroundTaskService.birthdayTaskName:
-          // Initialize Supabase in background
-          // Note: You may need to pass credentials or use environment variables
-          await SupabaseService.initialize();
-
-          // Process birthday notifications
-          await BirthdaySchedulerService.processBirthdayNotifications();
-          return true;
-
-        default:
-          return false;
-      }
-    } catch (e) {
-      // Log error but don't crash
-      return false;
-    }
-  });
+  /// Déclenche une synchronisation immédiate.
+  static Future<void> syncNow() => OfflineQueue.instance.sync();
 }

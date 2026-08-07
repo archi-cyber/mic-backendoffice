@@ -5,8 +5,8 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../services/member_account_service.dart';
+import '../../services/member_service.dart';
 import '../../services/role_service.dart';
-import '../../services/supabase_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 
@@ -162,14 +162,13 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       }
 
       try {
-        // Update member email in the database
-        await SupabaseService.client
-            .from('members')
-            .update({
-              'email': newEmail,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', memberId);
+        // `updated_at` n'est plus transmis : le serveur l'inscrit lui-même à
+        // chaque écriture. Le laisser au client exposait à des horodatages
+        // faux si l'horloge de l'appareil était déréglée.
+        await MemberService.updateMember(
+          memberId: memberId,
+          updates: {'email': newEmail},
+        );
 
         // Update local copy so UI stays in sync until reload
         member['email'] = newEmail;

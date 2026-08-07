@@ -4,11 +4,11 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_logo.dart';
-import '../../services/supabase_service.dart';
 import '../../screens/events/event_detail_page.dart';
 import '../../screens/events/add_event_page.dart';
 import '../../screens/events/edit_event_page.dart';
@@ -35,7 +35,7 @@ import '../../screens/departments/department_detail_page.dart';
 import '../../screens/departments/add_department_page.dart';
 import '../../screens/departments/edit_department_page.dart';
 import '../../screens/settings/leader_access_page.dart';
-import '../../screens/settings/member_accounts_page.dart';
+import '../settings/member_accounts_page.dart';
 import '../../screens/settings/birthday_notifications_settings_page.dart';
 import '../../screens/tasks/task_detail_page.dart';
 import '../../screens/tasks/add_task_page.dart';
@@ -540,8 +540,9 @@ class _DesktopShellState extends State<DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final user = SupabaseService.currentUser;
-    final email = user?.email ?? '';
+    // Le profil est en mémoire depuis la connexion : aucune requête pour
+    // afficher l'adresse dans la barre latérale.
+    final email = PermissionHelper.currentEmail ?? '';
 
     return Scaffold(
       body: Row(

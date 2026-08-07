@@ -1,137 +1,79 @@
-import 'supabase_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// Leader access service for managing feature access permissions
+/// Permissions granulaires des responsables.
+///
+/// Signatures identiques à l'implémentation Supabase.
+///
+/// Réservé aux administrateurs : accorder des droits ne peut pas relever des
+/// permissions elles-mêmes, sous peine de circularité — un responsable
+/// pourrait s'attribuer ce qui lui manque.
 class LeaderAccessService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  /// Get all leaders and members with accounts (for access management)
-  /// Includes: role='leader', department leaders/subleaders, and role='member'
+  /// Les douze modules soumis à permissions.
+  ///
+  /// Ces clés correspondent à `leader_access.feature_name` côté serveur. Elles
+  /// sont figées : les renommer invaliderait les permissions déjà accordées.
+  static List<String> getAvailableFeatures() => const [
+        'members',
+        'departments',
+        'trainings',
+        'events',
+        'tasks',
+        'reports',
+        'church_attendance',
+        'sunday_school_attendance',
+        'visitors',
+        'giving',
+        'chat',
+        'teachings',
+      ];
+
+  /// Comptes pouvant recevoir des permissions.
+  ///
+  /// Les administrateurs et pasteurs sont exclus : ils passent partout, et
+  /// leur accorder des droits ligne à ligne créerait une grille trompeuse —
+  /// décocher une case ne leur retirerait rien.
   static Future<List<Map<String, dynamic>>> getLeaders() async {
-    try {
-      // Get users with role='leader' in users table
-      final usersWithLeaderRole = await _client
-          .from('users')
-          .select('id, email, role, members(id, first_name, last_name)')
-          .eq('role', 'leader')
-          .eq('is_active', true);
+    final users = await _client.getList('/users', query: {
+      'is_active': true,
+      'limit': 200,
+    });
 
-      // Get users with role='member' (member accounts - view-only by default)
-      final memberUsers = await _client
-          .from('users')
-          .select('id, email, role, members(id, first_name, last_name)')
-          .eq('role', 'member')
-          .eq('is_active', true);
-
-      // Get all member_ids who are leaders or subleaders in any department
-      final departmentLeadersResponse = await _client
-          .from('department_members')
-          .select('member_id')
-          .inFilter('role', ['leader', 'subleader']);
-
-      // Extract unique member_ids
-      final Set<String> leaderMemberIds = {};
-      for (var item in departmentLeadersResponse) {
-        final memberId = item['member_id']?.toString();
-        if (memberId != null) {
-          leaderMemberIds.add(memberId);
-        }
-      }
-
-      // Get users for these member_ids (where member_id matches)
-      List<Map<String, dynamic>> departmentLeaderUsers = [];
-      if (leaderMemberIds.isNotEmpty) {
-        final usersResponse = await _client
-            .from('users')
-            .select('id, email, role, members(id, first_name, last_name)')
-            .inFilter('member_id', leaderMemberIds.toList())
-            .eq('is_active', true);
-
-        departmentLeaderUsers = List<Map<String, dynamic>>.from(usersResponse);
-      }
-
-      // Combine and deduplicate by user id
-      final Map<String, Map<String, dynamic>> leadersMap = {};
-
-      // Add users with role='leader'
-      for (var user in usersWithLeaderRole) {
-        final id = user['id'].toString();
-        leadersMap[id] = user;
-      }
-
-      // Add department leaders/subleaders (will overwrite if already exists, which is fine)
-      for (var user in departmentLeaderUsers) {
-        final id = user['id'].toString();
-        leadersMap[id] = user;
-      }
-
-      // Add member-role users (so admins can manage their access)
-      for (var user in memberUsers as List) {
-        final id = user['id'].toString();
-        leadersMap[id] = Map<String, dynamic>.from(user);
-      }
-
-      final leaders = leadersMap.values.toList();
-      // Sort by role (leaders first) then email
-      leaders.sort((a, b) {
-        final roleA = a['role']?.toString() ?? '';
-        final roleB = b['role']?.toString() ?? '';
-        final roleCompare = roleB.compareTo(roleA); // leader before member
-        if (roleCompare != 0) return roleCompare;
-        final emailA = a['email']?.toString() ?? '';
-        final emailB = b['email']?.toString() ?? '';
-        return emailA.compareTo(emailB);
-      });
-
-      return leaders;
-    } catch (e) {
-      throw Exception('Failed to get leaders: $e');
-    }
+    return users
+        .where((user) => user['role'] != 'admin' && user['role'] != 'pastor')
+        .toList();
   }
 
-  /// Get access permissions for a specific leader
-  static Future<List<Map<String, dynamic>>> getLeaderAccess(
-    String userId,
-  ) async {
-    try {
-      final response = await _client
-          .from('leader_access')
-          .select()
-          .eq('user_id', userId)
-          .order('feature_name');
+  /// Grille des permissions d'un utilisateur.
+  ///
+  /// Les douze modules sont toujours renvoyés, y compris ceux sans droit
+  /// accordé : l'interface d'administration affiche un tableau complet.
+  static Future<List<Map<String, dynamic>>> getLeaderAccess(String userId) =>
+      _client.getList('/users/$userId/permissions');
 
-      final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
-      return records.where((r) => r['deleted_at'] == null).toList();
-    } catch (e) {
-      throw Exception('Failed to get leader access: $e');
-    }
-  }
-
-  /// Get access permission for a specific leader and feature
+  /// Droits d'un utilisateur sur un module précis.
   static Future<Map<String, dynamic>?> getLeaderFeatureAccess({
     required String userId,
     required String featureName,
   }) async {
-    try {
-      final response = await _client
-          .from('leader_access')
-          .select()
-          .eq('user_id', userId)
-          .eq('feature_name', featureName)
-          .maybeSingle();
+    final permissions = await getLeaderAccess(userId);
 
-      if (response == null) return null;
-      // Filter out deleted records
-      if (response['deleted_at'] != null) return null;
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to get leader feature access: $e');
+    for (final permission in permissions) {
+      if (permission['feature'] == featureName) return permission;
     }
+
+    return null;
   }
 
-  /// Set or update access permissions for a leader and feature
-  static Future<Map<String, dynamic>> setLeaderAccess({
+  /// Accorde ou retire des droits sur un module.
+  ///
+  /// L'API remplace la grille entière : les autres modules sont donc relus et
+  /// renvoyés tels quels. Une mise à jour partielle laisserait subsister des
+  /// permissions oubliées, invisibles dans une interface qui affiche le
+  /// tableau complet.
+  static Future<void> setLeaderAccess({
     required String userId,
     required String featureName,
     required bool canView,
@@ -139,141 +81,49 @@ class LeaderAccessService {
     required bool canEdit,
     required bool canDelete,
   }) async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be authenticated');
+    final current = await getLeaderAccess(userId);
+
+    final permissions = current.map((permission) {
+      if (permission['feature'] != featureName) {
+        return {
+          'feature': permission['feature'],
+          'can_view': permission['can_view'] ?? false,
+          'can_create': permission['can_create'] ?? false,
+          'can_edit': permission['can_edit'] ?? false,
+          'can_delete': permission['can_delete'] ?? false,
+        };
       }
 
-      // Check if access record already exists
-      final existingResponse = await _client
-          .from('leader_access')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('feature_name', featureName)
-          .maybeSingle();
+      return {
+        'feature': featureName,
+        'can_view': canView,
+        'can_create': canCreate,
+        'can_edit': canEdit,
+        'can_delete': canDelete,
+      };
+    }).toList();
 
-      // Filter out deleted records
-      Map<String, dynamic>? existing;
-      if (existingResponse != null && existingResponse['deleted_at'] == null) {
-        existing = existingResponse;
-      }
-
-      if (existing != null) {
-        // Update existing record
-        final response = await _client
-            .from('leader_access')
-            .update({
-              'can_view': canView,
-              'can_create': canCreate,
-              'can_edit': canEdit,
-              'can_delete': canDelete,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', existing['id'])
-            .select()
-            .single();
-
-        return response;
-      } else {
-        // Create new record
-        final response = await _client
-            .from('leader_access')
-            .insert({
-              'user_id': userId,
-              'feature_name': featureName,
-              'can_view': canView,
-              'can_create': canCreate,
-              'can_edit': canEdit,
-              'can_delete': canDelete,
-              'created_by': currentUser.id,
-              'created_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .select()
-            .single();
-
-        return response;
-      }
-    } catch (e) {
-      throw Exception('Failed to set leader access: $e');
-    }
+    await _client.post(
+      '/users/$userId/permissions',
+      body: {'permissions': permissions},
+    );
   }
 
-  /// Delete access permission for a leader and feature (soft delete)
-  static Future<void> deleteLeaderAccess({
-    required String userId,
-    required String featureName,
-  }) async {
-    try {
-      // First check if record exists and is not deleted
-      final checkResponse = await _client
-          .from('leader_access')
-          .select('id')
-          .eq('user_id', userId)
-          .eq('feature_name', featureName)
-          .maybeSingle();
-
-      if (checkResponse != null && checkResponse['deleted_at'] == null) {
-        await _client
-            .from('leader_access')
-            .update({
-              'deleted_at': DateTime.now().toIso8601String(),
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', checkResponse['id']);
-      }
-    } catch (e) {
-      throw Exception('Failed to delete leader access: $e');
-    }
-  }
-
-  /// Check if a leader has a specific permission for a feature
+  /// Vérifie un droit précis.
+  ///
+  /// [permission] vaut `view`, `create`, `edit` ou `delete`.
   static Future<bool> hasPermission({
     required String userId,
     required String featureName,
-    required String permission, // 'view', 'create', 'edit', 'delete'
+    required String permission,
   }) async {
-    try {
-      final access = await getLeaderFeatureAccess(
-        userId: userId,
-        featureName: featureName,
-      );
+    final access = await getLeaderFeatureAccess(
+      userId: userId,
+      featureName: featureName,
+    );
 
-      if (access == null) return false;
+    if (access == null) return false;
 
-      switch (permission.toLowerCase()) {
-        case 'view':
-          return access['can_view'] == true;
-        case 'create':
-          return access['can_create'] == true;
-        case 'edit':
-          return access['can_edit'] == true;
-        case 'delete':
-          return access['can_delete'] == true;
-        default:
-          return false;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Get all available features
-  static List<String> getAvailableFeatures() {
-    return [
-      'members',
-      'departments',
-      'trainings',
-      'events',
-      'tasks',
-      'reports',
-      'church_attendance',
-      'sunday_school_attendance',
-      'visitors',
-      'giving',
-      'chat',
-      'teachings',
-    ];
+    return access['can_$permission'] == true;
   }
 }

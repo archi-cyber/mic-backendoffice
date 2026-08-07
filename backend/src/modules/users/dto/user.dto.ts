@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsNotEmpty,
   IsBoolean,
   IsEmail,
   IsEnum,
@@ -144,4 +145,21 @@ export class SetPermissionsDto {
   @ValidateNested({ each: true })
   @Type(() => FeaturePermissionDto)
   permissions!: FeaturePermissionDto[];
+}
+
+// =============================================================================
+// APPAREILS
+// =============================================================================
+
+export class RegisterDeviceDto {
+  @ApiProperty({ description: 'Jeton FCM de l\'appareil' })
+  @IsString()
+  @IsNotEmpty({ message: 'Le jeton d\'appareil est requis.' })
+  @MaxLength(512)
+  deviceToken!: string;
+
+  @ApiPropertyOptional({ enum: ['ios', 'android', 'web'] })
+  @IsOptional()
+  @IsIn(['ios', 'android', 'web'], { message: 'Plateforme inconnue.' })
+  platform?: 'ios' | 'android' | 'web';
 }

@@ -1,195 +1,147 @@
-import 'package:flutter/foundation.dart';
-import '../screens/service_schedule/service_schedule_constants.dart';
-import 'notification_service.dart';
-import 'supabase_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
+/// Planning de service — typiquement l'équipe média.
+///
+/// Signatures identiques à l'implémentation Supabase.
 class ServiceScheduleService {
-  ServiceScheduleService._();
+  static ApiClient get _client => AuthService.client;
 
-  static final _client = SupabaseService.client;
+  /// Noms reconnus comme département média.
+  ///
+  /// Le planning de service est conçu pour cette équipe : projection,
+  /// captation, cadreurs, photographe. Les deux orthographes sont acceptées,
+  /// insensibles à la casse.
+  static const _mediaDepartmentNames = <String>['média', 'media'];
 
-  static const _scheduleSelect =
-      '*, service_schedule_assignments(id, role, member_id, is_done, created_at, members(id, first_name, last_name))';
+  /// Indique si un département est l'équipe média.
+  ///
+  /// Sert à n'afficher l'onglet Planning que là où il a un sens. Le serveur ne
+  /// pose pas cette restriction — un autre département peut techniquement
+  /// avoir un planning — mais l'exposer partout encombrerait l'interface.
+  static bool isMediaTeamDepartment(dynamic department) {
+    final name = department is Map
+        ? department['name']?.toString()
+        : department?.toString();
 
-  static String _dateOnly(DateTime date) {
-    return '${date.year.toString().padLeft(4, '0')}-'
-        '${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
+    if (name == null) return false;
+
+    return _mediaDepartmentNames.contains(name.trim().toLowerCase());
   }
 
-  static String _roleLabel(String role) =>
-      ServiceScheduleRoles.labelKeys[role] ?? role;
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
+  /// Assignations d'un planning pour un poste donné.
+  ///
+  /// Le serveur renvoie `assignments` là où Supabase renvoyait
+  /// `service_schedule_assignments` ; les deux clés sont acceptées pour ne pas
+  /// casser les écrans qui liraient encore l'ancienne.
   static List<Map<String, dynamic>> _assignmentsFor(
     Map<String, dynamic> schedule,
     String role,
   ) {
-    final rows = schedule['service_schedule_assignments'];
-    if (rows is! List) return [];
+    final rows = schedule['assignments'] ??
+        schedule['service_schedule_assignments'] ??
+        const [];
+
+    if (rows is! List) return const [];
+
     return rows
-        .whereType<Map>()
-        .map((row) => Map<String, dynamic>.from(row))
-        .where((row) => row['role']?.toString() == role)
+        .map((e) => (e as Map).cast<String, dynamic>())
+        .where((row) => row['role'] == role)
         .toList();
   }
+
+  /// Expose la même logique aux écrans.
+  static List<Map<String, dynamic>> assignmentsFor(
+    Map<String, dynamic> schedule,
+    String role,
+  ) =>
+      _assignmentsFor(schedule, role);
+
+  // ---------------------------------------------------------------------------
+  // Plannings
+  // ---------------------------------------------------------------------------
 
   static Future<List<Map<String, dynamic>>> getSchedules({
     required String departmentId,
     int limit = 200,
-  }) async {
-    try {
-      final response = await _client
-          .from('service_schedules')
-          .select(_scheduleSelect)
-          .eq('department_id', departmentId)
-          .order('service_date', ascending: false)
-          .limit(limit);
+  }) =>
+      _client.getList('/service-schedules', query: {
+        'department_id': departmentId,
+        'limit': limit,
+      });
 
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e, stackTrace) {
-      debugPrint('[ServiceScheduleService] getSchedules error: $e');
-      debugPrint('$stackTrace');
-      throw Exception('Failed to load service schedules: $e');
-    }
-  }
-
+  /// Crée un planning.
+  ///
+  /// Un seul par département et par date : le serveur refuse un doublon avec
+  /// le code `SCHEDULE_ALREADY_EXISTS`. Deux plannings concurrents pour le
+  /// même service laisseraient l'équipe sans savoir lequel fait foi.
   static Future<Map<String, dynamic>> createSchedule({
     required String departmentId,
     required DateTime serviceDate,
     String? notes,
   }) async {
-    final user = SupabaseService.currentUser;
-    if (user == null) {
-      throw Exception('User must be authenticated');
-    }
-
-    try {
-      final response = await _client
-          .from('service_schedules')
-          .insert({
-            'department_id': departmentId,
-            'service_date': _dateOnly(serviceDate),
-            'notes': notes?.trim().isEmpty == true ? null : notes?.trim(),
-            'created_by': user.id,
-          })
-          .select(_scheduleSelect)
-          .single();
-
-      return Map<String, dynamic>.from(response);
-    } catch (e) {
-      if (e.toString().contains('service_schedules_department_date_unique') ||
-          e.toString().contains('duplicate key')) {
-        throw Exception('A schedule already exists for this service date');
-      }
-      throw Exception('Failed to create service schedule: $e');
-    }
+    final data = await _client.post('/service-schedules', body: {
+      'department_id': departmentId,
+      'service_date': _day(serviceDate),
+      if (notes != null) 'notes': notes,
+    });
+    return (data as Map).cast<String, dynamic>();
   }
 
   static Future<void> updateNotes({
     required String scheduleId,
     String? notes,
   }) async {
-    try {
-      await _client
-          .from('service_schedules')
-          .update({
-            'notes': notes?.trim().isEmpty == true ? null : notes?.trim(),
-          })
-          .eq('id', scheduleId);
-    } catch (e) {
-      throw Exception('Failed to update notes: $e');
-    }
+    await _client.patch('/service-schedules/$scheduleId', body: {'notes': notes});
   }
 
   static Future<void> deleteSchedule(String scheduleId) async {
-    try {
-      await _client.from('service_schedules').delete().eq('id', scheduleId);
-    } catch (e) {
-      throw Exception('Failed to delete service schedule: $e');
-    }
+    await _client.delete('/service-schedules/$scheduleId');
   }
 
+  // ---------------------------------------------------------------------------
+  // Assignations
+  // ---------------------------------------------------------------------------
+
+  /// Attribue un poste à un membre.
+  ///
+  /// Le membre est notifié côté serveur : sans cela, il découvrirait son
+  /// service en arrivant, ou pas du tout.
+  ///
+  /// [serviceDateLabel] est repris tel quel dans le message de notification,
+  /// ce qui permet d'y mettre une date formatée dans la langue de l'utilisateur.
   static Future<Map<String, dynamic>> addAssignment({
     required Map<String, dynamic> schedule,
     required String role,
     required String memberId,
     required String serviceDateLabel,
   }) async {
-    final scheduleId = schedule['id']?.toString();
-    if (scheduleId == null) {
-      throw Exception('Invalid schedule');
-    }
+    final scheduleId = schedule['id'] as String;
 
-    final existing = _assignmentsFor(schedule, role);
-    if (existing.length >= ServiceScheduleRoles.maxMembersPerRole) {
-      throw Exception(
-        'Maximum ${ServiceScheduleRoles.maxMembersPerRole} members per role',
-      );
-    }
-    if (existing.any((row) => row['member_id']?.toString() == memberId)) {
-      throw Exception('Member is already assigned to this role');
-    }
-
-    try {
-      final response = await _client
-          .from('service_schedule_assignments')
-          .insert({
-            'schedule_id': scheduleId,
-            'role': role,
-            'member_id': memberId,
-            'is_done': false,
-          })
-          .select('id, role, member_id, is_done, members(id, first_name, last_name)')
-          .single();
-
-      final roleLabel = _roleLabel(role);
-      await NotificationService.createBulkNotifications(
-        memberIds: [memberId],
-        type: 'service_schedule_assigned',
-        title: 'Media service assignment',
-        message:
-            'You have been assigned to $roleLabel on $serviceDateLabel.',
-        relatedId: scheduleId,
-        relatedType: 'service_schedule',
-      );
-
-      return Map<String, dynamic>.from(response);
-    } catch (e) {
-      if (e.toString().contains('service_schedule_assignments_unique') ||
-          e.toString().contains('duplicate key')) {
-        throw Exception('Member is already assigned to this role');
-      }
-      throw Exception('Failed to assign member: $e');
-    }
+    final data = await _client.post(
+      '/service-schedules/$scheduleId/assignments',
+      body: {'role': role, 'member_id': memberId},
+    );
+    return (data as Map).cast<String, dynamic>();
   }
 
   static Future<void> removeAssignment(String assignmentId) async {
-    try {
-      await _client
-          .from('service_schedule_assignments')
-          .delete()
-          .eq('id', assignmentId);
-    } catch (e) {
-      throw Exception('Failed to remove assignment: $e');
-    }
+    await _client.delete('/service-schedules/assignments/$assignmentId');
   }
 
+  /// Marque un poste comme assuré, ou revient dessus.
   static Future<void> setAssignmentDone({
     required String assignmentId,
     required bool isDone,
   }) async {
-    try {
-      await _client
-          .from('service_schedule_assignments')
-          .update({'is_done': isDone})
-          .eq('id', assignmentId);
-    } catch (e) {
-      throw Exception('Failed to update completion status: $e');
-    }
-  }
-
-  static bool isMediaTeamDepartment(Map<String, dynamic>? department) {
-    final name = department?['name']?.toString().trim().toLowerCase() ?? '';
-    return name == 'media team';
+    await _client.patch(
+      '/service-schedules/assignments/$assignmentId/done',
+      body: {'is_done': isDone},
+    );
   }
 }

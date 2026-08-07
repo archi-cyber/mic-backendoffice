@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show CountOption;
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -8,8 +7,9 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/error_message_helper.dart';
-import '../../services/supabase_service.dart';
 import '../../services/finance_service.dart';
+import '../../services/report_service.dart';
+import '../../services/member_service.dart';
 import '../../services/teaching_service.dart';
 import '../../services/church_attendance_service.dart';
 import '../../widgets/church_attendance_presence_chart.dart';
@@ -64,18 +64,21 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  /// Charge les données du tableau de bord.
+  ///
+  /// Une seule requête remplace les huit précédentes. Les décomptes et le tri
+  /// des anniversaires sont faits en SQL côté serveur : l'ancienne version
+  /// chargeait toute la table des membres sur l'appareil pour la filtrer,
+  /// ce qui devenait coûteux dès quelques centaines de fiches.
+  ///
+  /// Deux appels subsistent en parallèle — enseignements récents et cultes —
+  /// qui relèvent de leurs services propres.
   Future<void> _loadDashboardData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
+
     final errors = <Object>[];
     final now = DateTime.now();
-    final client = SupabaseService.client;
-
-    final sessionsEndDate = now.add(const Duration(days: 35));
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final tomorrowStart = todayStart.add(const Duration(days: 1));
-    final dateStr =
-        '${tomorrowStart.year}-${tomorrowStart.month.toString().padLeft(2, '0')}-${tomorrowStart.day.toString().padLeft(2, '0')}';
 
     var upcomingSessions = 0;
     var upcomingEvents = 0;
@@ -91,125 +94,61 @@ class _DashboardPageState extends State<DashboardPage> {
     await Future.wait([
       () async {
         try {
-          final response = await client
-              .from('sessions')
-              .select('id')
-              .not('class_id', 'is', null)
-              .gte('session_date', now.toIso8601String())
-              .lte('session_date', sessionsEndDate.toIso8601String())
-              .count(CountOption.exact);
-          upcomingSessions = response.count;
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          final eventsCountResponse = await client
-              .from('events')
-              .select('id')
-              .eq('is_active', true)
-              .gte('event_date', dateStr)
-              .count(CountOption.exact);
-          upcomingEvents = eventsCountResponse.count;
+          final dashboard = await ReportService.getDashboard();
 
-          final events = await client
-              .from('events')
-              .select('id, title, event_date')
-              .eq('is_active', true)
-              .gte('event_date', dateStr)
-              .order('event_date', ascending: true)
-              .limit(_kUpcomingEventsLimit);
-          upcomingEventsList = (events as List)
-              .map(
-                (e) =>
-                    e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{},
-              )
-              .where((m) => m.isNotEmpty)
-              .toList();
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          final response = await client
-              .from('tasks')
-              .select('id')
-              .inFilter('status', ['pending', 'in_progress'])
-              .count(CountOption.exact);
-          tasks = response.count;
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          final response = await client
-              .from('members')
-              .select('id')
-              .eq('is_active', true)
-              .count(CountOption.exact);
-          members = response.count;
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          final membersResponse = await client
-              .from('members')
-              .select('id, first_name, last_name, birthday')
-              .not('birthday', 'is', null)
-              .eq('is_active', true);
-          final list = membersResponse as List;
-          final currentMonth = now.month;
-          final nextMonth = (now.month % 12) + 1;
-          final currentDay = now.day;
+          final membersBlock =
+              (dashboard['members'] as Map?)?.cast<String, dynamic>() ??
+                  const <String, dynamic>{};
+          final tasksBlock =
+              (dashboard['tasks'] as Map?)?.cast<String, dynamic>() ??
+                  const <String, dynamic>{};
 
-          birthdays = list.where((member) {
-            if (member is! Map || member['birthday'] == null) return false;
+          members = membersBlock['total'] as int? ?? 0;
+          tasks = tasksBlock['open'] as int? ?? 0;
+
+          upcomingEventsList =
+              ((dashboard['upcoming_events'] as List?) ?? const [])
+                  .map((e) => (e as Map).cast<String, dynamic>())
+                  .take(_kUpcomingEventsLimit)
+                  .toList();
+          upcomingEvents = upcomingEventsList.length;
+
+          upcomingSessions =
+              ((dashboard['upcoming_sessions'] as List?) ?? const []).length;
+
+          // Les anniversaires arrivent triés par jour du mois : le serveur
+          // s'en charge, ce qui évite de reproduire cette logique de tri.
+          final monthBirthdays =
+              ((dashboard['birthdays_this_month'] as List?) ?? const [])
+                  .map((e) => (e as Map).cast<String, dynamic>())
+                  .toList();
+
+          // Le compteur ne retient que les anniversaires restant à venir dans
+          // le mois : afficher ceux déjà passés n'apporterait rien.
+          birthdays = monthBirthdays.where((m) {
+            final raw = m['birthday'];
+            if (raw == null) return false;
             try {
-              final birthday = DateTime.parse(member['birthday'].toString());
-              return birthday.month == currentMonth && birthday.day >= currentDay;
+              return DateTime.parse(raw.toString()).day >= now.day;
             } catch (_) {
               return false;
             }
           }).length;
 
-          final upcoming = list.where((m) {
-            if (m is! Map || m['birthday'] == null) return false;
-            try {
-              final date = DateTime.parse(m['birthday'].toString());
-              if (date.month == currentMonth) return date.day >= currentDay;
-              if (date.month == nextMonth) return true;
-              return false;
-            } catch (_) {
-              return false;
-            }
-          }).toList();
-          upcoming.sort((a, b) {
-            try {
-              final dateA = DateTime.parse((a as Map)['birthday'].toString());
-              final dateB = DateTime.parse((b as Map)['birthday'].toString());
-              if (dateA.month != dateB.month) {
-                return dateA.month.compareTo(dateB.month);
-              }
-              final dayCmp = dateA.day.compareTo(dateB.day);
-              if (dayCmp != 0) return dayCmp;
-              final nameA =
-                  '${(a['first_name'] ?? '')} ${a['last_name'] ?? ''}';
-              final nameB =
-                  '${(b['first_name'] ?? '')} ${b['last_name'] ?? ''}';
-              return nameA.toLowerCase().compareTo(nameB.toLowerCase());
-            } catch (_) {
-              return 0;
-            }
-          });
-          upcomingBirthdaysList = upcoming
-              .take(_kUpcomingBirthdaysLimit)
-              .map((m) => Map<String, dynamic>.from(m as Map))
-              .toList();
+          upcomingBirthdaysList =
+              monthBirthdays.take(_kUpcomingBirthdaysLimit).toList();
+        } catch (e) {
+          errors.add(e);
+        }
+      }(),
+      () async {
+        try {
+          newcomersList = await MemberService.getMembers(
+            filters: {'is_new_comer': true, 'is_active': true},
+            limit: _kNewcomersLimit,
+            orderBy: 'createdAt',
+            ascending: false,
+          );
         } catch (e) {
           errors.add(e);
         }
@@ -229,27 +168,8 @@ class _DashboardPageState extends State<DashboardPage> {
       }(),
       () async {
         try {
-          final newcomersResponse = await client
-              .from('members')
-              .select('id, first_name, last_name, phone')
-              .eq('is_new_comer', true)
-              .eq('is_active', true)
-              .order('created_at', ascending: false)
-              .limit(_kNewcomersLimit);
-          newcomersList = (newcomersResponse as List)
-              .map(
-                (m) =>
-                    m is Map ? Map<String, dynamic>.from(m) : <String, dynamic>{},
-              )
-              .where((m) => m.isNotEmpty)
-              .toList();
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          churchAttendanceServices = await ChurchAttendanceService.getAllServices(
+          churchAttendanceServices =
+              await ChurchAttendanceService.getAllServices(
             startDate: now.subtract(const Duration(days: 90)),
           );
         } catch (e) {
@@ -1719,11 +1639,22 @@ class _MobileQuickAccessGrid extends StatelessWidget {
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 12,
+      // Hauteur fixe plutôt que ratio.
+      //
+      // `childAspectRatio` calcule la hauteur à partir de la largeur : sur un
+      // écran large, quatre colonnes donnent des cellules de 450 px, donc
+      // 577 px de haut, pour un contenu qui en occupe cent. D'où les vides
+      // considérables entre les rangées.
+      //
+      // `maxCrossAxisExtent` fixe une largeur maximale et laisse Flutter
+      // choisir le nombre de colonnes : quatre sur un téléphone, davantage sur
+      // un écran large. `mainAxisExtent` impose la hauteur réelle du contenu,
+      // qui ne dépend pas de la largeur disponible.
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 120,
+        mainAxisSpacing: 16,
         crossAxisSpacing: 8,
-        childAspectRatio: 0.78,
+        mainAxisExtent: 96,
       ),
       itemCount: actions.length,
       itemBuilder: (context, index) {

@@ -5,7 +5,7 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/error_message_helper.dart';
-import '../../services/supabase_service.dart';
+import '../../services/finance_service.dart';
 import '../../services/finance_pdf_service.dart';
 import '../desktop/desktop_shell_scope.dart';
 
@@ -54,14 +54,12 @@ class _FinancePageState extends State<FinancePage> {
   Future<void> _loadGivingRecords() async {
     setState(() => _isLoading = true);
     try {
-      final response = await SupabaseService.client
-          .from('giving')
-          .select()
-          .order('created_at', ascending: false)
-          .limit(50);
+      // L'accès est vérifié côté serveur : un utilisateur hors du département
+      // Finance reçoit un 403, que le bloc catch traduit en message.
+      final response = await FinanceService.getAllGivingRecords(limit: 50);
 
       setState(() {
-        _givingRecords = List<Map<String, dynamic>>.from(response);
+        _givingRecords = response;
         _isLoading = false;
       });
     } catch (e) {

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { DevicePlatform, Prisma } from '@prisma/client';
 
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import type { AppConfig } from '../../config/configuration';
@@ -344,6 +344,84 @@ export class UsersService {
     this.logger.log(`Compte supprimé : ${user.email}`);
 
     return { message: 'Compte supprimé.', id };
+  }
+
+
+  // ===========================================================================
+  // Appareils
+  // ===========================================================================
+
+  /**
+   * Enregistre le jeton d'appareil de l'utilisateur.
+   *
+   * Le couple (utilisateur, jeton) est unique : réenregistrer le même jeton
+   * met simplement à jour la plateforme. C'est le comportement attendu, un
+   * jeton FCM étant régénéré périodiquement par le système sans que
+   * l'application en soit prévenue autrement.
+   */
+  async registerDevice(
+    userId: string,
+    deviceToken: string,
+    platform?: DevicePlatform,
+  ) {
+    const existing = await this.prisma.userDevice.findUnique({
+      where: { userId_deviceToken: { userId, deviceToken } },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return this.prisma.userDevice.update({
+        where: { id: existing.id },
+        data: { platform: platform ?? null },
+        select: { id: true, deviceToken: true, platform: true },
+      });
+    }
+
+    // Un même jeton peut avoir été enregistré par un autre compte, si deux
+    // personnes se sont connectées successivement sur le même appareil. Le
+    // rattacher au compte courant évite d'envoyer des notifications à
+    // l'utilisateur précédent.
+    await this.prisma.userDevice.deleteMany({
+      where: { deviceToken, userId: { not: userId } },
+    });
+
+    const device = await this.prisma.userDevice.create({
+      data: { userId, deviceToken, platform: platform ?? null },
+      select: { id: true, deviceToken: true, platform: true },
+    });
+
+    this.logger.log(`Appareil enregistré pour l'utilisateur ${userId}`);
+
+    return device;
+  }
+
+  /**
+   * Retire un jeton d'appareil.
+   *
+   * Appelé à la déconnexion : sans cela, l'appareil continuerait de recevoir
+   * les notifications de la personne précédente.
+   */
+  async removeDevice(userId: string, deviceToken: string) {
+    const result = await this.prisma.userDevice.deleteMany({
+      where: { userId, deviceToken },
+    });
+
+    return { message: 'Appareil retiré.', removed: result.count };
+  }
+
+  /** Appareils enregistrés d'un utilisateur. */
+  async listDevices(userId: string) {
+    return this.prisma.userDevice.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        deviceToken: true,
+        platform: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 
   // ===========================================================================

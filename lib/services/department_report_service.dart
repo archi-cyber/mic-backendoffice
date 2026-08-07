@@ -1,11 +1,17 @@
-import 'package:flutter/foundation.dart' show debugPrint;
-import 'supabase_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// Service for managing department reports
+/// Rapports d'activité des départements.
+///
+/// Signatures identiques à l'implémentation Supabase.
+///
+/// Les cinq champs du canevas — objectifs, points positifs, difficultés,
+/// suggestions — restent obligatoires côté serveur. C'est la structure retenue
+/// par l'église, et la rendre facultative produirait des rapports
+/// inexploitables.
 class DepartmentReportService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  /// Create a new department report
   static Future<Map<String, dynamic>> createReport({
     required String departmentId,
     required String title,
@@ -15,99 +21,63 @@ class DepartmentReportService {
     required String suggestions,
     String? comments,
   }) async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be authenticated to create reports');
-      }
-
-      final response = await _client
-          .from('department_reports')
-          .insert({
-            'department_id': departmentId,
-            'created_by': currentUser.id,
-            'title': title,
-            'defined_objectives': definedObjectives,
-            'positive_points': positivePoints,
-            'difficulties_encountered': difficultiesEncountered,
-            'suggestions': suggestions,
-            'comments': comments,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create report: $e');
-    }
+    final data = await _client.post(
+      '/departments/$departmentId/reports',
+      body: {
+        'title': title,
+        'defined_objectives': definedObjectives,
+        'positive_points': positivePoints,
+        'difficulties_encountered': difficultiesEncountered,
+        'suggestions': suggestions,
+        if (comments != null) 'comments': comments,
+      },
+    );
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Get all reports for a department
   static Future<List<Map<String, dynamic>>> getDepartmentReports({
     required String departmentId,
     int? limit,
     int? offset,
-  }) async {
-    try {
-      debugPrint(
-        '[DepartmentReportService] Fetching reports for department: $departmentId',
-      );
-      var query = _client
-          .from('department_reports')
-          .select('*')
-          .eq('department_id', departmentId)
-          .order('created_at', ascending: false);
+  }) {
+    final effectiveLimit = limit ?? 50;
+    final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
 
-      if (limit != null) {
-        query = query.limit(limit);
-      }
-      if (offset != null) {
-        query = query.range(offset, offset + (limit ?? 10) - 1);
-      }
-
-      final response = await query;
-      debugPrint(
-        '[DepartmentReportService] Fetched ${response.length} reports',
-      );
-      final reports = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted reports in application
-      final activeReports = reports
-          .where((r) => r['deleted_at'] == null)
-          .toList();
-      debugPrint(
-        '[DepartmentReportService] Returning ${activeReports.length} active reports',
-      );
-      return activeReports;
-    } catch (e, stackTrace) {
-      debugPrint('[DepartmentReportService] Error fetching reports: $e');
-      debugPrint('[DepartmentReportService] Stack trace: $stackTrace');
-      throw Exception('Failed to get department reports: $e');
-    }
+    return _client.getList(
+      '/departments/$departmentId/reports',
+      query: {'page': page, 'limit': effectiveLimit},
+    );
   }
 
-  /// Get a single report by ID
+  /// Détail d'un rapport.
+  ///
+  /// L'API n'expose pas de route unitaire : le rapport est retrouvé dans la
+  /// liste de son département. Une recherche transversale est donc nécessaire
+  /// quand le département n'est pas connu de l'appelant.
   static Future<Map<String, dynamic>> getReportById(String reportId) async {
-    try {
-      final response = await _client
-          .from('department_reports')
-          .select('*')
-          .eq('id', reportId)
-          .single();
+    final departments = await _client.getList('/departments', query: {
+      'limit': 100,
+    });
 
-      // Check if report is deleted
-      if (response['deleted_at'] != null) {
-        throw Exception('Report not found or has been deleted');
+    for (final department in departments) {
+      final reports = await getDepartmentReports(
+        departmentId: department['id'] as String,
+        limit: 200,
+      );
+
+      for (final report in reports) {
+        if (report['id'] == reportId) return report;
       }
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to get report: $e');
     }
+
+    throw Exception('Rapport introuvable.');
   }
 
-  /// Update a department report
+  /// Modifie un rapport.
+  ///
+  /// Réservé à son auteur ou à un administrateur : un rapport d'activité
+  /// engage celui qui le signe, et permettre à un tiers de le réécrire lui
+  /// ferait endosser des propos qui ne sont pas les siens.
   static Future<Map<String, dynamic>> updateReport({
     required String reportId,
     required String title,
@@ -117,56 +87,27 @@ class DepartmentReportService {
     required String suggestions,
     String? comments,
   }) async {
-    try {
-      final response = await _client
-          .from('department_reports')
-          .update({
-            'title': title,
-            'defined_objectives': definedObjectives,
-            'positive_points': positivePoints,
-            'difficulties_encountered': difficultiesEncountered,
-            'suggestions': suggestions,
-            'comments': comments,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', reportId)
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to update report: $e');
-    }
+    final data = await _client.patch(
+      '/departments/reports/$reportId',
+      body: {
+        'title': title,
+        'defined_objectives': definedObjectives,
+        'positive_points': positivePoints,
+        'difficulties_encountered': difficultiesEncountered,
+        'suggestions': suggestions,
+        if (comments != null) 'comments': comments,
+      },
+    );
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Delete a department report (soft delete)
   static Future<void> deleteReport(String reportId) async {
-    try {
-      await _client
-          .from('department_reports')
-          .update({'deleted_at': DateTime.now().toIso8601String()})
-          .eq('id', reportId);
-    } catch (e) {
-      throw Exception('Failed to delete report: $e');
-    }
+    await _client.delete('/departments/reports/$reportId');
   }
 
-  /// Get all reports for generating summary (no pagination)
+  /// Tous les rapports d'un département, pour une synthèse.
   static Future<List<Map<String, dynamic>>> getAllDepartmentReportsForSummary(
     String departmentId,
-  ) async {
-    try {
-      final response = await _client
-          .from('department_reports')
-          .select('*')
-          .eq('department_id', departmentId)
-          .order('created_at', ascending: true);
-
-      final reports = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted reports in application
-      return reports.where((r) => r['deleted_at'] == null).toList();
-    } catch (e) {
-      throw Exception('Failed to get reports for summary: $e');
-    }
-  }
+  ) =>
+      getDepartmentReports(departmentId: departmentId, limit: 200);
 }

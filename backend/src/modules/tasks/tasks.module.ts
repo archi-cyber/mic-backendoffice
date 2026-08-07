@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CommunicationsModule } from '../communications/communications.module';
 import { PenaltiesService } from './penalties.service';
 import { PenaltyJob } from './penalty.job';
 import { ProjectsService } from './projects.service';
@@ -20,6 +21,9 @@ import { TasksService } from './tasks.service';
  * separer multiplierait les dependances croisees sans gain de clarte.
  */
 @Module({
+  // CommunicationsModule fournit NotificationsService, dont dependent les
+  // rappels de taches.
+  imports: [CommunicationsModule],
   controllers: [
     TasksController,
     ProjectsController,

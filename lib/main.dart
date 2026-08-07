@@ -1,100 +1,51 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'firebase_options.dart';
+import 'package:provider/provider.dart';
+
 import 'config/app_config.dart';
-import 'core/platform/platform_capabilities.dart';
-import 'services/supabase_service.dart';
-import 'services/offline_storage_service.dart';
-import 'services/device_token_service.dart';
-import 'services/background_task_service.dart';
-import 'services/push_notification_handler.dart';
-import 'providers/auth_provider.dart';
-import 'providers/settings_provider.dart';
-import 'core/theme/app_theme.dart';
 import 'core/localization/app_localizations.dart';
+import 'core/navigation/app_navigator.dart';
 import 'core/routes/app_router.dart';
 import 'core/routes/route_names.dart';
-import 'core/navigation/app_navigator.dart';
+import 'core/theme/app_theme.dart';
+import 'providers/auth_provider.dart';
+import 'providers/settings_provider.dart';
+import 'services/auth_service.dart';
 
+/// Point d'entree de l application.
+///
+/// Supabase a disparu. L initialisation se limite a creer le client HTTP et a
+/// lui indiquer quoi faire quand une session expire.
+///
+/// Firebase n est plus initialise ici : les notifications arrivent en temps
+/// reel par Socket.IO tant que l application est ouverte, et le push ne sert
+/// qu a prevenir un utilisateur dont l application est fermee. Si tu l actives
+/// plus tard, remets l initialisation Firebase avant AuthService.initialize.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase (for FCM) on mobile only.
-  bool firebaseInitialized = false;
-  if (PlatformCapabilities.supportsPushNotifications) {
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+  // Le client HTTP est cree avant runApp : les providers en dependent des leur
+  // construction.
+  //
+  // Le rappel onSessionExpired se declenche quand les jetons ne peuvent plus
+  // etre renouveles — compte desactive, mot de passe change ailleurs, session
+  // revoquee. Il ramene l utilisateur a l ecran de connexion depuis n importe
+  // quel point de l application.
+  AuthService.initialize(
+    onSessionExpired: () {
+      AppNavigator.rootNavigatorKey.currentState?.pushNamedAndRemoveUntil(
+        RouteNames.login,
+        (_) => false,
       );
-      firebaseInitialized = true;
-      debugPrint('✓ Firebase initialized successfully');
-
-      // CRITICAL: Register background message handler IMMEDIATELY after Firebase init
-      // This MUST be done before any other FCM operations and before runApp()
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-      debugPrint('✓ Background message handler registered');
-    } catch (e) {
-      debugPrint('⚠ Error initializing Firebase: $e');
-    }
-  } else {
-    debugPrint('Skipping Firebase initialization on desktop platform');
-  }
-
-  // Initialize Supabase (required before auth / data)
-  try {
-    await SupabaseService.initialize(
-      supabaseUrl: AppConfig.supabaseUrl,
-      supabaseAnonKey: AppConfig.supabaseAnonKey,
-    );
-  } catch (e) {
-    debugPrint('Error initializing Supabase: $e');
-    debugPrint(
-      'Please configure your Supabase credentials in lib/config/app_config.dart',
-    );
-  }
+    },
+  );
 
   runApp(const MyApp());
-
-  // Defer non-critical services so the first frame appears sooner.
-  unawaited(_initializeDeferredServices(firebaseInitialized));
 }
 
-Future<void> _initializeDeferredServices(bool firebaseInitialized) async {
-  await OfflineStorageService.database;
-
-  if (PlatformCapabilities.supportsBackgroundTasks) {
-    try {
-      await BackgroundTaskService.initialize();
-    } catch (e) {
-      debugPrint('Error initializing background tasks: $e');
-    }
-  }
-
-  if (firebaseInitialized && PlatformCapabilities.supportsPushNotifications) {
-    try {
-      await DeviceTokenService.initialize();
-      await PushNotificationHandler.initialize();
-    } catch (e) {
-      debugPrint('Error initializing FCM: $e');
-    }
-  } else {
-    debugPrint('Skipping FCM initialization - Firebase not available');
-  }
-}
-
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
@@ -103,84 +54,28 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
       ],
       child: Consumer<SettingsProvider>(
-        builder: (context, settingsProvider, _) {
-          return _AppLifecycleWrapper(
-            child: MaterialApp(
-              navigatorKey: AppNavigator.rootNavigatorKey,
-              title: AppConfig.appName,
-              debugShowCheckedModeBanner: false,
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: settingsProvider.themeMode,
-              locale: settingsProvider.locale,
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              supportedLocales: AppLocalizations.supportedLocales,
-              onGenerateRoute: AppRouter.generateRoute,
-              onUnknownRoute: AppRouter.onUnknownRoute,
-              initialRoute: RouteNames.splash,
-            ),
+        builder: (context, settings, _) {
+          return MaterialApp(
+            navigatorKey: AppNavigator.rootNavigatorKey,
+            title: AppConfig.appName,
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: settings.themeMode,
+            locale: settings.locale,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            onGenerateRoute: AppRouter.generateRoute,
+            onUnknownRoute: AppRouter.onUnknownRoute,
+            initialRoute: RouteNames.splash,
           );
         },
       ),
     );
   }
 }
-
-/// Wrapper widget to monitor app lifecycle and handle token refresh
-class _AppLifecycleWrapper extends StatefulWidget {
-  final Widget child;
-
-  const _AppLifecycleWrapper({required this.child});
-
-  @override
-  State<_AppLifecycleWrapper> createState() => _AppLifecycleWrapperState();
-}
-
-class _AppLifecycleWrapperState extends State<_AppLifecycleWrapper>
-    with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-    switch (state) {
-      case AppLifecycleState.resumed:
-        // App is active - check and refresh token if needed
-        authProvider.setAppActive(true);
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.inactive:
-      case AppLifecycleState.detached:
-        // App is in background - mark as inactive
-        authProvider.setAppActive(false);
-        break;
-      case AppLifecycleState.hidden:
-        authProvider.setAppActive(false);
-        break;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.child;
-  }
-}
-
-// AuthWrapper removed - navigation is now handled by routes
-// The splash screen will handle initial navigation logic

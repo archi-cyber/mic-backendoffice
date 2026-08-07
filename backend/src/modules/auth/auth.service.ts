@@ -226,14 +226,27 @@ export class AuthService {
   // Mots de passe
   // ---------------------------------------------------------------------------
 
+  /**
+   * Change le mot de passe de l'utilisateur connecté.
+   *
+   * [currentPassword] est **facultatif lors du premier changement
+   * obligatoire**. L'utilisateur vient alors de saisir le mot de passe par
+   * défaut pour se connecter : le lui redemander n'apporte aucune sécurité, et
+   * impose un champ supplémentaire sur un écran qu'il ne peut de toute façon
+   * pas quitter.
+   *
+   * Dans tous les autres cas, il reste exigé. Sans lui, un appareil laissé
+   * déverrouillé permettrait à un tiers de changer le mot de passe et de
+   * verrouiller le compte de son propriétaire.
+   */
   async changePassword(
     userId: string,
-    currentPassword: string,
+    currentPassword: string | undefined,
     newPassword: string,
   ): Promise<{ message: string }> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, passwordHash: true },
+      select: { id: true, passwordHash: true, mustChangePassword: true },
     });
 
     if (!user) {
@@ -243,15 +256,42 @@ export class AuthService {
       });
     }
 
-    const valid = await this.passwords.verify(user.passwordHash, currentPassword);
-    if (!valid) {
-      throw new BadRequestException({
-        message: 'Le mot de passe actuel est incorrect.',
-        code: 'CURRENT_PASSWORD_INVALID',
-      });
+    // Le drapeau vient du serveur, jamais du client : il est posé à la
+    // création du compte et retiré ci-dessous.
+    if (!user.mustChangePassword) {
+      if (!currentPassword) {
+        throw new BadRequestException({
+          message: 'Le mot de passe actuel est requis.',
+          code: 'CURRENT_PASSWORD_REQUIRED',
+        });
+      }
+
+      const valid = await this.passwords.verify(
+        user.passwordHash,
+        currentPassword,
+      );
+
+      if (!valid) {
+        throw new BadRequestException({
+          message: 'Le mot de passe actuel est incorrect.',
+          code: 'CURRENT_PASSWORD_INVALID',
+        });
+      }
     }
 
-    if (currentPassword === newPassword) {
+    // Le nouveau mot de passe doit différer de l'ancien, y compris lors du
+    // premier changement : conserver le mot de passe par défaut viderait
+    // l'obligation de son sens.
+    //
+    // La comparaison porte sur l'empreinte, non sur les chaînes : lors d'un
+    // changement forcé, `currentPassword` est absent et une comparaison
+    // littérale laisserait passer le cas.
+    const sameAsBefore = await this.passwords.verify(
+      user.passwordHash,
+      newPassword,
+    );
+
+    if (sameAsBefore) {
       throw new BadRequestException({
         message: "Le nouveau mot de passe doit différer de l'actuel.",
         code: 'PASSWORD_UNCHANGED',

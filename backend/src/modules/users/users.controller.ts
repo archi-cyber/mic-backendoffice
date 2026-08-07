@@ -19,6 +19,7 @@ import {
   CreateUserAccountDto,
   FindUsersDto,
   SetPermissionsDto,
+  RegisterDeviceDto,
   SetUserActiveDto,
   UpdateUserDto,
 } from './dto/user.dto';
@@ -151,5 +152,64 @@ export class UsersController {
     @CurrentUser('id') actorId: string,
   ) {
     return this.users.setPermissions(id, dto, actorId);
+  }
+}
+
+// =============================================================================
+
+/**
+ * Appareils de l utilisateur connecte.
+ *
+ * Controleur distinct : ces routes concernent son propre compte, pas
+ * l administration des autres. Elles ne sont donc pas reservees aux
+ * administrateurs, contrairement au reste du module.
+ *
+ * L identifiant vient du jeton, jamais d un parametre : accepter une valeur
+ * du client permettrait d enregistrer un appareil au nom d autrui, et donc de
+ * recevoir ses notifications.
+ */
+@ApiTags('users')
+@ApiBearerAuth('access-token')
+@Controller('users/me/devices')
+export class UserDevicesController {
+  constructor(private readonly users: UsersService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Mes appareils enregistres' })
+  list(@CurrentUser('id') userId: string) {
+    return this.users.listDevices(userId);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Enregistre un jeton d appareil',
+    description:
+      'Reenregistrer le meme jeton met simplement a jour la plateforme : un ' +
+      'jeton FCM est regenere periodiquement par le systeme.',
+  })
+  register(
+    @CurrentUser('id') userId: string,
+    @Body() dto: RegisterDeviceDto,
+  ) {
+    return this.users.registerDevice(
+      userId,
+      dto.deviceToken,
+      dto.platform as never,
+    );
+  }
+
+  @Delete(':deviceToken')
+  @ApiOperation({
+    summary: 'Retire un jeton d appareil',
+    description:
+      'A appeler a la deconnexion : sans cela, l appareil continuerait de ' +
+      'recevoir les notifications de la personne precedente.',
+  })
+  remove(
+    @CurrentUser('id') userId: string,
+    @Param('deviceToken') deviceToken: string,
+  ) {
+    return this.users.removeDevice(userId, deviceToken);
   }
 }

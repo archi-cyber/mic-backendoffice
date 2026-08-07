@@ -123,7 +123,13 @@ export class AuthController {
     @CurrentUser('id') userId: string,
     @Body() dto: ChangePasswordDto,
   ) {
-    return this.auth.changePassword(userId, dto.currentPassword, dto.newPassword);
+   // `currentPassword` peut être absent lors du premier changement
+    // obligatoire : le service décide s'il est requis selon l'état du compte.
+    return this.auth.changePassword(
+      userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
 
   @ApiBearerAuth('access-token')

@@ -1,169 +1,158 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'supabase_service.dart';
-import 'package:path/path.dart' as path;
 
-/// Storage service for file uploads to Supabase Storage
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
+
+import '../config/app_config.dart';
+import 'auth_service.dart';
+
+/// Envoi et suppression de fichiers.
+///
+/// Signatures identiques à l'implémentation Supabase Storage. Le paramètre
+/// `bucketName` est conservé pour compatibilité, mais sert désormais de
+/// **préfixe de dossier** : le stockage repose sur un volume Railway, où les
+/// fichiers sont rangés par répertoire plutôt que par bucket.
+///
+/// Différence de fond : les URL renvoyées sont relatives (`/files/...`).
+/// [absoluteUrl] les complète pour l'affichage.
 class StorageService {
-  static final _client = SupabaseService.client;
-  static const String departmentDocumentsBucket = 'department-documents';
-  static const String memberPhotosBucket = 'member-photos';
+  /// Dossiers, remplaçant les buckets Supabase.
+  static const String departmentDocumentsBucket = 'departments';
+  static const String memberPhotosBucket = 'members';
 
-  /// Upload a file to Supabase Storage
-  /// Returns the public URL of the uploaded file
+  static Dio get _dio => Dio(
+        BaseOptions(
+          baseUrl: AppConfig.apiUrl,
+          connectTimeout: AppConfig.connectTimeout,
+          // L'envoi d'un fichier peut être long sur une connexion mobile :
+          // le délai standard de trente secondes serait dépassé par une photo
+          // de plusieurs mégaoctets en 3G.
+          sendTimeout: const Duration(minutes: 3),
+          receiveTimeout: const Duration(minutes: 3),
+          validateStatus: (_) => true,
+        ),
+      );
+
+  /// Envoie un fichier et renvoie son URL relative.
+  ///
+  /// [folder] range le fichier par domaine, par exemple
+  /// `departments/{departmentId}`. Le chemin est nettoyé côté serveur : un
+  /// dossier fourni par le client ne peut pas sortir du volume.
+  ///
+  /// [fileName] est ignoré : le serveur génère un identifiant aléatoire et ne
+  /// conserve que l'extension. Réutiliser le nom d'origine exposerait à des
+  /// collisions et à des séquences de traversée.
   static Future<String> uploadFile({
     required File file,
-    required String folder, // e.g., 'departments/{departmentId}'
+    required String folder,
     String? fileName,
     String bucketName = departmentDocumentsBucket,
   }) async {
-    try {
-      // Use provided fileName or extract from file path
-      final name = fileName ?? path.basename(file.path);
+    final token = await AuthService.client.tokens.getAccessToken();
 
-      // Generate unique filename to avoid conflicts
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final extension = path.extension(name);
-      final baseName = path.basenameWithoutExtension(name);
-      final uniqueFileName = '${baseName}_$timestamp$extension';
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(
+        file.path,
+        filename: p.basename(file.path),
+      ),
+    });
 
-      // Full path in storage
-      final filePath = '$folder/$uniqueFileName';
+    final response = await _dio.post(
+      '/storage/upload',
+      data: form,
+      queryParameters: {'folder': '$bucketName/$folder'},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
 
-      // Read file bytes
-      final fileBytes = await file.readAsBytes();
-
-      // Upload to Supabase Storage
-      await _client.storage
-          .from(bucketName)
-          .uploadBinary(
-            filePath,
-            fileBytes,
-            fileOptions: const FileOptions(
-              upsert: true, // Replace if exists
-            ),
-          );
-
-      // Get public URL
-      final url = _client.storage.from(bucketName).getPublicUrl(filePath);
-
-      return url;
-    } catch (e) {
-      final errorMessage = e.toString();
-      if (errorMessage.contains('Bucket not found')) {
-        throw Exception(
-          'Storage bucket "$bucketName" not found. '
-          'Please create the bucket in Supabase Dashboard → Storage → Create Bucket. '
-          'Bucket name: $bucketName',
-        );
-      }
-      throw Exception('Failed to upload file: $e');
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      final body = response.data;
+      final message = body is Map ? body['message'] : null;
+      throw Exception(message ?? "Échec de l'envoi du fichier.");
     }
+
+    final data = (response.data as Map)['data'] as Map;
+    final url = data['url'] as String;
+
+    debugPrint('[Storage] Fichier envoyé : $url');
+
+    return url;
   }
 
-  /// Upload a member profile photo.
+  /// Envoie la photo d'un membre.
   static Future<String> uploadMemberPhoto({
     required File file,
     required String memberId,
   }) {
     return uploadFile(
       file: file,
-      folder: 'members/$memberId',
-      fileName: 'profile.jpg',
+      folder: 'photos/$memberId',
       bucketName: memberPhotosBucket,
     );
   }
 
-  /// Delete a file from Supabase Storage
+  /// Supprime un fichier.
+  ///
+  /// L'absence du fichier n'est pas traitée comme une erreur : le résultat
+  /// voulu est atteint, et faire échouer l'appel obligerait chaque appelant à
+  /// gérer ce cas sans bénéfice.
   static Future<void> deleteFile(
     String fileUrl, {
     String bucketName = departmentDocumentsBucket,
   }) async {
+    final path = extractFilePath(fileUrl, bucketName: bucketName);
+    if (path == null) return;
+
     try {
-      // Extract file path from URL
-      final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
-
-      // Find the bucket name index and get path after it
-      final bucketIndex = pathSegments.indexOf(bucketName);
-      if (bucketIndex == -1 || bucketIndex == pathSegments.length - 1) {
-        throw Exception('Invalid file URL');
-      }
-
-      final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-
-      await _client.storage.from(bucketName).remove([filePath]);
-    } catch (e) {
-      throw Exception('Failed to delete file: $e');
+      await AuthService.client.delete('/storage/$path');
+    } catch (error) {
+      debugPrint('[Storage] Suppression impossible : $error');
     }
   }
 
-  /// Delete multiple files
   static Future<void> deleteFiles(
     List<String> fileUrls, {
     String bucketName = departmentDocumentsBucket,
   }) async {
-    try {
-      final filePaths = <String>[];
-
-      for (final url in fileUrls) {
-        final uri = Uri.parse(url);
-        final pathSegments = uri.pathSegments;
-        final bucketIndex = pathSegments.indexOf(bucketName);
-
-        if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
-          final filePath = pathSegments.sublist(bucketIndex + 1).join('/');
-          filePaths.add(filePath);
-        }
-      }
-
-      if (filePaths.isNotEmpty) {
-        await _client.storage.from(bucketName).remove(filePaths);
-      }
-    } catch (e) {
-      throw Exception('Failed to delete files: $e');
+    for (final url in fileUrls) {
+      await deleteFile(url, bucketName: bucketName);
     }
   }
 
-  /// Extract file path from a Supabase Storage URL
+  /// Extrait le chemin relatif depuis une URL.
+  ///
+  /// Accepte aussi bien `/files/members/photos/x.jpg` que l'URL absolue.
   static String? extractFilePath(
     String fileUrl, {
     String bucketName = departmentDocumentsBucket,
   }) {
-    try {
-      final uri = Uri.parse(fileUrl);
-      final pathSegments = uri.pathSegments;
-      final bucketIndex = pathSegments.indexOf(bucketName);
-
-      if (bucketIndex != -1 && bucketIndex < pathSegments.length - 1) {
-        return pathSegments.sublist(bucketIndex + 1).join('/');
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
+    final match = RegExp(r'/files/(.+)$').firstMatch(fileUrl);
+    return match?.group(1);
   }
 
-  /// Create a signed URL for a file (valid for 1 hour by default)
-  /// This is useful for private buckets or when you need temporary access
+  /// URL complète, prête pour un widget `Image.network`.
+  ///
+  /// Les URL stockées en base sont relatives : elles restent valides si le
+  /// domaine du serveur change, ce qu'une URL absolue ne permettrait pas sans
+  /// réécrire toutes les lignes.
+  static String absoluteUrl(String relativeUrl) {
+    if (relativeUrl.startsWith('http')) return relativeUrl;
+    return '${AppConfig.apiBaseUrl}$relativeUrl';
+  }
+
+  /// URL de lecture d'un fichier.
+  ///
+  /// Conservée pour compatibilité avec les URL signées de Supabase. Le
+  /// stockage actuel n'en produit pas : la protection repose sur
+  /// l'imprévisibilité du nom, chaque fichier portant un UUID.
+  ///
+  /// Ce modèle convient aux photos et documents courants. Pour des pièces
+  /// véritablement confidentielles, il faudrait des URL à durée limitée.
   static Future<String> createSignedUrl(
     String fileUrl, {
-    int expiresIn = 3600, // 1 hour in seconds
+    int expiresIn = 3600,
     String bucketName = departmentDocumentsBucket,
   }) async {
-    try {
-      final filePath = extractFilePath(fileUrl, bucketName: bucketName);
-      if (filePath == null) {
-        throw Exception('Invalid file URL: $fileUrl');
-      }
-
-      final signedUrl = await _client.storage
-          .from(bucketName)
-          .createSignedUrl(filePath, expiresIn);
-
-      return signedUrl;
-    } catch (e) {
-      throw Exception('Failed to create signed URL: $e');
-    }
+    return absoluteUrl(fileUrl);
   }
 }

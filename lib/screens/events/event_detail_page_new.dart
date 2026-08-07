@@ -3,8 +3,8 @@ import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../services/event_service.dart';
-import '../../services/supabase_service.dart';
 import '../../core/localization/app_localizations.dart';
 
 /// Event detail page with tabs for overview, sessions, registrations, and attendance
@@ -588,19 +588,29 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
     }
   }
 
+  /// Indique si l'utilisateur connecté est déjà inscrit à cet événement.
+  ///
+  /// L'implémentation précédente comparait l'identifiant du **compte** au
+  /// champ `member_id` des inscriptions. Ce sont deux valeurs distinctes :
+  /// la comparaison ne pouvait jamais aboutir, et l'écran affichait donc
+  /// toujours « non inscrit ».
+  ///
+  /// Le bon identifiant est celui de la fiche membre, connu depuis la
+  /// connexion.
   Future<bool> _checkRegistrationStatus() async {
     try {
-      final currentUserId = SupabaseService.currentUser?.id;
-      if (currentUserId == null) return false;
+      final memberId = PermissionHelper.memberId;
+      if (memberId == null) return false;
 
-      final registrations = await SupabaseService.client
-          .from('event_registrations')
-          .select()
-          .eq('event_id', widget.eventId)
-          .eq('member_id', currentUserId)
-          .maybeSingle();
+      final registrations = await EventService.getEventRegistrations(
+        widget.eventId,
+      );
 
-      return registrations != null;
+      return registrations.any((registration) {
+        final member =
+            (registration['member'] as Map?)?.cast<String, dynamic>();
+        return member?['id'] == memberId;
+      });
     } catch (e) {
       return false;
     }
@@ -609,20 +619,22 @@ class _RegistrationsTabState extends State<_RegistrationsTab> {
   Future<void> _handleRegistration() async {
     setState(() => _isRegistering = true);
     try {
-      final currentUserId = SupabaseService.currentUser?.id;
-      if (currentUserId == null) {
-        throw Exception('User not authenticated');
+      // Le membre associé au compte, non l'identifiant du compte lui-même.
+      final memberId = PermissionHelper.memberId;
+
+      if (memberId == null) {
+        throw Exception('Member profile not found');
       }
 
       if (_isRegistered) {
         await EventService.unregisterFromEvent(
           eventId: widget.eventId,
-          memberId: currentUserId,
+          memberId: memberId,
         );
       } else {
         await EventService.registerForEvent(
           eventId: widget.eventId,
-          memberId: currentUserId,
+          memberId: memberId,
         );
       }
 

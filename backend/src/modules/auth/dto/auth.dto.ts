@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -46,6 +47,7 @@ export class LoginDto {
     example: 'iPhone 14 — iOS 18',
     description: "Identification de l'appareil, affichée dans la liste des sessions",
   })
+  @IsOptional()
   @IsString()
   @MaxLength(255)
   deviceInfo?: string;
@@ -63,10 +65,16 @@ export class RefreshTokenDto {
 // -----------------------------------------------------------------------------
 
 export class ChangePasswordDto {
-  @ApiProperty({ description: 'Mot de passe actuel' })
+  @ApiPropertyOptional({
+    description:
+      'Mot de passe actuel. Facultatif uniquement lors du premier ' +
+      'changement obligatoire : l utilisateur vient alors de le saisir pour ' +
+      'se connecter, et le lui redemander n apporterait aucune securite.',
+  })
+  @IsOptional()
   @IsString()
   @IsNotEmpty({ message: 'Le mot de passe actuel est requis.' })
-  currentPassword!: string;
+  currentPassword?: string;
 
   @ApiProperty({ example: 'NouveauMotDePasse2026' })
   @IsString()

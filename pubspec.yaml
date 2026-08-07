@@ -10,6 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+    
 
   # UI & Icons
   cupertino_icons: ^1.0.8
@@ -20,11 +21,13 @@ dependencies:
   provider: ^6.1.1
   
   # Supabase for backend & authentication
-  supabase_flutter: ^2.5.6
+  dio: ^5.7.0
+  flutter_secure_storage: ^9.2.2
+  socket_io_client: ^3.0.2
   
   # Offline Storage
   sqflite: ^2.3.0
-  path: ^1.8.3
+  path: ^1.9.0
   shared_preferences: ^2.2.2
   
   # Data & Serialization

@@ -28,6 +28,9 @@ import { UsersModule } from './modules/users/users.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { ServiceSchedulesModule } from './modules/service-shedule/service-schedules.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -65,6 +68,9 @@ import { PrismaModule } from './prisma/prisma.module';
     CommunicationsModule,
     ReportsModule,
     RealtimeModule,
+    StorageModule,
+    ServiceSchedulesModule,
+    SettingsModule,
   ],
 
   controllers: [HealthController],

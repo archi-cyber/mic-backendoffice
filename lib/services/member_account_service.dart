@@ -1,254 +1,103 @@
 import 'package:flutter/foundation.dart';
-import 'supabase_service.dart';
-import 'leader_access_service.dart';
 
-/// Service for admins to create login accounts for members and manage their access.
-/// Members with accounts can log in; default is view-only unless admin grants access.
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
+
+/// Comptes de connexion des membres.
+///
+/// Signatures identiques à l'implémentation Supabase.
 class MemberAccountService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
+
+  /// Mot de passe attribué aux comptes créés par un administrateur.
+  ///
+  /// Doit correspondre à `DEFAULT_USER_PASSWORD` du backend, qui l'applique
+  /// réellement. Cette constante ne sert qu'à l'affichage : montrer à
+  /// l'administrateur ce qu'il doit communiquer au membre.
+  ///
+  /// Le compte est créé avec obligation de changement à la première connexion,
+  /// donc ce mot de passe ne reste valable qu'un instant.
   static const String defaultPassword = 'Password123';
 
-  /// Get members with account status (has_account, user_id if any)
-  static Future<List<Map<String, dynamic>>>
-  getMembersWithAccountStatus() async {
-    try {
-      final members = await _client
-          .from('members')
-          .select('id, first_name, last_name, email, phone, role, is_active')
-          .eq('is_active', true)
-          .order('first_name');
+  /// Membres avec l'état de leur compte de connexion.
+  ///
+  /// Une seule requête suffit : l'API renvoie le compte associé dans la fiche
+  /// membre. L'ancienne version croisait deux tables côté client.
+  static Future<List<Map<String, dynamic>>> getMembersWithAccountStatus() async {
+    final members = await _client.getList('/members', query: {
+      'is_active': true,
+      'limit': 200,
+      'orderBy': 'lastName',
+      'order': 'asc',
+    });
 
-      final list = List<Map<String, dynamic>>.from(members);
+    return members.map((member) {
+      final user = (member['user'] as Map?)?.cast<String, dynamic>();
 
-      // Get all users linked to members
-      final users = await _client
-          .from('users')
-          .select('id, email, member_id, role, is_active')
-          .not('member_id', 'is', null);
-
-      final userByMemberId = <String, Map<String, dynamic>>{};
-      for (final u in users as List) {
-        final mid = u['member_id']?.toString();
-        if (mid != null) {
-          userByMemberId[mid] = Map<String, dynamic>.from(u);
-        }
-      }
-
-      for (final m in list) {
-        final memberId = m['id']?.toString();
-        final user = memberId != null ? userByMemberId[memberId] : null;
-        m['has_account'] = user != null && user['is_active'] == true;
-        m['user_id'] = user?['id']?.toString();
-        m['user_email'] = user?['email']?.toString();
-      }
-
-      return list;
-    } catch (e) {
-      throw Exception('Failed to get members: $e');
-    }
+      return {
+        ...member,
+        'has_account': user != null,
+        'account_email': user?['email'],
+        'account_is_active': user?['is_active'] ?? false,
+        'account_id': user?['id'],
+        'must_change_password': user?['must_change_password'] ?? false,
+        'last_login_at': user?['last_login_at'],
+      };
+    }).toList();
   }
 
-  /// Create login account for a member (admin only).
-  /// Member must have email. Creates Supabase auth user + users row with role='member'.
-  /// Seeds leader_access with view-only for all features; admin can then grant more.
-  /// Does not switch the current session: the admin (caller) stays logged in.
+  /// Crée un compte pour un membre.
+  ///
+  /// [password] est ignoré : le serveur attribue le mot de passe par défaut,
+  /// avec changement obligatoire à la première connexion. Laisser un
+  /// administrateur choisir le mot de passe d'autrui signifierait qu'il le
+  /// connaît, ce qui rend impossible toute imputabilité des actions du compte.
+  ///
+  /// Le nouveau compte n'a **aucune permission** : elles doivent être
+  /// accordées explicitement via `LeaderAccessService`. C'est le principe du
+  /// moindre privilège — un compte créé par erreur ne donne accès à rien.
   static Future<void> createAccountForMember({
     required String memberId,
     required String email,
     String? password,
   }) async {
-    // Save current user's session so we can restore it after signUp (which may switch session to the new user).
-    final previousSession = _client.auth.currentSession;
-    final previousRefreshToken = previousSession?.refreshToken;
+    final data = await _client.post('/users', body: {
+      'member_id': memberId,
+      'email': email.trim().toLowerCase(),
+      'role': 'member',
+    });
 
-    try {
-      final pwd = password ?? defaultPassword;
-      final emailTrimmed = email.trim();
-      if (emailTrimmed.isEmpty) {
-        throw Exception('Member must have an email to create an account.');
-      }
+    final result = (data as Map).cast<String, dynamic>();
+    final temporary = result['temporary_password'];
 
-      // Check if a users row already exists for this member
-      final existingUser = await _client
-          .from('users')
-          .select('id, is_active')
-          .eq('member_id', memberId)
-          .maybeSingle();
-
-      if (existingUser != null) {
-        final existingUserId = existingUser['id']?.toString();
-        final isActive = existingUser['is_active'] == true;
-
-        if (isActive) {
-          // There is already an active account linked to this member
-          throw Exception('This member already has an active account.');
-        }
-
-        // Inactive placeholder user exists (created when member was added).
-        // Remove it so we can create a proper auth user and a synced users row.
-        if (existingUserId != null) {
-          try {
-            await _client.from('users').delete().eq('id', existingUserId);
-            debugPrint(
-              '[MemberAccountService] Removed inactive placeholder user $existingUserId for member $memberId',
-            );
-          } catch (e) {
-            debugPrint(
-              '[MemberAccountService] Warning: failed to remove placeholder user $existingUserId: $e',
-            );
-            // Continue anyway – insert below may fail if constraints conflict
-          }
-        }
-      }
-
-      // Check if email already used by another auth user
-      final existingByEmail = await _client
-          .from('users')
-          .select('id, member_id')
-          .eq('email', emailTrimmed)
-          .maybeSingle();
-
-      if (existingByEmail != null) {
-        final existingMemberId = existingByEmail['member_id']?.toString();
-        if (existingMemberId != null && existingMemberId != memberId) {
-          throw Exception('This email is already used by another account.');
-        }
-      }
-
-      String? authUserId;
-      try {
-        final authResponse = await _client.auth.signUp(
-          email: emailTrimmed,
-          password: pwd,
-          data: {
-            'must_change_password': true,
-            'role': 'member',
-            'member_id': memberId,
-          },
-        );
-        if (authResponse.user != null) {
-          authUserId = authResponse.user!.id;
-        }
-      } on Exception catch (e) {
-        final msg = e.toString().toLowerCase();
-        if (msg.contains('already registered') ||
-            msg.contains('already exists')) {
-          // Auth user exists; try to get id from users table by email
-          final u = await _client
-              .from('users')
-              .select('id')
-              .eq('email', emailTrimmed)
-              .maybeSingle();
-          if (u != null) {
-            authUserId = u['id']?.toString();
-            if (authUserId != null) {
-              await _client
-                  .from('users')
-                  .update({
-                    'member_id': memberId,
-                    'is_active': true,
-                    'role': 'member',
-                    'must_change_password': true,
-                    'updated_at': DateTime.now().toIso8601String(),
-                  })
-                  .eq('id', authUserId);
-              await _seedMemberAccess(authUserId);
-              return;
-            }
-          }
-        }
-        rethrow;
-      }
-
-      if (authUserId == null) {
-        throw Exception(
-          'Could not create auth user. Email confirmation may be required.',
-        );
-      }
-
-      // Insert or update users table
-      final userRow = await _client
-          .from('users')
-          .select('id')
-          .eq('id', authUserId)
-          .maybeSingle();
-
-      if (userRow != null) {
-        await _client
-            .from('users')
-            .update({
-              'member_id': memberId,
-              'email': emailTrimmed,
-              'role': 'member',
-              'is_active': true,
-              'must_change_password': true,
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('id', authUserId);
-      } else {
-        await _client.from('users').insert({
-          'id': authUserId,
-          'email': emailTrimmed,
-          'member_id': memberId,
-          'role': 'member',
-          'is_active': true,
-          'must_change_password': true,
-          'created_at': DateTime.now().toIso8601String(),
-          'updated_at': DateTime.now().toIso8601String(),
-        });
-      }
-
-      await _seedMemberAccess(authUserId);
-      debugPrint('[MemberAccountService] Created account for member $memberId');
-    } catch (e) {
-      throw Exception('Failed to create account: $e');
-    } finally {
-      // Restore the admin's session so the current user stays logged in (signUp may have switched session to the new member).
-      if (previousRefreshToken != null && previousRefreshToken.isNotEmpty) {
-        try {
-          await _client.auth.setSession(previousRefreshToken);
-        } catch (e) {
-          debugPrint(
-            '[MemberAccountService] Could not restore previous session: $e',
-          );
-        }
-      }
+    if (temporary != null) {
+      debugPrint('[MemberAccount] Mot de passe temporaire généré pour $email');
     }
   }
 
-  /// Seed leader_access for a member with view-only on all features
-  static Future<void> _seedMemberAccess(String userId) async {
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) return;
-
-    for (final feature in LeaderAccessService.getAvailableFeatures()) {
-      try {
-        await LeaderAccessService.setLeaderAccess(
-          userId: userId,
-          featureName: feature,
-          canView: true,
-          canCreate: false,
-          canEdit: false,
-          canDelete: false,
-        );
-      } catch (e) {
-        debugPrint('[MemberAccountService] Seed access for $feature: $e');
-      }
-    }
-  }
-
-  /// Deactivate a member's account (admin only). They can no longer log in.
+  /// Désactive un compte.
+  ///
+  /// Toutes les sessions sont fermées immédiatement côté serveur : sans cela,
+  /// un jeton d'accès resterait valide jusqu'à quinze minutes après la coupure.
+  ///
+  /// Le serveur refuse de désactiver le dernier administrateur actif — code
+  /// `LAST_ADMIN` — sans quoi l'application deviendrait inadministrable.
   static Future<void> deactivateMemberAccount(String userId) async {
-    try {
-      await _client
-          .from('users')
-          .update({
-            'is_active': false,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', userId);
-    } catch (e) {
-      throw Exception('Failed to deactivate account: $e');
-    }
+    await _client.patch('/users/$userId/active', body: {'is_active': false});
+  }
+
+  /// Réactive un compte.
+  static Future<void> activateMemberAccount(String userId) async {
+    await _client.patch('/users/$userId/active', body: {'is_active': true});
+  }
+
+  /// Réinitialise le mot de passe à la valeur par défaut.
+  ///
+  /// Utile quand le membre n'a plus accès à son adresse e-mail et ne peut donc
+  /// pas suivre la procédure autonome. La réponse contient
+  /// `temporary_password`, à lui communiquer.
+  static Future<Map<String, dynamic>> resetMemberPassword(String userId) async {
+    final data = await _client.post('/users/$userId/reset-password');
+    return (data as Map).cast<String, dynamic>();
   }
 }

@@ -1,79 +1,37 @@
 import 'package:flutter/foundation.dart';
-import 'supabase_service.dart';
-import 'new_comer_service.dart';
-import 'user_management_service.dart';
-import '../core/utils/phone_number_utils.dart';
 
-/// Member service for member management operations
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
+
+/// Membres.
+///
+/// Les signatures sont **identiques** à l'implémentation Supabase : les écrans
+/// n'ont rien à changer. Seul l'intérieur diffère — appels HTTP au lieu de
+/// requêtes sur la base.
+///
+/// Les clés restent en `snake_case` dans les deux sens : [ApiClient] fait la
+/// conversion vers et depuis le camelCase de l'API.
 class MemberService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  static Map<String, dynamic> _withNormalizedPhone(Map<String, dynamic> data) {
-    if (!data.containsKey('phone')) return data;
-    final copy = Map<String, dynamic>.from(data);
-    copy['phone'] = PhoneNumberUtils.normalizeOrNull(copy['phone']?.toString());
-    return copy;
-  }
-
-  /// Create member (admin only) - auto-creates user (inactive) when email/phone provided
-  /// POST /members
-  /// Business Rule: When admin creates a member → user account is auto-created but active=false
+  /// Crée un membre.
+  ///
+  /// Une intention `just_passing` est refusée par le serveur avec le code
+  /// `JUST_PASSING_MUST_BE_VISITOR` : ces personnes relèvent des visiteurs.
+  /// La vérification n'est plus faite ici — la dupliquer risquerait de la
+  /// laisser diverger de la règle serveur.
   static Future<Map<String, dynamic>> createMember({
     required Map<String, dynamic> memberData,
   }) async {
-    try {
-      final email = memberData['email'] as String?;
-      final phone = memberData['phone'] as String?;
-      final hasContact =
-          (email != null && email.isNotEmpty) ||
-          (phone != null && phone.isNotEmpty);
-
-      final isNewComer = memberData['is_new_comer'] == true;
-      final newcomerIntention = memberData['newcomer_intention']?.toString();
-      if (isNewComer && newcomerIntention == 'just_passing') {
-        throw Exception(
-          'New comers with "just passing" intention must be created as visitors, not members.',
-        );
-      }
-
-      // Insert member
-      final response = await _client
-          .from('members')
-          .insert({
-            ..._withNormalizedPhone(memberData),
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      final memberId = response['id'].toString();
-
-      // Auto-create inactive user account when contact info is available.
-      if (hasContact) {
-        try {
-          await UserManagementService.createInactiveUserForMember(
-            memberId: memberId,
-            email: email,
-            phone: phone,
-          );
-        } catch (e) {
-          // Log error but don't fail member creation
-          debugPrint('Warning: Failed to create user account: $e');
-        }
-      }
-
-      // Track newcomer creation in dedicated history table.
-      await NewComerService.ensureRecordExistsForMember(member: response);
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create member: $e');
-    }
+    final data = await _client.post('/members', body: memberData);
+    debugPrint('[MemberService] Membre créé');
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Get members with optional filters
-  /// GET /members
+  /// Liste des membres.
+  ///
+  /// [filters] accepte les mêmes clés qu'auparavant : `role`, `department_id`,
+  /// `is_active`, `is_new_comer`, `gender`, `profession`, `search`.
   static Future<List<Map<String, dynamic>>> getMembers({
     Map<String, dynamic>? filters,
     int? limit,
@@ -81,104 +39,76 @@ class MemberService {
     String? orderBy,
     bool ascending = true,
   }) async {
-    try {
-      // Build base query with filters
-      var filterQuery = _client.from('members').select();
+    // L'API pagine par numéro de page, l'ancienne interface par décalage.
+    // La conversion est faite ici pour ne pas propager le changement dans les
+    // écrans.
+    final effectiveLimit = (limit ?? 200).clamp(1, 200);
+    final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
 
-      // Apply filters
-      if (filters != null) {
-        filters.forEach((key, value) {
-          if (value != null) {
-            filterQuery = filterQuery.eq(key, value);
-          }
-        });
-      }
+    final query = <String, dynamic>{
+      'page': page,
+      'limit': effectiveLimit,
+      'order': ascending ? 'asc' : 'desc',
+      if (orderBy != null) 'orderBy': orderBy,
+      ...?filters,
+    };
 
-      // Apply ordering (returns PostgrestTransformBuilder)
-      dynamic transformQuery = filterQuery;
-      if (orderBy != null) {
-        transformQuery = transformQuery.order(orderBy, ascending: ascending);
-      } else {
-        // Default to alphabetical order by first_name, then last_name
-        transformQuery = transformQuery
-            .order('first_name', ascending: true)
-            .order('last_name', ascending: true);
-      }
-
-      // Apply pagination (on PostgrestTransformBuilder)
-      if (limit != null) {
-        transformQuery = transformQuery.limit(limit);
-      }
-      if (offset != null) {
-        transformQuery = transformQuery.range(
-          offset,
-          offset + (limit ?? 10) - 1,
-        );
-      }
-
-      final response = await transformQuery;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      throw Exception('Failed to get members: $e');
-    }
+    return _client.getList('/members', query: query);
   }
 
-  /// Get member by ID
-  /// GET /members/:id
-  static Future<Map<String, dynamic>> getMemberById(String memberId) async {
-    try {
-      final response = await _client
-          .from('members')
-          .select()
-          .eq('id', memberId)
-          .single();
+  static Future<Map<String, dynamic>> getMemberById(String memberId) =>
+      _client.getOne('/members/$memberId');
 
-      return response;
-    } catch (e) {
-      throw Exception('Failed to get member: $e');
-    }
-  }
-
-  /// Update member
-  /// PATCH /members/:id
   static Future<Map<String, dynamic>> updateMember({
     required String memberId,
     required Map<String, dynamic> updates,
   }) async {
-    try {
-      final response = await _client
-          .from('members')
-          .update({
-            ..._withNormalizedPhone(updates),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', memberId)
-          .select()
-          .single();
-
-      // If this update marks member as newcomer, ensure history is tracked.
-      await NewComerService.ensureRecordExistsForMember(member: response);
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to update member: $e');
-    }
+    final data = await _client.patch('/members/$memberId', body: updates);
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Soft delete member
-  /// DELETE /members/:id
+  /// Suppression logique.
+  ///
+  /// Le compte de connexion associé est désactivé et ses sessions fermées, du
+  /// côté serveur et dans la même transaction.
   static Future<void> deleteMember(String memberId) async {
-    try {
-      await _client
-          .from('members')
-          .update({
-            'deleted_at': DateTime.now().toIso8601String(),
-            'is_active': false,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', memberId);
-    } catch (e) {
-      throw Exception('Failed to delete member: $e');
-    }
+    await _client.delete('/members/$memberId');
+  }
+
+  /// Restaure un membre supprimé. Réservé aux administrateurs.
+  static Future<Map<String, dynamic>> restoreMember(String memberId) async {
+    final data = await _client.post('/members/$memberId/restore');
+    return (data as Map).cast<String, dynamic>();
+  }
+
+  /// Anniversaires à venir.
+  static Future<List<Map<String, dynamic>>> getUpcomingBirthdays({
+    int days = 30,
+  }) =>
+      _client.getList('/members/birthdays', query: {'days': days});
+
+  /// Rattache le membre à un département.
+  static Future<Map<String, dynamic>> addToDepartment({
+    required String memberId,
+    required String departmentId,
+    String role = 'member',
+    bool isMain = false,
+  }) async {
+    final data = await _client.post(
+      '/members/$memberId/departments',
+      body: {
+        'department_id': departmentId,
+        'role': role,
+        'is_main': isMain,
+      },
+    );
+    return (data as Map).cast<String, dynamic>();
+  }
+
+  static Future<void> removeFromDepartment({
+    required String memberId,
+    required String departmentId,
+  }) async {
+    await _client.delete('/members/$memberId/departments/$departmentId');
   }
 }

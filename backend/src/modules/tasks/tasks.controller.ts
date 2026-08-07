@@ -24,6 +24,7 @@ import {
   CreateTaskDto,
   FindTasksDto,
   RecordPaymentDto,
+  RemindPendingDto,
   RunPenaltiesDto,
   SetTaskTagsDto,
   UpdatePenaltySettingsDto,
@@ -158,6 +159,33 @@ export class TasksController {
     @Param('memberId', ParseUUIDPipe) memberId: string,
   ) {
     return this.tasks.unassign(id, memberId);
+  }
+
+
+  @Post('remind-pending')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission(FEATURES.tasks, 'edit')
+  @ApiOperation({
+    summary: 'Rappelle toutes les taches en attente',
+    description:
+      'Une notification par membre, pas par tache : quelqu un ayant cinq ' +
+      'taches en retard recoit un recapitulatif, pas cinq messages.',
+  })
+  remindAllPending(@Body() dto: RemindPendingDto) {
+    return this.tasks.remindAllPending(dto.departmentId);
+  }
+
+  @Post(':id/remind')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission(FEATURES.tasks, 'edit')
+  @ApiOperation({
+    summary: 'Envoie un rappel aux assignes',
+    description:
+      'Refuse les taches terminees, annulees ou archivees : insister sur un ' +
+      'travail deja fait decredibilise les notifications.',
+  })
+  remind(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tasks.remind(id);
   }
 
   @Post(':id/tags')

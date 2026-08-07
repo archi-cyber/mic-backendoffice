@@ -1,49 +1,39 @@
-import 'package:flutter/foundation.dart';
-import 'supabase_service.dart';
-import 'task_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// Teaching service for teaching management operations
+/// Enseignements et auditeurs.
+///
+/// Signatures identiques à l'implémentation Supabase.
+///
+/// Créer un enseignement déclenche deux automatismes côté serveur : trois
+/// tâches de montage pour le département Média, avec une échéance à dix jours,
+/// et la synchronisation des auditeurs depuis la présence au culte de la même
+/// date. Le client n'a plus à les orchestrer.
 class TeachingService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  /// Create teaching
-  /// POST /teachings
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
+  // ---------------------------------------------------------------------------
+  // Enseignements
+  // ---------------------------------------------------------------------------
+
+  /// Crée un enseignement.
+  ///
+  /// La réponse contient `tasks_created` et `listeners_added`. Si le
+  /// département « Média » n'existe pas, aucune tâche n'est générée et
+  /// l'enseignement est enregistré quand même : mieux vaut un enseignement
+  /// sans tâches qu'un échec d'enregistrement.
   static Future<Map<String, dynamic>> createTeaching({
     required Map<String, dynamic> teachingData,
   }) async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be authenticated to create teaching');
-      }
-
-      final response = await _client
-          .from('teachings')
-          .insert({
-            ...teachingData,
-            'created_by': currentUser.id,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      try {
-        await TaskService.createTeachingTasks(teaching: response);
-      } catch (e) {
-        debugPrint(
-          '[TeachingService] Teaching created, but auto-tasks failed: $e',
-        );
-      }
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create teaching: $e');
-    }
+    final data = await _client.post('/teachings', body: teachingData);
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Get teachings with optional filters
-  /// GET /teachings
   static Future<List<Map<String, dynamic>>> getTeachings({
     Map<String, dynamic>? filters,
     int? limit,
@@ -52,229 +42,109 @@ class TeachingService {
     bool ascending = false,
     DateTime? fromDate,
     DateTime? toDate,
-  }) async {
-    try {
-      // Build base query with filters
-      var filterQuery = _client.from('teachings').select();
+  }) {
+    final effectiveLimit = (limit ?? 200).clamp(1, 200);
+    final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
 
-      // Apply date filters
-      if (fromDate != null) {
-        filterQuery = filterQuery.gte(
-          'teaching_date',
-          fromDate.toIso8601String().split('T')[0],
-        );
-      }
-      if (toDate != null) {
-        filterQuery = filterQuery.lte(
-          'teaching_date',
-          toDate.toIso8601String().split('T')[0],
-        );
-      }
-
-      // Apply other filters
-      if (filters != null) {
-        filters.forEach((key, value) {
-          if (value != null) {
-            filterQuery = filterQuery.eq(key, value);
-          }
-        });
-      }
-
-      // Apply ordering (returns PostgrestTransformBuilder)
-      dynamic transformQuery = filterQuery;
-      if (orderBy != null) {
-        transformQuery = transformQuery.order(orderBy, ascending: ascending);
-      } else {
-        // Default to most recent teachings first
-        transformQuery = transformQuery
-            .order('teaching_date', ascending: false)
-            .order('created_at', ascending: false);
-      }
-
-      // Apply pagination (on PostgrestTransformBuilder)
-      if (limit != null) {
-        transformQuery = transformQuery.limit(limit);
-      }
-      if (offset != null) {
-        transformQuery = transformQuery.range(
-          offset,
-          offset + (limit ?? 10) - 1,
-        );
-      }
-
-      final response = await transformQuery;
-      final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
-      return records.where((r) => r['deleted_at'] == null).toList();
-    } catch (e) {
-      throw Exception('Failed to get teachings: $e');
-    }
+    return _client.getList('/teachings', query: {
+      'page': page,
+      'limit': effectiveLimit,
+      'order': ascending ? 'asc' : 'desc',
+      if (orderBy != null) 'orderBy': orderBy,
+      if (fromDate != null) 'from': _day(fromDate),
+      if (toDate != null) 'to': _day(toDate),
+      ...?filters,
+    });
   }
 
-  /// Get teaching by ID
-  /// GET /teachings/:id
-  static Future<Map<String, dynamic>> getTeachingById(String teachingId) async {
-    try {
-      final response = await _client
-          .from('teachings')
-          .select()
-          .eq('id', teachingId)
-          .single();
+  /// Détail d'un enseignement, avec ses auditeurs et ses tâches de montage.
+  static Future<Map<String, dynamic>> getTeachingById(String teachingId) =>
+      _client.getOne('/teachings/$teachingId');
 
-      // Filter out deleted records
-      if (response['deleted_at'] != null) {
-        throw Exception('Teaching not found');
-      }
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to get teaching: $e');
-    }
-  }
-
-  /// Update teaching
-  /// PATCH /teachings/:id
+  /// Modifie un enseignement.
+  ///
+  /// Changer la date décale l'échéance des tâches de montage associées : les
+  /// laisser en arrière ferait courir des pénalités pour un retard inexistant.
   static Future<Map<String, dynamic>> updateTeaching({
     required String teachingId,
     required Map<String, dynamic> updates,
   }) async {
-    try {
-      final response = await _client
-          .from('teachings')
-          .update({...updates, 'updated_at': DateTime.now().toIso8601String()})
-          .eq('id', teachingId)
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to update teaching: $e');
-    }
+    final data = await _client.patch('/teachings/$teachingId', body: updates);
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Delete teaching (soft delete)
-  /// DELETE /teachings/:id
+  /// Supprime un enseignement.
+  ///
+  /// Ses tâches de montage suivent : elles n'ont plus d'objet, et les laisser
+  /// vivantes ferait courir des pénalités pour un travail devenu sans raison
+  /// d'être.
   static Future<void> deleteTeaching(String teachingId) async {
-    try {
-      await _client
-          .from('teachings')
-          .update({
-            'deleted_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', teachingId);
-    } catch (e) {
-      throw Exception('Failed to delete teaching: $e');
-    }
+    await _client.delete('/teachings/$teachingId');
   }
 
-  /// Get listeners for a teaching
-  /// GET /teachings/:id/listeners
+  // ---------------------------------------------------------------------------
+  // Auditeurs
+  // ---------------------------------------------------------------------------
+
   static Future<List<Map<String, dynamic>>> getTeachingListeners(
     String teachingId,
   ) async {
-    try {
-      final response = await _client
-          .from('teaching_listeners')
-          .select('''
-            *,
-            members (
-              id,
-              first_name,
-              last_name,
-              email,
-              role
-            )
-          ''')
-          .eq('teaching_id', teachingId)
-          .order('created_at', ascending: false);
-
-      final records = List<Map<String, dynamic>>.from(response);
-      // Filter out deleted records
-      return records.where((r) => r['deleted_at'] == null).toList();
-    } catch (e) {
-      throw Exception('Failed to get teaching listeners: $e');
-    }
+    final teaching = await _client.getOne('/teachings/$teachingId');
+    final listeners = (teaching['listeners'] as List?) ?? const [];
+    return listeners.map((e) => (e as Map).cast<String, dynamic>()).toList();
   }
 
-  /// Get all workers, leaders, and admins (potential listeners)
-  /// GET /members?role=worker,leader,admin
-  static Future<List<Map<String, dynamic>>> getPotentialListeners() async {
-    try {
-      final response = await _client
-          .from('members')
-          .select('id, first_name, last_name, email, role')
-          .inFilter('role', ['worker', 'leader', 'admin'])
-          .order('first_name', ascending: true)
-          .order('last_name', ascending: true);
+  /// Membres pouvant être ajoutés comme auditeurs.
+  ///
+  /// La notion d'auditeur sert au suivi de formation interne : le serveur ne
+  /// retient que les ouvriers, responsables et administrateurs lors de la
+  /// synchronisation automatique. L'ajout manuel reste libre.
+  static Future<List<Map<String, dynamic>>> getPotentialListeners() =>
+      _client.getList('/members', query: {
+        'is_active': true,
+        'limit': 200,
+        'orderBy': 'lastName',
+        'order': 'asc',
+      });
 
-      final records = List<Map<String, dynamic>>.from(response);
-      // Return all members (no filtering by deleted_at as per requirements)
-      return records;
-    } catch (e) {
-      throw Exception('Failed to get potential listeners: $e');
-    }
-  }
-
-  /// Add listener to teaching
-  /// POST /teaching_listeners
   static Future<Map<String, dynamic>> addListener({
     required String teachingId,
     required String memberId,
   }) async {
-    try {
-      final currentUser = SupabaseService.currentUser;
-      if (currentUser == null) {
-        throw Exception('User must be authenticated');
-      }
-
-      final response = await _client
-          .from('teaching_listeners')
-          .insert({
-            'teaching_id': teachingId,
-            'member_id': memberId,
-            'created_by': currentUser.id,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .select()
-          .single();
-
-      return response;
-    } catch (e) {
-      throw Exception('Failed to add listener: $e');
-    }
+    final data = await _client.post(
+      '/teachings/$teachingId/listeners',
+      body: {'member_ids': [memberId]},
+    );
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Remove listener from teaching (soft delete)
-  /// DELETE /teaching_listeners/:id
-  static Future<void> removeListener(String listenerId) async {
-    try {
-      await _client
-          .from('teaching_listeners')
-          .update({
-            'deleted_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', listenerId);
-    } catch (e) {
-      throw Exception('Failed to remove listener: $e');
-    }
-  }
-
-  /// Sync teaching listeners from church attendance
-  /// Calls the sync_teaching_listeners SQL function
-  static Future<int> syncListenersFromAttendance(String teachingId) async {
-    try {
-      // Call the SQL function
-      final response = await _client.rpc(
-        'sync_teaching_listeners',
-        params: {'teaching_uuid': teachingId},
+  /// Retire un auditeur.
+  ///
+  /// L'API identifie l'auditeur par le couple enseignement + membre, non par
+  /// un identifiant de ligne. Le [teachingId] est donc nécessaire, et
+  /// [listenerId] doit être l'identifiant du **membre**.
+  static Future<void> removeListener(
+    String listenerId, {
+    String? teachingId,
+  }) async {
+    if (teachingId == null) {
+      throw ArgumentError(
+        'teachingId est requis : l\'API identifie un auditeur par le couple '
+        'enseignement + membre, non par un identifiant de ligne.',
       );
-
-      return response as int;
-    } catch (e) {
-      throw Exception('Failed to sync listeners: $e');
     }
+
+    await _client.delete('/teachings/$teachingId/listeners/$listenerId');
+  }
+
+  /// Alimente les auditeurs depuis la présence au culte de la même date.
+  ///
+  /// Utile si la feuille de présence a été complétée après la création de
+  /// l'enseignement.
+  static Future<Map<String, dynamic>> syncListenersFromAttendance(
+    String teachingId,
+  ) async {
+    final data = await _client.post('/teachings/$teachingId/listeners/sync');
+    return (data as Map).cast<String, dynamic>();
   }
 }

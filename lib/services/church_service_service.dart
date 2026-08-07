@@ -1,190 +1,132 @@
-import 'package:flutter/foundation.dart' show debugPrint;
-import 'supabase_service.dart';
+import '../core/api/api_client.dart';
+import 'auth_service.dart';
 
-/// CRUD for church gatherings (any date + required name; multiple per day allowed).
+/// Cultes.
+///
+/// Signatures identiques à l'implémentation Supabase. Les dates restent des
+/// `DateTime` : la conversion vers le format `AAAA-MM-JJ` attendu par l'API se
+/// fait ici, pas dans les écrans.
 class ChurchServiceService {
-  static final _client = SupabaseService.client;
+  static ApiClient get _client => AuthService.client;
 
-  static String _dateOnly(DateTime date) =>
-      date.toIso8601String().split('T')[0];
+  /// Formate une date pour l'API — jour seul, sans heure ni fuseau.
+  ///
+  /// Envoyer un `DateTime` complet ferait dériver la date d'un jour selon le
+  /// fuseau du serveur : un culte du dimanche saisi à 23 h basculerait au lundi.
+  static String _day(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
-  /// Create a church service. [name] is required and must be unique for that date.
+  /// Crée un culte.
+  ///
+  /// Le couple date + nom doit être unique ; le serveur renvoie
+  /// `SERVICE_NAME_DUPLICATE` sinon.
   static Future<Map<String, dynamic>> createService({
     required DateTime serviceDate,
     required String name,
   }) async {
-    final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      throw Exception('Service name is required');
-    }
-
-    final currentUser = SupabaseService.currentUser;
-    if (currentUser == null) {
-      throw Exception('User must be authenticated to create a service');
-    }
-
-    try {
-      final response = await _client
-          .from('church_services')
-          .insert({
-            'service_date': _dateOnly(serviceDate),
-            'name': trimmed,
-            'created_by': currentUser.id,
-          })
-          .select()
-          .single();
-      return Map<String, dynamic>.from(response);
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error creating service: $e');
-      throw Exception('Failed to create service: $e');
-    }
+    final data = await _client.post('/church-services', body: {
+      'service_date': _day(serviceDate),
+      'name': name.trim(),
+    });
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Find a service by date + name, or create it if missing.
+  /// Retrouve un culte existant, ou le crée.
+  ///
+  /// Évite un doublon quand deux responsables ouvrent l'écran de pointage en
+  /// même temps. La recherche précède la création ; en cas de collision malgré
+  /// tout, l'erreur d'unicité est rattrapée et le culte existant renvoyé.
   static Future<Map<String, dynamic>> findOrCreate({
     required DateTime serviceDate,
     required String name,
   }) async {
     final trimmed = name.trim();
-    if (trimmed.isEmpty) {
-      throw Exception('Service name is required');
-    }
-
     final existing = await getServicesForDate(serviceDate);
+
     for (final service in existing) {
-      final existingName = service['name']?.toString().trim() ?? '';
-      if (existingName.toLowerCase() == trimmed.toLowerCase()) {
+      if ((service['name'] as String?)?.trim().toLowerCase() ==
+          trimmed.toLowerCase()) {
         return service;
       }
     }
-    return createService(serviceDate: serviceDate, name: trimmed);
+
+    try {
+      return await createService(serviceDate: serviceDate, name: trimmed);
+    } catch (_) {
+      // Course entre deux clients : le culte vient d'être créé par l'autre.
+      final retry = await getServicesForDate(serviceDate);
+      return retry.firstWhere(
+        (s) => (s['name'] as String?)?.trim().toLowerCase() ==
+            trimmed.toLowerCase(),
+        orElse: () => throw StateError('Culte introuvable après conflit.'),
+      );
+    }
   }
 
+  /// Détail d'un culte, avec sa feuille de présence.
+  ///
+  /// Renvoie `null` si le culte n'existe pas, comme l'ancienne implémentation.
   static Future<Map<String, dynamic>?> getById(String serviceId) async {
     try {
-      final response = await _client
-          .from('church_services')
-          .select()
-          .eq('id', serviceId)
-          .maybeSingle();
-      if (response == null) return null;
-      final row = Map<String, dynamic>.from(response);
-      if (row['deleted_at'] != null) return null;
-      return row;
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error getting service: $e');
-      throw Exception('Failed to get service: $e');
+      return await _client.getOne('/church-services/$serviceId');
+    } catch (_) {
+      return null;
     }
   }
 
+  /// Cultes d'une date donnée.
   static Future<List<Map<String, dynamic>>> getServicesForDate(
     DateTime serviceDate,
-  ) async {
-    try {
-      final response = await _client
-          .from('church_services')
-          .select()
-          .eq('service_date', _dateOnly(serviceDate))
-          .isFilter('deleted_at', null)
-          .order('name', ascending: true);
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error listing services for date: $e');
-      throw Exception('Failed to list services: $e');
-    }
+  ) {
+    final day = _day(serviceDate);
+    return _client.getList(
+      '/church-services',
+      query: {'from': day, 'to': day, 'limit': 50},
+    );
   }
 
-  /// List services with optional date range, newest first.
+  /// Tous les cultes, du plus récent au plus ancien.
   static Future<List<Map<String, dynamic>>> getAllServices({
     DateTime? startDate,
     DateTime? endDate,
     int? limit,
-  }) async {
-    try {
-      dynamic query = _client
-          .from('church_services')
-          .select()
-          .isFilter('deleted_at', null);
-
-      if (startDate != null) {
-        query = query.gte('service_date', _dateOnly(startDate));
-      }
-      if (endDate != null) {
-        query = query.lte('service_date', _dateOnly(endDate));
-      }
-
-      query = query.order('service_date', ascending: false).order('name');
-
-      if (limit != null) {
-        query = query.limit(limit);
-      }
-
-      final response = await query;
-      return List<Map<String, dynamic>>.from(response);
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error listing services: $e');
-      throw Exception('Failed to list services: $e');
-    }
+  }) {
+    return _client.getList('/church-services', query: {
+      if (startDate != null) 'from': _day(startDate),
+      if (endDate != null) 'to': _day(endDate),
+      'limit': limit ?? 200,
+    });
   }
 
+  /// Modifie un culte.
+  ///
+  /// Changer la date propage la mise à jour sur toutes les présences liées.
   static Future<Map<String, dynamic>> updateService({
     required String serviceId,
     String? name,
     DateTime? serviceDate,
   }) async {
-    final updates = <String, dynamic>{
-      'updated_at': DateTime.now().toIso8601String(),
-    };
-    if (name != null) {
-      final trimmed = name.trim();
-      if (trimmed.isEmpty) {
-        throw Exception('Service name is required');
-      }
-      updates['name'] = trimmed;
-    }
-    if (serviceDate != null) {
-      updates['service_date'] = _dateOnly(serviceDate);
-    }
-
-    try {
-      final response = await _client
-          .from('church_services')
-          .update(updates)
-          .eq('id', serviceId)
-          .select()
-          .single();
-
-      // Keep denormalized attendance dates in sync when the service date moves.
-      if (serviceDate != null) {
-        await _client
-            .from('church_attendance')
-            .update({
-              'service_date': _dateOnly(serviceDate),
-              'updated_at': DateTime.now().toIso8601String(),
-            })
-            .eq('church_service_id', serviceId)
-            .isFilter('deleted_at', null);
-      }
-
-      return Map<String, dynamic>.from(response);
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error updating service: $e');
-      throw Exception('Failed to update service: $e');
-    }
+    final data = await _client.patch('/church-services/$serviceId', body: {
+      if (name != null) 'name': name.trim(),
+      if (serviceDate != null) 'service_date': _day(serviceDate),
+    });
+    return (data as Map).cast<String, dynamic>();
   }
 
-  /// Soft-delete the service row (caller should soft-delete attendance/visitors).
+  /// Suppression logique.
+  ///
+  /// Les présences et les visiteurs rattachés sont retirés en cascade :
+  /// conserver une présence pointant vers un culte invisible fausserait tous
+  /// les décomptes.
   static Future<void> softDelete(String serviceId) async {
-    try {
-      final deletedAt = DateTime.now().toIso8601String();
-      await _client
-          .from('church_services')
-          .update({'deleted_at': deletedAt, 'updated_at': deletedAt})
-          .eq('id', serviceId)
-          .isFilter('deleted_at', null);
-    } catch (e) {
-      debugPrint('[ChurchServiceService] Error deleting service: $e');
-      throw Exception('Failed to delete service: $e');
-    }
+    await _client.delete('/church-services/$serviceId');
   }
+
+  /// Membres absents d'un culte.
+  ///
+  /// Réunit les absents déclarés et ceux jamais pointés.
+  static Future<Map<String, dynamic>> getAbsentees(String serviceId) =>
+      _client.getOne('/church-services/$serviceId/absentees');
 }

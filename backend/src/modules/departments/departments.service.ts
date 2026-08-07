@@ -64,9 +64,21 @@ export class DepartmentsService {
           : { name: 'asc' },
         skip: query.skip,
         take: query.take,
-        ...(query.withCounts
-          ? {
-              include: {
+        // Les responsables sont inclus d'office : la liste des départements
+        // les affiche systématiquement, et les charger séparément imposerait
+        // une requête par département.
+        include: {
+          departmentMembers: {
+            where: { role: { in: ['leader', 'subleader'] } },
+            select: {
+              role: true,
+              member: {
+                select: { id: true, firstName: true, lastName: true },
+              },
+            },
+          },
+          ...(query.withCounts
+            ? {
                 _count: {
                   select: {
                     departmentMembers: true,
@@ -74,9 +86,9 @@ export class DepartmentsService {
                     tasks: { where: { deletedAt: null } },
                   },
                 },
-              },
-            }
-          : {}),
+              }
+            : {}),
+        },
       }),
       this.prisma.department.count({ where }),
     ]);

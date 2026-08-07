@@ -1,111 +1,82 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'class_service.dart';
-import 'task_service.dart';
 
-/// Service for offline queueing of operations
+import '../core/offline/offline_operation.dart';
+import '../core/offline/offline_queue.dart';
+
+/// File d'attente hors ligne.
+///
+/// Signatures conservées pour ne pas casser les appels existants. L'ancienne
+/// implémentation ne gérait que deux types d'opérations — présence à une
+/// formation, assignation de tâche — codés en dur dans un `switch`. Elle ne
+/// couvrait donc pas la présence aux cultes.
+///
+/// La nouvelle file est **générique** : elle enregistre méthode, chemin et
+/// corps, et rejoue la requête telle quelle. Ajouter un cas d'usage ne demande
+/// plus de la modifier.
+///
+/// Voir `OfflineQueue` pour l'implémentation.
 class OfflineQueueService {
-  static const String _queueKey = 'offline_queue';
+  /// Indique si l'appareil a une connexion.
+  ///
+  /// Attention : avoir une connexion ne garantit pas que le serveur soit
+  /// joignable. Un wifi captif — hôtel, salle de conférence — répond au test
+  /// sans laisser passer le trafic.
+  static Future<bool> isOnline() => OfflineQueue.instance.isOnline();
 
-  /// Check if device is online
-  static Future<bool> isOnline() async {
-    final connectivityResult = await Connectivity().checkConnectivity();
-    return connectivityResult != ConnectivityResult.none;
-  }
-
-  /// Add operation to queue
+  /// Dépose une opération.
+  ///
+  /// [type] est conservé comme libellé lisible ; il ne détermine plus le
+  /// traitement.
   static Future<void> queueOperation({
-    required String type, // 'attendance', 'task', etc.
+    required String type,
     required Map<String, dynamic> data,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final queueJson = prefs.getString(_queueKey) ?? '[]';
-    final queue = List<Map<String, dynamic>>.from(
-      jsonDecode(queueJson) as List,
+    final method = data['method'] as String? ?? 'POST';
+    final path = data['path'] as String?;
+
+    if (path == null) {
+      throw ArgumentError(
+        'Le champ « path » est requis : la file rejoue la requête telle '
+        'quelle, elle ne devine plus la route depuis un type.',
+      );
+    }
+
+    await OfflineQueue.instance.enqueue(
+      method: method,
+      path: path,
+      body: (data['body'] as Map?)?.cast<String, dynamic>(),
+      tempId: data['temp_id'] as String?,
+      label: data['label'] as String? ?? type,
     );
-
-    queue.add({
-      'id': DateTime.now().millisecondsSinceEpoch.toString(),
-      'type': type,
-      'data': data,
-      'created_at': DateTime.now().toIso8601String(),
-    });
-
-    await prefs.setString(_queueKey, jsonEncode(queue));
   }
 
-  /// Get all queued operations
+  /// Opérations en attente.
   static Future<List<Map<String, dynamic>>> getQueuedOperations() async {
-    final prefs = await SharedPreferences.getInstance();
-    final queueJson = prefs.getString(_queueKey) ?? '[]';
-    return List<Map<String, dynamic>>.from(jsonDecode(queueJson) as List);
+    final operations = await OfflineQueue.instance.pending();
+    return operations.map((op) => op.toJson()).toList();
   }
 
-  /// Remove operation from queue
-  static Future<void> removeOperation(String operationId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final queueJson = prefs.getString(_queueKey) ?? '[]';
-    final queue = List<Map<String, dynamic>>.from(
-      jsonDecode(queueJson) as List,
-    );
+  static Future<void> removeOperation(String operationId) =>
+      OfflineQueue.instance.remove(operationId);
 
-    queue.removeWhere((op) => op['id'] == operationId);
-    await prefs.setString(_queueKey, jsonEncode(queue));
-  }
+  /// Vide la file.
+  ///
+  /// Les saisies non synchronisées sont **perdues**. À ne proposer qu'avec un
+  /// avertissement explicite.
+  static Future<void> clearQueue() => OfflineQueue.instance.clear();
 
-  /// Clear all queued operations
-  static Future<void> clearQueue() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_queueKey);
-  }
+  /// Rejoue les opérations en attente.
+  static Future<void> processQueue() => OfflineQueue.instance.sync();
 
-  /// Process queued operations when online
-  static Future<void> processQueue() async {
-    final isOnline = await OfflineQueueService.isOnline();
-    if (!isOnline) return;
+  /// Nombre d'opérations en attente — pour un badge.
+  static Future<int> pendingCount() => OfflineQueue.instance.count();
 
-    final queue = await getQueuedOperations();
-    if (queue.isEmpty) return;
+  /// Flux du nombre d'opérations en attente.
+  static Stream<int> get pendingCountStream => OfflineQueue.instance.pendingCount;
 
-    // Process each operation
-    for (final operation in queue) {
-      try {
-        await _processOperation(operation);
-        await removeOperation(operation['id']);
-      } catch (e) {
-        // Log error but continue processing other operations
-        debugPrint('Error processing operation ${operation['id']}: $e');
-      }
-    }
-  }
+  /// Flux des résultats de synchronisation.
+  static Stream<SyncResult> get syncStream => OfflineQueue.instance.syncState;
 
-  /// Process a single operation
-  static Future<void> _processOperation(Map<String, dynamic> operation) async {
-    final type = operation['type'] as String;
-    final data = operation['data'] as Map<String, dynamic>;
-
-    switch (type) {
-      case 'attendance':
-        // Call attendance service
-        await ClassService.recordAttendance(
-          sessionId: data['session_id'],
-          attendanceRecords: data['records'],
-        );
-        break;
-      case 'task':
-        // Call task service
-        await TaskService.assignTask(
-          taskId: data['task_id'],
-          memberId: data['member_id'],
-        );
-        break;
-      // Add more operation types as needed
-    }
-  }
-
-  /// Listen to connectivity changes and process queue
   static Stream<ConnectivityResult> connectivityStream() {
     return Connectivity().onConnectivityChanged;
   }
