@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DevicePlatform, Prisma } from '@prisma/client';
+import { MailService } from '../mail/mail.service';
 
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import type { AppConfig } from '../../config/configuration';
@@ -45,6 +46,7 @@ export class UsersService {
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly mail: MailService,
   ) {}
 
   // ===========================================================================
@@ -179,6 +181,26 @@ export class UsersService {
     this.logger.log(
       `Compte créé pour ${member.firstName} ${member.lastName} (${dto.email})`,
     );
+
+    // L'e-mail part sans être attendu : une lenteur du fournisseur ne doit pas
+    // retarder la réponse à l'administrateur, et son échec ne doit pas annuler
+    // la création du compte — qui est bien réelle.
+    //
+    // Le mot de passe reste affiché dans la réponse : c'est le seul moyen de
+    // le communiquer si l'envoi échoue, ou si le membre n'a pas d'adresse
+    // consultable.
+    void this.mail
+      .sendAccountCreated({
+        to: dto.email,
+        firstName: member.firstName,
+        temporaryPassword: defaultPassword,
+      })
+      .catch((error) => {
+        this.logger.warn(
+          `Envoi impossible à ${dto.email} : ` +
+            `${error instanceof Error ? error.message : 'erreur inconnue'}`,
+        );
+      });
 
     return {
       ...user,

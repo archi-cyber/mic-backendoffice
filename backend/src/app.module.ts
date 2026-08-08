@@ -20,6 +20,7 @@ import { CommunicationsModule } from './modules/communications/communications.mo
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { EventsModule } from './modules/events/events.module';
 import { GivingModule } from './modules/giving/giving.module';
+import { MailModule } from './modules/mail/mail.module';
 import { MembersModule } from './modules/members/members.module';
 import { SundaySchoolModule } from './modules/sunday-school/sunday-school.module';
 import { TasksModule } from './modules/tasks/tasks.module';
@@ -48,11 +49,13 @@ import { PrismaModule } from './prisma/prisma.module';
     ScheduleModule.forRoot(),
 
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 120 },
-      { name: 'strict', ttl: 60_000, limit: 5 },
+      
+      { name: 'default', ttl: 60_000, limit: 600 },
+      { name: 'strict', ttl: 60_000, limit: 10 },
     ]),
 
     // --- Modules metier ---
+    MailModule,
     AuthModule,
     UsersModule,
     MembersModule,

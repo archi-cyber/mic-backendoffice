@@ -548,7 +548,7 @@ export class MembersService {
   }
 
   private toPersistence(dto: CreateMemberDto | UpdateMemberDto) {
-    const { birthday, newcomerJoinDate, ...rest } = dto;
+    const { birthday, newcomerJoinDate, keySkills, ...rest } = dto;
 
     return {
       ...rest,
@@ -556,6 +556,14 @@ export class MembersService {
       ...(newcomerJoinDate !== undefined
         ? { newcomerJoinDate: this.toDate(newcomerJoinDate) }
         : {}),
+      // Un tableau Prisma ne peut pas valoir `null` : l'absence de compétences
+      // se représente par une liste vide.
+      //
+      // Le champ est omis quand rien n'est fourni plutôt que forcé à `[]` :
+      // à la création, Prisma applique la valeur par défaut du schéma ; à la
+      // mise à jour, la liste existante est conservée au lieu d'être écrasée
+      // par une modification qui ne la concernait pas.
+      ...(keySkills != null ? { keySkills } : {}),
     };
   }
 

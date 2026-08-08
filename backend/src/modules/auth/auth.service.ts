@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { AppConfig } from '../../config/configuration';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordService } from './password.service';
 import { TokenService, type SessionContext } from './token.service';
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
     private readonly config: ConfigService<AppConfig, true>,
+    private readonly mail: MailService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -243,7 +245,7 @@ export class AuthService {
     userId: string,
     currentPassword: string | undefined,
     newPassword: string,
-  ): Promise<{ message: string }> {
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, passwordHash: true, mustChangePassword: true },
@@ -308,15 +310,51 @@ export class AuthService {
       },
     });
 
-    // Toutes les autres sessions sont fermées : si le mot de passe a été
-    // changé parce qu'il était compromis, laisser les jetons existants actifs
-    // annulerait tout le bénéfice de l'opération.
+    // Toutes les sessions existantes sont fermées : si le mot de passe a été
+    // changé parce qu'il était compromis, laisser les jetons actifs annulerait
+    // tout le bénéfice de l'opération.
     await this.tokens.revokeAllForUser(userId);
+
+    // Puis une nouvelle session est ouverte pour l'appareil courant.
+    //
+    // Sans cela, l'utilisateur serait déconnecté au moment même où il vient de
+    // définir son mot de passe — une friction inutile, surtout lors du premier
+    // changement obligatoire. Les autres appareils, eux, restent bien fermés.
+    const profile = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        memberId: true,
+        member: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    // Le contexte de session est omis : le changement de mot de passe ne
+    // transporte ni description d'appareil ni adresse IP. La nouvelle session
+    // apparaîtra sans détail dans la liste des appareils connectés — acceptable,
+    // puisqu'elle remplace celle qui vient d'être fermée.
+    const tokens = await this.tokens.issueTokenPair({
+      id: userId,
+      email: profile!.email,
+      role: profile!.role,
+    });
 
     this.logger.log(`Mot de passe modifié pour l'utilisateur ${userId}`);
 
     return {
-      message: 'Mot de passe modifié. Veuillez vous reconnecter.',
+      message: 'Mot de passe modifié.',
+      ...tokens,
+      mustChangePassword: false,
+      user: {
+        id: profile!.id,
+        email: profile!.email,
+        role: profile!.role,
+        memberId: profile!.memberId,
+        firstName: profile!.member?.firstName ?? null,
+        lastName: profile!.member?.lastName ?? null,
+      },
     };
   }
 
@@ -357,10 +395,35 @@ export class AuthService {
       },
     });
 
+    // Le prénom personnalise le message ; son absence n'empêche rien.
+    const profile = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { member: { select: { firstName: true } } },
+    });
+
+    // L'envoi est lancé sans être attendu : une lenteur du fournisseur ne doit
+    // pas retarder la réponse, et son échec ne doit pas révéler que l'adresse
+    // existe — la réponse reste identique dans tous les cas.
+    void this.mail
+        .sendPasswordReset({
+          to: email,
+          firstName: profile?.member?.firstName ?? null,
+          token: rawToken,
+        })
+        .catch((error) => {
+          this.logger.error(
+            `Envoi du jeton impossible pour ${email} : ` +
+              `${error instanceof Error ? error.message : 'erreur inconnue'}`,
+          );
+        });
+
     this.logger.log(`Jeton de réinitialisation émis pour ${email}`);
 
     const isProduction = this.config.get('isProduction', { infer: true });
 
+    // En développement, le jeton est renvoyé dans la réponse : sans
+    // fournisseur configuré, aucun message ne part et la procédure serait
+    // intestable. En production, il ne transite que par e-mail.
     return isProduction ? genericResponse : { ...genericResponse, token: rawToken };
   }
 
