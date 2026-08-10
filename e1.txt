@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
@@ -406,7 +406,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
           return entry['role']?.toString() == 'leader';
         })
         .map((entry) {
-          final member = (entry['member'] ?? entry['members']);
+          final member = entry['members'];
           if (member is! Map<String, dynamic>) return '';
           final firstName = member['first_name']?.toString() ?? '';
           final lastName = member['last_name']?.toString() ?? '';
@@ -1055,8 +1055,8 @@ class _MembersTabState extends State<_MembersTab> {
       );
       // Sort members alphabetically by first name, then last name
       members.sort((a, b) {
-        final memberA = (a['member'] ?? a['members']) as Map<String, dynamic>?;
-        final memberB = (b['member'] ?? b['members']) as Map<String, dynamic>?;
+        final memberA = a['members'] as Map<String, dynamic>?;
+        final memberB = b['members'] as Map<String, dynamic>?;
         if (memberA == null && memberB == null) return 0;
         if (memberA == null) return 1;
         if (memberB == null) return -1;
@@ -1518,7 +1518,7 @@ class _MembersTabState extends State<_MembersTab> {
                       DataColumn(label: Text(context.tr('Actions'))),
                     ],
                     rows: _members.map((dm) {
-                      final member = (dm['member'] ?? dm['members']) as Map<String, dynamic>?;
+                      final member = dm['members'] as Map<String, dynamic>?;
                       if (member == null) {
                         return DataRow(
                           cells: [
@@ -1629,7 +1629,7 @@ class _MembersTabState extends State<_MembersTab> {
           itemCount: _members.length,
           itemBuilder: (context, index) {
             final departmentMember = _members[index];
-            final member = (departmentMember['member'] ?? departmentMember['members']) as Map<String, dynamic>?;
+            final member = departmentMember['members'] as Map<String, dynamic>?;
             if (member == null) return SizedBox.shrink();
 
             final role = departmentMember['role']?.toString() ?? 'member';
@@ -3211,3 +3211,4 @@ class _TaskActionTile extends StatelessWidget {
     );
   }
 }
+

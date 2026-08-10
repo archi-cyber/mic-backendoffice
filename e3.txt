@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
@@ -114,7 +114,7 @@ class _AttendancePageState extends State<AttendancePage> {
       if (classId == null) throw Exception('Session has no class_id');
       final enrollments = await ClassService.getClassMembers(classId);
       final memberList = enrollments
-          .map((enrollment) => (enrollment['member'] ?? enrollment['members']) as Map<String, dynamic>?)
+          .map((enrollment) => enrollment['members'] as Map<String, dynamic>?)
           .whereType<Map<String, dynamic>>()
           .toList();
       if (!mounted) return;
@@ -950,3 +950,4 @@ class _StatusButton extends StatelessWidget {
     );
   }
 }
+

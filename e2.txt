@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
@@ -640,7 +640,7 @@ class _SessionsTabState extends State<_SessionsTab> {
       // Get training members for attendance
       final members = await ClassService.getClassMembers(widget.classId);
       final memberList = members
-          .map((enrollment) => (enrollment['member'] ?? enrollment['members']) as Map<String, dynamic>?)
+          .map((enrollment) => enrollment['members'] as Map<String, dynamic>?)
           .where((member) => member != null)
           .cast<Map<String, dynamic>>()
           .toList();
@@ -1006,7 +1006,7 @@ class _MembersTabState extends State<_MembersTab> {
           itemCount: _members.length,
           itemBuilder: (context, index) {
             final enrollment = _members[index];
-            final member = (enrollment['member'] ?? enrollment['members']) as Map<String, dynamic>?;
+            final member = enrollment['members'] as Map<String, dynamic>?;
             if (member == null) return SizedBox.shrink();
 
             return ListTile(
@@ -1053,7 +1053,7 @@ class _MembersTabState extends State<_MembersTab> {
 
       // Get currently enrolled member IDs
       final enrolledMemberIds = _members
-          .map((e) => (e['member'] ?? e['members'])?['id']?.toString())
+          .map((e) => e['members']?['id']?.toString())
           .where((id) => id != null)
           .toSet();
 
@@ -1287,3 +1287,4 @@ class _MembersTabState extends State<_MembersTab> {
     }
   }
 }
+

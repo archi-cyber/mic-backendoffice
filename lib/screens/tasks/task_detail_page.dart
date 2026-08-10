@@ -150,11 +150,13 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
 
       if (!mounted) return;
 
-      // Extract member data from department_members structure
+      // L'API imbrique le membre sous la clé `member`, au singulier —
+      // Supabase utilisait `members`, le nom de la table. C'est ce qui faisait
+      // apparaître « Aucun membre dans ce département » alors qu'il y en avait.
       final members = departmentMembers
-          .map((dm) => dm['members'] as Map<String, dynamic>?)
-          .where((m) => m != null)
-          .cast<Map<String, dynamic>>()
+          .map((dm) => (dm['member'] ?? dm['members']) as Map?)
+          .whereType<Map>()
+          .map((m) => m.cast<String, dynamic>())
           .toList();
       final membersWithPenalties =
           await TaskPenaltyService.annotateMembersWithPenalties(members);
@@ -1744,12 +1746,20 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   }
 
   String _getDepartmentName() {
-    final department = _task!['departments'];
-    if (department is Map<String, dynamic>) {
-      return department['name']?.toString() ?? context.tr('Unknown Department');
+    // L'API renvoie le département sous la clé `department`, au singulier.
+    // Supabase le nommait `departments` — nom de la table plutôt que de la
+    // relation. L'ancienne clé est encore acceptée, le temps que d'éventuels
+    // écrans non migrés cessent de l'utiliser.
+    final department = _task!['department'] ?? _task!['departments'];
+
+    if (department is Map) {
+      final name = department['name']?.toString();
+      if (name != null && name.isNotEmpty) return name;
     }
-    final departmentId = _task!['department_id']?.toString();
-    return departmentId ?? '—';
+
+    // Afficher un identifiant technique n'apprend rien à l'utilisateur : mieux
+    // vaut un tiret, qui signale clairement l'absence d'information.
+    return '—';
   }
 
   Widget _buildDetailsGrid(
