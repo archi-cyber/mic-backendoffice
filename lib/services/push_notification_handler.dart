@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/navigation/app_navigator.dart';
 import '../firebase_options.dart';
+import 'browser_notification.dart';
 
 const String _notificationPayload = 'open_notifications';
 
@@ -43,46 +44,82 @@ class PushNotificationHandler {
       );
     }
 
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    if (!kIsWeb) {
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
 
-    const initSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
 
-    await _localNotifications.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-    );
+      await _localNotifications.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: _onNotificationTapped,
+      );
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(_defaultChannel);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(_defaultChannel);
 
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+      await _localNotifications
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    } else {
+      final granted = await ensureBrowserNotificationPermission();
+      debugPrint(
+        '[PushNotificationHandler] Web notification permission: '
+        '${browserNotificationPermissionStatus} (granted=$granted)',
+      );
+      setupWebNotificationClickHandling(AppNavigator.navigateToNotifications);
+      checkWebNotificationLaunchQuery(
+        AppNavigator.markPendingNotificationsNavigation,
+      );
+    }
 
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
   }
 
+  /// Re-check browser notification permission after login (web only).
+  static Future<void> ensureWebNotificationPermission() async {
+    if (!kIsWeb) return;
+    final granted = await ensureBrowserNotificationPermission();
+    debugPrint(
+      '[PushNotificationHandler] Web notification permission after login: '
+      '${browserNotificationPermissionStatus} (granted=$granted)',
+    );
+  }
+
   static Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final title = message.notification?.title ?? 'Notification';
+    final body = message.notification?.body ?? '';
+
+    debugPrint(
+      '[PushNotificationHandler] Foreground message: id=${message.messageId} '
+      'title=$title',
+    );
+
+    if (kIsWeb) {
+      await ensureBrowserNotificationPermission();
+      showBrowserNotification(title: title, body: body.isEmpty ? null : body);
+      return;
+    }
+
     await _localNotifications.show(
       message.hashCode,
-      message.notification?.title ?? 'Notification',
-      message.notification?.body ?? '',
+      title,
+      body,
       NotificationDetails(
         android: AndroidNotificationDetails(
           _defaultChannel.id,
@@ -115,6 +152,12 @@ class PushNotificationHandler {
 
   /// Call after the app shell is ready (post-login navigation).
   static Future<void> handleLaunchNotification() async {
+    if (kIsWeb) {
+      checkWebNotificationLaunchQuery(
+        AppNavigator.markPendingNotificationsNavigation,
+      );
+    }
+
     final initialMessage = await getInitialMessage();
     if (initialMessage != null) {
       AppNavigator.markPendingNotificationsNavigation();

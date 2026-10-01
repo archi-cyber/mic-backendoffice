@@ -53,7 +53,6 @@ export 'user_service.dart';
 // même patron : remplacer `_client.from(...)` par un appel HTTP.
 
 // export 'settings_service.dart';
-export 'service_schedule_service.dart';
 export 'member_account_service.dart';
 export 'new_comer_service.dart';
 export 'birthday_notification_service.dart';

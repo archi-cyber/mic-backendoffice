@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_dimensions.dart';
-import '../core/localization/app_localizations.dart';
 import '../core/theme/mic_theme.dart';
 
 /// Attendance chart widget using fl_chart
@@ -18,15 +17,13 @@ class AttendanceChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chartTitle =
-        title == 'Attendance Trend' ? context.tr('Attendance Trend') : title;
     if (attendanceData.isEmpty) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Center(
             child: Text(
-              context.tr('No attendance data available'),
+              'No attendance data available',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: context.mic.textSecondary),
@@ -50,7 +47,7 @@ class AttendanceChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(chartTitle, style: Theme.of(context).textTheme.titleLarge),
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppDimensions.spacingMD),
             SizedBox(
               height: 200,
@@ -132,7 +129,7 @@ class AttendancePieChart extends StatelessWidget {
           padding: const EdgeInsets.all(AppDimensions.paddingMD),
           child: Center(
             child: Text(
-              context.tr('No attendance data'),
+              'No attendance data',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
           ),
@@ -146,7 +143,7 @@ class AttendancePieChart extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              context.tr('Attendance Distribution'),
+              'Attendance Distribution',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppDimensions.spacingMD),
@@ -157,19 +154,19 @@ class AttendancePieChart extends StatelessWidget {
                   sections: [
                     PieChartSectionData(
                       value: present.toDouble(),
-                      title: '${context.tr('Present')}\n$present',
+                      title: 'Present\n$present',
                       color: AppColors.success,
                       radius: 80,
                     ),
                     PieChartSectionData(
                       value: absent.toDouble(),
-                      title: '${context.tr('Absent')}\n$absent',
+                      title: 'Absent\n$absent',
                       color: AppColors.error,
                       radius: 80,
                     ),
                     PieChartSectionData(
                       value: late.toDouble(),
-                      title: '${context.tr('Late')}\n$late',
+                      title: 'Late\n$late',
                       color: AppColors.warning,
                       radius: 80,
                     ),

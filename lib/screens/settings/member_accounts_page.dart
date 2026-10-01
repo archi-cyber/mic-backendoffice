@@ -215,14 +215,36 @@ class _MemberAccountsPageState extends State<MemberAccountsPage> {
       await MemberAccountService.createAccountForMember(
         memberId: memberId,
         email: email,
+        sendCredentialsEmail: true,
+        memberFirstName: member['first_name']?.toString(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(dialogContext.tr('Account created')),
             content: Text(
-              context.tr('Account created. Member can now log in.'),
+              dialogContext.tr(
+                'A login account was created for {name}.\n\n'
+                'Email: {email}\n'
+                'Default password: {password}\n\n'
+                'They must change their password on first login. '
+                'An email with these credentials has been sent.',
+                {
+                  'name':
+                      '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
+                          .trim(),
+                  'email': email,
+                  'password': MemberAccountService.defaultPassword,
+                },
+              ),
             ),
-            backgroundColor: AppColors.success,
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text(dialogContext.tr('OK')),
+              ),
+            ],
           ),
         );
         await _loadMembers();

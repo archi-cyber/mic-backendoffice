@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -14,7 +15,11 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/permission.decorator';
-import { FEATURES, type AuthenticatedUser } from '../auth/types/auth.types';
+import {
+  FEATURES,
+  isPrivilegedRole,
+  type AuthenticatedUser,
+} from '../auth/types/auth.types';
 import { DepartmentsService } from './departments.service';
 import {
   AddDepartmentMemberDto,
@@ -89,18 +94,20 @@ export class DepartmentsController {
   // Appartenances
   // ---------------------------------------------------------------------------
 
+  // Les appartenances sont gerees par les administrateurs et le responsable
+  // du departement — pas par l adjoint (mic_backoffice v1.0.11).
   @Post(':id/members')
-  @RequirePermission(FEATURES.departments, 'edit')
   @ApiOperation({ summary: 'Ajoute un membre au departement' })
   addMember(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AddDepartmentMemberDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
+    this.assertCanManageMembers(user, id);
     return this.departments.addMember(id, dto);
   }
 
   @Patch(':id/members/:memberId')
-  @RequirePermission(FEATURES.departments, 'edit')
   @ApiOperation({
     summary: 'Change le role ou le caractere principal',
     description:
@@ -111,18 +118,40 @@ export class DepartmentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Param('memberId', ParseUUIDPipe) memberId: string,
     @Body() dto: UpdateDepartmentMemberDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
+    this.assertCanManageMembers(user, id);
     return this.departments.updateMember(id, memberId, dto);
   }
 
   @Delete(':id/members/:memberId')
-  @RequirePermission(FEATURES.departments, 'edit')
   @ApiOperation({ summary: 'Retire un membre du departement' })
   removeMember(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('memberId', ParseUUIDPipe) memberId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
+    this.assertCanManageMembers(user, id);
     return this.departments.removeMember(id, memberId);
+  }
+
+  private assertCanManageMembers(
+    user: AuthenticatedUser,
+    departmentId: string,
+  ): void {
+    if (isPrivilegedRole(user.role)) return;
+
+    const isLeader = user.departmentRoles.some(
+      (d) => d.departmentId === departmentId && d.role === 'leader',
+    );
+    if (!isLeader) {
+      throw new ForbiddenException({
+        message:
+          'Seuls les administrateurs et le responsable du département ' +
+          'peuvent gérer ses membres.',
+        code: 'DEPARTMENT_MEMBERS_FORBIDDEN',
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------

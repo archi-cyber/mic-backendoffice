@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
@@ -9,6 +11,8 @@ import '../../core/routes/route_names.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_logo.dart';
+import '../../services/in_app_notification_service.dart';
+import '../../services/connectivity_sync_service.dart';
 import '../../screens/events/event_detail_page.dart';
 import '../../screens/events/add_event_page.dart';
 import '../../screens/events/edit_event_page.dart';
@@ -44,8 +48,6 @@ import '../../screens/tasks/add_project_page.dart';
 import '../../screens/tasks/manage_projects_page.dart';
 import '../../screens/tasks/manage_tags_page.dart';
 import '../../screens/tasks/tasks_list_page.dart';
-import '../../screens/service_schedule/service_schedule_page.dart';
-import '../../screens/common/file_viewer_page.dart';
 import 'desktop_shell_scope.dart';
 import 'home/desktop_home_page.dart';
 import 'members/desktop_members_page.dart';
@@ -73,14 +75,8 @@ class _DesktopViewEntry {
   final bool isList;
   final String route;
   final String? id;
-  final Map<String, dynamic>? arguments;
 
-  _DesktopViewEntry({
-    required this.isList,
-    required this.route,
-    this.id,
-    this.arguments,
-  });
+  _DesktopViewEntry({required this.isList, required this.route, this.id});
 }
 
 /// Desktop shell: sidebar + content area. Shown when screen width >= [kDesktopBreakpoint].
@@ -97,7 +93,7 @@ class DesktopShell extends StatefulWidget {
 
 class _DesktopShellState extends State<DesktopShell> {
   List<_DesktopViewEntry> _stack = [];
-  int _refreshSeed = 0;
+  bool _isOffline = false;
 
   @override
   void initState() {
@@ -106,13 +102,35 @@ class _DesktopShellState extends State<DesktopShell> {
       _DesktopViewEntry(isList: true, route: widget.initialRoute, id: null),
     ];
     AppNavigator.desktopNavigateToList = _navigate;
+    InAppNotificationService.instance.addListener(_onNotificationsChanged);
+    ConnectivitySyncService.instance.onlineNotifier.addListener(
+      _onConnectivityChanged,
+    );
+    _isOffline = !ConnectivitySyncService.instance.isOnline;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       AppNavigator.consumePendingNotificationsNavigation();
+      unawaited(ConnectivitySyncService.instance.initialize());
+      unawaited(InAppNotificationService.instance.initialize());
+    });
+  }
+
+  void _onNotificationsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onConnectivityChanged() {
+    if (!mounted) return;
+    setState(() {
+      _isOffline = !ConnectivitySyncService.instance.onlineNotifier.value;
     });
   }
 
   @override
   void dispose() {
+    InAppNotificationService.instance.removeListener(_onNotificationsChanged);
+    ConnectivitySyncService.instance.onlineNotifier.removeListener(
+      _onConnectivityChanged,
+    );
     if (AppNavigator.desktopNavigateToList == _navigate) {
       AppNavigator.desktopNavigateToList = null;
     }
@@ -125,20 +143,9 @@ class _DesktopShellState extends State<DesktopShell> {
     });
   }
 
-  void _pushDetail(
-    String route,
-    String id, {
-    Map<String, dynamic>? arguments,
-  }) {
+  void _pushDetail(String route, String id) {
     setState(() {
-      _stack.add(
-        _DesktopViewEntry(
-          isList: false,
-          route: route,
-          id: id,
-          arguments: arguments,
-        ),
-      );
+      _stack.add(_DesktopViewEntry(isList: false, route: route, id: id));
     });
   }
 
@@ -146,7 +153,6 @@ class _DesktopShellState extends State<DesktopShell> {
     if (_stack.length <= 1) return;
     setState(() {
       _stack.removeLast();
-      _refreshSeed++;
     });
   }
 
@@ -266,10 +272,6 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.tasks && (entry.id ?? '').isNotEmpty) {
       return context.tr('Manage Tasks');
     }
-    if (entry.route == RouteNames.serviceSchedule &&
-        (entry.id ?? '').isNotEmpty) {
-      return context.tr('Service schedule');
-    }
     if (entry.route == RouteNames.addClass) {
       return context.tr('Add Training');
     }
@@ -317,11 +319,6 @@ class _DesktopShellState extends State<DesktopShell> {
     }
     if (entry.route == RouteNames.manageTags) {
       return context.tr('Manage Tags');
-    }
-    if (entry.route == RouteNames.fileViewer) {
-      final fileName = entry.arguments?['fileName']?.toString();
-      if (fileName != null && fileName.isNotEmpty) return fileName;
-      return context.tr('Open file');
     }
     return context.tr('Details');
   }
@@ -493,22 +490,6 @@ class _DesktopShellState extends State<DesktopShell> {
     if (entry.route == RouteNames.tasks && id.isNotEmpty) {
       return TasksListPage(departmentId: id, hideAppBarAndBottomNav: true);
     }
-    if (entry.route == RouteNames.serviceSchedule && id.isNotEmpty) {
-      return ServiceSchedulePage(
-        departmentId: id,
-        hideAppBarAndBottomNav: true,
-        onClose: onClose,
-      );
-    }
-    if (entry.route == RouteNames.fileViewer) {
-      final args = entry.arguments ?? const {};
-      return FileViewerPage(
-        fileUrl: args['fileUrl'] as String? ?? '',
-        fileName: args['fileName'] as String? ?? context.tr('File'),
-        hideAppBarAndBottomNav: true,
-        onClose: onClose,
-      );
-    }
     return SizedBox.shrink();
   }
 
@@ -632,6 +613,8 @@ class _DesktopShellState extends State<DesktopShell> {
                           activeIcon: Icons.notifications,
                           label: context.tr('Notifications'),
                           isActive: _isActive(RouteNames.desktopNotifications),
+                          badgeCount:
+                              InAppNotificationService.instance.unreadCount,
                           onTap: () =>
                               _navigate(RouteNames.desktopNotifications),
                         ),
@@ -796,6 +779,21 @@ class _DesktopShellState extends State<DesktopShell> {
                       ],
                     ),
                   ),
+                  if (_isOffline)
+                    MaterialBanner(
+                      content: Text(
+                        context.tr(
+                          'You are offline. Changes will sync when you reconnect.',
+                        ),
+                      ),
+                      leading: const Icon(
+                        Icons.cloud_off,
+                        color: AppColors.warning,
+                      ),
+                      backgroundColor:
+                          AppColors.warning.withValues(alpha: 0.12),
+                      actions: const [SizedBox.shrink()],
+                    ),
                   Divider(height: 1),
                   Expanded(
                     child: _stack.isEmpty
@@ -818,7 +816,7 @@ class _DesktopShellState extends State<DesktopShell> {
                             },
                             child: KeyedSubtree(
                               key: ValueKey<String>(
-                                '${_stack.last.route}_${_stack.last.id}_${_stack.last.arguments?.hashCode ?? 0}_$_refreshSeed',
+                                '${_stack.last.route}_${_stack.last.id}',
                               ),
                               child: _buildContent(_stack.last),
                             ),
@@ -840,6 +838,7 @@ class _NavTile extends StatelessWidget {
   final String label;
   final bool isActive;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _NavTile({
     required this.icon,
@@ -847,6 +846,7 @@ class _NavTile extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -871,6 +871,22 @@ class _NavTile extends StatelessWidget {
                 : theme.colorScheme.onSurface,
           ),
         ),
+        trailing: badgeCount > 0
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.error,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeCount > 99 ? '99+' : '$badgeCount',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onError,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            : null,
         selected: isActive,
         onTap: onTap,
       ),

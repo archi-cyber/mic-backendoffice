@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/theme/mic_theme.dart';
@@ -7,11 +6,16 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
 import '../../config/app_config.dart';
+import '../../core/localization/app_localizations.dart';
 import '../../core/platform/platform_capabilities.dart';
+import '../../models/app_update_info.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/task_penalty_service.dart';
 import '../../services/push_notification_handler.dart';
 import '../../widgets/app_logo.dart';
+import '../../widgets/update_dialog.dart';
+import '../../services/update_service.dart';
 import '../desktop/desktop_shell.dart';
 
 /// Splash screen shown when the app first launches
@@ -68,6 +72,9 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    await context.read<SettingsProvider>().ensureReady();
+    if (!mounted) return;
+
     // Check authentication status and navigate accordingly
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
@@ -76,13 +83,18 @@ class _SplashScreenState extends State<SplashScreen>
 
     if (!mounted) return;
 
+    AppUpdateInfo? pendingUpdate;
+    if (PlatformCapabilities.supportsAppUpdates) {
+      pendingUpdate = await UpdateService.checkForUpdate(force: true);
+      if (!mounted) return;
+    }
+
     final width = MediaQuery.of(context).size.width;
     final useDesktop = width >= kDesktopBreakpoint;
 
     // Navigate based on auth status and screen size (desktop when width >= 500px)
     if (authProvider.isAuthenticated && authProvider.currentUser != null) {
-      // Run in background — don't block navigation to the home screen.
-      unawaited(TaskPenaltyService.calculatePenaltiesOnStartup());
+      await TaskPenaltyService.calculatePenaltiesOnStartup();
       if (!mounted) return;
 
       if (authProvider.mustChangePassword) {
@@ -115,6 +127,15 @@ class _SplashScreenState extends State<SplashScreen>
       } else {
         Navigator.of(context).pushReplacementNamed(RouteNames.login);
       }
+    }
+
+    if (pendingUpdate != null && mounted) {
+      final update = pendingUpdate;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final navContext = AppNavigator.rootNavigatorKey.currentContext;
+        if (navContext == null || !navContext.mounted) return;
+        UpdateDialog.show(navContext, update);
+      });
     }
   }
 
@@ -174,7 +195,7 @@ class _SplashScreenState extends State<SplashScreen>
                     SizedBox(height: AppDimensions.spacingSM),
                     // App Tagline (optional)
                     Text(
-                      'Church Administration',
+                      context.tr('Church Administration'),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                         color: AppColors.textLight.withValues(alpha: 0.9),
                         letterSpacing: 1,

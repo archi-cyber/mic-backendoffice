@@ -8,7 +8,9 @@ import '../../core/localization/app_localizations.dart';
 
 /// Add announcement page
 class AddAnnouncementPage extends StatefulWidget {
-  AddAnnouncementPage({super.key});
+  final void Function(bool? result)? onClose;
+
+  AddAnnouncementPage({super.key, this.onClose});
 
   @override
   State<AddAnnouncementPage> createState() => _AddAnnouncementPageState();
@@ -37,6 +39,14 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
     _titleController.dispose();
     _messageController.dispose();
     super.dispose();
+  }
+
+  void _dismiss([bool? result]) {
+    if (widget.onClose != null) {
+      widget.onClose!(result);
+    } else {
+      Navigator.of(context).pop(result);
+    }
   }
 
   Future<void> _loadData() async {
@@ -70,7 +80,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.tr('Please select at least one member for targeted announcement'),
+            'Please select at least one member for targeted announcement',
           ),
           backgroundColor: AppColors.error,
         ),
@@ -98,7 +108,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.of(context).pop(true);
+        _dismiss(true);
       }
     } catch (e) {
       if (mounted) {
@@ -134,7 +144,16 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr('Create Announcement'))),
+      appBar: AppBar(
+        leading: widget.onClose != null
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: context.tr('Cancel'),
+                onPressed: () => _dismiss(),
+              )
+            : null,
+        title: Text(context.tr('Create Announcement')),
+      ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Form(
@@ -152,7 +171,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Please enter announcement title');
+                    return 'Please enter announcement title';
                   }
                   return null;
                 },
@@ -171,7 +190,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 maxLines: 6,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Please enter announcement message');
+                    return 'Please enter announcement message';
                   }
                   return null;
                 },
@@ -184,9 +203,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                 child: SwitchListTile(
                   title: Text(context.tr('Global Announcement')),
                   subtitle: Text(
-                    context.tr(
-                      'Send to all members. If disabled, select specific members.',
-                    ),
+                    'Send to all members. If disabled, select specific members.',
                   ),
                   value: _isGlobal,
                   onChanged: (value) {
@@ -222,7 +239,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                     ..._departments.map((dept) {
                       return DropdownMenuItem<String>(
                         value: dept['id'].toString(),
-                        child: Text(dept['name']?.toString() ?? context.tr('Unnamed')),
+                        child: Text(dept['name']?.toString() ?? 'Unnamed'),
                       );
                     }),
                   ],
@@ -239,10 +256,8 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                   icon: Icon(Icons.people),
                   label: Text(
                     _selectedMemberIds.isEmpty
-                        ? context.tr('Select Members')
-                        : context.tr('{count} member(s) selected', {
-                            'count': _selectedMemberIds.length,
-                          }),
+                        ? 'Select Members'
+                        : '${_selectedMemberIds.length} member(s) selected',
                   ),
                   style: ElevatedButton.styleFrom(
                     minimumSize: Size(
@@ -265,7 +280,7 @@ class _AddAnnouncementPageState extends State<AddAnnouncementPage> {
                         label: Text(
                           member.isNotEmpty
                               ? '${member['first_name']} ${member['last_name']}'
-                              : context.tr('Unknown'),
+                              : 'Unknown',
                         ),
                         onDeleted: () {
                           setState(() => _selectedMemberIds.remove(memberId));

@@ -4,7 +4,6 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/utils/error_message_helper.dart';
 import '../../services/finance_service.dart';
 import '../../services/finance_pdf_service.dart';
 import '../desktop/desktop_shell_scope.dart';
@@ -32,7 +31,7 @@ class _FinancePageState extends State<FinancePage> {
   }
 
   String _getTagLabel(String? tag, AppLocalizations localizations) {
-    if (tag == null) return context.tr('N/A');
+    if (tag == null) return 'N/A';
     switch (tag) {
       case 'construction':
         return localizations.construction;
@@ -65,10 +64,13 @@ class _FinancePageState extends State<FinancePage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        ErrorMessageHelper.showErrorSnackBar(
-          context,
-          e,
-          title: context.tr('Error loading giving records'),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)?.errorLoadingGivingRecords ??
+                  'Error loading giving records: $e',
+            ),
+          ),
         );
       }
     }
@@ -86,7 +88,7 @@ class _FinancePageState extends State<FinancePage> {
         start: DateTime.now().subtract(Duration(days: 30)),
         end: DateTime.now(),
       ),
-      helpText: context.tr('Select Date Range for Report'),
+      helpText: 'Select Date Range for Report',
     );
 
     // If user cancelled, return
@@ -130,10 +132,11 @@ class _FinancePageState extends State<FinancePage> {
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop(); // Close loading dialog
-        ErrorMessageHelper.showErrorSnackBar(
-          context,
-          e,
-          title: context.tr('Error saving report'),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.tr('Error saving report: $e')),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }
@@ -173,7 +176,7 @@ class _FinancePageState extends State<FinancePage> {
       appBar: widget.hideAppBarAndBottomNav
           ? null
           : AppBar(
-              title: Text(context.tr('Finance')),
+              title: Text(localizations?.finance ?? 'Finance'),
               actions: [
                 IconButton(
                   icon: Icon(Icons.picture_as_pdf),
@@ -184,7 +187,7 @@ class _FinancePageState extends State<FinancePage> {
                   icon: Icon(Icons.add),
                   onPressed: () => _openAddGiving(context),
                   tooltip:
-                      context.tr('Add Giving Record'),
+                      localizations?.addGivingRecord ?? 'Add Giving Record',
                 ),
               ],
             ),
@@ -205,7 +208,7 @@ class _FinancePageState extends State<FinancePage> {
                           SizedBox(height: AppDimensions.spacingMD),
                           Text(
                             localizations?.noGivingRecords ??
-                                context.tr('No giving records yet'),
+                                'No giving records yet',
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: context.mic.textSecondary,
                             ),
@@ -216,7 +219,7 @@ class _FinancePageState extends State<FinancePage> {
                             icon: Icon(Icons.add),
                             label: Text(
                               localizations?.addFirstRecord ??
-                                  context.tr('Add First Record'),
+                                  'Add First Record',
                             ),
                           ),
                         ],
@@ -230,7 +233,7 @@ class _FinancePageState extends State<FinancePage> {
           ? null
           : FloatingActionButton(
               onPressed: () => _openAddGiving(context),
-              tooltip: context.tr('Add Giving Record'),
+              tooltip: localizations?.addGivingRecord ?? 'Add Giving Record',
               child: Icon(Icons.add),
             ),
     );
@@ -265,7 +268,7 @@ class _FinancePageState extends State<FinancePage> {
                       onPressed: () => _openAddGiving(context),
                       icon: Icon(Icons.add),
                       label: Text(
-                        context.tr('Add Giving Record'),
+                        localizations?.addGivingRecord ?? 'Add Giving Record',
                       ),
                       style: ElevatedButton.styleFrom(
                         minimumSize: Size(0, AppDimensions.buttonHeightMD),
@@ -274,22 +277,14 @@ class _FinancePageState extends State<FinancePage> {
                   ],
                 ),
                 SizedBox(height: AppDimensions.spacingMD),
-                LayoutBuilder(
-                  builder: (context, tableConstraints) {
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: tableConstraints.maxWidth,
-                        ),
-                        child: DataTable(
+                DataTable(
                   columns: [
                     DataColumn(label: Text(context.tr('Giver'))),
                     DataColumn(
-                      label: Text(context.tr('Type')),
+                      label: Text(localizations?.transactionType ?? 'Type'),
                     ),
-                    DataColumn(label: Text(context.tr('Tag'))),
-                    DataColumn(label: Text(context.tr('Date'))),
+                    DataColumn(label: Text(localizations?.tag ?? 'Tag')),
+                    DataColumn(label: Text(localizations?.date ?? 'Date')),
                     DataColumn(label: Text(context.tr('Amount'))),
                     DataColumn(label: Text('')),
                   ],
@@ -303,13 +298,13 @@ class _FinancePageState extends State<FinancePage> {
                           Text(
                             record['giver_name'] ??
                                 record['member_name'] ??
-                                context.tr('Unknown'),
+                                'Unknown',
                             style: theme.textTheme.titleMedium,
                           ),
                           onTap: () =>
                               _openEditGiving(context, record['id'].toString()),
                         ),
-                        DataCell(Text(record['type'] ?? context.tr('N/A'))),
+                        DataCell(Text(record['type'] ?? 'N/A')),
                         DataCell(
                           Text(
                             _getTagLabel(
@@ -338,7 +333,7 @@ class _FinancePageState extends State<FinancePage> {
                                     context,
                                     record['id'].toString(),
                                   ),
-                                  tooltip: context.tr('Edit Record'),
+                                  tooltip: localizations?.edit ?? 'Edit Record',
                                   iconSize: 20,
                                 )
                               : SizedBox.shrink(),
@@ -346,10 +341,6 @@ class _FinancePageState extends State<FinancePage> {
                       ],
                     );
                   }).toList(),
-                        ),
-                      ),
-                    );
-                  },
                 ),
               ],
             ),
@@ -392,24 +383,24 @@ class _FinancePageState extends State<FinancePage> {
               ),
             ),
             title: Text(
-              record['giver_name'] ?? record['member_name'] ?? context.tr('Unknown'),
+              record['giver_name'] ?? record['member_name'] ?? 'Unknown',
               style: theme.textTheme.titleMedium,
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${context.tr('Type')}: ${record['type'] ?? context.tr('N/A')}',
+                  '${localizations?.transactionType ?? 'Type'}: ${record['type'] ?? 'N/A'}',
                   style: theme.textTheme.bodySmall,
                 ),
                 if (record['tag'] != null)
                   Text(
-                    '${context.tr('Tag')}: ${_getTagLabel(record['tag']?.toString(), localizations!)}',
+                    '${localizations?.tag ?? 'Tag'}: ${_getTagLabel(record['tag']?.toString(), localizations!)}',
                     style: theme.textTheme.bodySmall,
                   ),
                 if (record['date'] != null)
                   Text(
-                    '${context.tr('Date')}: ${record['date']}',
+                    '${localizations?.date ?? 'Date'}: ${record['date']}',
                     style: theme.textTheme.bodySmall,
                   ),
               ],
@@ -432,7 +423,7 @@ class _FinancePageState extends State<FinancePage> {
                     icon: Icon(Icons.edit),
                     onPressed: () =>
                         _openEditGiving(context, record['id'].toString()),
-                    tooltip: context.tr('Edit Record'),
+                    tooltip: localizations?.edit ?? 'Edit Record',
                     iconSize: 20,
                   ),
                 ],

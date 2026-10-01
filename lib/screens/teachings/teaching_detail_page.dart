@@ -69,11 +69,13 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error loading teaching: {error}', {
-              'error': '$e',
-            })),
+            content: Text(
+              localizations?.errorLoadingTeaching ??
+                  'Error loading teaching: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -99,11 +101,13 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     } catch (e) {
       setState(() => _isLoadingListeners = false);
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error loading listeners: {error}', {
-              'error': '$e',
-            })),
+            content: Text(
+              localizations?.errorLoadingTeaching ??
+                  'Error loading listeners: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -128,12 +132,12 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         widget.teachingId,
       );
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              context.tr('Synced {count} listener(s) from church attendance', {
-                'count': count,
-              }),
+              localizations?.listenersSyncedWithCount(count) ??
+                  'Synced $count listener(s) from church attendance',
             ),
             backgroundColor: AppColors.success,
           ),
@@ -142,9 +146,12 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
       }
     } catch (e) {
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error syncing: {error}', {'error': '$e'})),
+            content: Text(
+              localizations?.errorSyncingListeners ?? 'Error syncing: $e',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -159,9 +166,12 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         memberId: memberId,
       );
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Listener added successfully')),
+            content: Text(
+              localizations?.listenerAdded ?? 'Listener added successfully',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -169,10 +179,11 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
       }
     } catch (e) {
       if (mounted) {
+        final localizations = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              context.tr('Error adding listener: {error}', {'error': '$e'}),
+              localizations?.errorAddingListener ?? 'Error adding listener: $e',
             ),
             backgroundColor: AppColors.error,
           ),
@@ -182,22 +193,24 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
   }
 
   Future<void> _removeListener(String listenerId, String memberName) async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('Remove Listener')),
+        title: Text(localizations?.removeListener ?? 'Remove Listener'),
         content: Text(
-          context.tr('Remove "{name}" from listeners?', {'name': memberName}),
+          localizations?.removeListenerConfirmWithName(memberName) ??
+              'Remove "$memberName" from listeners?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.tr('Cancel')),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: Text(context.tr('Remove')),
+            child: Text(localizations?.remove ?? 'Remove'),
           ),
         ],
       ),
@@ -209,7 +222,10 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Listener removed successfully')),
+              content: Text(
+                localizations?.listenerRemoved ??
+                    'Listener removed successfully',
+              ),
               backgroundColor: AppColors.success,
             ),
           );
@@ -220,7 +236,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                context.tr('Error removing listener: {error}', {'error': '$e'}),
+                localizations?.errorRemovingListener ??
+                    'Error removing listener: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -231,24 +248,26 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
   }
 
   Future<void> _deleteTeaching() async {
+    final localizations = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('Delete')),
+        title: Text(localizations?.delete ?? 'Delete'),
         content: Text(
-          context.tr('Are you sure you want to delete "{title}"?', {
-            'title': _teaching!['title'],
-          }),
+          localizations?.deleteTeachingConfirmWithTitle(
+                _teaching!['title']?.toString() ?? '',
+              ) ??
+              'Are you sure you want to delete "${_teaching!['title']}"?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(context.tr('Cancel')),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: Text(context.tr('Delete')),
+            child: Text(localizations?.delete ?? 'Delete'),
           ),
         ],
       ),
@@ -269,7 +288,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                context.tr('Error deleting teaching: {error}', {'error': '$e'}),
+                localizations?.errorDeletingTeaching ??
+                    'Error deleting teaching: $e',
               ),
               backgroundColor: AppColors.error,
             ),
@@ -316,7 +336,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         leading: CircleAvatar(
           child: Text(fullName.isNotEmpty ? fullName[0].toUpperCase() : '?'),
         ),
-        title: Text(fullName.isEmpty ? context.tr('Unknown') : fullName),
+        title: Text(fullName.isEmpty ? 'Unknown' : fullName),
         subtitle: role.isNotEmpty ? Text(role.toUpperCase()) : null,
         trailing: _canEdit
             ? IconButton(
@@ -348,13 +368,15 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                         onPressed: widget.onClose,
                       )
                     : null,
-                title: Text(context.tr('Teaching Details')),
+                title: Text(
+                  localizations?.teachingDetails ?? 'Teaching Details',
+                ),
               ),
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
-    final title = _teaching!['title']?.toString() ?? context.tr('Untitled Teaching');
+    final title = _teaching!['title']?.toString() ?? 'Untitled Teaching';
     final teachingDate = _teaching!['teaching_date'] != null
         ? DateTime.parse(_teaching!['teaching_date'])
         : null;
@@ -405,8 +427,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
       ],
       bottom: TabBar(
         tabs: [
-          Tab(text: context.tr('Details')),
-          Tab(text: context.tr('Listeners')),
+          Tab(text: localizations?.overview ?? 'Details'),
+          Tab(text: localizations?.listeners ?? 'Listeners'),
         ],
       ),
     );
@@ -444,7 +466,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
               IconButton(
                 onPressed: _deleteTeaching,
                 icon: Icon(Icons.delete_outline, color: AppColors.error),
-                tooltip: context.tr('Delete'),
+                tooltip: localizations?.delete ?? 'Delete',
               ),
             if (widget.onClose != null)
               IconButton(
@@ -464,7 +486,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
               width: 320,
               child: SingleChildScrollView(
                 child: DesktopSectionCard(
-                  title: context.tr('Overview'),
+                  title: localizations?.overview ?? 'Overview',
                   icon: Icons.info_outline,
                   children: [
                     _TeachingBadge(label: context.tr('Teaching')),
@@ -484,7 +506,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingSM),
                     DesktopStatChip(
-                      label: context.tr('Listeners'),
+                      label: localizations?.listeners ?? 'Listeners',
                       value: _listeners.length.toString(),
                       icon: Icons.people_outline,
                     ),
@@ -503,7 +525,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
             SizedBox(width: AppDimensions.spacingLG),
             Expanded(
               child: DesktopSectionCard(
-                title: context.tr('Teaching Details'),
+                title: localizations?.teachingDetails ?? 'Teaching Details',
                 icon: Icons.article_outlined,
                 children: [
                   SizedBox(
@@ -517,11 +539,11 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                           tabs: [
                             Tab(
                               icon: const Icon(Icons.article_outlined),
-                              text: context.tr('Details'),
+                              text: localizations?.overview ?? 'Details',
                             ),
                             Tab(
                               icon: const Icon(Icons.people_outline),
-                              text: context.tr('Listeners'),
+                              text: localizations?.listeners ?? 'Listeners',
                             ),
                           ],
                         ),
@@ -565,7 +587,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           if (teachingDate != null) ...[
             _buildDetailRow(
               icon: Icons.calendar_today,
-              label: context.tr('Date'),
+              label: localizations?.date ?? 'Date',
               value: DateFormat('MMMM d, yyyy').format(teachingDate),
             ),
             SizedBox(height: AppDimensions.spacingMD),
@@ -573,14 +595,14 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
           if (speaker.isNotEmpty) ...[
             _buildDetailRow(
               icon: Icons.person,
-              label: context.tr('Speaker'),
+              label: localizations?.speaker ?? 'Speaker',
               value: speaker,
             ),
             SizedBox(height: AppDimensions.spacingMD),
           ],
           if (description.isNotEmpty) ...[
             Text(
-              context.tr('Description'),
+              localizations?.description ?? 'Description',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -607,7 +629,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                     onPressed: _syncFromAttendance,
                     icon: Icon(Icons.sync),
                     label: Text(
-                      context.tr('Sync from Church Attendance'),
+                      localizations?.syncFromAttendance ??
+                          'Sync from Church Attendance',
                     ),
                   ),
                 ),
@@ -615,7 +638,9 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
               TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: context.tr('Search potential listeners...'),
+                  hintText:
+                      localizations?.searchPotentialListeners ??
+                      'Search potential listeners...',
                   prefixIcon: Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
@@ -645,7 +670,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${context.tr('Listeners')} (${_listeners.length})',
+                            '${localizations?.listeners ?? 'Listeners'} (${_listeners.length})',
                             style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
@@ -653,7 +678,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                             TextButton.icon(
                               onPressed: () => _showAddListenerDialog(),
                               icon: Icon(Icons.add),
-                              label: Text(context.tr('Add')),
+                              label: Text(localizations?.addListener ?? 'Add'),
                             ),
                         ],
                       ),
@@ -671,7 +696,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                                   ),
                                   SizedBox(height: AppDimensions.spacingMD),
                                   Text(
-                                    context.tr('No listeners yet'),
+                                    localizations?.noListeners ??
+                                        'No listeners yet',
                                     style: Theme.of(
                                       context,
                                     ).textTheme.titleMedium,
@@ -679,9 +705,8 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
                                   if (_canEdit) ...[
                                     SizedBox(height: AppDimensions.spacingSM),
                                     Text(
-                                      context.tr(
-                                        'Use "Sync from Church Attendance" or "Add" to add listeners',
-                                      ),
+                                      localizations?.useSyncOrAdd ??
+                                          'Use "Sync from Church Attendance" or "Add" to add listeners',
                                       style: TextStyle(
                                         color: context.mic.textSecondary,
                                       ),
@@ -775,11 +800,13 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         .where((member) => !listenerIds.contains(member['id'].toString()))
         .toList();
 
+    final localizations = AppLocalizations.of(context);
     if (availableListeners.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.tr('All potential listeners are already added'),
+            localizations?.allListenersAdded ??
+                'All potential listeners are already added',
           ),
           backgroundColor: AppColors.warning,
         ),
@@ -790,7 +817,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(context.tr('Add Listener')),
+        title: Text(localizations?.addListenerTitle ?? 'Add Listener'),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -805,7 +832,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
               final memberId = member['id'].toString();
 
               return ListTile(
-                title: Text(fullName.isEmpty ? context.tr('Unknown') : fullName),
+                title: Text(fullName.isEmpty ? 'Unknown' : fullName),
                 subtitle: role.isNotEmpty ? Text(role.toUpperCase()) : null,
                 onTap: () {
                   Navigator.pop(context);
@@ -818,7 +845,7 @@ class _TeachingDetailPageState extends State<TeachingDetailPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(context.tr('Cancel')),
+            child: Text(localizations?.cancel ?? 'Cancel'),
           ),
         ],
       ),

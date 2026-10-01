@@ -202,25 +202,6 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
     return _filteredDepartments.sublist(start, end);
   }
 
-  String _compactText(String value, {int maxLength = 24}) {
-    final trimmed = value.trim();
-    if (trimmed.length <= maxLength) return trimmed;
-    return '${trimmed.substring(0, maxLength - 1)}…';
-  }
-
-  String _compactLeaderLabel(String? raw) {
-    final value = raw?.trim() ?? '—';
-    if (value.isEmpty || value == '—') return '—';
-    return _compactText(value.split(',').first.trim(), maxLength: 20);
-  }
-
-  Widget _wrapTabPanel({required Color tint, required Widget child}) {
-    return ColoredBox(
-      color: tint,
-      child: child,
-    );
-  }
-
   Widget _buildDesktopDepartmentsTab(AppLocalizations? localizations) {
     final pageItems = _paginatedDepartments;
 
@@ -270,89 +251,74 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                   : null,
             ),
       child: DesktopDataTableCard(
-          fitToWidth: true,
           emptyMessage: _searchController.text.isNotEmpty
               ? (localizations?.noDepartmentsFound ?? 'No departments found')
               : (localizations?.noDepartments ?? 'No departments yet'),
           emptyIcon: Icons.apartment_outlined,
           columns: [
             DataColumn(label: Text(context.tr('Name'))),
+            DataColumn(label: Text(context.tr('Description'))),
             DataColumn(label: Text(context.tr('Leader'))),
             DataColumn(label: Text(context.tr('Tasks'))),
-            DataColumn(label: Text(context.tr('Status'))),
             DataColumn(label: Text(context.tr('Actions'))),
           ],
           rows: pageItems.map((department) {
             final name = department['name']?.toString() ?? 'Unnamed';
-            final isActive = department['is_active'] == true;
+            final description = department['description']?.toString();
             final departmentId = department['id'].toString();
             final leaderName = department['leader_name']?.toString() ?? '—';
             final taskCount = department['task_count'] as int? ?? 0;
-            final theme = Theme.of(context);
 
             return DataRow(
               cells: [
                 DataCell(
-                  InkWell(
-                    onTap: () => _openDepartment(departmentId),
-                    child: Text(
-                      _compactText(name, maxLength: 28),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    _compactLeaderLabel(leaderName),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-                DataCell(
-                  Text(
-                    '$taskCount',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                DataCell(
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: (isActive ? AppColors.success : AppColors.error)
-                          .withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      isActive
-                          ? context.tr('Active')
-                          : context.tr('Inactive'),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: isActive ? AppColors.success : AppColors.error,
+                  SizedBox(
+                    width: 160,
+                    child: InkWell(
+                      onTap: () => _openDepartment(departmentId),
+                      child: Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
                 ),
                 DataCell(
+                  SizedBox(
+                    width: 320,
+                    child: Text(
+                      description?.trim().isNotEmpty == true
+                          ? description!.trim()
+                          : '—',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ),
+                DataCell(
+                  SizedBox(
+                    width: 140,
+                    child: Text(
+                      leaderName,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                DataCell(SizedBox(width: 56, child: Text('$taskCount'))),
+                DataCell(
                   IconButton(
-                    onPressed: () => _openDepartment(departmentId),
-                    icon: const Icon(Icons.open_in_new, size: 18),
                     tooltip: context.tr('Open'),
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
+                      minWidth: 36,
+                      minHeight: 36,
                     ),
+                    onPressed: () => _openDepartment(departmentId),
+                    icon: const Icon(Icons.arrow_forward, size: 18),
                   ),
                 ),
               ],
@@ -592,84 +558,66 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                     tooltip: localizations?.refresh ?? 'Refresh',
                   ),
                 ],
-                bottom: PreferredSize(
-                  preferredSize: const Size.fromHeight(56),
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppDimensions.paddingMD,
-                      0,
-                      AppDimensions.paddingMD,
-                      AppDimensions.spacingSM,
-                    ),
-                    child: DepartmentFormUi.listPageTabBar(
-                      context: context,
-                      tabs: [
-                        Tab(
-                          icon: const Icon(Icons.apartment_outlined, size: 18),
-                          text: localizations?.departments ?? 'Departments',
-                        ),
-                        Tab(
-                          icon: const Icon(Icons.badge_outlined, size: 18),
-                          text: localizations?.workers ?? 'Workers',
-                        ),
-                      ],
-                    ),
-                  ),
+              ),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!widget.hideAppBarAndBottomNav && !isDesktop)
+              Material(
+                color: Theme.of(context).colorScheme.surface,
+                child: DepartmentFormUi.coloredTabBar(
+                  context: context,
+                  tabs: [
+                    Tab(text: localizations?.departments ?? 'Departments'),
+                    Tab(text: localizations?.workers ?? 'Workers'),
+                  ],
                 ),
               ),
-        body: Builder(
-          builder: (context) {
-            final tabController = DefaultTabController.of(context);
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (isDesktop)
-                  Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      AppDimensions.paddingMD,
-                      AppDimensions.paddingMD,
-                      AppDimensions.paddingMD,
-                      AppDimensions.spacingSM,
-                    ),
-                    child: DepartmentFormUi.listPageTabBar(
-                      context: context,
-                      controller: tabController,
-                      tabs: [
-                        Tab(
-                          icon: const Icon(Icons.apartment_outlined, size: 18),
-                          text: localizations?.departments ??
-                              context.tr('Departments'),
-                        ),
-                        Tab(
-                          icon: const Icon(Icons.badge_outlined, size: 18),
-                          text: localizations?.workers ?? context.tr('Workers'),
-                        ),
-                      ],
+            if (isDesktop)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppDimensions.paddingMD,
+                  AppDimensions.paddingMD,
+                  AppDimensions.paddingMD,
+                  0,
+                ),
+                child: Material(
+                  color: Theme.of(context).colorScheme.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusLG),
+                    side: BorderSide(
+                      color: context.mic.border.withValues(alpha: 0.75),
                     ),
                   ),
-                Expanded(
-                  child: TabBarView(
-                    controller: tabController,
-                    children: [
-                      _wrapTabPanel(
-                        tint: DepartmentFormUi.departmentsTabTint(context),
-                        child: isDesktop
-                            ? _buildDesktopDepartmentsTab(localizations)
-                            : _buildDepartmentsTabContent(
-                                context,
-                                localizations,
-                              ),
+                  child: TabBar(
+                    labelColor: DepartmentFormUi.accent,
+                    unselectedLabelColor: context.mic.textSecondary,
+                    indicatorColor: DepartmentFormUi.accent,
+                    indicatorWeight: 3,
+                    tabs: [
+                      Tab(
+                        text: localizations?.departments ??
+                            context.tr('Departments'),
                       ),
-                      _wrapTabPanel(
-                        tint: DepartmentFormUi.workersTabTint(context),
-                        child: _WorkersTab(isDesktopView: isDesktop),
+                      Tab(
+                        text: localizations?.workers ?? context.tr('Workers'),
                       ),
                     ],
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  isDesktop
+                      ? _buildDesktopDepartmentsTab(localizations)
+                      : _buildDepartmentsTabContent(context, localizations),
+                  _WorkersTab(isDesktopView: isDesktop),
+                ],
+              ),
+            ),
+          ],
         ),
         floatingActionButton: widget.hideAppBarAndBottomNav
             ? null
@@ -677,12 +625,12 @@ class _DepartmentsListPageState extends State<DepartmentsListPage> {
                 future: _canCreateDepartment(),
                 builder: (context, snapshot) {
                   if (snapshot.data == true) {
-                    return FloatingActionButton.extended(
+                    return FloatingActionButton(
                       onPressed: () => _openAddDepartment(context),
-                      icon: const Icon(Icons.add),
-                      label: Text(
-                        localizations?.addDepartment ?? context.tr('Add Department'),
-                      ),
+                      tooltip:
+                          localizations?.addDepartment ??
+                          context.tr('Add Department'),
+                      child: const Icon(Icons.add),
                     );
                   }
                   return const SizedBox.shrink();

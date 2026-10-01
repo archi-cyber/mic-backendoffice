@@ -56,10 +56,16 @@ class MemberAccountService {
   /// Le nouveau compte n'a **aucune permission** : elles doivent être
   /// accordées explicitement via `LeaderAccessService`. C'est le principe du
   /// moindre privilège — un compte créé par erreur ne donne accès à rien.
+  ///
+  /// [sendCredentialsEmail] et [memberFirstName] sont acceptés pour
+  /// compatibilité : le serveur envoie toujours les identifiants par e-mail,
+  /// avec le prénom de la fiche.
   static Future<void> createAccountForMember({
     required String memberId,
     required String email,
     String? password,
+    bool sendCredentialsEmail = true,
+    String? memberFirstName,
   }) async {
     final data = await _client.post('/users', body: {
       'member_id': memberId,
@@ -73,6 +79,32 @@ class MemberAccountService {
     if (temporary != null) {
       debugPrint('[MemberAccount] Mot de passe temporaire généré pour $email');
     }
+  }
+
+  /// Indique si le membre a un compte de connexion actif.
+  static Future<bool> memberHasActiveAccount(String memberId) async {
+    final status = await getAssigneeAccount(memberId);
+    return status['has_active_account'] == true;
+  }
+
+  /// État du compte d'un assigné et son identité (`member`), lisibles par
+  /// quiconque gère des tâches.
+  static Future<Map<String, dynamic>> getAssigneeAccount(String memberId) =>
+      _client.getOne('/tasks/assignees/$memberId/account');
+
+  /// Crée le compte d'un membre à qui une tâche est assignée.
+  ///
+  /// Passe par la route des tâches : un responsable peut ainsi donner accès
+  /// à l'application sans être administrateur. Le compte n'a aucune
+  /// permission ; l'adresse est enregistrée sur la fiche si elle était vide,
+  /// et les identifiants sont envoyés par e-mail.
+  static Future<void> createAccountForAssignee({
+    required String memberId,
+    required String email,
+  }) async {
+    await _client.post('/tasks/assignees/$memberId/account', body: {
+      'email': email.trim().toLowerCase(),
+    });
   }
 
   /// Désactive un compte.

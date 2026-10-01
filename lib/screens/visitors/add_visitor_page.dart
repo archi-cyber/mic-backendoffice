@@ -4,6 +4,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/visitor_service.dart';
+import '../../services/church_service_service.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/phone_number_field.dart';
 import 'visitor_form_ui.dart';
@@ -27,7 +28,6 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _visitDate;
-  String? _churchServiceId;
   String _attendanceType = 'onsite';
   String? _visitDateError;
   bool _isLoading = false;
@@ -65,12 +65,22 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
       setState(() {
         _visitDate = picked;
         _visitDateError = null;
-        _churchServiceId = null;
       });
     }
   }
 
-  Map<String, dynamic> _buildPayload() {
+  Future<Map<String, dynamic>> _buildPayload() async {
+    String? churchServiceId;
+    if (_visitDate != null) {
+      try {
+        final service =
+            await ChurchServiceService.findOrCreateForDate(_visitDate!);
+        churchServiceId = service['id']?.toString();
+      } catch (_) {
+        churchServiceId = null;
+      }
+    }
+
     return {
       'first_name': _firstNameController.text.trim(),
       'last_name': _lastNameController.text.trim(),
@@ -82,7 +92,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
           ? null
           : _addressController.text.trim(),
       'visit_date': VisitorFormUi.formatVisitDate(_visitDate!),
-      'church_service_id': _churchServiceId,
+      'church_service_id': churchServiceId,
       'attendance_type': _attendanceType,
       'notes': _notesController.text.trim().isEmpty
           ? null
@@ -102,7 +112,7 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
     setState(() => _isLoading = true);
 
     try {
-      var payload = _buildPayload();
+      var payload = await _buildPayload();
       try {
         await VisitorService.createVisitor(visitorData: payload);
       } catch (e) {
@@ -282,13 +292,6 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
             visitDate: _visitDate,
             onTap: _selectVisitDate,
             errorText: _visitDateError,
-          ),
-          SizedBox(height: AppDimensions.spacingMD),
-          VisitorFormUi.churchServiceDropdown(
-            context: context,
-            visitDate: _visitDate,
-            value: _churchServiceId,
-            onChanged: (value) => setState(() => _churchServiceId = value),
           ),
           SizedBox(height: AppDimensions.spacingMD),
           VisitorFormUi.attendanceTypeDropdown(
@@ -501,13 +504,6 @@ class _AddVisitorPageState extends State<AddVisitorPage> {
               visitDate: _visitDate,
               onTap: _selectVisitDate,
               errorText: _visitDateError,
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
-            VisitorFormUi.churchServiceDropdown(
-              context: context,
-              visitDate: _visitDate,
-              value: _churchServiceId,
-              onChanged: (value) => setState(() => _churchServiceId = value),
             ),
             SizedBox(height: AppDimensions.spacingMD),
             VisitorFormUi.attendanceTypeDropdown(

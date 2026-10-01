@@ -4,6 +4,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../services/visitor_service.dart';
+import '../../services/church_service_service.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/phone_number_field.dart';
 import 'visitor_form_ui.dart';
@@ -28,7 +29,6 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
   final _addressController = TextEditingController();
   final _notesController = TextEditingController();
   DateTime? _visitDate;
-  String? _churchServiceId;
   String _attendanceType = 'onsite';
   String? _visitDateError;
   bool _isLoading = false;
@@ -71,7 +71,6 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
         _visitDate =
             VisitorFormUi.parseVisitDate(visitor['visit_date']) ??
             DateTime.now();
-        _churchServiceId = visitor['church_service_id']?.toString();
         final at = visitor['attendance_type']?.toString();
         if (at == 'onsite' || at == 'online' || at == 'absent') {
           _attendanceType = at!;
@@ -106,12 +105,22 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
       setState(() {
         _visitDate = picked;
         _visitDateError = null;
-        _churchServiceId = null;
       });
     }
   }
 
-  Map<String, dynamic> _buildPayload() {
+  Future<Map<String, dynamic>> _buildPayload() async {
+    String? churchServiceId;
+    if (_visitDate != null) {
+      try {
+        final service =
+            await ChurchServiceService.findOrCreateForDate(_visitDate!);
+        churchServiceId = service['id']?.toString();
+      } catch (_) {
+        churchServiceId = null;
+      }
+    }
+
     return {
       'first_name': _firstNameController.text.trim(),
       'last_name': _lastNameController.text.trim(),
@@ -123,7 +132,7 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
           ? null
           : _addressController.text.trim(),
       'visit_date': VisitorFormUi.formatVisitDate(_visitDate!),
-      'church_service_id': _churchServiceId,
+      'church_service_id': churchServiceId,
       'attendance_type': _attendanceType,
       'notes': _notesController.text.trim().isEmpty
           ? null
@@ -143,7 +152,7 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
     setState(() => _isLoading = true);
 
     try {
-      var payload = _buildPayload();
+      var payload = await _buildPayload();
       try {
         await VisitorService.updateVisitor(
           visitorId: widget.visitorId,
@@ -332,13 +341,6 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
             visitDate: _visitDate,
             onTap: _selectVisitDate,
             errorText: _visitDateError,
-          ),
-          SizedBox(height: AppDimensions.spacingMD),
-          VisitorFormUi.churchServiceDropdown(
-            context: context,
-            visitDate: _visitDate,
-            value: _churchServiceId,
-            onChanged: (value) => setState(() => _churchServiceId = value),
           ),
           SizedBox(height: AppDimensions.spacingMD),
           VisitorFormUi.attendanceTypeDropdown(
@@ -583,13 +585,6 @@ class _EditVisitorPageState extends State<EditVisitorPage> {
               visitDate: _visitDate,
               onTap: _selectVisitDate,
               errorText: _visitDateError,
-            ),
-            SizedBox(height: AppDimensions.spacingMD),
-            VisitorFormUi.churchServiceDropdown(
-              context: context,
-              visitDate: _visitDate,
-              value: _churchServiceId,
-              onChanged: (value) => setState(() => _churchServiceId = value),
             ),
             SizedBox(height: AppDimensions.spacingMD),
             VisitorFormUi.attendanceTypeDropdown(

@@ -13,13 +13,21 @@ import type {
   AssignTaskDto,
   CreateTaskDto,
   FindTasksDto,
+  ProvisionAssigneeAccountDto,
   SetTaskTagsDto,
   UpdateTaskDto,
 } from './dto/task.dto';
 import {
+  isPrivilegedRole,
+  type AuthenticatedUser,
+} from '../auth/types/auth.types';
+import {
   NOTIFICATION_TYPES,
   NotificationsService,
 } from '../communications/notifications.service';
+import { MailService } from '../mail/mail.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { UsersService } from '../users/users.service';
 import { PenaltiesService } from './penalties.service';
 
 const TASK_INCLUDE = {
@@ -49,6 +57,9 @@ export class TasksService {
     private readonly prisma: PrismaService,
     private readonly penalties: PenaltiesService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
+    private readonly mail: MailService,
+    private readonly users: UsersService,
   ) {}
 
   // ===========================================================================
@@ -107,7 +118,7 @@ export class TasksService {
   // Écriture
   // ===========================================================================
 
-  async create(dto: CreateTaskDto) {
+  async create(dto: CreateTaskDto, actorUserId?: string) {
     this.assertOwnerExclusive(dto);
 
     if (dto.departmentId) {
@@ -135,6 +146,7 @@ export class TasksService {
           priority: dto.priority ?? 'medium',
           status: dto.status ?? 'pending',
           penaltyAmountPerDay: dto.penaltyAmountPerDay ?? null,
+          createdBy: actorUserId ?? null,
         } as Prisma.TaskUncheckedCreateInput,
       });
 
@@ -157,6 +169,10 @@ export class TasksService {
     });
 
     this.logger.log(`Tâche créée : ${task.title}`);
+
+    if (dto.assigneeIds?.length) {
+      await this.notifyAssignees(task.id, dto.assigneeIds);
+    }
 
     return this.findOne(task.id);
   }
@@ -230,8 +246,22 @@ export class TasksService {
     });
   }
 
-  async remove(id: string) {
-    await this.assertExists(id);
+  async remove(id: string, actor: AuthenticatedUser) {
+    const task = await this.prisma.task.findFirst({
+      where: { id, ...NOT_DELETED },
+      select: { id: true, departmentId: true, createdBy: true },
+    });
+
+    if (!task) {
+      throw this.notFound(id);
+    }
+
+    if (!(await this.canDelete(actor, task))) {
+      throw new ForbiddenException({
+        message: "Vous n'avez pas le droit de supprimer cette tâche.",
+        code: 'TASK_DELETE_FORBIDDEN',
+      });
+    }
 
     await this.prisma.task.update({
       where: { id },
@@ -239,6 +269,68 @@ export class TasksService {
     });
 
     return { message: 'Tâche supprimée.', id };
+  }
+
+  /**
+   * Supprime plusieurs tâches.
+   *
+   * Seules celles que l'utilisateur a le droit de supprimer le sont ; les
+   * autres sont ignorées. Le nombre réellement supprimé est renvoyé, pour que
+   * l'interface puisse signaler un écart.
+   */
+  async removeMany(taskIds: string[], actor: AuthenticatedUser) {
+    const tasks = await this.prisma.task.findMany({
+      where: { id: { in: [...new Set(taskIds)] }, ...NOT_DELETED },
+      select: { id: true, departmentId: true, createdBy: true },
+    });
+
+    const allowed: string[] = [];
+    for (const task of tasks) {
+      if (await this.canDelete(actor, task)) allowed.push(task.id);
+    }
+
+    if (allowed.length > 0) {
+      await this.prisma.task.updateMany({
+        where: { id: { in: allowed } },
+        data: { deletedAt: new Date() },
+      });
+    }
+
+    this.logger.log(
+      `Suppression groupée : ${allowed.length}/${taskIds.length}`,
+    );
+
+    return { deleted: allowed.length, ids: allowed };
+  }
+
+  /**
+   * Règles de suppression d'une tâche (mic_backoffice v1.0.11) :
+   * - administrateur ou pasteur : toujours ;
+   * - responsable du département de la tâche : toute tâche du département ;
+   * - adjoint de ce département : uniquement les tâches qu'il a créées ;
+   * - sinon : droit `delete` explicite sur le module `tasks`.
+   */
+  private async canDelete(
+    actor: AuthenticatedUser,
+    task: { departmentId: string | null; createdBy: string | null },
+  ): Promise<boolean> {
+    if (isPrivilegedRole(actor.role)) return true;
+
+    if (task.departmentId) {
+      const membership = actor.departmentRoles.find(
+        (d) => d.departmentId === task.departmentId,
+      );
+      if (membership?.role === 'leader') return true;
+      if (membership?.role === 'subleader' && task.createdBy === actor.id) {
+        return true;
+      }
+    }
+
+    const access = await this.prisma.leaderAccess.findUnique({
+      where: { userId_featureName: { userId: actor.id, featureName: 'tasks' } },
+      select: { canDelete: true, deletedAt: true },
+    });
+    return Boolean(access && access.deletedAt === null && access.canDelete);
   }
 
   // ===========================================================================
@@ -268,6 +360,7 @@ export class TasksService {
       await this.prisma.taskAssignment.createMany({
         data: toCreate.map((memberId) => ({ taskId: id, memberId })),
       });
+      await this.notifyAssignees(id, toCreate);
     }
 
     return this.findOne(id);
@@ -374,13 +467,16 @@ export class TasksService {
       return { message: 'Aucun membre assigné à cette tâche.', notified: 0 };
     }
 
+    const reminder = this.buildReminderMessage(task.title, task.dueDate);
     const notified = await this.notifications.notifyMany(memberIds, {
       type: NOTIFICATION_TYPES.taskReminder,
       title: 'Rappel de tâche',
-      message: this.buildReminderMessage(task.title, task.dueDate),
+      message: reminder,
       relatedId: task.id,
       relatedType: 'task',
     });
+
+    this.emailMembers(memberIds, 'reminder', task.title, reminder);
 
     this.logger.log(`Rappel envoyé pour « ${task.title} » : ${notified} membre(s)`);
 
@@ -485,8 +581,188 @@ export class TasksService {
   }
 
   // ===========================================================================
+  // Comptes des assignés
+  // ===========================================================================
+
+  /**
+   * Crée le compte de connexion d'un membre à qui une tâche est confiée.
+   *
+   * Permet au responsable qui assigne de donner accès à l'application sans
+   * passer par un administrateur (mic_backoffice v1.0.10). Le compte reçoit
+   * toujours le rôle `member` et aucune permission : un responsable ne peut
+   * donc pas s'en servir pour distribuer des droits. Les identifiants sont
+   * envoyés par e-mail.
+   *
+   * Si la fiche du membre n'a pas d'adresse, celle fournie y est enregistrée.
+   */
+  /**
+   * État du compte d'un membre à qui l'on s'apprête à confier une tâche,
+   * avec son identité — lisible sans la permission `members`.
+   */
+  async getAssigneeAccount(memberId: string) {
+    const member = await this.prisma.member.findFirst({
+      where: { id: memberId, ...NOT_DELETED },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        user: { select: { id: true, isActive: true } },
+      },
+    });
+
+    if (!member) {
+      throw new NotFoundException({
+        message: 'Membre introuvable.',
+        code: 'MEMBER_NOT_FOUND',
+      });
+    }
+
+    const { user, ...identity } = member;
+    return {
+      member: identity,
+      hasAccount: user !== null,
+      hasActiveAccount: user?.isActive === true,
+    };
+  }
+
+  async provisionAssigneeAccount(
+    memberId: string,
+    dto: ProvisionAssigneeAccountDto,
+  ) {
+    const member = await this.prisma.member.findFirst({
+      where: { id: memberId, ...NOT_DELETED },
+      select: { id: true, email: true },
+    });
+
+    if (!member) {
+      throw new NotFoundException({
+        message: 'Membre introuvable.',
+        code: 'MEMBER_NOT_FOUND',
+      });
+    }
+
+    if (!member.email) {
+      await this.prisma.member.update({
+        where: { id: memberId },
+        data: { email: dto.email },
+      });
+    }
+
+    const account = await this.users.createAccount({
+      memberId,
+      email: dto.email,
+      role: 'member',
+    });
+
+    return {
+      id: account.id,
+      email: account.email,
+      temporaryPassword: account.temporaryPassword,
+    };
+  }
+
+  // ===========================================================================
   // Helpers
   // ===========================================================================
+
+  /**
+   * Prévient les nouveaux assignés : notification (temps réel et push),
+   * événement `task:assigned` et e-mail. Jamais bloquant pour l'assignation.
+   */
+  private async notifyAssignees(taskId: string, memberIds: string[]) {
+    try {
+      const task = await this.prisma.task.findUnique({
+        where: { id: taskId },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          dueDate: true,
+          priority: true,
+          department: { select: { name: true } },
+          project: { select: { title: true } },
+        },
+      });
+      if (!task) return;
+
+      const details: string[] = [];
+      if (task.dueDate) {
+        details.push(`Échéance : ${task.dueDate.toISOString().slice(0, 10)}`);
+      }
+      if (task.priority) details.push(`Priorité : ${task.priority}`);
+      if (task.project?.title) details.push(`Projet : ${task.project.title}`);
+      if (task.department?.name) {
+        details.push(`Département : ${task.department.name}`);
+      }
+      if (task.description?.trim()) details.push(task.description.trim());
+
+      const intro = 'Une tâche vous a été assignée.';
+      const message = details.length
+        ? `${intro}\n${details.join(' • ')}`
+        : intro;
+
+      await this.notifications.notifyMany(memberIds, {
+        type: NOTIFICATION_TYPES.taskAssigned,
+        title: task.title,
+        message,
+        relatedId: task.id,
+        relatedType: 'task',
+      });
+
+      this.realtime.taskAssigned({
+        taskId: task.id,
+        title: task.title,
+        dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+        assignedMemberIds: memberIds,
+      });
+
+      this.emailMembers(memberIds, 'assigned', task.title, message);
+    } catch (error) {
+      this.logger.warn(
+        `Notification d'assignation impossible : ` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  /**
+   * E-mail aux membres : adresse de la fiche et adresse du compte actif.
+   * Envoyé sans être attendu.
+   */
+  private emailMembers(
+    memberIds: string[],
+    kind: 'assigned' | 'reminder',
+    taskTitle: string,
+    details: string,
+  ): void {
+    void (async () => {
+      const members = await this.prisma.member.findMany({
+        where: { id: { in: [...new Set(memberIds)] }, ...NOT_DELETED },
+        select: {
+          email: true,
+          user: { select: { email: true, isActive: true } },
+        },
+      });
+
+      const recipients = new Set<string>();
+      for (const member of members) {
+        if (member.email?.trim()) recipients.add(member.email.trim());
+        if (member.user?.isActive && member.user.email?.trim()) {
+          recipients.add(member.user.email.trim());
+        }
+      }
+
+      for (const to of recipients) {
+        await this.mail.sendTaskNotification({ to, kind, taskTitle, details });
+      }
+    })().catch((error: unknown) =>
+      this.logger.warn(
+        'E-mail de tâche impossible : ' +
+          (error instanceof Error ? error.message : String(error)),
+      ),
+    );
+  }
 
   private buildWhere(query: FindTasksDto): Prisma.TaskWhereInput {
     const where: Prisma.TaskWhereInput = { ...NOT_DELETED };
@@ -501,7 +777,18 @@ export class TasksService {
     if (query.priority) where.priority = query.priority;
 
     if (query.assigneeId) {
-      where.assignments = { some: { memberId: query.assigneeId } };
+      where.assignments = {
+        some: {
+          memberId: query.assigneeId,
+          ...(query.activeOnly
+            ? { NOT: { status: { in: ['completed', 'cancelled'] } } }
+            : {}),
+        },
+      };
+    }
+
+    if (query.activeOnly && !query.status) {
+      where.status = { notIn: ['completed', 'cancelled'] };
     }
 
     if (query.tagId) {

@@ -10,7 +10,6 @@ class RouteNames {
   static const String home = '/home';
 
   // Auth Routes
-  static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
   static const String resetPassword = '/reset-password';
   static const String changePassword = '/change-password';
@@ -79,9 +78,6 @@ class RouteNames {
   static const String editProject = '/tasks/projects/:id/edit';
   static const String manageTags = '/tasks/tags';
 
-  // Service schedule (Media Team)
-  static const String serviceSchedule = '/service-schedule';
-
   // Report Routes
   static const String reports = '/reports';
   static const String memberReport = '/reports/member/:id';
@@ -116,7 +112,6 @@ class RouteNames {
 
   // Desktop/Web (width >= 500px) - app-on-its-own with sidebar
   static const String desktopLogin = '/desktop/login';
-  static const String desktopSignup = '/desktop/signup';
   static const String desktopForgotPassword = '/desktop/forgot-password';
   static const String desktopResetPassword = '/desktop/reset-password';
   static const String desktopMain = '/desktop';
@@ -139,6 +134,4 @@ class RouteNames {
   static const String desktopTeachings = '/desktop/teachings';
   static const String desktopSessions = '/desktop/sessions';
 
- /// Écran de synchronisation des saisies hors ligne.
-  static const String sync = '/sync';
 }

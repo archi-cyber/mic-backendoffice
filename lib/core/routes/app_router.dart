@@ -29,7 +29,6 @@ import '../../screens/tasks/add_project_page.dart';
 import '../../screens/tasks/edit_project_page.dart';
 import '../../screens/tasks/manage_projects_page.dart';
 import '../../screens/tasks/manage_tags_page.dart';
-import '../../screens/service_schedule/service_schedule_page.dart';
 import '../../screens/classes/classes_list_page.dart';
 import '../../screens/classes/class_detail_page.dart';
 import '../../screens/classes/add_class_page.dart';
@@ -64,12 +63,10 @@ import '../../screens/teachings/teaching_detail_page.dart';
 import '../../screens/common/file_viewer_page.dart';
 import '../../screens/desktop/desktop_shell.dart';
 import '../../screens/desktop/auth/desktop_login_page.dart';
-import '../../screens/desktop/auth/desktop_signup_page.dart';
 import '../../screens/desktop/auth/desktop_forgot_password_page.dart';
 import '../../screens/desktop/auth/desktop_reset_password_page.dart';
 import '../constants/app_strings.dart';
 import 'route_names.dart';
-import '../../screens/sync/sync_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -110,11 +107,6 @@ class AppRouter {
       case RouteNames.desktopLogin:
         return MaterialPageRoute(
           builder: (_) => DesktopLoginPage(),
-          settings: settings,
-        );
-      case RouteNames.desktopSignup:
-        return MaterialPageRoute(
-          builder: (_) => DesktopSignupPage(),
           settings: settings,
         );
       case RouteNames.desktopForgotPassword:
@@ -216,6 +208,7 @@ class AppRouter {
         );
 
       case RouteNames.churchAttendance:
+        // Check if arguments are provided (for viewing specific service)
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
           builder: (_) => ChurchAttendancePage(
@@ -323,20 +316,6 @@ class AppRouter {
           settings: settings,
         );
 
-      case RouteNames.serviceSchedule:
-        final scheduleDepartmentId = settings.arguments as String?;
-        return MaterialPageRoute(
-          builder: (_) {
-            if (scheduleDepartmentId == null || scheduleDepartmentId.isEmpty) {
-              return Scaffold(
-                body: Center(child: Text('Department is required')),
-              );
-            }
-            return ServiceSchedulePage(departmentId: scheduleDepartmentId);
-          },
-          settings: settings,
-        );
-
       case RouteNames.addEvent:
         return MaterialPageRoute(
           builder: (_) => AddEventPage(),
@@ -364,13 +343,6 @@ class AppRouter {
       case RouteNames.memberAccounts:
         return MaterialPageRoute(
           builder: (_) => MemberAccountsPage(),
-          settings: settings,
-        );
-
-        //case RouteNames.notifications:
-        case RouteNames.sync:
-        return MaterialPageRoute(
-          builder: (_) => const SyncPage(),
           settings: settings,
         );
 

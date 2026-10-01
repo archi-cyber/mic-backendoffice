@@ -16,6 +16,8 @@ abstract final class RealtimeEvents {
   static const taskAssigned = 'task:assigned';
   static const taskUpdated = 'task:updated';
   static const announcementNew = 'announcement:new';
+  static const announcementUpdated = 'announcement:updated';
+  static const announcementDeleted = 'announcement:deleted';
   static const penaltyUpdated = 'penalty:updated';
   static const memberUpdated = 'member:updated';
 }
@@ -40,6 +42,12 @@ abstract final class RealtimeEvents {
 class RealtimeClient {
   RealtimeClient({required TokenStorage tokenStorage})
       : _tokens = tokenStorage;
+
+  /// Connexion de la session en cours, renseignée par `AuthProvider`.
+  ///
+  /// Permet aux services (notifications, messagerie) de s'abonner sans avoir
+  /// à remonter jusqu'au provider. Vaut `null` hors session.
+  static RealtimeClient? current;
 
   final TokenStorage _tokens;
   io.Socket? _socket;

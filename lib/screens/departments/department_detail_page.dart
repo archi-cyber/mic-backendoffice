@@ -5,9 +5,9 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/routes/route_names.dart';
-import '../../core/navigation/file_viewer_navigation.dart';
-import '../../core/utils/error_message_helper.dart';
+import '../../core/utils/permission_helper.dart';
 import '../desktop/desktop_shell_scope.dart';
+import '../../screens/tasks/add_task_page.dart';
 import '../../services/department_service.dart';
 import '../../services/task_service.dart';
 import '../../services/member_service.dart';
@@ -15,7 +15,7 @@ import '../../services/department_report_service.dart';
 import '../../services/department_report_pdf_service.dart';
 import '../../services/task_report_pdf_service.dart';
 import '../../services/task_report_service.dart';
-import '../../services/service_schedule_service.dart';
+import '../../services/storage_service.dart';
 import 'edit_department_page.dart';
 import 'department_form_ui.dart';
 import '../../widgets/desktop/desktop_ui.dart';
@@ -41,6 +41,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
   bool _isLoading = true;
   bool _canEdit = false;
   bool _canDelete = false;
+  bool _canManageMembers = false;
 
   @override
   void initState() {
@@ -52,36 +53,16 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final departmentFuture = DepartmentService.getDepartmentById(
+      final department = await DepartmentService.getDepartmentById(
         widget.departmentId,
       );
-      final membersFuture = DepartmentService.getDepartmentMembers(
+      final departmentMembers = await DepartmentService.getDepartmentMembers(
         widget.departmentId,
       );
-      final tasksFuture = TaskService.getDepartmentTasks(
+      final departmentTasks = await TaskService.getDepartmentTasks(
         departmentId: widget.departmentId,
         limit: 100,
       );
-      final canEditFuture = DepartmentService.canEditDepartment(
-        widget.departmentId,
-      );
-      final canDeleteFuture = DepartmentService.canDeleteDepartment(
-        widget.departmentId,
-      );
-
-      final results = await Future.wait([
-        departmentFuture,
-        membersFuture,
-        tasksFuture,
-        canEditFuture,
-        canDeleteFuture,
-      ]);
-
-      final department = results[0] as Map<String, dynamic>?;
-      final departmentMembers = results[1] as List<Map<String, dynamic>>;
-      final departmentTasks = results[2] as List<Map<String, dynamic>>;
-      final canEdit = results[3] as bool;
-      final canDelete = results[4] as bool;
 
       // Load reports (might fail if table doesn't exist, so catch separately)
       List<Map<String, dynamic>> departmentReports = [];
@@ -94,6 +75,21 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         debugPrint('Could not load reports: $e');
       }
 
+      // Check if user can edit this department (admin, leader, or subleader)
+      final canEdit = await DepartmentService.canEditDepartment(
+        widget.departmentId,
+      );
+
+      // Check if user can delete this department (admin or leader only, not subleader)
+      final canDelete = await DepartmentService.canDeleteDepartment(
+        widget.departmentId,
+      );
+
+      final canManageMembers =
+          await PermissionHelper.canManageDepartmentMembers(
+        widget.departmentId,
+      );
+
       if (!mounted) return;
       setState(() {
         _department = department;
@@ -103,16 +99,17 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
         _reports = departmentReports;
         _canEdit = canEdit;
         _canDelete = canDelete;
+        _canManageMembers = canManageMembers;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
-      ErrorMessageHelper.showErrorSnackBar(
-        context,
-        e,
-        title: context.tr('Error loading department'),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('Error loading department: $e'))),
+        );
+      }
     }
   }
 
@@ -201,10 +198,10 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                     departmentId: widget.departmentId,
                     onMembersUpdated: _loadDepartmentData,
                     isDesktop: false,
+                    canManageMembers: _canManageMembers,
                   ),
                   _TasksTab(
                     departmentId: widget.departmentId,
-                    department: _department,
                     tasks: _tasks,
                     onTasksUpdated: _loadDepartmentData,
                     isDesktop: false,
@@ -372,10 +369,10 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
                               departmentId: widget.departmentId,
                               onMembersUpdated: _loadDepartmentData,
                               isDesktop: true,
+                              canManageMembers: _canManageMembers,
                             ),
                             _TasksTab(
                               departmentId: widget.departmentId,
-                              department: _department,
                               tasks: _tasks,
                               onTasksUpdated: _loadDepartmentData,
                               isDesktop: true,
@@ -424,9 +421,7 @@ class _DepartmentDetailPageState extends State<DepartmentDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Department')),
         content: Text(
-          context.tr(
-            'Are you sure you want to delete this department? This will deactivate it.',
-          ),
+          'Are you sure you want to delete this department? This will deactivate it.',
         ),
         actions: [
           TextButton(
@@ -562,16 +557,14 @@ class _DepartmentDesktopSummary extends StatelessWidget {
             ),
             SizedBox(height: AppDimensions.spacingSM),
             _StatusPill(
-              label: isActive
-                  ? context.tr('Active department')
-                  : context.tr('Inactive department'),
+              label: isActive ? 'Active department' : 'Inactive department',
               color: isActive ? AppColors.success : AppColors.error,
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
               description?.isNotEmpty == true
                   ? description!
-                  : context.tr('No description provided for this department.'),
+                  : 'No description provided for this department.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: context.mic.textSecondary,
                 height: 1.45,
@@ -584,22 +577,22 @@ class _DepartmentDesktopSummary extends StatelessWidget {
               children: [
                 _DepartmentMetricPill(
                   icon: Icons.person_outline,
-                  label: context.tr('Leader'),
+                  label: 'Leader',
                   value: leaderNames,
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.people_outline,
-                  label: context.tr('Members'),
+                  label: 'Members',
                   value: '$memberCount',
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.task_alt_outlined,
-                  label: context.tr('Tasks'),
+                  label: 'Tasks',
                   value: '$taskCount',
                 ),
                 _DepartmentMetricPill(
                   icon: Icons.check_circle_outline,
-                  label: context.tr('Done'),
+                  label: 'Done',
                   value: '$completedTaskCount',
                 ),
               ],
@@ -870,7 +863,7 @@ class _OverviewTab extends StatelessWidget {
           children: [
             Expanded(
               child: _StatCard(
-                title: context.tr('Members'),
+                title: 'Members',
                 value: memberCount.toString(),
                 icon: Icons.people,
               ),
@@ -878,7 +871,7 @@ class _OverviewTab extends StatelessWidget {
             SizedBox(width: AppDimensions.spacingMD),
             Expanded(
               child: _StatCard(
-                title: context.tr('Tasks'),
+                title: 'Tasks',
                 value: taskCount.toString(),
                 icon: Icons.task,
               ),
@@ -907,8 +900,8 @@ class _OverviewTab extends StatelessWidget {
           children: [
             _DepartmentSectionTitle(
               icon: Icons.folder_outlined,
-              title: context.tr('Department files'),
-              subtitle: context.tr('Documents attached to this department'),
+              title: 'Department files',
+              subtitle: 'Documents attached to this department',
             ),
             SizedBox(height: AppDimensions.spacingLG),
             if (_hasDocuments(department)) ...[
@@ -958,14 +951,14 @@ class _OverviewTab extends StatelessWidget {
                     ),
                     SizedBox(height: AppDimensions.spacingSM),
                     Text(
-                      context.tr('No files uploaded'),
+                      'No files uploaded',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     SizedBox(height: AppDimensions.spacingXS),
                     Text(
-                      context.tr('Use edit department to attach documents.'),
+                      'Use edit department to attach documents.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: context.mic.textSecondary,
                       ),
@@ -1012,11 +1005,37 @@ class _OverviewTab extends StatelessWidget {
     String fileUrl,
     String fileName,
   ) async {
-    await FileViewerNavigation.open(
-      context,
-      fileUrl: fileUrl,
-      fileName: fileName,
-    );
+    try {
+      // Try to create a signed URL first (works for both public and private buckets)
+      String urlToOpen = fileUrl;
+
+      try {
+        // Create a signed URL that's valid for 1 hour
+        // This ensures the file can be accessed even if the bucket is private
+        urlToOpen = await StorageService.createSignedUrl(fileUrl);
+      } catch (e) {
+        // If creating signed URL fails, try using the original URL
+        // This might work if the bucket is public
+        debugPrint('Could not create signed URL, using original URL: $e');
+      }
+
+      // Navigate to webview to display the file
+      if (context.mounted) {
+        Navigator.of(context).pushNamed(
+          RouteNames.fileViewer,
+          arguments: {'fileUrl': urlToOpen, 'fileName': fileName},
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.tr('Error opening file: $e')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -1025,11 +1044,13 @@ class _MembersTab extends StatefulWidget {
   final String departmentId;
   final VoidCallback onMembersUpdated;
   final bool isDesktop;
+  final bool canManageMembers;
 
   _MembersTab({
     required this.departmentId,
     required this.onMembersUpdated,
     this.isDesktop = false,
+    this.canManageMembers = false,
   });
 
   @override
@@ -1349,26 +1370,36 @@ class _MembersTabState extends State<_MembersTab> {
     }
   }
 
+  void _openMemberProfile(String memberId) {
+    if (memberId.isEmpty) return;
+
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null && widget.isDesktop) {
+      scope.pushDetail(RouteNames.memberDetail, memberId);
+      return;
+    }
+
+    Navigator.of(context).pushNamed(
+      RouteNames.memberDetail.replaceAll(':id', memberId),
+    );
+  }
+
   Widget _buildRoleChip(String role, {bool compact = false}) {
     Color color;
     IconData icon;
-    String label;
 
     switch (role) {
       case 'leader':
         color = AppColors.error;
         icon = Icons.star;
-        label = compact ? 'Lead' : role.toUpperCase();
         break;
       case 'subleader':
         color = AppColors.primary;
         icon = Icons.star_border;
-        label = compact ? 'Sub' : role.toUpperCase();
         break;
       default:
         color = context.mic.textSecondary;
         icon = Icons.person;
-        label = compact ? 'Mem' : role.toUpperCase();
     }
 
     return Container(
@@ -1387,7 +1418,7 @@ class _MembersTabState extends State<_MembersTab> {
           Icon(icon, size: compact ? 12 : 14, color: color),
           SizedBox(width: compact ? 3 : 4),
           Text(
-            label,
+            compact ? role.toUpperCase() : role.toUpperCase(),
             style: TextStyle(
               fontSize: compact ? 9 : 10,
               fontWeight: FontWeight.bold,
@@ -1399,71 +1430,40 @@ class _MembersTabState extends State<_MembersTab> {
     );
   }
 
-  String _compactText(String value, {int maxLength = 24}) {
-    final trimmed = value.trim();
-    if (trimmed.length <= maxLength) return trimmed;
-    return '${trimmed.substring(0, maxLength - 1)}…';
-  }
-
-  String _memberDisplayName(Map<String, dynamic> member, {int maxLength = 22}) {
-    final name = '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
-        .trim();
-    if (name.isEmpty) return context.tr('Unnamed member');
-    return _compactText(name, maxLength: maxLength);
-  }
-
-  String _compactEmail(String? email, {int maxLength = 26}) {
-    final value = email?.trim() ?? '';
-    if (value.isEmpty) return '—';
-    return _compactText(value, maxLength: maxLength);
-  }
-
-  void _openMemberProfile(String memberId) {
-    if (memberId.isEmpty) return;
-
-    final scope = DesktopShellScope.maybeOf(context);
-    if (scope != null && widget.isDesktop) {
-      scope.pushDetail(RouteNames.memberDetail, memberId);
-      return;
-    }
-
-    Navigator.of(context).pushNamed(
-      RouteNames.memberDetail.replaceAll(':id', memberId),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Center(child: CircularProgressIndicator());
     }
 
-    final addButton = Padding(
-      padding: EdgeInsets.all(AppDimensions.paddingMD),
-      child: widget.isDesktop
-          ? Align(
-              alignment: Alignment.centerLeft,
-              child: ElevatedButton.icon(
-                onPressed: _showAddMemberDialog,
-                icon: Icon(Icons.person_add),
-                label: Text(context.tr('Add Member')),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: Size(0, AppDimensions.buttonHeightMD),
-                ),
-              ),
-            )
-          : ElevatedButton.icon(
-              onPressed: _showAddMemberDialog,
-              icon: Icon(Icons.person_add),
-              label: Text(context.tr('Add Member')),
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(
-                  double.infinity,
-                  AppDimensions.buttonHeightMD,
-                ),
-              ),
-            ),
-    );
+    final addButton = widget.canManageMembers
+        ? Padding(
+            padding: EdgeInsets.all(AppDimensions.paddingMD),
+            child: widget.isDesktop
+                ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: ElevatedButton.icon(
+                      onPressed: _showAddMemberDialog,
+                      icon: Icon(Icons.person_add),
+                      label: Text(context.tr('Add Member')),
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: Size(0, AppDimensions.buttonHeightMD),
+                      ),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: _showAddMemberDialog,
+                    icon: Icon(Icons.person_add),
+                    label: Text(context.tr('Add Member')),
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: Size(
+                        double.infinity,
+                        AppDimensions.buttonHeightMD,
+                      ),
+                    ),
+                  ),
+          )
+        : const SizedBox.shrink();
 
     Widget listContent;
     if (_members.isEmpty) {
@@ -1484,142 +1484,114 @@ class _MembersTabState extends State<_MembersTab> {
     } else if (widget.isDesktop) {
       listContent = RefreshIndicator(
         onRefresh: _loadMembers,
-        child: SingleChildScrollView(
+        child: ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final theme = Theme.of(context);
-              return Material(
-                color: theme.colorScheme.surface,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-                  side: BorderSide(
-                    color: theme.dividerColor.withValues(alpha: 0.4),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppDimensions.paddingMD,
+            vertical: AppDimensions.paddingSM,
+          ),
+          itemCount: _members.length,
+          separatorBuilder: (_, __) => Divider(
+            height: 1,
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.35),
+          ),
+          itemBuilder: (context, index) {
+            final dm = _members[index];
+            final member = (dm['member'] ?? dm['members']) as Map<String, dynamic>?;
+            if (member == null) return const SizedBox.shrink();
+
+            final role = dm['role']?.toString() ?? 'member';
+            final memberId = dm['member_id']?.toString() ?? '';
+            final memberName =
+                '${member['first_name']} ${member['last_name']}'.trim();
+
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openMemberProfile(memberId),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    vertical: AppDimensions.paddingSM,
+                    horizontal: AppDimensions.paddingXS,
                   ),
-                ),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(
-                      theme.colorScheme.surfaceContainerHighest,
-                    ),
-                    dataRowMinHeight: 48,
-                    dataRowMaxHeight: 52,
-                    columnSpacing: 8,
-                    horizontalMargin: 8,
-                    columns: [
-                      DataColumn(label: Text(context.tr('Member'))),
-                      DataColumn(label: Text(context.tr('Email'))),
-                      DataColumn(label: Text(context.tr('Role'))),
-                      DataColumn(label: Text(context.tr('Actions'))),
-                    ],
-                    rows: _members.map((dm) {
-                      final member = (dm['member'] ?? dm['members']) as Map<String, dynamic>?;
-                      if (member == null) {
-                        return DataRow(
-                          cells: [
-                            const DataCell(Text('—')),
-                            const DataCell(Text('—')),
-                            const DataCell(Text('—')),
-                            const DataCell(SizedBox.shrink()),
-                          ],
-                        );
-                      }
-                      final role = dm['role']?.toString() ?? 'member';
-                      final memberId = dm['member_id']?.toString() ?? '';
-                      final memberName =
-                          '${member['first_name']} ${member['last_name']}';
-                      return DataRow(
-                        cells: [
-                          DataCell(
-                            InkWell(
-                              onTap: () => _openMemberProfile(memberId),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 14,
-                                    child: Text(
-                                      member['first_name']?[0]
-                                              ?.toString()
-                                              .toUpperCase() ??
-                                          'M',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      _memberDisplayName(member),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          DataCell(
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        child: Text(
+                          member['first_name']?[0]
+                                  ?.toString()
+                                  .toUpperCase() ??
+                              'M',
+                        ),
+                      ),
+                      SizedBox(width: AppDimensions.spacingMD),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              _compactEmail(member['email']?.toString()),
+                              memberName.isEmpty
+                                  ? context.tr('Unnamed member')
+                                  : memberName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                          DataCell(_buildRoleChip(role, compact: true)),
-                          DataCell(
-                            PopupMenuButton(
-                              icon: const Icon(Icons.more_vert, size: 20),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 32,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.badge, size: 20),
-                                      const SizedBox(width: 8),
-                                      Text(context.tr('Change Role')),
-                                    ],
-                                  ),
-                                  onTap: () =>
-                                      _changeMemberRole(memberId, role),
-                                ),
-                                PopupMenuItem(
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.remove_circle,
-                                        color: AppColors.error,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(context.tr('Remove')),
-                                    ],
-                                  ),
-                                  onTap: () =>
-                                      _removeMember(memberId, memberName),
-                                ),
-                              ],
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
+                            SizedBox(height: AppDimensions.spacingXS),
+                            _buildRoleChip(role, compact: true),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          member['email']?.toString() ?? '—',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      if (widget.canManageMembers)
+                        PopupMenuButton(
+                          icon: const Icon(Icons.more_vert, size: 22),
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.badge, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(context.tr('Change Role')),
+                                ],
+                              ),
+                              onTap: () =>
+                                  _changeMemberRole(memberId, role),
+                            ),
+                            PopupMenuItem(
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.remove_circle,
+                                    color: AppColors.error,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(context.tr('Remove')),
+                                ],
+                              ),
+                              onTap: () =>
+                                  _removeMember(memberId, memberName),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       );
     } else {
@@ -1661,33 +1633,41 @@ class _MembersTabState extends State<_MembersTab> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _buildRoleChip(role),
-                    PopupMenuButton(
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          child: Row(
-                            children: [
-                              Icon(Icons.badge, size: 20),
-                              SizedBox(width: 8),
-                              Text(context.tr('Change Role')),
-                            ],
+                    if (widget.canManageMembers)
+                      PopupMenuButton(
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            child: Row(
+                              children: [
+                                Icon(Icons.badge, size: 20),
+                                SizedBox(width: 8),
+                                Text(context.tr('Change Role')),
+                              ],
+                            ),
+                            onTap: () => _changeMemberRole(memberId, role),
                           ),
-                          onTap: () => _changeMemberRole(memberId, role),
-                        ),
-                        PopupMenuItem(
-                          child: Row(
-                            children: [
-                              Icon(Icons.remove_circle, color: AppColors.error),
-                              SizedBox(width: 8),
-                              Text(context.tr('Remove')),
-                            ],
+                          PopupMenuItem(
+                            child: Row(
+                              children: [
+                                Icon(Icons.remove_circle, color: AppColors.error),
+                                SizedBox(width: 8),
+                                Text(context.tr('Remove')),
+                              ],
+                            ),
+                            onTap: () => _removeMember(memberId, memberName),
                           ),
-                          onTap: () => _removeMember(memberId, memberName),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
                   ],
                 ),
-                onTap: () => _openMemberProfile(memberId),
+                onTap: () {
+                  Navigator.of(context).pushNamed(
+                    RouteNames.memberDetail.replaceAll(
+                      ':id',
+                      member['id'].toString(),
+                    ),
+                  );
+                },
               ),
             );
           },
@@ -1707,14 +1687,12 @@ class _MembersTabState extends State<_MembersTab> {
 /// Tasks tab
 class _TasksTab extends StatefulWidget {
   final String departmentId;
-  final Map<String, dynamic>? department;
   final List<Map<String, dynamic>> tasks;
   final VoidCallback? onTasksUpdated;
   final bool isDesktop;
 
   _TasksTab({
     required this.departmentId,
-    this.department,
     required this.tasks,
     this.onTasksUpdated,
     this.isDesktop = false,
@@ -1726,11 +1704,59 @@ class _TasksTab extends StatefulWidget {
 
 class _TasksTabState extends State<_TasksTab> {
   Map<String, dynamic>? _completionStats;
+  bool _canCreateTasks = false;
 
   @override
   void initState() {
     super.initState();
     _loadCompletionStats();
+    _checkCanCreateTasks();
+  }
+
+  Future<void> _checkCanCreateTasks() async {
+    final canCreate = await PermissionHelper.canCreateDepartmentTask(
+      widget.departmentId,
+    );
+    if (mounted) setState(() => _canCreateTasks = canCreate);
+  }
+
+  Future<void> _openCreateTask() async {
+    final scope = DesktopShellScope.maybeOf(context);
+    if (scope != null) {
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return Dialog(
+            clipBehavior: Clip.antiAlias,
+            insetPadding: EdgeInsets.all(AppDimensions.paddingLG),
+            child: SizedBox(
+              width: 1120,
+              height: MediaQuery.sizeOf(dialogContext).height * 0.9,
+              child: AddTaskPage(
+                departmentId: widget.departmentId,
+                onClose: (result) => Navigator.of(dialogContext).pop(result),
+              ),
+            ),
+          );
+        },
+      );
+      if (result == true) {
+        widget.onTasksUpdated?.call();
+        await _loadCompletionStats();
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final result = await Navigator.of(context).pushNamed(
+      RouteNames.addTask,
+      arguments: widget.departmentId,
+    );
+    if (result == true) {
+      widget.onTasksUpdated?.call();
+      await _loadCompletionStats();
+    }
   }
 
   Future<void> _loadCompletionStats() async {
@@ -2053,7 +2079,7 @@ class _TasksTabState extends State<_TasksTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Quick actions',
+                    context.tr('Quick actions'),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
@@ -2068,9 +2094,16 @@ class _TasksTabState extends State<_TasksTab> {
                         spacing: AppDimensions.spacingSM,
                         runSpacing: AppDimensions.spacingSM,
                         children: [
+                          if (_canCreateTasks)
+                            _TaskActionTile(
+                              icon: Icons.add_task,
+                              label: context.tr('Create Task'),
+                              onTap: _openCreateTask,
+                              compact: useCompact,
+                            ),
                           _TaskActionTile(
                             icon: Icons.task_alt_outlined,
-                            label: 'Manage Tasks',
+                            label: context.tr('Manage Tasks'),
                             onTap: () async {
                               final scope = DesktopShellScope.maybeOf(context);
                               if (scope != null) {
@@ -2094,7 +2127,7 @@ class _TasksTabState extends State<_TasksTab> {
                           ),
                           _TaskActionTile(
                             icon: Icons.folder_outlined,
-                            label: 'Manage Projects',
+                            label: context.tr('Manage Projects'),
                             onTap: () async {
                               final scope = DesktopShellScope.maybeOf(context);
                               if (scope != null) {
@@ -2118,7 +2151,7 @@ class _TasksTabState extends State<_TasksTab> {
                           ),
                           _TaskActionTile(
                             icon: Icons.label_outlined,
-                            label: 'Manage Tags',
+                            label: context.tr('Manage Tags'),
                             onTap: () async {
                               final scope = DesktopShellScope.maybeOf(context);
                               if (scope != null) {
@@ -2142,32 +2175,10 @@ class _TasksTabState extends State<_TasksTab> {
                           ),
                           _TaskActionTile(
                             icon: Icons.description_outlined,
-                            label: 'Generate Report',
+                            label: context.tr('Generate Report'),
                             onTap: _generateReport,
                             compact: useCompact,
                           ),
-                          if (ServiceScheduleService.isMediaTeamDepartment(
-                            widget.department,
-                          ))
-                            _TaskActionTile(
-                              icon: Icons.event_available_outlined,
-                              label: 'Service schedule',
-                              onTap: () async {
-                                final scope = DesktopShellScope.maybeOf(context);
-                                if (scope != null) {
-                                  scope.pushDetail(
-                                    RouteNames.serviceSchedule,
-                                    widget.departmentId,
-                                  );
-                                } else {
-                                  await Navigator.of(context).pushNamed(
-                                    RouteNames.serviceSchedule,
-                                    arguments: widget.departmentId,
-                                  );
-                                }
-                              },
-                              compact: useCompact,
-                            ),
                         ],
                       );
                     },
@@ -2399,12 +2410,7 @@ class _ReportsTabState extends State<_ReportsTab> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Report')),
-        content: Text(
-          context.tr(
-            'Are you sure you want to delete "{title}"?',
-            {'title': report['title']},
-          ),
-        ),
+        content: Text('Are you sure you want to delete "${report['title']}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -2506,13 +2512,11 @@ class _ReportsTabState extends State<_ReportsTab> {
                     padding: EdgeInsets.all(AppDimensions.paddingMD),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minWidth: constraints.maxWidth,
-                            ),
-                            child: DataTable(
+                        return ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
+                          ),
+                          child: DataTable(
                             columns: [
                               DataColumn(label: Text(context.tr('Report'))),
                               DataColumn(label: Text(context.tr('Created'))),
@@ -2605,7 +2609,6 @@ class _ReportsTabState extends State<_ReportsTab> {
                                 ],
                               );
                             }).toList(),
-                          ),
                           ),
                         );
                       },

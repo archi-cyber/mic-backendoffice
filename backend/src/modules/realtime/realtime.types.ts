@@ -33,6 +33,8 @@ export const EVENTS = {
   taskAssigned: 'task:assigned',
   taskUpdated: 'task:updated',
   announcementNew: 'announcement:new',
+  announcementUpdated: 'announcement:updated',
+  announcementDeleted: 'announcement:deleted',
   penaltyUpdated: 'penalty:updated',
   memberUpdated: 'member:updated',
 } as const;
@@ -71,6 +73,8 @@ export interface AnnouncementPayload {
   message: string;
   isGlobal: boolean;
   departmentId: string | null;
+  /** Auteur, pour que ses autres appareils voient aussi le changement. */
+  authorUserId?: string | null;
 }
 
 export interface PenaltyUpdatedPayload {

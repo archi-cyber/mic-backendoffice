@@ -12,7 +12,6 @@ import '../../services/storage_service.dart';
 import '../../services/visitor_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
-import '../../widgets/phone_number_field.dart';
 import 'member_form_ui.dart';
 
 /// Add member page
@@ -31,7 +30,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneInput = PhoneNumberInputController();
+  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
   final _stateController = TextEditingController();
@@ -75,7 +74,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
-    _phoneInput.dispose();
+    _phoneController.dispose();
     _addressController.dispose();
     _cityController.dispose();
     _stateController.dispose();
@@ -96,7 +95,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           DateTime.now().subtract(Duration(days: 365 * 25)),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
-      helpText: context.tr('Select Birthday'),
+      helpText: 'Select Birthday',
     );
     if (picked != null) {
       setState(() {
@@ -175,7 +174,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
       'email': _emailController.text.trim().isNotEmpty
           ? _emailController.text.trim()
           : null,
-      'phone': _phoneInput.storedValue,
+      'phone': _phoneController.text.trim().isNotEmpty
+          ? _phoneController.text.trim()
+          : null,
       'birthday': _selectedBirthday!.toIso8601String().split('T')[0],
       'address': _addressController.text.trim().isNotEmpty
           ? _addressController.text.trim()
@@ -224,7 +225,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       initialDate: _newcomerJoinDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      helpText: context.tr('Select Join Date'),
+      helpText: 'Select Join Date',
     );
     if (picked != null) {
       setState(() {
@@ -235,7 +236,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
 
   Future<void> _handleSave() async {
     if (_selectedBirthday == null) {
-      setState(() => _birthdayError = context.tr('Birthday is required'));
+      setState(() => _birthdayError = 'Birthday is required');
     } else {
       setState(() => _birthdayError = null);
     }
@@ -258,7 +259,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
             'email': _emailController.text.trim().isNotEmpty
                 ? _emailController.text.trim()
                 : null,
-            'phone': _phoneInput.storedValue,
+            'phone': _phoneController.text.trim().isNotEmpty
+                ? _phoneController.text.trim()
+                : null,
             'address': _addressController.text.trim().isNotEmpty
                 ? _addressController.text.trim()
                 : null,
@@ -275,7 +278,9 @@ class _AddMemberPageState extends State<AddMemberPage> {
           email: _emailController.text.trim().isNotEmpty
               ? _emailController.text.trim()
               : null,
-          phone: _phoneInput.storedValue,
+          phone: _phoneController.text.trim().isNotEmpty
+              ? _phoneController.text.trim()
+              : null,
           newcomerJoinDate: _newcomerJoinDate ?? DateTime.now(),
           newcomerIntention: 'just_passing',
         );
@@ -294,8 +299,8 @@ class _AddMemberPageState extends State<AddMemberPage> {
           SnackBar(
             content: Text(
               isJustPassingNewComer
-                  ? context.tr('Visitor created successfully')
-                  : context.tr('Member created successfully'),
+                  ? 'Visitor created successfully'
+                  : 'Member created successfully',
             ),
             backgroundColor: AppColors.success,
           ),
@@ -435,7 +440,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? context.tr('First name is required') : null,
+                  (v == null || v.isEmpty) ? 'First name is required' : null,
             ),
           ),
           SizedBox(width: AppDimensions.spacingMD),
@@ -447,7 +452,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.person),
               ),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? context.tr('Last name is required') : null,
+                  (v == null || v.isEmpty) ? 'Last name is required' : null,
             ),
           ),
         ],
@@ -506,7 +511,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           SizedBox(height: AppDimensions.spacingSM),
           Text(
-            context.tr('Profile photo (optional)'),
+            'Profile photo (optional)',
             style: Theme.of(
               context,
             ).textTheme.bodySmall?.copyWith(color: context.mic.textSecondary),
@@ -537,7 +542,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
         child: Text(
           _selectedBirthday != null
               ? '${_selectedBirthday!.year}-${_selectedBirthday!.month.toString().padLeft(2, '0')}-${_selectedBirthday!.day.toString().padLeft(2, '0')}'
-              : context.tr('Select birthday'),
+              : 'Select birthday',
           style: TextStyle(
             color: _selectedBirthday != null
                 ? Theme.of(context).textTheme.bodyLarge?.color
@@ -559,17 +564,18 @@ class _AddMemberPageState extends State<AddMemberPage> {
         ),
         validator: (v) {
           if (v != null && v.isNotEmpty && !v.contains('@')) {
-            return context.tr('Invalid email format');
+            return 'Invalid email format';
           }
           return null;
         },
       ),
       SizedBox(height: AppDimensions.spacingMD),
-      PhoneNumberField(
-        controller: _phoneInput,
-        optional: true,
+      TextFormField(
+        controller: _phoneController,
+        keyboardType: TextInputType.phone,
         decoration: InputDecoration(
           labelText: context.tr('Phone'),
+          prefixIcon: Icon(Icons.phone),
         ),
       ),
     ];
@@ -755,102 +761,93 @@ class _AddMemberPageState extends State<AddMemberPage> {
 
   List<Widget> _buildRoleStatusSection(BuildContext context) {
     return [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      DesktopResponsiveFieldRow(
         children: [
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _selectedRole,
-              decoration: InputDecoration(
-                labelText: context.tr('Role *'),
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              items: [
-                DropdownMenuItem(
-                  value: 'member',
-                  child: Text(context.tr('Member')),
-                ),
-                DropdownMenuItem(
-                  value: 'leader',
-                  child: Text(context.tr('Leader')),
-                ),
-                DropdownMenuItem(
-                  value: 'admin',
-                  child: Text(context.tr('Admin')),
-                ),
-                DropdownMenuItem(
-                  value: 'worker',
-                  child: Text(context.tr('Worker')),
-                ),
-                DropdownMenuItem(
-                  value: 'sympathiser',
-                  child: Text(context.tr('Sympathiser')),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _selectedRole = value);
-              },
-              validator: (value) =>
-                  (value == null || value.isEmpty) ? context.tr('Role is required') : null,
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _selectedRole,
+            decoration: InputDecoration(
+              labelText: context.tr('Role *'),
+              prefixIcon: Icon(Icons.person_outline),
             ),
+            items: [
+              DropdownMenuItem(
+                value: 'member',
+                child: Text(context.tr('Member')),
+              ),
+              DropdownMenuItem(
+                value: 'leader',
+                child: Text(context.tr('Leader')),
+              ),
+              DropdownMenuItem(
+                value: 'admin',
+                child: Text(context.tr('Admin')),
+              ),
+              DropdownMenuItem(
+                value: 'worker',
+                child: Text(context.tr('Worker')),
+              ),
+              DropdownMenuItem(
+                value: 'sympathiser',
+                child: Text(context.tr('Sympathiser')),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _selectedRole = value);
+            },
+            validator: (value) =>
+                (value == null || value.isEmpty) ? 'Role is required' : null,
           ),
-          SizedBox(width: AppDimensions.spacingMD),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _selectedGender,
-              decoration: InputDecoration(
-                labelText: context.tr('Gender'),
-                prefixIcon: Icon(Icons.person),
-              ),
-              items: [
-                DropdownMenuItem(
-                  value: 'male',
-                  child: Text(context.tr('Male')),
-                ),
-                DropdownMenuItem(
-                  value: 'female',
-                  child: Text(context.tr('Female')),
-                ),
-                DropdownMenuItem(
-                  value: 'other',
-                  child: Text(context.tr('Other')),
-                ),
-              ],
-              onChanged: (value) => setState(() => _selectedGender = value),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _selectedGender,
+            decoration: InputDecoration(
+              labelText: context.tr('Gender'),
+              prefixIcon: Icon(Icons.person),
             ),
+            items: [
+              DropdownMenuItem(
+                value: 'male',
+                child: Text(context.tr('Male')),
+              ),
+              DropdownMenuItem(
+                value: 'female',
+                child: Text(context.tr('Female')),
+              ),
+              DropdownMenuItem(
+                value: 'other',
+                child: Text(context.tr('Other')),
+              ),
+            ],
+            onChanged: (value) => setState(() => _selectedGender = value),
           ),
-          SizedBox(width: AppDimensions.spacingMD),
-          Expanded(
-            child: DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _selectedMaritalStatus,
-              decoration: InputDecoration(
-                labelText: context.tr('Marital Status'),
-                prefixIcon: Icon(Icons.favorite),
-              ),
-              items: [
-                DropdownMenuItem(
-                  value: 'single',
-                  child: Text(context.tr('Single')),
-                ),
-                DropdownMenuItem(
-                  value: 'married',
-                  child: Text(context.tr('Married')),
-                ),
-                DropdownMenuItem(
-                  value: 'divorced',
-                  child: Text(context.tr('Divorced')),
-                ),
-                DropdownMenuItem(
-                  value: 'widowed',
-                  child: Text(context.tr('Widowed')),
-                ),
-              ],
-              onChanged: (value) =>
-                  setState(() => _selectedMaritalStatus = value),
+          DropdownButtonFormField<String>(
+            isExpanded: true,
+            initialValue: _selectedMaritalStatus,
+            decoration: InputDecoration(
+              labelText: context.tr('Marital Status'),
+              prefixIcon: Icon(Icons.favorite),
             ),
+            items: [
+              DropdownMenuItem(
+                value: 'single',
+                child: Text(context.tr('Single')),
+              ),
+              DropdownMenuItem(
+                value: 'married',
+                child: Text(context.tr('Married')),
+              ),
+              DropdownMenuItem(
+                value: 'divorced',
+                child: Text(context.tr('Divorced')),
+              ),
+              DropdownMenuItem(
+                value: 'widowed',
+                child: Text(context.tr('Widowed')),
+              ),
+            ],
+            onChanged: (value) =>
+                setState(() => _selectedMaritalStatus = value),
           ),
         ],
       ),
@@ -878,9 +875,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
       CheckboxListTile(
         title: Text(context.tr('New Comer')),
         subtitle: Text(
-          context.tr(
-            'Status will change to member after 9+ service attendances in 3 months.',
-          ),
+          'Status will change to member after 9+ service attendances in 3 months.',
         ),
         value: _isNewComer,
         onChanged: (value) {
@@ -909,7 +904,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             child: Text(
               _newcomerJoinDate != null
                   ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
-                  : context.tr('Select join date'),
+                  : 'Select join date',
               style: TextStyle(
                 color: _newcomerJoinDate != null
                     ? Theme.of(context).textTheme.bodyLarge?.color
@@ -925,9 +920,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             labelText: context.tr('Newcomer Intention'),
             prefixIcon: Icon(Icons.help_outline),
             helperText: context.tr(
-              context.tr(
-                'Selecting "Just passing" creates a Visitor, not a Member.',
-              ),
+              'Selecting "Just passing" creates a Visitor, not a Member.',
             ),
           ),
           items: [
@@ -972,7 +965,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return context.tr('First name is required');
+              return 'First name is required';
             }
             return null;
           },
@@ -986,7 +979,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return context.tr('Last name is required');
+              return 'Last name is required';
             }
             return null;
           },
@@ -1001,17 +994,18 @@ class _AddMemberPageState extends State<AddMemberPage> {
           ),
           validator: (value) {
             if (value != null && value.isNotEmpty && !value.contains('@')) {
-              return context.tr('Invalid email format');
+              return 'Invalid email format';
             }
             return null;
           },
         ),
         SizedBox(height: AppDimensions.spacingMD),
-        PhoneNumberField(
-          controller: _phoneInput,
-          optional: true,
+        TextFormField(
+          controller: _phoneController,
+          keyboardType: TextInputType.phone,
           decoration: InputDecoration(
             labelText: context.tr('Phone'),
+            prefixIcon: Icon(Icons.phone),
           ),
         ),
         SizedBox(height: AppDimensions.spacingMD),
@@ -1228,7 +1222,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             }
           },
           validator: (value) =>
-              (value == null || value.isEmpty) ? context.tr('Role is required') : null,
+              (value == null || value.isEmpty) ? 'Role is required' : null,
         ),
         SizedBox(height: AppDimensions.spacingMD),
         DropdownButtonFormField<String>(
@@ -1309,9 +1303,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
         CheckboxListTile(
           title: Text(context.tr('New Comer')),
           subtitle: Text(
-            context.tr(
-              'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
-            ),
+            'Check if this is a new comer. Status will automatically change to member after 9+ service attendances in 3 months.',
           ),
           value: _isNewComer,
           onChanged: (value) {
@@ -1337,13 +1329,13 @@ class _AddMemberPageState extends State<AddMemberPage> {
                 prefixIcon: Icon(Icons.event_available),
                 suffixIcon: Icon(Icons.calendar_today),
                 helperText: context.tr(
-                  context.tr('Select the date when the newcomer joined'),
+                  'Select the date when the newcomer joined',
                 ),
               ),
               child: Text(
                 _newcomerJoinDate != null
                     ? '${_newcomerJoinDate!.year}-${_newcomerJoinDate!.month.toString().padLeft(2, '0')}-${_newcomerJoinDate!.day.toString().padLeft(2, '0')}'
-                    : context.tr('Select join date'),
+                    : 'Select join date',
                 style: TextStyle(
                   color: _newcomerJoinDate != null
                       ? Theme.of(context).textTheme.bodyLarge?.color
@@ -1359,9 +1351,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
               labelText: context.tr('Newcomer Intention'),
               prefixIcon: Icon(Icons.help_outline),
               helperText: context.tr(
-                context.tr(
                 'Selecting "Just passing" creates a Visitor, not a Member.',
-              ),
               ),
             ),
             items: [
@@ -1412,7 +1402,7 @@ class _AddMemberPageState extends State<AddMemberPage> {
             Icon(Icons.star, size: 20),
             SizedBox(width: AppDimensions.spacingSM),
             Text(
-              context.tr('Key Skills'),
+              'Key Skills',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],

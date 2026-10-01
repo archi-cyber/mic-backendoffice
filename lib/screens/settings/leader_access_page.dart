@@ -563,13 +563,11 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                     child: LayoutBuilder(
                       builder: (context, constraints) {
                         return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SingleChildScrollView(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minWidth: constraints.maxWidth,
-                              ),
-                              child: DataTable(
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minWidth: constraints.maxWidth,
+                            ),
+                            child: DataTable(
                               columns: [
                                 DataColumn(label: Text(context.tr('Feature'))),
                                 DataColumn(label: Text(context.tr('View'))),
@@ -659,7 +657,6 @@ class _LeaderAccessPageState extends State<LeaderAccessPage> {
                                   ],
                                 );
                               }).toList(),
-                            ),
                             ),
                           ),
                         );

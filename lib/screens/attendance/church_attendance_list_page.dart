@@ -28,7 +28,8 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   bool _isLoading = false;
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
-  String? _filterNameQuery;
+  final TextEditingController _searchController = TextEditingController();
+
   final int _rowsPerPage = 10;
   int _currentPage = 0;
 
@@ -38,20 +39,37 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     _loadServices();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> get _filteredServices {
-    var list = _services;
-    final query = _filterNameQuery?.trim().toLowerCase();
-    if (query != null && query.isNotEmpty) {
-      list = list
-          .where(
-            (service) =>
-                (service['name']?.toString().toLowerCase() ?? '').contains(
-                  query,
-                ),
-          )
-          .toList();
-    }
-    return list;
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) return _services;
+    final locale = Localizations.localeOf(context).toString();
+
+    return _services.where((service) {
+      final rawDate = service['service_date']?.toString() ?? '';
+      final date = _parseServiceDate(rawDate);
+      final haystacks = <String>[
+        rawDate.toLowerCase(),
+        if (date != null) ...[
+          _formatDate(rawDate).toLowerCase(),
+          _formatWeekday(rawDate).toLowerCase(),
+          DateFormat('EEEE d MMMM yyyy', locale).format(date).toLowerCase(),
+          DateFormat('d/M/yyyy').format(date).toLowerCase(),
+          DateFormat('yyyy-MM-dd').format(date).toLowerCase(),
+          DateFormat('MMM yyyy', locale).format(date).toLowerCase(),
+          // Keep English forms so ISO/English queries still match in FR/ES.
+          DateFormat('EEEE d MMMM yyyy', 'en').format(date).toLowerCase(),
+          DateFormat('MMM d, yyyy', 'en').format(date).toLowerCase(),
+          DateFormat('EEEE', 'en').format(date).toLowerCase(),
+        ],
+      ];
+      return haystacks.any((text) => text.contains(query));
+    }).toList();
   }
 
   Future<void> _loadServices() async {
@@ -74,7 +92,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.tr('Error loading services: $e')),
+          content: Text(context.tr('Error loading services: {error}', {'error': e})),
           backgroundColor: AppColors.error,
         ),
       );
@@ -85,15 +103,48 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
     setState(() {
       _filterStartDate = null;
       _filterEndDate = null;
-      _filterNameQuery = null;
+      _searchController.clear();
+      _currentPage = 0;
     });
     _loadServices();
   }
 
-  bool get _hasActiveFilters {
-    return _filterStartDate != null ||
-        _filterEndDate != null ||
-        (_filterNameQuery != null && _filterNameQuery!.trim().isNotEmpty);
+  bool get _hasSearchQuery => _searchController.text.trim().isNotEmpty;
+
+  Widget _buildSearchField({bool compact = false}) {
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText: context.tr('Search by date...'),
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: context.mic.surface,
+        isDense: compact,
+        suffixIcon: _hasSearchQuery
+            ? IconButton(
+                icon: const Icon(Icons.clear),
+                tooltip: context.tr('Clear'),
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                    _currentPage = 0;
+                  });
+                },
+              )
+            : null,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          borderSide: BorderSide(color: context.mic.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          borderSide: BorderSide(color: context.mic.border),
+        ),
+      ),
+      onChanged: (_) {
+        setState(() => _currentPage = 0);
+      },
+    );
   }
 
   int get _thisMonthCount {
@@ -125,21 +176,17 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   String _formatDate(String dateString) {
     final date = _parseServiceDate(dateString);
     if (date == null) return dateString;
-    return DateFormat('MMM d, yyyy').format(date);
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat('MMM d, yyyy', locale).format(date);
   }
 
   String _formatWeekday(String dateString) {
     final date = _parseServiceDate(dateString);
     if (date == null) return '';
-    return DateFormat('EEEE').format(date);
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat('EEEE', locale).format(date);
   }
 
-  String _serviceName(Map<String, dynamic> service) {
-    final name = service['name']?.toString().trim();
-    return name != null && name.isNotEmpty
-        ? name
-        : context.tr('Church service');
-  }
 
   Future<void> _viewServiceDetails(String churchServiceId) async {
     final scope = DesktopShellScope.maybeOf(context);
@@ -168,11 +215,9 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
 
   Future<void> _confirmDeleteService(
     String churchServiceId,
-    String serviceName,
     String serviceDate,
   ) async {
-    final label =
-        '${_serviceName({'name': serviceName})} · ${_formatDate(serviceDate)}';
+    final label = _formatDate(serviceDate);
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -219,7 +264,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.tr('Error deleting service: $e')),
+          content: Text(context.tr('Error deleting service: {error}', {'error': e})),
           backgroundColor: AppColors.error,
         ),
       );
@@ -328,97 +373,96 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
         AppDimensions.paddingMD,
         AppDimensions.spacingSM,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_hasActiveFilters)
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    if (_filterStartDate != null)
-                      Padding(
-                        padding: EdgeInsets.only(right: AppDimensions.spacingSM),
-                        child: Chip(
-                          avatar: const Icon(Icons.date_range, size: 16),
-                          label: Text(
-                            '${context.tr('From')}: ${_formatDate(_filterStartDate!.toIso8601String().split('T')[0])}',
+          _buildSearchField(),
+          SizedBox(height: AppDimensions.spacingSM),
+          Row(
+            children: [
+              if (_filterStartDate != null || _filterEndDate != null)
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        if (_filterStartDate != null)
+                          Padding(
+                            padding:
+                                EdgeInsets.only(right: AppDimensions.spacingSM),
+                            child: Chip(
+                              avatar: const Icon(Icons.date_range, size: 16),
+                              label: Text(
+                                '${context.tr('From')}: ${_formatDate(_filterStartDate!.toIso8601String().split('T')[0])}',
+                              ),
+                              onDeleted: () {
+                                setState(() => _filterStartDate = null);
+                                _loadServices();
+                              },
+                            ),
                           ),
-                          onDeleted: () {
-                            setState(() => _filterStartDate = null);
-                            _loadServices();
-                          },
-                        ),
-                      ),
-                    if (_filterEndDate != null)
-                      Padding(
-                        padding: EdgeInsets.only(right: AppDimensions.spacingSM),
-                        child: Chip(
-                          avatar: const Icon(Icons.event, size: 16),
-                          label: Text(
-                            '${context.tr('To')}: ${_formatDate(_filterEndDate!.toIso8601String().split('T')[0])}',
+                        if (_filterEndDate != null)
+                          Padding(
+                            padding:
+                                EdgeInsets.only(right: AppDimensions.spacingSM),
+                            child: Chip(
+                              avatar: const Icon(Icons.event, size: 16),
+                              label: Text(
+                                '${context.tr('To')}: ${_formatDate(_filterEndDate!.toIso8601String().split('T')[0])}',
+                              ),
+                              onDeleted: () {
+                                setState(() => _filterEndDate = null);
+                                _loadServices();
+                              },
+                            ),
                           ),
-                          onDeleted: () {
-                            setState(() => _filterEndDate = null);
-                            _loadServices();
-                          },
+                        TextButton.icon(
+                          onPressed: _clearFilters,
+                          icon: const Icon(Icons.clear, size: 18),
+                          label: Text(context.tr('Clear All')),
                         ),
-                      ),
-                    if (_filterNameQuery != null &&
-                        _filterNameQuery!.trim().isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.only(right: AppDimensions.spacingSM),
-                        child: Chip(
-                          avatar: const Icon(Icons.search, size: 16),
-                          label: Text(_filterNameQuery!.trim()),
-                          onDeleted: () {
-                            setState(() => _filterNameQuery = null);
-                          },
-                        ),
-                      ),
-                    TextButton.icon(
-                      onPressed: _clearFilters,
-                      icon: const Icon(Icons.clear, size: 18),
-                      label: Text(context.tr('Clear All')),
+                      ],
                     ),
-                  ],
+                  ),
+                )
+              else
+                Expanded(
+                  child: Text(
+                    _hasSearchQuery
+                        ? context.tr('Search results')
+                        : context.tr('All church services'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.mic.textSecondary,
+                    ),
+                  ),
                 ),
+              IconButton.filledTonal(
+                onPressed: _showFilterDialog,
+                icon: const Icon(Icons.filter_list),
+                tooltip: context.tr('Filter Services'),
               ),
-            )
-          else
-            Expanded(
-              child: Text(
-                context.tr('All church services'),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: context.mic.textSecondary,
+              SizedBox(width: AppDimensions.spacingSM),
+              IconButton.filledTonal(
+                onPressed: _isLoading ? null : _generateReport,
+                icon: const Icon(Icons.picture_as_pdf),
+                tooltip: context.tr('Generate Report'),
+              ),
+              SizedBox(width: AppDimensions.spacingSM),
+              IconButton.filledTonal(
+                onPressed: _isLoading ? null : _loadServices,
+                icon: const Icon(Icons.refresh),
+                tooltip: context.tr('Refresh'),
+              ),
+              if (widget.hideAppBarAndBottomNav) ...[
+                SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _markNewAttendance,
+                  icon: const Icon(Icons.add),
+                  label: Text(context.tr('Mark Attendance')),
                 ),
-              ),
-            ),
-          IconButton.filledTonal(
-            onPressed: _showFilterDialog,
-            icon: const Icon(Icons.filter_list),
-            tooltip: context.tr('Filter Services'),
+              ],
+            ],
           ),
-          SizedBox(width: AppDimensions.spacingSM),
-          IconButton.filledTonal(
-            onPressed: _isLoading ? null : _generateReport,
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: context.tr('Generate Report'),
-          ),
-          SizedBox(width: AppDimensions.spacingSM),
-          IconButton.filledTonal(
-            onPressed: _isLoading ? null : _loadServices,
-            icon: const Icon(Icons.refresh),
-            tooltip: context.tr('Refresh'),
-          ),
-          if (widget.hideAppBarAndBottomNav) ...[
-            SizedBox(width: AppDimensions.spacingSM),
-            FilledButton.icon(
-              onPressed: _markNewAttendance,
-              icon: const Icon(Icons.add),
-              label: Text(context.tr('Mark Attendance')),
-            ),
-          ],
         ],
       ),
     );
@@ -445,7 +489,9 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
-              context.tr('No services found'),
+              _hasSearchQuery
+                  ? context.tr('No matching services')
+                  : context.tr('No services found'),
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: context.mic.appBarForeground,
@@ -453,18 +499,32 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
             ),
             SizedBox(height: AppDimensions.spacingSM),
             Text(
-              context.tr('Mark attendance for a new church service'),
+              _hasSearchQuery
+                  ? context.tr('Try another date or clear the search')
+                  : context.tr('Mark attendance for a new church service'),
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: context.mic.textSecondary,
               ),
               textAlign: TextAlign.center,
             ),
             SizedBox(height: AppDimensions.spacingMD),
-            FilledButton.icon(
-              onPressed: _markNewAttendance,
-              icon: const Icon(Icons.add),
-              label: Text(context.tr('Mark Attendance')),
-            ),
+            if (_hasSearchQuery)
+              OutlinedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                    _currentPage = 0;
+                  });
+                },
+                icon: const Icon(Icons.clear),
+                label: Text(context.tr('Clear search')),
+              )
+            else
+              FilledButton.icon(
+                onPressed: _markNewAttendance,
+                icon: const Icon(Icons.add),
+                label: Text(context.tr('Mark Attendance')),
+              ),
           ],
         ),
       ),
@@ -474,7 +534,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
   Widget _buildServiceTile(Map<String, dynamic> service) {
     final churchServiceId = service['id']?.toString() ?? '';
     final serviceDate = service['service_date'] as String;
-    final name = _serviceName(service);
     final attendanceCount = service['attendance_count'] as int? ?? 0;
     final weekday = _formatWeekday(serviceDate);
     const color = AppColors.primary;
@@ -539,7 +598,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                name,
+                                _formatDate(serviceDate),
                                 style: Theme.of(context)
                                     .textTheme
                                     .titleSmall
@@ -564,7 +623,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                                     Icon(Icons.event, size: 13, color: color),
                                     const SizedBox(width: 4),
                                     Text(
-                                      _formatDate(serviceDate),
+                                      weekday,
                                       style: Theme.of(context)
                                           .textTheme
                                           .labelSmall
@@ -598,7 +657,15 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '$attendanceCount ${attendanceCount == 1 ? context.tr('member') : context.tr('Members')} ${context.tr('attended')}',
+                                    attendanceCount == 1
+                                        ? context.tr(
+                                            '{count} member attended',
+                                            {'count': attendanceCount},
+                                          )
+                                        : context.tr(
+                                            '{count} members attended',
+                                            {'count': attendanceCount},
+                                          ),
                                     style: Theme.of(context)
                                         .textTheme
                                         .labelSmall
@@ -620,7 +687,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                             } else if (action == 'delete') {
                               _confirmDeleteService(
                                 churchServiceId,
-                                name,
                                 serviceDate,
                               );
                             }
@@ -701,7 +767,13 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Text(
-                  context.tr('Page ${currentPage + 1} of ${maxPage + 1}'),
+                  context.tr(
+                    'Page {current} of {total}',
+                    {
+                      'current': currentPage + 1,
+                      'total': maxPage + 1,
+                    },
+                  ),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 IconButton(
@@ -763,7 +835,37 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_hasActiveFilters)
+            Row(
+              children: [
+                Expanded(child: _buildSearchField(compact: true)),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filledTonal(
+                  onPressed: _showFilterDialog,
+                  icon: const Icon(Icons.filter_list),
+                  tooltip: context.tr('Filter Services'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filledTonal(
+                  onPressed: _isLoading ? null : _generateReport,
+                  icon: const Icon(Icons.picture_as_pdf),
+                  tooltip: context.tr('Generate Report'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filledTonal(
+                  onPressed: _isLoading ? null : _loadServices,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: context.tr('Refresh'),
+                ),
+                SizedBox(width: AppDimensions.spacingSM),
+                FilledButton.icon(
+                  onPressed: _markNewAttendance,
+                  icon: const Icon(Icons.add),
+                  label: Text(context.tr('Mark Attendance')),
+                ),
+              ],
+            ),
+            if (_filterStartDate != null || _filterEndDate != null) ...[
+              SizedBox(height: AppDimensions.spacingSM),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -798,19 +900,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                           },
                         ),
                       ),
-                    if (_filterNameQuery != null &&
-                        _filterNameQuery!.trim().isNotEmpty)
-                      Padding(
-                        padding:
-                            EdgeInsets.only(right: AppDimensions.spacingSM),
-                        child: Chip(
-                          avatar: const Icon(Icons.search, size: 16),
-                          label: Text(_filterNameQuery!.trim()),
-                          onDeleted: () {
-                            setState(() => _filterNameQuery = null);
-                          },
-                        ),
-                      ),
                     TextButton.icon(
                       onPressed: _clearFilters,
                       icon: const Icon(Icons.clear, size: 18),
@@ -819,44 +908,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                   ],
                 ),
               ),
-            if (_hasActiveFilters) SizedBox(height: AppDimensions.spacingSM),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _hasActiveFilters
-                        ? context.tr('Filtered church services')
-                        : context.tr('All church services'),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: context.mic.textSecondary,
-                        ),
-                  ),
-                ),
-                IconButton.filledTonal(
-                  onPressed: _showFilterDialog,
-                  icon: const Icon(Icons.filter_list),
-                  tooltip: context.tr('Filter Services'),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                IconButton.filledTonal(
-                  onPressed: _isLoading ? null : _generateReport,
-                  icon: const Icon(Icons.picture_as_pdf),
-                  tooltip: context.tr('Generate Report'),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                IconButton.filledTonal(
-                  onPressed: _isLoading ? null : _loadServices,
-                  icon: const Icon(Icons.refresh),
-                  tooltip: context.tr('Refresh'),
-                ),
-                SizedBox(width: AppDimensions.spacingSM),
-                FilledButton.icon(
-                  onPressed: _markNewAttendance,
-                  icon: const Icon(Icons.add),
-                  label: Text(context.tr('Mark Attendance')),
-                ),
-              ],
-            ),
+            ],
           ],
         ),
       ),
@@ -916,7 +968,9 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                   : null,
             ),
       child: DesktopDataTableCard(
-              emptyMessage: context.tr('No services found'),
+              emptyMessage: _hasSearchQuery
+                  ? context.tr('No matching services')
+                  : context.tr('No services found'),
               emptyIcon: Icons.church_outlined,
               columns: [
                 DataColumn(label: Text(context.tr('Date'))),
@@ -928,7 +982,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
               rows: pageItems.map((service) {
                 final churchServiceId = service['id']?.toString() ?? '';
                 final serviceDate = service['service_date'] as String;
-                final name = _serviceName(service);
                 final attendanceCount =
                     service['attendance_count'] as int? ?? 0;
                 const color = AppColors.primary;
@@ -963,7 +1016,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                             const Icon(Icons.church_outlined, size: 14, color: color),
                             const SizedBox(width: 4),
                             Text(
-                              name,
+                              weekday,
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
@@ -999,7 +1052,6 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
                                 ? null
                                 : () => _confirmDeleteService(
                                       churchServiceId,
-                                      name,
                                       serviceDate,
                                     ),
                           ),
@@ -1085,12 +1137,10 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       builder: (context) => _FilterDialog(
         startDate: _filterStartDate,
         endDate: _filterEndDate,
-        nameQuery: _filterNameQuery,
-        onApply: (startDate, endDate, nameQuery) {
+        onApply: (startDate, endDate) {
           setState(() {
             _filterStartDate = startDate;
             _filterEndDate = endDate;
-            _filterNameQuery = nameQuery;
             _currentPage = 0;
           });
           _loadServices();
@@ -1131,7 +1181,10 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            context.tr('Report generated successfully: $filePath'),
+            context.tr(
+              'Report generated successfully: {path}',
+              {'path': filePath},
+            ),
           ),
           backgroundColor: AppColors.success,
         ),
@@ -1141,7 +1194,7 @@ class _ChurchAttendanceListPageState extends State<ChurchAttendanceListPage> {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.tr('Error generating report: $e')),
+          content: Text(context.tr('Error generating report: {error}', {'error': e})),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1264,7 +1317,10 @@ class _ReportOptionsDialogState extends State<_ReportOptionsDialog> {
               title: Text(context.tr('Start Date')),
               subtitle: Text(
                 _startDate != null
-                    ? DateFormat('MMM d, yyyy').format(_startDate!)
+                    ? DateFormat(
+                        'MMM d, yyyy',
+                        Localizations.localeOf(context).toString(),
+                      ).format(_startDate!)
                     : context.tr('No date selected'),
               ),
               trailing: IconButton(
@@ -1282,7 +1338,10 @@ class _ReportOptionsDialogState extends State<_ReportOptionsDialog> {
               title: Text(context.tr('End Date')),
               subtitle: Text(
                 _endDate != null
-                    ? DateFormat('MMM d, yyyy').format(_endDate!)
+                    ? DateFormat(
+                        'MMM d, yyyy',
+                        Localizations.localeOf(context).toString(),
+                      ).format(_endDate!)
                     : context.tr('No date selected'),
               ),
               trailing: IconButton(
@@ -1321,14 +1380,12 @@ class _FilterDialog extends StatefulWidget {
   const _FilterDialog({
     required this.startDate,
     required this.endDate,
-    required this.nameQuery,
     required this.onApply,
   });
 
   final DateTime? startDate;
   final DateTime? endDate;
-  final String? nameQuery;
-  final void Function(DateTime?, DateTime?, String?) onApply;
+  final void Function(DateTime?, DateTime?) onApply;
 
   @override
   State<_FilterDialog> createState() => _FilterDialogState();
@@ -1337,20 +1394,12 @@ class _FilterDialog extends StatefulWidget {
 class _FilterDialogState extends State<_FilterDialog> {
   late DateTime? _startDate;
   late DateTime? _endDate;
-  late TextEditingController _nameController;
 
   @override
   void initState() {
     super.initState();
     _startDate = widget.startDate;
     _endDate = widget.endDate;
-    _nameController = TextEditingController(text: widget.nameQuery ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
   }
 
   Future<void> _selectStartDate() async {
@@ -1389,7 +1438,10 @@ class _FilterDialogState extends State<_FilterDialog> {
               title: Text(context.tr('Start Date')),
               subtitle: Text(
                 _startDate != null
-                    ? DateFormat('MMM d, yyyy').format(_startDate!)
+                    ? DateFormat(
+                        'MMM d, yyyy',
+                        Localizations.localeOf(context).toString(),
+                      ).format(_startDate!)
                     : context.tr('No date selected'),
               ),
               trailing: IconButton(
@@ -1407,7 +1459,10 @@ class _FilterDialogState extends State<_FilterDialog> {
               title: Text(context.tr('End Date')),
               subtitle: Text(
                 _endDate != null
-                    ? DateFormat('MMM d, yyyy').format(_endDate!)
+                    ? DateFormat(
+                        'MMM d, yyyy',
+                        Localizations.localeOf(context).toString(),
+                      ).format(_endDate!)
                     : context.tr('No date selected'),
               ),
               trailing: IconButton(
@@ -1420,18 +1475,7 @@ class _FilterDialogState extends State<_FilterDialog> {
               ),
               onTap: _selectEndDate,
             ),
-            const Divider(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: context.tr('Service name'),
-                  prefixIcon: const Icon(Icons.search),
-                ),
-                textCapitalization: TextCapitalization.words,
-              ),
-            ),
+
           ],
         ),
       ),
@@ -1442,12 +1486,7 @@ class _FilterDialogState extends State<_FilterDialog> {
         ),
         FilledButton(
           onPressed: () {
-            final query = _nameController.text.trim();
-            widget.onApply(
-              _startDate,
-              _endDate,
-              query.isEmpty ? null : query,
-            );
+            widget.onApply(_startDate, _endDate);
             Navigator.of(context).pop();
           },
           child: Text(context.tr('Apply')),

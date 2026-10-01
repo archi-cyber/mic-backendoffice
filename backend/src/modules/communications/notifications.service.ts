@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 
 import { buildPaginationMeta } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PushService } from '../realtime/push.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import type {
   FindNotificationsDto,
   MarkNotificationsReadDto,
@@ -42,7 +44,11 @@ export interface CreateNotificationInput {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+    private readonly push: PushService,
+  ) {}
 
   // ===========================================================================
   // Émission
@@ -50,7 +56,7 @@ export class NotificationsService {
 
   /** Crée une notification pour un destinataire. */
   async notify(input: CreateNotificationInput) {
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         memberId: input.memberId,
         type: input.type,
@@ -61,6 +67,10 @@ export class NotificationsService {
         scheduledFor: input.scheduledFor ?? null,
       },
     });
+
+    this.deliver([input.memberId], input, notification.id);
+
+    return notification;
   }
 
   /**
@@ -91,7 +101,66 @@ export class NotificationsService {
       })),
     });
 
+    this.deliver(unique, input);
+
     return result.count;
+  }
+
+  /**
+   * Prévient les destinataires connectés (Socket.IO) et ceux dont
+   * l'application est fermée (push FCM).
+   *
+   * Hors transaction et sans attendre : un échec de diffusion ne doit jamais
+   * faire échouer l'opération qui a créé la notification. Une notification
+   * programmée pour plus tard n'est pas diffusée maintenant.
+   *
+   * La charge utile est en snake_case, la convention du client : les
+   * messages Socket.IO ne passent pas par la conversion de clés d'`ApiClient`.
+   */
+  private deliver(
+    memberIds: Array<string | null>,
+    input: Omit<CreateNotificationInput, 'memberId'>,
+    notificationId?: string,
+  ): void {
+    if (input.scheduledFor && input.scheduledFor.getTime() > Date.now()) {
+      return;
+    }
+
+    const payload = (memberId: string | null) => ({
+      id: notificationId ?? null,
+      member_id: memberId,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      related_id: input.relatedId ?? null,
+      related_type: input.relatedType ?? null,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    });
+
+    for (const memberId of memberIds) {
+      this.realtime.notifyMember(memberId, payload(memberId));
+    }
+
+    const targets = memberIds.filter((id): id is string => id !== null);
+    if (targets.length === 0) return;
+
+    this.push
+      .sendToMembers(targets, {
+        title: input.title,
+        body: input.message,
+        data: {
+          type: input.type,
+          ...(input.relatedId ? { relatedId: input.relatedId } : {}),
+          ...(input.relatedType ? { relatedType: input.relatedType } : {}),
+        },
+      })
+      .catch((error: unknown) =>
+        this.logger.warn(
+          'Push impossible : ' +
+            (error instanceof Error ? error.message : String(error)),
+        ),
+      );
   }
 
   // ===========================================================================

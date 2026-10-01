@@ -24,6 +24,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { MembersModule } from './modules/members/members.module';
 import { SundaySchoolModule } from './modules/sunday-school/sunday-school.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { AppUpdatesModule } from './modules/app-updates/app-updates.module';
 import { TeachingsModule } from './modules/teachings/teachings.module';
 import { UsersModule } from './modules/users/users.module';
 import { VisitorsModule } from './modules/visitors/visitors.module';
@@ -74,6 +75,7 @@ import { PrismaModule } from './prisma/prisma.module';
     StorageModule,
     ServiceSchedulesModule,
     SettingsModule,
+    AppUpdatesModule,
   ],
 
   controllers: [HealthController],

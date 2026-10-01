@@ -13,9 +13,8 @@ import '../../utils/whatsapp_utils.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 import '../../widgets/phone_number_field.dart';
-import '../../widgets/offline/sync_indicator.dart';
 
-/// Page for marking church attendance (named services on any date)
+/// Page for marking church attendance (by service date)
 class ChurchAttendancePage extends StatefulWidget {
   final String? churchServiceId;
 
@@ -35,7 +34,6 @@ class ChurchAttendancePage extends StatefulWidget {
 class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   late DateTime _selectedDate;
   String? _churchServiceId;
-  final TextEditingController _serviceNameController = TextEditingController();
   List<Map<String, dynamic>> _members = [];
   Map<String, String?> _memberAttendanceTypes =
       {}; // memberId -> attendanceType (null = absent)
@@ -88,6 +86,8 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   Future<void> _bootstrapData() async {
     if (_churchServiceId != null && _churchServiceId!.isNotEmpty) {
       await _loadChurchService();
+    } else {
+      await _resolveServiceForSelectedDate();
     }
     await _loadMembers();
     if (!mounted) return;
@@ -105,16 +105,26 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (serviceDate != null && serviceDate.isNotEmpty) {
           _selectedDate = DateTime.parse(serviceDate);
         }
-        _serviceNameController.text = service['name']?.toString() ?? '';
       });
     } catch (e) {
       debugPrint('Error loading church service: $e');
     }
   }
 
-  String get _displayServiceName {
-    final name = _serviceNameController.text.trim();
-    return name.isNotEmpty ? name : context.tr('Church service');
+  Future<void> _resolveServiceForSelectedDate() async {
+    try {
+      final existing =
+          await ChurchServiceService.getServicesForDate(_selectedDate);
+      if (!mounted) return;
+      setState(() {
+        _churchServiceId = existing.isNotEmpty
+            ? existing.first['id']?.toString()
+            : null;
+      });
+    } catch (e) {
+      debugPrint('Error resolving church service for date: $e');
+      if (mounted) setState(() => _churchServiceId = null);
+    }
   }
 
   Map<String, Map<String, dynamic>> get _membersById {
@@ -151,6 +161,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
   String _formatDateOnly(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  /// Human-readable service date, e.g. "Sunday, 12 December 2026".
+  String _formatServiceDateLabel(DateTime date) {
+    final locale = Localizations.localeOf(context).toString();
+    return DateFormat('EEEE, d MMMM yyyy', locale).format(date);
   }
 
   String? _visitorVisitDateKey(Map<String, dynamic> visitor) {
@@ -268,7 +284,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     _editSessionVisitorIds = {};
   }
 
-  Future<void> _onServiceDateOrNameChanged({
+  Future<void> _onServiceDateChanged({
     DateTime? newDate,
   }) async {
     final preserveEditState = _editSessionRecords.isNotEmpty;
@@ -282,6 +298,9 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       }
     });
 
+    if (!preserveEditState) {
+      await _resolveServiceForSelectedDate();
+    }
     await _loadVisitorsFromTable();
     if (!preserveEditState) {
       await _loadExistingAttendance();
@@ -305,7 +324,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         setState(() => _visitors = []);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Could not load visitors: $e')),
+            content: Text(context.tr('Could not load visitors: {error}', {'error': e})),
             backgroundColor: AppColors.error,
           ),
         );
@@ -316,7 +335,6 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _serviceNameController.dispose();
     super.dispose();
   }
 
@@ -338,7 +356,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error loading members: $e')),
+            content: Text(context.tr('Error loading members: {error}', {'error': e})),
             backgroundColor: AppColors.error,
           ),
         );
@@ -533,8 +551,6 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     final formKey = GlobalKey<FormState>();
     var isSaving = false;
 
-    final dateLabel = DateFormat('MMM d, yyyy').format(_selectedDate);
-
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
@@ -548,7 +564,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    '${_displayServiceName} · $dateLabel',
+                    _formatServiceDateLabel(_selectedDate),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
@@ -650,9 +666,12 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                         if (dialogContext.mounted) {
                           ScaffoldMessenger.of(dialogContext).showSnackBar(
                             SnackBar(
-                              content: Text(
-                                e.toString().replaceFirst('Exception: ', ''),
+content: Text(
+                              context.tr(
+                                'Error adding visitor: {error}',
+                                {'error': e},
                               ),
+                            ),
                               backgroundColor: AppColors.error,
                             ),
                           );
@@ -729,7 +748,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error removing visitor: $e')),
+            content: Text(context.tr('Error removing visitor: {error}', {'error': e})),
             backgroundColor: AppColors.error,
           ),
         );
@@ -746,29 +765,21 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       helpText: context.tr('Select Service Date'),
     );
     if (picked != null) {
-      await _onServiceDateOrNameChanged(newDate: picked);
+      await _onServiceDateChanged(newDate: picked);
     }
   }
 
   Future<String> _ensureChurchServiceId() async {
-    final name = _serviceNameController.text.trim();
-    if (name.isEmpty) {
-      throw Exception(context.tr('Service name is required'));
-    }
-
     if (_churchServiceId != null && _churchServiceId!.isNotEmpty) {
       await ChurchServiceService.updateService(
         serviceId: _churchServiceId!,
-        name: name,
         serviceDate: _selectedDate,
       );
       return _churchServiceId!;
     }
 
-    final service = await ChurchServiceService.findOrCreate(
-      serviceDate: _selectedDate,
-      name: name,
-    );
+    final service =
+        await ChurchServiceService.findOrCreateForDate(_selectedDate);
     final id = service['id']?.toString();
     if (id == null || id.isEmpty) {
       throw Exception('Failed to create church service');
@@ -911,7 +922,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Error saving attendance: $e')),
+            content: Text(context.tr('Error saving attendance: {error}', {'error': e})),
             backgroundColor: AppColors.error,
           ),
         );
@@ -999,7 +1010,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Error saving observation: $e')),
+              content: Text(context.tr('Error saving observation: {error}', {'error': e})),
               backgroundColor: AppColors.error,
             ),
           );
@@ -1129,7 +1140,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Error updating attendance: $e')),
+              content: Text(context.tr('Error updating attendance: {error}', {'error': e})),
               backgroundColor: AppColors.error,
             ),
           );
@@ -1178,7 +1189,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Error removing attendance: $e')),
+              content: Text(context.tr('Error removing attendance: {error}', {'error': e})),
               backgroundColor: AppColors.error,
             ),
           );
@@ -1215,14 +1226,6 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                     : context.tr('Mark Attendance'),
               ),
               actions: [
-                // Signale les saisies en attente de synchronisation.
-                //
-                // C'est l'écran où elles se produisent : pointer un culte sans
-                // réseau les met en file, et sans cet indicateur le responsable
-                // terminerait sa feuille en croyant tout transmis.
-                //
-                // Reste invisible tant que la file est vide.
-                const SyncIndicator(),
                 if (_isViewMode) ...[
                   IconButton(
                     icon: const Icon(Icons.person_add_alt_1),
@@ -1307,13 +1310,13 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Widget _buildDesktopHeroBanner() {
-    final dateLabel = DateFormat('EEEE, MMM d, yyyy').format(_selectedDate);
+    final dateLabel = _formatServiceDateLabel(_selectedDate);
 
     return DesktopHeroBanner(
       title: _isViewMode
           ? context.tr('Service Details')
           : context.tr('Mark Attendance'),
-      subtitle: '${_displayServiceName} · $dateLabel',
+      subtitle: dateLabel,
       icon: Icons.church_outlined,
       trailing: widget.onClose != null
           ? IconButton(
@@ -1322,6 +1325,32 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
               tooltip: context.tr('Close'),
             )
           : null,
+    );
+  }
+
+  Widget _buildRecordsSearchField({double maxWidth = 320}) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: context.tr('Search members and visitors...'),
+          isDense: true,
+          prefixIcon: const Icon(Icons.search, size: 20),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, size: 18),
+                  onPressed: _searchController.clear,
+                )
+              : null,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+          ),
+          filled: true,
+          fillColor: Theme.of(context).cardColor,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+      ),
     );
   }
 
@@ -1353,18 +1382,57 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
                         ? context.tr('Attendance Records')
                         : context.tr('Members & Visitors'),
                     icon: Icons.people_outline,
+                    trailing: _buildRecordsSearchField(),
                     children: [
                       SizedBox(
                         height: MediaQuery.sizeOf(context).height - 380,
                         child: _isViewMode
-                            ? _buildViewModeContent()
-                            : _buildEditModeContent(),
+                            ? _buildViewModeContent(showSearch: false)
+                            : _buildEditModeContent(showSearch: false),
                       ),
                     ],
                   ),
                 )
               : (_isViewMode
-                  ? _buildViewModeContent()
+                  ? (compactView
+                      ? _buildViewModeContent()
+                      : Column(
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                AppDimensions.spacingMD,
+                                AppDimensions.spacingSM,
+                                AppDimensions.spacingMD,
+                                0,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      context.tr('Attendance Records'),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                    ),
+                                  ),
+                                  SizedBox(width: AppDimensions.spacingSM),
+                                  Expanded(
+                                    flex: 2,
+                                    child: _buildRecordsSearchField(
+                                      maxWidth: 420,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Expanded(
+                              child: _buildViewModeContent(showSearch: false),
+                            ),
+                          ],
+                        ))
                   : _buildEditModeContent()),
         ),
       ],
@@ -1372,7 +1440,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
   }
 
   Widget _buildCompactServiceHeader() {
-    final dateLabel = DateFormat('EEEE, MMM d, yyyy').format(_selectedDate);
+    final dateLabel = _formatServiceDateLabel(_selectedDate);
 
     return Container(
       width: double.infinity,
@@ -1394,17 +1462,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _displayServiceName,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: 2),
-          Text(
             dateLabel,
             style: Theme.of(
               context,
-            ).textTheme.bodySmall?.copyWith(color: context.mic.textSecondary),
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -1417,50 +1478,36 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
       color: Theme.of(context).cardColor,
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: InkWell(
-                  onTap: _isViewMode ? null : _selectDate,
-                  child: InputDecorator(
-                    decoration: InputDecoration(
-                      labelText: context.tr('Service Date'),
-                      prefixIcon: Icon(Icons.calendar_today),
-                      filled: _isViewMode,
-                      fillColor: _isViewMode
-                          ? Theme.of(
-                              context,
-                            ).disabledColor.withValues(alpha: 0.1)
-                          : null,
-                    ),
-                    child: Text(
-                      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-                    ),
-                  ),
+          InkWell(
+            onTap: _isViewMode ? null : _selectDate,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: context.tr('Service Date'),
+                prefixIcon: const Icon(Icons.calendar_today_outlined),
+                suffixIcon: _isViewMode
+                    ? null
+                    : Icon(
+                        Icons.edit_calendar_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                filled: true,
+                fillColor: _isViewMode
+                    ? Theme.of(context).disabledColor.withValues(alpha: 0.08)
+                    : Theme.of(context).colorScheme.primaryContainer
+                        .withValues(alpha: 0.25),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
                 ),
               ),
-              SizedBox(width: AppDimensions.spacingMD),
-              Expanded(
-                child: TextFormField(
-                  controller: _serviceNameController,
-                  readOnly: _isViewMode,
-                  decoration: InputDecoration(
-                    labelText: context.tr('Service name'),
-                    prefixIcon: const Icon(Icons.church),
-                    filled: _isViewMode,
-                    fillColor: _isViewMode
-                        ? Theme.of(context)
-                            .disabledColor
-                            .withValues(alpha: 0.1)
-                        : null,
-                  ),
-                  textCapitalization: TextCapitalization.words,
-                  onChanged: _isViewMode
-                      ? null
-                      : (_) => setState(() {}),
-                ),
+              child: Text(
+                _formatServiceDateLabel(_selectedDate),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.1,
+                    ),
               ),
-            ],
+            ),
           ),
           if (!_isViewMode) ...[
             SizedBox(height: AppDimensions.spacingSM),
@@ -1750,7 +1797,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
           ),
           SizedBox(height: AppDimensions.spacingXS),
           Text(
-            context.tr('onsite attendees'),
+            context.tr('Onsite attendees'),
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: context.mic.textSecondary),
@@ -2242,7 +2289,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     return entries;
   }
 
-  Widget _buildEditModeContent() {
+  Widget _buildEditModeContent({bool showSearch = true}) {
     final combinedList = _combinedMarkAttendanceList;
 
     if (_members.isEmpty && _visitors.isEmpty) {
@@ -2273,46 +2320,41 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
 
     return Column(
       children: [
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppDimensions.spacingMD,
-            vertical: AppDimensions.spacingSM,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: context.tr('Search members and visitors...'),
-                    prefixIcon: Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusMD,
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                  ),
+        if (showSearch)
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppDimensions.spacingMD,
+              vertical: AppDimensions.spacingSM,
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _buildRecordsSearchField(maxWidth: double.infinity)),
+                SizedBox(width: AppDimensions.spacingSM),
+                IconButton.filled(
+                  onPressed: _showAddVisitorDialog,
+                  icon: Icon(Icons.person_add_alt_1),
+                  tooltip: context.tr('Add Visitor'),
                 ),
-              ),
-              SizedBox(width: AppDimensions.spacingSM),
-              IconButton.filled(
+              ],
+            ),
+          )
+        else
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppDimensions.spacingMD,
+              0,
+              AppDimensions.spacingMD,
+              AppDimensions.spacingSM,
+            ),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: IconButton.filled(
                 onPressed: _showAddVisitorDialog,
                 icon: Icon(Icons.person_add_alt_1),
                 tooltip: context.tr('Add Visitor'),
               ),
-            ],
+            ),
           ),
-        ),
         Expanded(
           child: combinedList.isEmpty
               ? Center(
@@ -2638,7 +2680,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
     return filtered;
   }
 
-  Widget _buildViewModeContent() {
+  Widget _buildViewModeContent({bool showSearch = true}) {
     final filteredItems = _filteredViewListItems;
 
     // Show message only if there are no members at all
@@ -2809,29 +2851,10 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
             ),
             child: Column(
               children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: context.tr('Search members and visitors...'),
-                    prefixIcon: Icon(Icons.search),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(
-                        AppDimensions.radiusMD,
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: Theme.of(context).cardColor,
-                  ),
-                ),
-                SizedBox(height: AppDimensions.spacingSM),
+                if (showSearch) ...[
+                  _buildRecordsSearchField(maxWidth: double.infinity),
+                  SizedBox(height: AppDimensions.spacingSM),
+                ],
                 Row(
                   children: [
                     Text(
@@ -3360,7 +3383,7 @@ class _ChurchAttendancePageState extends State<ChurchAttendancePage> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Error updating visitor: $e')),
+              content: Text(context.tr('Error updating visitor: {error}', {'error': e})),
               backgroundColor: AppColors.error,
             ),
           );

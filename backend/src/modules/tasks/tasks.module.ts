@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { CommunicationsModule } from '../communications/communications.module';
+import { UsersModule } from '../users/users.module';
 import { PenaltiesService } from './penalties.service';
 import { PenaltyJob } from './penalty.job';
 import { ProjectsService } from './projects.service';
@@ -23,7 +24,8 @@ import { TasksService } from './tasks.service';
 @Module({
   // CommunicationsModule fournit NotificationsService, dont dependent les
   // rappels de taches.
-  imports: [CommunicationsModule],
+  // UsersModule fournit la creation de compte des assignes.
+  imports: [CommunicationsModule, UsersModule],
   controllers: [
     TasksController,
     ProjectsController,

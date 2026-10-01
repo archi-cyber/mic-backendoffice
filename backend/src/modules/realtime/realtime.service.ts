@@ -105,22 +105,48 @@ export class RealtimeService {
     payload: AnnouncementPayload,
     targetMemberIds: string[] = [],
   ): void {
+    this.emitAnnouncement(EVENTS.announcementNew, payload, targetMemberIds);
+  }
+
+  announcementUpdated(
+    payload: AnnouncementPayload,
+    targetMemberIds: string[] = [],
+  ): void {
+    this.emitAnnouncement(EVENTS.announcementUpdated, payload, targetMemberIds);
+  }
+
+  announcementDeleted(
+    payload: AnnouncementPayload,
+    targetMemberIds: string[] = [],
+  ): void {
+    this.emitAnnouncement(EVENTS.announcementDeleted, payload, targetMemberIds);
+  }
+
+  /**
+   * Diffuse un événement d'annonce à son public : tout le monde, un
+   * département, ou une liste de membres. Les administrateurs voient toutes
+   * les annonces, d'où l'envoi supplémentaire au salon de l'auteur.
+   */
+  private emitAnnouncement(
+    event: string,
+    payload: AnnouncementPayload,
+    targetMemberIds: string[],
+  ): void {
     if (payload.isGlobal) {
-      this.emit(ROOMS.global, EVENTS.announcementNew, payload);
+      this.emit(ROOMS.global, event, payload);
       return;
     }
 
     if (payload.departmentId) {
-      this.emit(
-        ROOMS.department(payload.departmentId),
-        EVENTS.announcementNew,
-        payload,
-      );
-      return;
+      this.emit(ROOMS.department(payload.departmentId), event, payload);
+    } else {
+      for (const memberId of new Set(targetMemberIds)) {
+        this.emit(ROOMS.member(memberId), event, payload);
+      }
     }
 
-    for (const memberId of new Set(targetMemberIds)) {
-      this.emit(ROOMS.member(memberId), EVENTS.announcementNew, payload);
+    if (payload.authorUserId) {
+      this.emit(ROOMS.user(payload.authorUserId), event, payload);
     }
   }
 

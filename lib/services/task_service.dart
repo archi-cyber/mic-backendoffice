@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import '../core/api/api_client.dart';
 import 'auth_service.dart';
+import 'offline_storage_service.dart';
 
 /// Tâches, projets, étiquettes et notifications associées.
 ///
@@ -12,6 +15,58 @@ import 'auth_service.dart';
 /// l'API.
 class TaskService {
   static ApiClient get _client => AuthService.client;
+
+  static final _tasksChangedController = StreamController<void>.broadcast();
+
+  /// Émis après chaque création, suppression ou archivage, pour que les
+  /// listes ouvertes se rechargent.
+  static Stream<void> get onTasksChanged => _tasksChangedController.stream;
+
+  /// Expose les relations sous les noms lus par les écrans de tâches
+  /// (`projects`, `departments`, `members`, `task_assignments[].members`,
+  /// `task_tags[].tags`), en plus des clés de l'API.
+  static Map<String, dynamic> _normalize(Map<String, dynamic> task) {
+    Map<String, dynamic>? asMap(Object? value) =>
+        value is Map ? Map<String, dynamic>.from(value) : null;
+
+    task['projects'] ??= asMap(task['project']);
+    task['departments'] ??= asMap(task['department']);
+    task['members'] ??= asMap(task['member']);
+
+    final assignments = task['assignments'];
+    if (task['task_assignments'] == null && assignments is List) {
+      task['task_assignments'] = assignments.whereType<Map>().map((a) {
+        final row = Map<String, dynamic>.from(a);
+        final member = asMap(row['member']);
+        row['members'] ??= member;
+        row['member_id'] ??= member?['id'];
+        row['task_id'] ??= task['id'];
+        return row;
+      }).toList();
+    }
+
+    final tags = task['tags'];
+    if (task['task_tags'] == null && tags is List) {
+      task['task_tags'] = tags.whereType<Map>().map((t) {
+        final tag = Map<String, dynamic>.from(t);
+        return {'tag_id': tag['id'], 'task_id': task['id'], 'tags': tag};
+      }).toList();
+    }
+
+    return task;
+  }
+
+  static List<Map<String, dynamic>> _normalizeAll(
+    List<Map<String, dynamic>> tasks,
+  ) =>
+      tasks.map(_normalize).toList();
+
+  static Future<void> _notifyTasksChanged() async {
+    await OfflineStorageService.clearAllTasksCache();
+    if (!_tasksChangedController.isClosed) {
+      _tasksChangedController.add(null);
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Tâches
@@ -35,11 +90,12 @@ class TaskService {
       if (departmentId != null) 'department_id': departmentId,
       if (memberId != null) 'member_id': memberId,
     });
-    return (data as Map).cast<String, dynamic>();
+    await _notifyTasksChanged();
+    return _normalize((data as Map).cast<String, dynamic>());
   }
 
-  static Future<Map<String, dynamic>> getTaskById(String taskId) =>
-      _client.getOne('/tasks/$taskId');
+  static Future<Map<String, dynamic>> getTaskById(String taskId) async =>
+      _normalize(await _client.getOne('/tasks/$taskId'));
 
   /// Toutes les tâches, filtrables.
   ///
@@ -51,17 +107,18 @@ class TaskService {
     String? priority,
     int? limit,
     int? offset,
-  }) {
+  }) async {
     final effectiveLimit = (limit ?? 200).clamp(1, 200);
     final page = offset == null ? 1 : (offset ~/ effectiveLimit) + 1;
 
-    return _client.getList('/tasks', query: {
+    final tasks = await _client.getList('/tasks', query: {
       'page': page,
       'limit': effectiveLimit,
       if (departmentId != null) 'department_id': departmentId,
       if (status != null) 'status': status,
       if (priority != null) 'priority': priority,
     });
+    return _normalizeAll(tasks);
   }
 
   static Future<List<Map<String, dynamic>>> getDepartmentTasks({
@@ -76,11 +133,42 @@ class TaskService {
     required Map<String, dynamic> updates,
   }) async {
     final data = await _client.patch('/tasks/$taskId', body: updates);
-    return (data as Map).cast<String, dynamic>();
+    return _normalize((data as Map).cast<String, dynamic>());
   }
 
   static Future<void> deleteTask(String taskId) async {
     await _client.delete('/tasks/$taskId');
+    await _notifyTasksChanged();
+  }
+
+  /// Supprime plusieurs tâches en une requête.
+  ///
+  /// Le serveur ne supprime que celles que l'utilisateur a le droit de
+  /// supprimer, et renvoie le nombre réellement supprimé.
+  static Future<int> deleteTasks(List<String> taskIds) async {
+    if (taskIds.isEmpty) return 0;
+    final data = await _client.post('/tasks/bulk-delete', body: {
+      'task_ids': taskIds,
+    });
+    await _notifyTasksChanged();
+    return ((data as Map)['deleted'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Tâches actives assignées à un membre, les plus récentes d'abord.
+  static Future<List<Map<String, dynamic>>> getTasksForMember({
+    required String memberId,
+    int? limit,
+    bool activeOnly = true,
+  }) async {
+    // L'API renvoie les tâches du compte connecté : [memberId] est conservé
+    // pour la signature, le serveur ne se fie qu'au jeton.
+    final tasks = await _client.getList('/tasks/mine', query: {
+      'limit': (limit ?? 100).clamp(1, 200),
+      if (activeOnly) 'active_only': true,
+    });
+    return _normalizeAll(
+      tasks.where((task) => task['archived_at'] == null).toList(),
+    );
   }
 
   /// Archive une tâche.
@@ -88,6 +176,7 @@ class TaskService {
   /// Arrête l'accumulation des pénalités sans effacer celles déjà dues.
   static Future<Map<String, dynamic>> archiveTask(String taskId) async {
     final data = await _client.post('/tasks/$taskId/archive');
+    await _notifyTasksChanged();
     return (data as Map).cast<String, dynamic>();
   }
 

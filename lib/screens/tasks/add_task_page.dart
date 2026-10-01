@@ -8,9 +8,12 @@ import '../../services/department_service.dart';
 import '../../services/member_service.dart';
 import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
+import '../../services/offline_queue_service.dart';
+import '../../services/role_service.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../widgets/tag_color_picker.dart';
+import '../../utils/member_account_ensure_helper.dart';
 
 /// Add task page
 class AddTaskPage extends StatefulWidget {
@@ -32,11 +35,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final _penaltyAmountController = TextEditingController();
   String? _selectedDepartmentId;
   String? _selectedMemberId;
+  String? _assignedDepartmentMemberId;
   DateTime? _dueDate;
   String _priority = 'medium';
   String _status = 'pending';
   List<Map<String, dynamic>> _departments = [];
   List<Map<String, dynamic>> _members = [];
+  List<Map<String, dynamic>> _departmentMembers = [];
   List<Map<String, dynamic>> _projects = [];
   List<Map<String, dynamic>> _tags = [];
   String? _selectedProjectId;
@@ -45,11 +50,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
   bool _isLoading = false;
   bool _isLoadingDepartments = true;
   bool _isLoadingMembers = false;
+  bool _isLoadingDepartmentMembers = false;
   bool _isLoadingProjects = true;
   bool _isLoadingTags = true;
-  final TextEditingController _memberSearchController = TextEditingController();
+  bool _canAssignToIndividual = false;
+  bool _canAssignDepartmentMember = false;
   final TextEditingController _newTagController = TextEditingController();
-  String _newTagColor = TagColors.presetHex.first;
 
   /// Add tag by name: select existing or create if not found.
   Future<void> _addTagByName(String name) async {
@@ -86,14 +92,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
       final created = await TagService.createTag(
         name: trimmed,
         departmentId: deptId,
-        color: _newTagColor,
+        color: TagColors.defaultHex,
       );
       if (!mounted) return;
       final id = created['id'].toString();
       setState(() {
         _tags.add(created);
         if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
-        _newTagColor = TagColors.presetHex.first;
       });
       _newTagController.clear();
     } catch (e) {
@@ -111,6 +116,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
     if (widget.departmentId != null) {
       _selectedDepartmentId = widget.departmentId;
     }
+    _loadAccessFlags();
     _loadDepartments();
     _loadMembers();
     _loadProjects();
@@ -122,17 +128,85 @@ class _AddTaskPageState extends State<AddTaskPage> {
     _titleController.dispose();
     _descriptionController.dispose();
     _penaltyAmountController.dispose();
-    _memberSearchController.dispose();
     _newTagController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadAccessFlags() async {
+    final isAdmin = await RoleService.isCurrentUserAdmin();
+    if (!mounted) return;
+    setState(() => _canAssignToIndividual = isAdmin);
+    await _refreshDepartmentAssignAccess();
+  }
+
+  Future<void> _refreshDepartmentAssignAccess() async {
+    final deptId = _selectedDepartmentId ?? widget.departmentId;
+    if (deptId == null || deptId.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _canAssignDepartmentMember = false;
+        _departmentMembers = [];
+        _assignedDepartmentMemberId = null;
+      });
+      return;
+    }
+    final canAssign = await PermissionHelper.canManageDepartmentTask(deptId);
+    if (!mounted) return;
+    setState(() => _canAssignDepartmentMember = canAssign);
+    if (canAssign) {
+      await _loadDepartmentMembers(deptId);
+    } else {
+      setState(() {
+        _departmentMembers = [];
+        _assignedDepartmentMemberId = null;
+      });
+    }
+  }
+
+  Future<void> _loadDepartmentMembers(String departmentId) async {
+    setState(() => _isLoadingDepartmentMembers = true);
+    try {
+      final rows =
+          await DepartmentService.getDepartmentMembers(departmentId);
+      final members = <Map<String, dynamic>>[];
+      for (final row in rows) {
+        final member = row['members'];
+        if (member is Map<String, dynamic>) {
+          members.add(Map<String, dynamic>.from(member));
+        }
+      }
+      final annotated =
+          await TaskPenaltyService.annotateMembersWithPenalties(members);
+      if (!mounted) return;
+      setState(() {
+        _departmentMembers = annotated;
+        _isLoadingDepartmentMembers = false;
+        if (_assignedDepartmentMemberId != null &&
+            !_departmentMembers.any(
+              (m) => m['id']?.toString() == _assignedDepartmentMemberId,
+            )) {
+          _assignedDepartmentMemberId = null;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoadingDepartmentMembers = false);
+    }
+  }
+
   Future<void> _loadDepartments() async {
     try {
-      final departments = await DepartmentService.getDepartments(limit: 100);
+      final isAdmin = await RoleService.isCurrentUserAdmin();
+      final departments = isAdmin
+          ? await DepartmentService.getDepartments(limit: 100)
+          : await DepartmentService.getDepartmentsLedByCurrentUser();
+      if (!mounted) return;
       setState(() {
         _departments = departments;
         _isLoadingDepartments = false;
+        if (_selectedDepartmentId == null && departments.length == 1) {
+          _selectedDepartmentId = departments.first['id']?.toString();
+        }
       });
     } catch (e) {
       setState(() => _isLoadingDepartments = false);
@@ -240,27 +314,76 @@ class _AddTaskPageState extends State<AddTaskPage> {
       return;
     }
 
+    if (!_assignToIndividual && _selectedDepartmentId != null) {
+      final canCreate = await PermissionHelper.canCreateDepartmentTask(
+        _selectedDepartmentId!,
+      );
+      if (!mounted) return;
+      if (!canCreate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr('You can only create tasks for departments you lead'),
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // Create task - use selected department or member_id if assigning to individual
+      final taskData = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim().isNotEmpty
+            ? _descriptionController.text.trim()
+            : null,
+        'due_date': _dueDate?.toIso8601String().split('T')[0],
+        'priority': _priority,
+        'status': _status,
+        if (_penaltyAmountController.text.trim().isNotEmpty)
+          'penalty_amount_per_day': int.parse(
+            _penaltyAmountController.text.trim(),
+          ),
+        if (_selectedProjectId != null) 'project_id': _selectedProjectId,
+      };
+
+      final isOnline = await OfflineQueueService.isOnline();
+      if (!isOnline) {
+        await OfflineQueueService.queueOperation(
+          type: 'create_task',
+          data: {
+            'department_id': _assignToIndividual ? null : _selectedDepartmentId,
+            'member_id': _assignToIndividual ? _selectedMemberId : null,
+            'task_data': taskData,
+            'tag_ids': _selectedTagIds,
+            'assign_member_id': _assignToIndividual
+                ? _selectedMemberId
+                : _assignedDepartmentMemberId,
+          },
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.tr('Task queued for sync')),
+              backgroundColor: AppColors.success,
+            ),
+          );
+          if (widget.onClose != null) {
+            widget.onClose!(true);
+          } else {
+            Navigator.of(context).pop(true);
+          }
+        }
+        return;
+      }
+
       final task = await TaskService.createTask(
         departmentId: _assignToIndividual ? null : _selectedDepartmentId!,
         memberId: _assignToIndividual ? _selectedMemberId! : null,
-        taskData: {
-          'title': _titleController.text.trim(),
-          'description': _descriptionController.text.trim().isNotEmpty
-              ? _descriptionController.text.trim()
-              : null,
-          'due_date': _dueDate?.toIso8601String().split('T')[0],
-          'priority': _priority,
-          'status': _status,
-          if (_penaltyAmountController.text.trim().isNotEmpty)
-            'penalty_amount_per_day': int.parse(
-              _penaltyAmountController.text.trim(),
-            ),
-          if (_selectedProjectId != null) 'project_id': _selectedProjectId,
-        },
+        taskData: taskData,
       );
 
       if (_selectedTagIds.isNotEmpty) {
@@ -270,19 +393,54 @@ class _AddTaskPageState extends State<AddTaskPage> {
         );
       }
 
-      // If assigning to individual, also create task assignment for notification
-      if (_assignToIndividual && _selectedMemberId != null) {
+      // Assign to a member when requested (admin individual OR department assignee).
+      final assigneeId = _assignToIndividual
+          ? _selectedMemberId
+          : _assignedDepartmentMemberId;
+      String? accountWarning;
+      Map<String, Object?> accountWarningParams = const {};
+      if (assigneeId != null && assigneeId.isNotEmpty) {
+        Map<String, dynamic>? assigneeMember;
+        final source =
+            _assignToIndividual ? _members : _departmentMembers;
+        for (final m in source) {
+          if (m['id']?.toString() == assigneeId) {
+            assigneeMember = m;
+            break;
+          }
+        }
+
+        final ensureResult =
+            await MemberAccountEnsureHelper.ensureForTaskAssignment(
+              context,
+              memberId: assigneeId,
+              member: assigneeMember,
+            );
+        if (ensureResult.shouldWarn) {
+          accountWarning = ensureResult.warningMessage;
+          accountWarningParams = ensureResult.warningParams;
+        }
+
         await TaskService.assignTask(
           taskId: task['id'].toString(),
-          memberId: _selectedMemberId!,
+          memberId: assigneeId,
         );
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Task created successfully')),
-            backgroundColor: AppColors.success,
+            content: Text(
+              accountWarning != null
+                  ? context.tr(
+                      accountWarning,
+                      accountWarningParams,
+                    )
+                  : context.tr('Task created successfully'),
+            ),
+            backgroundColor: accountWarning != null
+                ? AppColors.warning
+                : AppColors.success,
           ),
         );
         if (widget.onClose != null) {
@@ -304,149 +462,120 @@ class _AddTaskPageState extends State<AddTaskPage> {
     }
   }
 
-  String _getMemberName(String memberId) {
-    final member = _members.firstWhere(
-      (m) => m['id'].toString() == memberId,
-      orElse: () => {},
-    );
-    if (member.isEmpty) return context.tr('Unknown');
-    return '${member['first_name']} ${member['last_name']}';
-  }
+  Widget _buildDepartmentAssigneeField() {
+    if (!_canAssignDepartmentMember ||
+        _assignToIndividual ||
+        (_selectedDepartmentId ?? widget.departmentId) == null) {
+      return const SizedBox.shrink();
+    }
 
-  Future<void> _showMemberSearchDialog() async {
-    _memberSearchController.clear();
-    List<Map<String, dynamic>> filteredMembers = _members;
+    final selectedStillValid = _assignedDepartmentMemberId == null ||
+        _departmentMembers.any(
+          (m) => m['id']?.toString() == _assignedDepartmentMemberId,
+        );
+    final currentValue =
+        selectedStillValid ? _assignedDepartmentMemberId : null;
 
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text(context.tr('Select Member')),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _memberSearchController,
-                    decoration: InputDecoration(
-                      labelText: context.tr('Search members'),
-                      prefixIcon: Icon(Icons.search),
-                      hintText: context.tr('Type to search...'),
-                    ),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        if (value.isEmpty) {
-                          filteredMembers = _members;
-                        } else {
-                          final query = value.toLowerCase();
-                          filteredMembers = _members.where((member) {
-                            final firstName =
-                                member['first_name']
-                                    ?.toString()
-                                    .toLowerCase() ??
-                                '';
-                            final lastName =
-                                member['last_name']?.toString().toLowerCase() ??
-                                '';
-                            final email =
-                                member['email']?.toString().toLowerCase() ?? '';
-                            return firstName.contains(query) ||
-                                lastName.contains(query) ||
-                                email.contains(query) ||
-                                '$firstName $lastName'.contains(query);
-                          }).toList();
-                        }
-                      });
-                    },
-                  ),
-                  SizedBox(height: AppDimensions.spacingMD),
-                  Flexible(
-                    child: filteredMembers.isEmpty
-                        ? Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(AppDimensions.paddingMD),
-                              child: Text(context.tr('No members found')),
-                            ),
-                          )
-                        : ListView.builder(
-                            shrinkWrap: true,
-                            itemCount: filteredMembers.length,
-                            itemBuilder: (context, index) {
-                              final member = filteredMembers[index];
-                              final name =
-                                  '${member['first_name']} ${member['last_name']}';
-                              final email = member['email']?.toString() ?? '';
-                              final isBlocked =
-                                  member['is_assignment_blocked'] == true;
-                              final balance =
-                                  member['penalty_balance'] as int? ?? 0;
-                              return ListTile(
-                                enabled: !isBlocked,
-                                title: Text(
-                                  name,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (email.isNotEmpty)
-                                      Text(
-                                        email,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    if (isBlocked)
-                                      Text(
-                                        context.tr(
-                                          'Blocked: {balance}frs unpaid penalties',
-                                          {'balance': balance},
-                                        ),
-                                        style: TextStyle(
-                                          color: AppColors.error,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                trailing: isBlocked
-                                    ? Icon(
-                                        Icons.lock_outline,
-                                        color: AppColors.error,
-                                      )
-                                    : null,
-                                onTap: isBlocked
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          _selectedMemberId = member['id']
-                                              .toString();
-                                        });
-                                        Navigator.of(context).pop();
-                                      },
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
+    return Padding(
+      padding: EdgeInsets.only(top: AppDimensions.spacingMD),
+      child: DropdownButtonFormField<String?>(
+        key: ValueKey(
+          'dept-assignee-${_selectedDepartmentId ?? widget.departmentId}-${_departmentMembers.length}',
+        ),
+        initialValue: currentValue,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: context.tr('Assign to (optional)'),
+          prefixIcon: const Icon(Icons.person_outline),
+          border: const OutlineInputBorder(),
+          helperText: context.tr(
+            'Optionally assign this task to a department member',
+          ),
+        ),
+        items: [
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text(
+              context.tr('No one (department task)'),
+              overflow: TextOverflow.ellipsis,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(context.tr('Cancel')),
+          ),
+          ..._departmentMembers.map((member) {
+            final id = member['id']?.toString() ?? '';
+            final blocked = member['assignment_blocked'] == true;
+            final name =
+                '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
+                    .trim();
+            return DropdownMenuItem<String?>(
+              value: id.isEmpty ? null : id,
+              enabled: !blocked && id.isNotEmpty,
+              child: Text(
+                blocked
+                    ? '$name (${context.tr('Blocked by unpaid penalties')})'
+                    : (name.isEmpty ? context.tr('Unnamed member') : name),
+                overflow: TextOverflow.ellipsis,
               ),
-            ],
-          );
-        },
+            );
+          }),
+        ],
+        onChanged: _isLoadingDepartmentMembers
+            ? null
+            : (value) {
+                setState(() => _assignedDepartmentMemberId = value);
+              },
       ),
     );
   }
 
+  Widget _buildIndividualMemberDropdown({String? errorText}) {
+    final selectedStillValid = _selectedMemberId == null ||
+        _members.any((m) => m['id']?.toString() == _selectedMemberId);
+    final currentValue = selectedStillValid ? _selectedMemberId : null;
+
+    return DropdownButtonFormField<String>(
+      key: ValueKey('individual-member-${_members.length}'),
+      initialValue: currentValue,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: context.tr('Member *'),
+        prefixIcon: const Icon(Icons.person),
+        border: const OutlineInputBorder(),
+        errorText: errorText,
+      ),
+      items: _members.map((member) {
+        final id = member['id']?.toString() ?? '';
+        final blocked = member['is_assignment_blocked'] == true ||
+            member['assignment_blocked'] == true;
+        final name =
+            '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
+                .trim();
+        return DropdownMenuItem<String>(
+          value: id,
+          enabled: !blocked && id.isNotEmpty,
+          child: Text(
+            blocked
+                ? '$name (${context.tr('Blocked by unpaid penalties')})'
+                : (name.isEmpty ? context.tr('Unnamed member') : name),
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }).toList(),
+      onChanged: _isLoadingMembers
+          ? null
+          : (value) {
+              setState(() => _selectedMemberId = value);
+            },
+      validator: (value) {
+        if (_assignToIndividual && (value == null || value.isEmpty)) {
+          return context.tr('Member is required');
+        }
+        return null;
+      },
+    );
+  }
+
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 1040;
+  static const double _kDesktopMaxWidth = 640;
 
   Widget _buildPenaltyAmountField({bool outlined = false}) {
     return TextFormField(
@@ -465,7 +594,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
         if (trimmed.isEmpty) return null;
         final amount = int.tryParse(trimmed);
         if (amount == null || amount < 0) {
-          return context.tr('Enter a valid amount');
+          return 'Enter a valid amount';
         }
         return null;
       },
@@ -487,7 +616,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
         side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
       ),
       child: Padding(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -522,51 +651,46 @@ class _AddTaskPageState extends State<AddTaskPage> {
   Widget _desktopIntroCard(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMD,
+        vertical: AppDimensions.paddingSM + 4,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary.withValues(alpha: 0.14),
-            theme.colorScheme.surface,
-          ],
-        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        color: AppColors.primary.withValues(alpha: 0.06),
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               Icons.add_task_outlined,
               color: AppColors.primary,
-              size: 30,
+              size: 20,
             ),
           ),
-          SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingSM),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   context.tr('Create a new task'),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: AppDimensions.spacingXS),
                 Text(
                   context.tr(
                     'Set the task details, delivery expectations, and assignment in one place.',
                   ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: context.mic.textSecondary,
                   ),
                 ),
@@ -630,10 +754,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _desktopIntroCard(context),
-                        SizedBox(height: AppDimensions.spacingLG),
+                        SizedBox(height: AppDimensions.spacingMD),
                         _desktopSectionCard(
                           context,
-                          context.tr('Task details'),
+                          'Task details',
                           Icons.task_alt,
                           [
                             TextFormField(
@@ -645,7 +769,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return context.tr('Task title is required');
+                                  return 'Task title is required';
                                 }
                                 return null;
                               },
@@ -658,7 +782,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 prefixIcon: Icon(Icons.description),
                                 border: OutlineInputBorder(),
                               ),
-                              maxLines: 4,
+                              maxLines: 3,
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
                             InkWell(
@@ -672,7 +796,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                 child: Text(
                                   _dueDate != null
                                       ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                                      : context.tr('Select due date (optional)'),
+                                      : 'Select due date (optional)',
                                   style: TextStyle(
                                     color: _dueDate != null
                                         ? Theme.of(
@@ -753,8 +877,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: _isLoadingProjects
-                                    ? context.tr('Project (loading…)')
-                                    : context.tr('Project (optional)'),
+                                    ? 'Project (loading…)'
+                                    : 'Project (optional)',
                                 prefixIcon: Icon(Icons.folder_outlined),
                                 border: OutlineInputBorder(),
                               ),
@@ -781,7 +905,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               Padding(
                                 padding: EdgeInsets.only(top: 8.0),
                                 child: Text(
-                                  context.tr('Tags (loading…)'),
+                                  'Tags (loading…)',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w500,
                                     fontSize: 12,
@@ -790,7 +914,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                               ),
                             SizedBox(height: AppDimensions.spacingMD),
                             Text(
-                              context.tr('Tags (optional)'),
+                              'Tags (optional)',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
@@ -821,21 +945,6 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   tooltip: context.tr('Add tag'),
                                 ),
                               ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              context.tr('Color'),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            TagColorPicker(
-                              selectedHex: _newTagColor,
-                              onChanged: (hex) =>
-                                  setState(() => _newTagColor = hex),
-                              swatchSize: 26,
                             ),
                             SizedBox(height: 8),
                             Wrap(
@@ -872,37 +981,34 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           SizedBox(height: AppDimensions.spacingMD),
                           _desktopSectionCard(
                             context,
-                            context.tr('Assignment'),
+                            'Assignment',
                             Icons.group_work,
                             [
-                              SwitchListTile(
-                                title: Text(
-                                  _assignToIndividual
-                                      ? context.tr('Assign to Individual')
-                                      : context.tr('Assign to Department'),
+                              if (_canAssignToIndividual)
+                                SwitchListTile(
+                                  title: Text(
+                                    _assignToIndividual
+                                        ? 'Assign to Individual'
+                                        : 'Assign to Department',
+                                  ),
+                                  subtitle: Text(
+                                    _assignToIndividual
+                                        ? 'Assign this task to a specific member'
+                                        : 'Assign this task to a department',
+                                  ),
+                                  value: _assignToIndividual,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _assignToIndividual = value;
+                                      if (value) {
+                                        _selectedDepartmentId = null;
+                                      } else {
+                                        _selectedMemberId = null;
+                                      }
+                                    });
+                                  },
                                 ),
-                                subtitle: Text(
-                                  _assignToIndividual
-                                      ? context.tr(
-                                          'Assign this task to a specific member',
-                                        )
-                                      : context.tr(
-                                          'Assign this task to a department',
-                                        ),
-                                ),
-                                value: _assignToIndividual,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _assignToIndividual = value;
-                                    if (value) {
-                                      _selectedDepartmentId = null;
-                                    } else {
-                                      _selectedMemberId = null;
-                                    }
-                                  });
-                                },
-                              ),
-                              if (!_assignToIndividual) ...[
+                              if (!_assignToIndividual || !_canAssignToIndividual) ...[
                                 if (_isLoadingDepartments)
                                   Center(child: CircularProgressIndicator())
                                 else
@@ -918,52 +1024,39 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                       return DropdownMenuItem<String>(
                                         value: dept['id'].toString(),
                                         child: Text(
-                                          dept['name']?.toString() ??
-                                              context.tr('Unnamed'),
+                                          dept['name']?.toString() ?? 'Unnamed',
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                       );
                                     }).toList(),
                                     onChanged: (value) {
-                                      setState(
-                                        () => _selectedDepartmentId = value,
-                                      );
+                                      setState(() {
+                                        _selectedDepartmentId = value;
+                                        _assignedDepartmentMemberId = null;
+                                      });
                                       _loadTags();
+                                      _refreshDepartmentAssignAccess();
                                     },
                                   ),
-                              ] else if (_assignToIndividual) ...[
-                                InkWell(
-                                  onTap: _isLoadingMembers
-                                      ? null
-                                      : _showMemberSearchDialog,
-                                  child: InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: context.tr('Member *'),
-                                      prefixIcon: Icon(Icons.person),
-                                      suffixIcon: Icon(Icons.arrow_drop_down),
-                                      border: OutlineInputBorder(),
-                                      errorText:
-                                          _assignToIndividual &&
-                                              _selectedMemberId == null
-                                          ? context.tr('Member is required')
-                                          : null,
-                                    ),
-                                    child: Text(
-                                      _selectedMemberId != null
-                                          ? _getMemberName(_selectedMemberId!)
-                                          : context.tr('Select a member'),
-                                      style: TextStyle(
-                                        color: _selectedMemberId != null
-                                            ? Theme.of(
-                                                context,
-                                              ).textTheme.bodyLarge?.color
-                                            : Theme.of(context).hintColor,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
+                              _buildDepartmentAssigneeField(),
+                              ] else if (_assignToIndividual && _canAssignToIndividual) ...[
+                                _buildIndividualMemberDropdown(
+                                  errorText: _assignToIndividual &&
+                                          _selectedMemberId == null
+                                      ? context.tr('Member is required')
+                                      : null,
                                 ),
                               ],
+                            ],
+                          ),
+                        ] else if (_canAssignDepartmentMember) ...[
+                          SizedBox(height: AppDimensions.spacingMD),
+                          _desktopSectionCard(
+                            context,
+                            context.tr('Assignee'),
+                            Icons.person_outline,
+                            [
+                              _buildDepartmentAssigneeField(),
                             ],
                           ),
                         ],
@@ -988,7 +1081,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return context.tr('Task title is required');
+                          return 'Task title is required';
                         }
                         return null;
                       },
@@ -1004,7 +1097,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     // Switch between department and individual assignment - only show if not accessed from department detail page
-                    if (widget.departmentId == null)
+                    if (widget.departmentId == null && _canAssignToIndividual)
                       Card(
                         child: Padding(
                           padding: EdgeInsets.all(AppDimensions.paddingMD),
@@ -1018,20 +1111,16 @@ class _AddTaskPageState extends State<AddTaskPage> {
                                   children: [
                                     Text(
                                       _assignToIndividual
-                                          ? context.tr('Assign to Individual')
-                                          : context.tr('Assign to Department'),
+                                          ? 'Assign to Individual'
+                                          : 'Assign to Department',
                                       style: Theme.of(
                                         context,
                                       ).textTheme.titleMedium,
                                     ),
                                     Text(
                                       _assignToIndividual
-                                          ? context.tr(
-                                              'Assign this task to a specific member',
-                                            )
-                                          : context.tr(
-                                              'Assign this task to a department',
-                                            ),
+                                          ? 'Assign this task to a specific member'
+                                          : 'Assign this task to a department',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
@@ -1080,8 +1169,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                             return DropdownMenuItem<String>(
                               value: dept['id'].toString(),
                               child: Text(
-                                dept['name']?.toString() ??
-                                    context.tr('Unnamed'),
+                                dept['name']?.toString() ?? 'Unnamed',
                                 overflow: TextOverflow.ellipsis,
                               ),
                             );
@@ -1089,43 +1177,26 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           onChanged: (value) {
                             setState(() {
                               _selectedDepartmentId = value;
+                              _assignedDepartmentMemberId = null;
                             });
                             _loadTags();
+                            _refreshDepartmentAssignAccess();
                           },
                           validator: (value) {
                             if (!_assignToIndividual && value == null) {
-                              return context.tr('Department is required');
+                              return 'Department is required';
                             }
                             return null;
                           },
                         ),
-                    ] else if (_assignToIndividual) ...[
-                      InkWell(
-                        onTap: _isLoadingMembers
-                            ? null
-                            : _showMemberSearchDialog,
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: context.tr('Member *'),
-                            prefixIcon: Icon(Icons.person),
-                            suffixIcon: Icon(Icons.arrow_drop_down),
-                            errorText:
-                                _assignToIndividual && _selectedMemberId == null
-                                ? context.tr('Member is required')
-                                : null,
-                          ),
-                          child: Text(
-                            _selectedMemberId != null
-                                ? _getMemberName(_selectedMemberId!)
-                                : context.tr('Select a member'),
-                            style: TextStyle(
-                              color: _selectedMemberId != null
-                                  ? Theme.of(context).textTheme.bodyLarge?.color
-                                  : Theme.of(context).hintColor,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
+                    ],
+                    if (!_assignToIndividual) _buildDepartmentAssigneeField(),
+                    if (_assignToIndividual) ...[
+                      _buildIndividualMemberDropdown(
+                        errorText: _assignToIndividual &&
+                                _selectedMemberId == null
+                            ? context.tr('Member is required')
+                            : null,
                       ),
                     ],
                     SizedBox(height: AppDimensions.spacingMD),
@@ -1140,7 +1211,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         child: Text(
                           _dueDate != null
                               ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                              : context.tr('Select due date (optional)'),
+                              : 'Select due date (optional)',
                           style: TextStyle(
                             color: _dueDate != null
                                 ? context.mic.textPrimary
@@ -1223,8 +1294,8 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       isExpanded: true,
                       decoration: InputDecoration(
                         labelText: _isLoadingProjects
-                            ? context.tr('Project (loading…)')
-                            : context.tr('Project (optional)'),
+                            ? 'Project (loading…)'
+                            : 'Project (optional)',
                         prefixIcon: Icon(Icons.folder_outlined),
                       ),
                       items: [
@@ -1250,7 +1321,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       Padding(
                         padding: EdgeInsets.only(top: 8.0),
                         child: Text(
-                          context.tr('Tags (loading…)'),
+                          'Tags (loading…)',
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: 12,
@@ -1259,7 +1330,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       ),
                     SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      context.tr('Tags (optional)'),
+                      'Tags (optional)',
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
@@ -1288,20 +1359,6 @@ class _AddTaskPageState extends State<AddTaskPage> {
                           tooltip: context.tr('Add tag'),
                         ),
                       ],
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      context.tr('Color'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    TagColorPicker(
-                      selectedHex: _newTagColor,
-                      onChanged: (hex) => setState(() => _newTagColor = hex),
-                      swatchSize: 26,
                     ),
                     SizedBox(height: 8),
                     Wrap(

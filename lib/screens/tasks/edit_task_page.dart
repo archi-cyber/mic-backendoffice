@@ -8,7 +8,6 @@ import '../../services/project_service.dart';
 import '../../services/tag_service.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../widgets/tag_color_picker.dart';
 
 /// Edit task page
 class EditTaskPage extends StatefulWidget {
@@ -40,7 +39,6 @@ class _EditTaskPageState extends State<EditTaskPage> {
   bool _isLoading = false;
   bool _isLoadingData = true;
   final TextEditingController _newTagController = TextEditingController();
-  String _newTagColor = TagColors.presetHex.first;
 
   @override
   void initState() {
@@ -94,14 +92,13 @@ class _EditTaskPageState extends State<EditTaskPage> {
       final created = await TagService.createTag(
         name: trimmed,
         departmentId: deptId,
-        color: _newTagColor,
+        color: TagColors.defaultHex,
       );
       if (!mounted) return;
       final id = created['id'].toString();
       setState(() {
         _tags.add(created);
         if (!_selectedTagIds.contains(id)) _selectedTagIds.add(id);
-        _newTagColor = TagColors.presetHex.first;
       });
       _newTagController.clear();
     } catch (e) {
@@ -163,7 +160,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         .map(
           (dept) => DropdownMenuItem<String>(
             value: dept['id'].toString(),
-            child: Text(dept['name']?.toString() ?? context.tr('Unnamed')),
+            child: Text(dept['name']?.toString() ?? 'Unnamed'),
           ),
         )
         .toList();
@@ -395,7 +392,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
   }
 
   static const double _kDesktopBreakpoint = 700;
-  static const double _kDesktopMaxWidth = 1040;
+  static const double _kDesktopMaxWidth = 640;
 
   Widget _buildPenaltyAmountField({bool outlined = false}) {
     return TextFormField(
@@ -414,7 +411,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         if (trimmed.isEmpty) return null;
         final amount = int.tryParse(trimmed);
         if (amount == null || amount < 0) {
-          return context.tr('Enter a valid amount');
+          return 'Enter a valid amount';
         }
         return null;
       },
@@ -436,7 +433,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
         side: BorderSide(color: theme.dividerColor.withValues(alpha: 0.45)),
       ),
       child: Padding(
-        padding: EdgeInsets.all(AppDimensions.paddingLG),
+        padding: EdgeInsets.all(AppDimensions.paddingMD),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -471,51 +468,46 @@ class _EditTaskPageState extends State<EditTaskPage> {
   Widget _desktopIntroCard(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      padding: EdgeInsets.all(AppDimensions.paddingLG),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMD,
+        vertical: AppDimensions.paddingSM + 4,
+      ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusXL),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary.withValues(alpha: 0.14),
-            theme.colorScheme.surface,
-          ],
-        ),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        color: AppColors.primary.withValues(alpha: 0.06),
         border: Border.all(color: theme.dividerColor.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
               Icons.edit_note_outlined,
               color: AppColors.primary,
-              size: 32,
+              size: 20,
             ),
           ),
-          SizedBox(width: AppDimensions.spacingMD),
+          SizedBox(width: AppDimensions.spacingSM),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   context.tr('Edit task'),
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: AppDimensions.spacingXS),
                 Text(
                   context.tr(
                     'Update the task details, schedule, status, and penalty settings.',
                   ),
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: context.mic.textSecondary,
                   ),
                 ),
@@ -585,7 +577,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
       body: useDesktop
           ? Center(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(AppDimensions.paddingLG),
+                padding: EdgeInsets.all(AppDimensions.paddingMD),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: _kDesktopMaxWidth),
                   child: Form(
@@ -597,7 +589,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         SizedBox(height: AppDimensions.spacingLG),
                         _desktopSectionCard(
                           context,
-                          context.tr('Task details'),
+                          'Task details',
                           Icons.task_alt,
                           [
                             TextFormField(
@@ -609,7 +601,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return context.tr('Task title is required');
+                                  return 'Task title is required';
                                 }
                                 return null;
                               },
@@ -653,7 +645,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                 child: Text(
                                   _dueDate != null
                                       ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                                      : context.tr('Select due date (optional)'),
+                                      : 'Select due date (optional)',
                                   style: TextStyle(
                                     color: _dueDate != null
                                         ? Theme.of(
@@ -741,7 +733,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                             ),
                             SizedBox(height: AppDimensions.spacingMD),
                             Text(
-                              context.tr('Tags (optional)'),
+                              'Tags (optional)',
                               style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 fontSize: 12,
@@ -772,21 +764,6 @@ class _EditTaskPageState extends State<EditTaskPage> {
                                   tooltip: context.tr('Add tag'),
                                 ),
                               ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              context.tr('Color'),
-                              style: TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            TagColorPicker(
-                              selectedHex: _newTagColor,
-                              onChanged: (hex) =>
-                                  setState(() => _newTagColor = hex),
-                              swatchSize: 26,
                             ),
                             SizedBox(height: 8),
                             Wrap(
@@ -840,7 +817,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return context.tr('Task title is required');
+                          return 'Task title is required';
                         }
                         return null;
                       },
@@ -881,7 +858,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                         child: Text(
                           _dueDate != null
                               ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                              : context.tr('Select due date (optional)'),
+                              : 'Select due date (optional)',
                           style: TextStyle(
                             color: _dueDate != null
                                 ? context.mic.textPrimary
@@ -968,7 +945,7 @@ class _EditTaskPageState extends State<EditTaskPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      context.tr('Tags (optional)'),
+                      'Tags (optional)',
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
@@ -997,20 +974,6 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           tooltip: context.tr('Add tag'),
                         ),
                       ],
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      context.tr('Color'),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                    ),
-                    SizedBox(height: 6),
-                    TagColorPicker(
-                      selectedHex: _newTagColor,
-                      onChanged: (hex) => setState(() => _newTagColor = hex),
-                      swatchSize: 26,
                     ),
                     SizedBox(height: 8),
                     Wrap(

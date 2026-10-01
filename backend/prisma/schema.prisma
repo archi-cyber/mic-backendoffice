@@ -219,6 +219,7 @@ model User {
   createdAnnouncements           Announcement[]           @relation("AnnouncementCreatedBy")
   createdDepartmentReports       DepartmentReport[]       @relation("DepartmentReportCreatedBy")
   createdServiceSchedules        ServiceSchedule[]        @relation("ServiceScheduleCreatedBy")
+  createdTasks                   Task[]                   @relation("TaskCreatedBy")
 
   @@index([memberId])
   @@index([email])
@@ -834,10 +835,14 @@ model Task {
   priority    TaskPriority? @default(medium)
   status      TaskStatus?   @default(pending)
 
+  /// Compte ayant créé la tâche : un adjoint ne peut supprimer que les siennes.
+  createdBy String? @map("created_by") @db.Uuid
+
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
 
+  creator     User?       @relation("TaskCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
   department  Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   member      Member?     @relation("TaskPersonalMember", fields: [memberId], references: [id], onDelete: Cascade)
   project     Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
@@ -851,6 +856,7 @@ model Task {
   @@index([memberId])
   @@index([projectId])
   @@index([teachingId])
+  @@index([createdBy])
   @@index([status])
   @@index([dueDate])
   @@map("tasks")

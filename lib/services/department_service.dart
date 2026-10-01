@@ -46,6 +46,34 @@ class DepartmentService {
   static Future<bool> canDeleteDepartment(String departmentId) =>
       isDepartmentLeader(departmentId);
 
+  /// departmentId → rôle (`leader` ou `subleader`) pour chaque département
+  /// que l'utilisateur dirige ou codirige. Lu depuis le profil en mémoire.
+  static Future<Map<String, String>> getCurrentUserDepartmentRoles() async {
+    final roles = <String, String>{};
+    for (final d in PermissionHelper.departmentRoles) {
+      final deptId = d['department_id']?.toString();
+      final role = d['role']?.toString();
+      if (deptId != null && (role == 'leader' || role == 'subleader')) {
+        roles[deptId] = role!;
+      }
+    }
+    return roles;
+  }
+
+  /// Départements dont l'utilisateur est responsable ou adjoint.
+  static Future<List<Map<String, dynamic>>> getDepartmentsLedByCurrentUser() async {
+    final ids = (await getCurrentUserDepartmentRoles()).keys.toSet();
+    if (ids.isEmpty) return [];
+    try {
+      final departments = await getDepartments(limit: 200);
+      return departments
+          .where((d) => ids.contains(d['id']?.toString()))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Départements
   // ---------------------------------------------------------------------------

@@ -245,9 +245,13 @@ class DesktopSectionCard extends StatelessWidget {
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (trailing != null) trailing!,
+                    if (trailing != null) ...[
+                      SizedBox(width: AppDimensions.spacingSM),
+                      Flexible(child: trailing!),
+                    ],
                   ],
                 ),
                 SizedBox(height: AppDimensions.spacingMD),
@@ -427,6 +431,51 @@ class DesktopFormColumns extends StatelessWidget {
   }
 }
 
+/// Horizontal field row on wide layouts; vertical stack when each child needs at least [minChildWidth].
+class DesktopResponsiveFieldRow extends StatelessWidget {
+  const DesktopResponsiveFieldRow({
+    super.key,
+    required this.children,
+    this.spacing = AppDimensions.spacingMD,
+    this.minChildWidth = 200,
+  });
+
+  final List<Widget> children;
+  final double spacing;
+  final double minChildWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final gaps = spacing * (children.length - 1);
+        final needed = minChildWidth * children.length + gaps;
+        final useRow = constraints.maxWidth >= needed;
+        if (useRow) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                Expanded(child: children[i]),
+                if (i < children.length - 1) SizedBox(width: spacing),
+              ],
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < children.length; i++) ...[
+              children[i],
+              if (i < children.length - 1) SizedBox(height: spacing),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 /// Full-width desktop list workspace: hero, stats, toolbar, content, pagination.
 class DesktopListWorkspace extends StatelessWidget {
   const DesktopListWorkspace({
@@ -546,7 +595,7 @@ class DesktopPaginationBar extends StatelessWidget {
                 ),
               ),
             Text(
-              context.tr('Page ${currentPage + 1} of $totalPages'),
+              'Page ${currentPage + 1} of $totalPages',
               style: theme.textTheme.bodySmall,
             ),
             IconButton(
@@ -572,14 +621,12 @@ class DesktopDataTableCard extends StatelessWidget {
     required this.rows,
     this.emptyMessage,
     this.emptyIcon = Icons.inbox_outlined,
-    this.fitToWidth = false,
   });
 
   final List<DataColumn> columns;
   final List<DataRow> rows;
   final String? emptyMessage;
   final IconData emptyIcon;
-  final bool fitToWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -623,30 +670,19 @@ class DesktopDataTableCard extends StatelessWidget {
       children: [
         LayoutBuilder(
           builder: (context, constraints) {
-            final table = DataTable(
-              headingRowColor: WidgetStateProperty.all(
-                theme.colorScheme.surfaceContainerHighest,
-              ),
-              dataRowMinHeight: fitToWidth ? 48 : 52,
-              dataRowMaxHeight: fitToWidth ? 56 : 64,
-              columnSpacing: fitToWidth ? 8 : 24,
-              horizontalMargin: fitToWidth ? 8 : 24,
-              columns: columns,
-              rows: rows,
-            );
-
-            if (fitToWidth) {
-              return SizedBox(
-                width: constraints.maxWidth,
-                child: table,
-              );
-            }
-
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
                 constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: table,
+                child: DataTable(
+                  headingRowColor: WidgetStateProperty.all(
+                    theme.colorScheme.surfaceContainerHighest,
+                  ),
+                  dataRowMinHeight: 52,
+                  dataRowMaxHeight: 64,
+                  columns: columns,
+                  rows: rows,
+                ),
               ),
             );
           },

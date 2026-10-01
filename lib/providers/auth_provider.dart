@@ -7,7 +7,9 @@ import '../core/api/realtime_client.dart';
 import '../core/offline/offline_cache.dart';
 import '../core/offline/offline_queue.dart';
 import '../core/utils/permission_helper.dart';
+import '../core/platform/platform_capabilities.dart';
 import '../services/auth_service.dart';
+import '../services/in_app_notification_service.dart';
 import '../services/supabase_service.dart';
 
 /// État d'authentification de l'application.
@@ -138,6 +140,7 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       await _connectRealtime();
       await _startOfflineQueue();
+      await _startInAppNotifications();
     } catch (error) {
       debugPrint('[AuthProvider] Session non restaurée : $error');
       _isAuthenticated = false;
@@ -163,6 +166,7 @@ class AuthProvider extends ChangeNotifier {
       _isAuthenticated = true;
       await _connectRealtime();
       await _startOfflineQueue();
+      await _startInAppNotifications();
 
       return true;
     } catch (error) {
@@ -177,7 +181,9 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(true);
 
     try {
+      await InAppNotificationService.instance.disposeService();
       await _realtime?.disconnect();
+      RealtimeClient.current = null;
       await OfflineQueue.instance.stop();
 
       // Le cache est vidé : les données d'un utilisateur ne doivent pas rester
@@ -298,9 +304,21 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _connectRealtime() async {
     try {
       _realtime ??= RealtimeClient(tokenStorage: AuthService.client.tokens);
+      RealtimeClient.current = _realtime;
       await _realtime!.connect();
     } catch (error) {
       debugPrint('[AuthProvider] Temps réel indisponible : $error');
+    }
+  }
+
+  /// Notifications système sur bureau et web (toast Windows, notification
+  /// navigateur) à l'arrivée d'une notification en temps réel.
+  Future<void> _startInAppNotifications() async {
+    if (!PlatformCapabilities.supportsInAppNotifications) return;
+    try {
+      await InAppNotificationService.instance.initialize();
+    } catch (error) {
+      debugPrint('[AuthProvider] Notifications in-app indisponibles : $error');
     }
   }
 

@@ -32,7 +32,9 @@ export class ReportsService {
    */
   async getDashboard() {
     const today = this.startOfDay(new Date());
+    const tomorrow = this.addDays(today, 1);
     const in30Days = this.addDays(today, 30);
+    const in35Days = this.addDays(new Date(), 35);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const [
@@ -49,10 +51,13 @@ export class ReportsService {
       this.prisma.member.count({
         where: { ...NOT_DELETED, isActive: true, isNewComer: true },
       }),
+      // Événements à venir à partir de demain, comme le tableau de bord de
+      // mic_backoffice : le compteur porte sur tous, la liste sur les dix
+      // premiers.
       this.prisma.event.findMany({
-        where: { ...NOT_DELETED, isActive: true, eventDate: { gte: today } },
+        where: { ...NOT_DELETED, isActive: true, eventDate: { gte: tomorrow } },
         orderBy: { eventDate: 'asc' },
-        take: 5,
+        take: 10,
         select: { id: true, title: true, eventDate: true, location: true },
       }),
       this.prisma.session.findMany({
@@ -100,7 +105,22 @@ export class ReportsService {
       }),
     ]);
 
-    const birthdays = await this.getBirthdaysThisMonth();
+    const [
+      birthdays,
+      upcomingBirthdays,
+      upcomingEventsCount,
+      upcomingSessionsCount,
+    ] = await Promise.all([
+      this.getBirthdaysThisMonth(),
+      this.getUpcomingBirthdays(5),
+      this.prisma.event.count({
+        where: { ...NOT_DELETED, isActive: true, eventDate: { gte: tomorrow } },
+      }),
+      // Sessions de formation des cinq prochaines semaines.
+      this.prisma.session.count({
+        where: { sessionDate: { gte: today, lte: in35Days } },
+      }),
+    ]);
 
     return {
       members: {
@@ -116,8 +136,11 @@ export class ReportsService {
         recentServices,
       },
       upcomingEvents,
+      upcomingEventsCount,
       upcomingSessions,
+      upcomingSessionsCount,
       birthdaysThisMonth: birthdays,
+      upcomingBirthdays,
     };
   }
 
@@ -578,6 +601,35 @@ export class ReportsService {
   // ===========================================================================
   // Helpers
   // ===========================================================================
+
+  /**
+   * Prochains anniversaires : reste du mois courant, puis mois suivant.
+   *
+   * Tri par mois (le mois suivant après le courant, y compris de décembre à
+   * janvier), puis par jour, puis par nom.
+   */
+  private async getUpcomingBirthdays(limit: number) {
+    return this.prisma.$queryRaw<
+      Array<{ id: string; firstName: string; lastName: string; birthday: Date }>
+    >`
+      SELECT id, first_name AS "firstName", last_name AS "lastName", birthday
+      FROM members
+      WHERE deleted_at IS NULL
+        AND is_active = true
+        AND birthday IS NOT NULL
+        AND (
+          (EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(DAY FROM birthday) >= EXTRACT(DAY FROM CURRENT_DATE))
+          OR EXTRACT(MONTH FROM birthday) =
+            EXTRACT(MONTH FROM CURRENT_DATE + INTERVAL '1 month')
+        )
+      ORDER BY
+        EXTRACT(MONTH FROM birthday) <> EXTRACT(MONTH FROM CURRENT_DATE),
+        EXTRACT(DAY FROM birthday),
+        LOWER(first_name || ' ' || last_name)
+      LIMIT ${limit}
+    `;
+  }
 
   private async getBirthdaysThisMonth() {
     return this.prisma.$queryRaw<

@@ -6,6 +6,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/constants/tag_colors.dart';
 import '../../core/routes/route_names.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../services/task_service.dart';
 import '../../services/task_penalty_service.dart';
 import '../../services/member_service.dart';
@@ -13,8 +14,7 @@ import '../../services/department_service.dart';
 import '../../services/role_service.dart';
 import 'edit_task_page.dart';
 import '../../core/localization/app_localizations.dart';
-import '../../core/utils/phone_number_utils.dart';
-import '../../widgets/phone_number_field.dart';
+import '../../utils/member_account_ensure_helper.dart';
 
 /// Task detail page with assign and remind functionality
 class TaskDetailPage extends StatefulWidget {
@@ -34,6 +34,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
   List<Map<String, dynamic>> _assignments = [];
   bool _isLoading = true;
   bool _canAssignMembers = false;
+  bool _canDeleteTask = false;
 
   @override
   void initState() {
@@ -47,16 +48,20 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       final task = await TaskService.getTaskById(widget.taskId);
       final assignments = await TaskService.getTaskAssignments(widget.taskId);
 
-      // Check if user can assign members (admin or department leader)
+      // Check if user can assign members / delete this task
       bool canAssign = false;
       final isAdmin = await RoleService.isCurrentUserAdmin();
+      final departmentId = task['department_id']?.toString();
+      final createdBy = task['created_by']?.toString();
+      final canDelete = await PermissionHelper.canDeleteTask(
+        departmentId: departmentId,
+        createdByUserId: createdBy,
+      );
       if (isAdmin) {
         canAssign = true;
-      } else if (task['department_id'] != null) {
-        // Check if user is a leader of the task's department
-        canAssign = await DepartmentService.isDepartmentLeader(
-          task['department_id'].toString(),
-        );
+      } else if (departmentId != null && departmentId.isNotEmpty) {
+        canAssign =
+            await PermissionHelper.canManageDepartmentTask(departmentId);
       }
 
       if (!mounted) return;
@@ -64,6 +69,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         _task = task;
         _assignments = assignments;
         _canAssignMembers = canAssign;
+        _canDeleteTask = canDelete;
         _isLoading = false;
       });
     } catch (e) {
@@ -77,14 +83,33 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     }
   }
 
-  Future<void> _assignTask(String memberId) async {
+  Future<void> _assignTask(
+    String memberId, {
+    Map<String, dynamic>? member,
+  }) async {
     try {
+      final ensureResult =
+          await MemberAccountEnsureHelper.ensureForTaskAssignment(
+            context,
+            memberId: memberId,
+            member: member,
+          );
+
       await TaskService.assignTask(taskId: widget.taskId, memberId: memberId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.tr('Task assigned successfully')),
-            backgroundColor: AppColors.success,
+            content: Text(
+              ensureResult.shouldWarn
+                  ? context.tr(
+                      ensureResult.warningMessage!,
+                      ensureResult.warningParams,
+                    )
+                  : context.tr('Task assigned successfully'),
+            ),
+            backgroundColor: ensureResult.shouldWarn
+                ? AppColors.warning
+                : AppColors.success,
           ),
         );
         _loadTaskData();
@@ -179,7 +204,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       );
 
       if (selectedMember != null) {
-        await _assignTask(selectedMember['id'].toString());
+        await _assignTask(
+          selectedMember['id'].toString(),
+          member: selectedMember,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -277,18 +305,19 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
-            PopupMenuItem(
-              value: 'delete',
-              child: ListTile(
-                leading: Icon(Icons.delete_outline, color: AppColors.error),
-                title: Text(
-                  context.tr('Delete task'),
-                  style: TextStyle(color: AppColors.error),
+            if (_canDeleteTask)
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline, color: AppColors.error),
+                  title: Text(
+                    'Delete task',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
                 ),
-                contentPadding: EdgeInsets.zero,
-                visualDensity: VisualDensity.compact,
               ),
-            ),
           ],
         ),
       ];
@@ -317,16 +346,17 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               ],
             ),
           ),
-          PopupMenuItem(
-            onTap: _deleteTask,
-            child: Row(
-              children: [
-                Icon(Icons.delete, color: AppColors.error),
-                SizedBox(width: 8),
-                Text(context.tr('Delete Task')),
-              ],
+          if (_canDeleteTask)
+            PopupMenuItem(
+              onTap: _deleteTask,
+              child: Row(
+                children: [
+                  Icon(Icons.delete, color: AppColors.error),
+                  SizedBox(width: 8),
+                  Text(context.tr('Delete Task')),
+                ],
+              ),
             ),
-          ),
         ],
       ),
     ];
@@ -374,7 +404,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                     ? context.tr('Task details')
                     : (isMobile
                           ? context.tr('Task')
-                          : (_task!['title']?.toString() ?? context.tr('Task'))),
+                          : (_task!['title'] ?? 'Task')),
               ),
               actions: _buildTaskAppBarActions(compact: compact),
             ),
@@ -476,7 +506,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              _task!['title']?.toString() ?? context.tr('Task'),
+                              _task!['title']?.toString() ?? 'Task',
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
                                 height: 1.2,
@@ -501,20 +531,14 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                           if (dueDateStr != null)
                             _DesktopInfoChip(
                               icon: Icons.event_outlined,
-                              label: context.tr(
-                                'Due {date}',
-                                {
-                                  'date': _formatDate(
-                                    DateTime.parse(dueDateStr.toString()),
-                                  ),
-                                },
-                              ),
-                            ),
-                            _DesktopInfoChip(
-                              icon: Icons.people_outline,
                               label:
-                                  '${_assignments.length} ${_assignments.length == 1 ? context.tr('assignee') : context.tr('assignees')}',
+                                  'Due ${_formatDate(DateTime.parse(dueDateStr.toString()))}',
                             ),
+                          _DesktopInfoChip(
+                            icon: Icons.people_outline,
+                            label:
+                                '${_assignments.length} assignee${_assignments.length == 1 ? '' : 's'}',
+                          ),
                         ],
                       ),
                     ],
@@ -531,7 +555,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _DesktopPanel(
-                          title: context.tr('Task information'),
+                          title: 'Task information',
                           icon: Icons.info_outline,
                           child: _buildDetailsGrid(
                             theme,
@@ -552,7 +576,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   Expanded(
                     flex: 2,
                     child: _DesktopPanel(
-                      title: context.tr('Assigned to'),
+                      title: 'Assigned to',
                       icon: Icons.people_outline,
                       trailing: _canAssignMembers
                           ? TextButton.icon(
@@ -579,7 +603,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         padding: EdgeInsets.symmetric(vertical: AppDimensions.spacingLG),
         child: Center(
           child: Text(
-            context.tr('No assignments yet'),
+            'No assignments yet',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: context.mic.textSecondary,
             ),
@@ -593,7 +617,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         final member = assignment['members'] as Map<String, dynamic>?;
         final memberName = member != null
             ? '${member['first_name']} ${member['last_name']}'
-            : context.tr('Member');
+            : 'Member';
         final assignmentStatus = assignment['status']?.toString() ?? 'pending';
         final memberId = assignment['member_id']?.toString() ?? '';
         return ListTile(
@@ -664,7 +688,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
               ),
               PopupMenuItem(
                 value: 'remove',
-                child: Text(context.tr('Remove'), style: TextStyle(color: AppColors.error)),
+                child: Text('Remove', style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),
@@ -776,7 +800,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     required String priority,
     required dynamic dueDateStr,
   }) {
-    final title = _task!['title']?.toString() ?? context.tr('Task');
+    final title = _task!['title']?.toString() ?? 'Task';
     final statusColor = _getStatusColor(status);
     String? dueLabel;
     Color? dueColor;
@@ -1257,7 +1281,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     final member = assignment['members'] as Map<String, dynamic>?;
     final memberName = member != null
         ? '${member['first_name']} ${member['last_name']}'
-        : context.tr('Member');
+        : 'Member';
     final assignmentStatus = assignment['status']?.toString() ?? 'pending';
     final memberId = assignment['member_id']?.toString() ?? '';
     final statusColor = _getStatusColor(assignmentStatus);
@@ -1371,7 +1395,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   PopupMenuItem(
                     enabled: false,
                     child: Text(
-                      context.tr('Update status'),
+                      'Update status',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -1407,7 +1431,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
                   PopupMenuItem(
                     value: 'remove',
                     child: Text(
-                      context.tr('Remove'),
+                      'Remove',
                       style: TextStyle(color: AppColors.error),
                     ),
                   ),
@@ -1570,9 +1594,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Archive Task')),
         content: Text(
-          context.tr(
-            'Archive this task? It will stop accumulating new penalties.',
-          ),
+          'Archive this task? It will stop accumulating new penalties.',
         ),
         actions: [
           TextButton(
@@ -1616,9 +1638,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       builder: (context) => AlertDialog(
         title: Text(context.tr('Delete Task')),
         content: Text(
-          context.tr(
-            'Are you sure you want to delete this task? This action cannot be undone.',
-          ),
+          'Are you sure you want to delete this task? This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -1652,9 +1672,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         }
       } catch (e) {
         if (mounted) {
+          final message = e.toString().replaceFirst('Exception: ', '');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(context.tr('Error deleting task: $e')),
+              content: Text(context.tr('Error deleting task: $message')),
               backgroundColor: AppColors.error,
             ),
           );
@@ -1791,12 +1812,10 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _detailLabel(context, context.tr('Description')),
+              _detailLabel(context, 'Description'),
               SizedBox(height: AppDimensions.spacingXS),
               Text(
-                description.isEmpty
-                    ? context.tr('No description provided.')
-                    : description,
+                description.isEmpty ? 'No description provided.' : description,
                 style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
               ),
             ],
@@ -1809,27 +1828,27 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           children: [
             _DesktopDetailTile(
               icon: Icons.check_circle_outline,
-              label: context.tr('Status'),
+              label: 'Status',
               child: _statusPriorityChip(status, true),
             ),
             _DesktopDetailTile(
               icon: Icons.flag_outlined,
-              label: context.tr('Priority'),
+              label: 'Priority',
               child: _statusPriorityChip(priority, false),
             ),
             _DesktopDetailTile(
               icon: Icons.group_work_outlined,
-              label: context.tr('Department'),
+              label: 'Department',
               value: departmentName,
             ),
             _DesktopDetailTile(
               icon: Icons.folder_outlined,
-              label: context.tr('Project'),
+              label: 'Project',
               value: projectTitle ?? '—',
             ),
             _DesktopDetailTile(
               icon: Icons.event_outlined,
-              label: context.tr('Due date'),
+              label: 'Due date',
               value: dueDateStr != null
                   ? _formatDate(DateTime.parse(dueDateStr))
                   : '—',
@@ -1837,7 +1856,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
           ],
         ),
         SizedBox(height: AppDimensions.spacingMD),
-        _detailLabel(context, context.tr('Tags')),
+        _detailLabel(context, 'Tags'),
         SizedBox(height: 4),
         hasTags && taskTags is List
             ? Wrap(
@@ -1919,7 +1938,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
       builder: (context) => _ReminderDialog(
         assignedMemberPhone: assignedMemberPhone,
         memberName: memberName,
-        taskTitle: _task!['title']?.toString() ?? context.tr('Task'),
+        taskTitle: _task!['title']?.toString() ?? 'Task',
       ),
     );
 
@@ -1933,7 +1952,7 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
         await _sendReminder(
           receiverPhone: receiverPhone,
           platform: platform,
-          taskTitle: _task!['title']?.toString() ?? context.tr('Task'),
+          taskTitle: _task!['title']?.toString() ?? 'Task',
           taskDescription: _task!['description']?.toString() ?? '',
         );
       } else {
@@ -1956,12 +1975,27 @@ class _TaskDetailPageState extends State<TaskDetailPage> {
     required String taskDescription,
   }) async {
     try {
-      final formattedReceiver = PhoneNumberUtils.normalize(receiverPhone);
-      if (formattedReceiver == null) {
-        throw Exception('Invalid phone number format');
+      // Format phone numbers (remove any non-digit characters except +)
+      String formatPhone(String phone) {
+        if (phone.isEmpty) {
+          throw Exception('Invalid phone number format');
+        }
+
+        // Extract all digits from the phone number (this preserves ALL digits)
+        final digitsOnly = phone.replaceAll(RegExp(r'[^\d]'), '');
+
+        // Ensure we have digits
+        if (digitsOnly.isEmpty) {
+          throw Exception('Invalid phone number format');
+        }
+
+        // Always return with + prefix for international format
+        return '+$digitsOnly';
       }
+
+      final formattedReceiver = formatPhone(receiverPhone);
       final message =
-          'Reminder: $taskTitle\n\n${taskDescription.isNotEmpty ? taskDescription : context.tr('Please check your assigned task.')}';
+          'Reminder: $taskTitle\n\n${taskDescription.isNotEmpty ? taskDescription : "Please check your assigned task."}';
 
       Uri uri;
       if (platform == 'whatsapp') {
@@ -2212,19 +2246,19 @@ class _ReminderDialog extends StatefulWidget {
 }
 
 class _ReminderDialogState extends State<_ReminderDialog> {
-  final _phoneInput = PhoneNumberInputController();
-  final _formKey = GlobalKey<FormState>();
+  final _receiverController = TextEditingController();
   String _selectedPlatform = 'whatsapp';
 
   @override
   void initState() {
     super.initState();
-    _phoneInput.setFromStored(widget.assignedMemberPhone);
+    // Auto-fill assigned member's phone number
+    _receiverController.text = widget.assignedMemberPhone ?? '';
   }
 
   @override
   void dispose() {
-    _phoneInput.dispose();
+    _receiverController.dispose();
     super.dispose();
   }
 
@@ -2233,19 +2267,17 @@ class _ReminderDialogState extends State<_ReminderDialog> {
     return AlertDialog(
       title: Text(context.tr('Send Reminder')),
       content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              context.tr('Task: {title}', {'title': widget.taskTitle}),
+              'Task: ${widget.taskTitle}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             SizedBox(height: AppDimensions.spacingMD),
             Text(
-              context.tr('To: {name}', {'name': widget.memberName}),
+              'To: ${widget.memberName}',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             SizedBox(height: AppDimensions.spacingLG),
@@ -2286,19 +2318,24 @@ class _ReminderDialogState extends State<_ReminderDialog> {
               },
             ),
             SizedBox(height: AppDimensions.spacingMD),
-            PhoneNumberField(
-              controller: _phoneInput,
-              optional: false,
+            TextFormField(
+              controller: _receiverController,
               decoration: InputDecoration(
-                labelText:
-                    context.tr('${widget.memberName}\'s Phone Number *'),
+                labelText: context.tr('${widget.memberName}\'s Phone Number *'),
+                prefixIcon: Icon(Icons.phone),
                 helperText: context.tr('The recipient\'s phone number'),
               ),
+              keyboardType: TextInputType.phone,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Phone number is required';
+                }
+                return null;
+              },
             ),
           ],
         ),
       ),
-    ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -2306,21 +2343,19 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (!_formKey.currentState!.validate()) return;
-            final phone = _phoneInput.storedValue;
-            if (phone == null) {
+            if (_receiverController.text.trim().isNotEmpty) {
+              Navigator.pop(context, {
+                'receiver': _receiverController.text.trim(),
+                'platform': _selectedPlatform,
+              });
+            } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(context.tr('Please enter the phone number')),
                   backgroundColor: AppColors.error,
                 ),
               );
-              return;
             }
-            Navigator.pop(context, {
-              'receiver': phone,
-              'platform': _selectedPlatform,
-            });
           },
           child: Text(context.tr('Send')),
         ),
@@ -2383,9 +2418,8 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      child: Container(
-        width: double.maxFinite,
-        constraints: BoxConstraints(maxHeight: 600),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 520),
         child: Column(
           children: [
             // Header
@@ -2393,11 +2427,15 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
               padding: EdgeInsets.all(AppDimensions.paddingMD),
               child: Row(
                 children: [
-                  Text(
-                    context.tr('Assign Task to Member'),
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      context.tr('Assign Task to Member'),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                  Spacer(),
                   IconButton(
                     icon: Icon(Icons.close),
                     onPressed: () => Navigator.pop(context),
@@ -2414,6 +2452,7 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                 decoration: InputDecoration(
                   hintText: context.tr('Search members...'),
                   prefixIcon: Icon(Icons.search),
+                  isDense: true,
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(Icons.clear),
@@ -2488,10 +2527,7 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                                 ),
                               if (isBlocked)
                                 Text(
-                                  context.tr(
-                                    'Blocked: {balance}frs unpaid penalties',
-                                    {'balance': balance},
-                                  ),
+                                  'Blocked: ${balance}frs unpaid penalties',
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: AppColors.error,
@@ -2518,7 +2554,7 @@ class _AssignMemberDialogState extends State<_AssignMemberDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_filteredMembers.length} ${_filteredMembers.length == 1 ? context.tr('Member') : context.tr('Members')}',
+                    '${_filteredMembers.length} member${_filteredMembers.length != 1 ? 's' : ''}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   TextButton(

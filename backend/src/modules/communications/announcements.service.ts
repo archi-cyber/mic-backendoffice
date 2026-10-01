@@ -18,6 +18,7 @@ import type {
   FindAnnouncementsDto,
   UpdateAnnouncementDto,
 } from './dto/communication.dto';
+import { RealtimeService } from '../realtime/realtime.service';
 import { NOTIFICATION_TYPES, NotificationsService } from './notifications.service';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class AnnouncementsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   // ===========================================================================
@@ -87,6 +89,7 @@ export class AnnouncementsService {
           author: {
             select: {
               id: true,
+              email: true,
               member: { select: { firstName: true, lastName: true } },
             },
           },
@@ -109,6 +112,7 @@ export class AnnouncementsService {
         author: {
           select: {
             id: true,
+            email: true,
             member: { select: { firstName: true, lastName: true } },
           },
         },
@@ -154,13 +158,24 @@ export class AnnouncementsService {
       include: { department: { select: { id: true, name: true } } },
     });
 
+    const author = await this.prisma.user.findUnique({
+      where: { id: authorUserId },
+      select: { memberId: true },
+    });
+
     const notified = await this.broadcast(announcement.id, {
       isGlobal,
       departmentId: dto.departmentId ?? null,
       targetMemberIds: dto.targetMemberIds ?? [],
       title: dto.title,
       message: dto.message,
+      excludeMemberId: author?.memberId ?? null,
     });
+
+    this.realtime.announcementPublished(
+      this.eventPayload(announcement),
+      announcement.targetMemberIds,
+    );
 
     this.logger.log(
       `Annonce publiée : ${dto.title} (${notified} destinataire(s) notifié(s))`,
@@ -187,13 +202,20 @@ export class AnnouncementsService {
 
     const { targetMemberIds, ...rest } = dto;
 
-    return this.prisma.announcement.update({
+    const updated = await this.prisma.announcement.update({
       where: { id },
       data: {
         ...rest,
         ...(targetMemberIds !== undefined ? { targetMemberIds } : {}),
       },
     });
+
+    this.realtime.announcementUpdated(
+      this.eventPayload(updated),
+      updated.targetMemberIds,
+    );
+
+    return updated;
   }
 
   async remove(id: string, actor: AuthenticatedUser) {
@@ -208,10 +230,15 @@ export class AnnouncementsService {
 
     this.assertIsAuthorOrAdmin(existing.createdBy, actor);
 
-    await this.prisma.announcement.update({
+    const removed = await this.prisma.announcement.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+
+    this.realtime.announcementDeleted(
+      this.eventPayload(removed),
+      removed.targetMemberIds,
+    );
 
     return { message: 'Annonce supprimée.', id };
   }
@@ -235,6 +262,8 @@ export class AnnouncementsService {
       targetMemberIds: string[];
       title: string;
       message: string;
+      /** L'auteur n'est pas notifié de son propre message. */
+      excludeMemberId?: string | null;
     },
   ): Promise<number> {
     const payload = {
@@ -265,7 +294,28 @@ export class AnnouncementsService {
       recipients = audience.targetMemberIds;
     }
 
-    return this.notifications.notifyMany(recipients, payload);
+    return this.notifications.notifyMany(
+      recipients.filter((memberId) => memberId !== audience.excludeMemberId),
+      payload,
+    );
+  }
+
+  private eventPayload(announcement: {
+    id: string;
+    title: string;
+    message: string;
+    isGlobal: boolean;
+    departmentId: string | null;
+    createdBy: string | null;
+  }) {
+    return {
+      announcementId: announcement.id,
+      title: announcement.title,
+      message: announcement.message,
+      isGlobal: announcement.isGlobal,
+      departmentId: announcement.departmentId,
+      authorUserId: announcement.createdBy,
+    };
   }
 
   // ===========================================================================

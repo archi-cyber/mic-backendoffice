@@ -4,6 +4,7 @@ import '../../core/theme/mic_theme.dart';
 import '../../core/constants/app_dimensions.dart';
 import '../../core/routes/route_names.dart';
 import '../../services/notification_service.dart';
+import '../../services/in_app_notification_service.dart';
 import '../../core/localization/app_localizations.dart';
 import '../../core/utils/permission_helper.dart';
 import '../../widgets/desktop/desktop_ui.dart';
@@ -224,6 +225,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
   Future<void> _markAsRead(String notificationId) async {
     try {
       await NotificationService.markAsRead(notificationId);
+      InAppNotificationService.instance.refresh();
       _loadNotifications();
     } catch (e) {
       if (mounted) {
@@ -240,6 +242,7 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
   Future<void> _markAllAsRead() async {
     try {
       await NotificationService.markAllAsRead(memberId: _memberId);
+      InAppNotificationService.instance.refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -372,15 +375,15 @@ class _NotificationsListPageState extends State<NotificationsListPage> {
     if (difference.inDays == 0) {
       if (difference.inHours == 0) {
         if (difference.inMinutes == 0) {
-          return context.tr('Just now');
+          return 'Just now';
         }
-        return context.tr('{count}m ago', {'count': difference.inMinutes});
+        return '${difference.inMinutes}m ago';
       }
-      return context.tr('{count}h ago', {'count': difference.inHours});
+      return '${difference.inHours}h ago';
     } else if (difference.inDays == 1) {
-      return context.tr('Yesterday');
+      return 'Yesterday';
     } else if (difference.inDays < 7) {
-      return context.tr('{count}d ago', {'count': difference.inDays});
+      return '${difference.inDays}d ago';
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }

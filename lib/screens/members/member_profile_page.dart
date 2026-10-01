@@ -796,7 +796,7 @@ class _AttendanceTabState extends State<_AttendanceTab> {
         padding: EdgeInsets.all(AppDimensions.paddingMD),
         children: [
           DesktopSectionCard(
-            title: context.tr('churchAttendance'),
+            title: context.tr('Church attendance'),
             icon: Icons.how_to_reg_outlined,
             accent: AppColors.primary,
             trailing: TextButton.icon(
@@ -832,7 +832,7 @@ class _AttendanceTabState extends State<_AttendanceTab> {
             children: [
               Expanded(
                 child: Text(
-                  context.tr('churchAttendance'),
+                  context.tr('Church attendance'),
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: context.mic.appBarForeground,

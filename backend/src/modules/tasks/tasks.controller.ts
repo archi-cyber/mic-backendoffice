@@ -16,13 +16,15 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermission } from '../../common/decorators/permission.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { FEATURES } from '../auth/types/auth.types';
+import { FEATURES, type AuthenticatedUser } from '../auth/types/auth.types';
 import {
   AssignTaskDto,
+  BulkDeleteTasksDto,
   CreateProjectDto,
   CreateTagDto,
   CreateTaskDto,
   FindTasksDto,
+  ProvisionAssigneeAccountDto,
   RecordPaymentDto,
   RemindPendingDto,
   RunPenaltiesDto,
@@ -58,8 +60,9 @@ export class TasksController {
     return this.tasks.findAll(query);
   }
 
+  // Sans permission : chacun voit les taches qui lui sont confiees, comme
+  // sur l accueil de mic_backoffice.
   @Get('mine')
-  @RequirePermission(FEATURES.tasks, 'view')
   @ApiOperation({
     summary: 'Mes taches',
     description: 'Taches assignees au membre lie au compte connecte.',
@@ -89,8 +92,45 @@ export class TasksController {
       'Une tache releve soit d un departement, soit d un membre. Les ' +
       'assignes dont le solde de penalites atteint le seuil sont refuses.',
   })
-  create(@Body() dto: CreateTaskDto) {
-    return this.tasks.create(dto);
+  create(@Body() dto: CreateTaskDto, @CurrentUser('id') userId: string) {
+    return this.tasks.create(dto, userId);
+  }
+
+  @Post('bulk-delete')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Supprime plusieurs taches',
+    description:
+      'Seules les taches que l utilisateur a le droit de supprimer le sont. ' +
+      'Renvoie le nombre reellement supprime.',
+  })
+  removeMany(
+    @Body() dto: BulkDeleteTasksDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.removeMany(dto.taskIds, user);
+  }
+
+  @Get('assignees/:memberId/account')
+  @RequirePermission(FEATURES.tasks, 'view')
+  @ApiOperation({ summary: 'Etat du compte de connexion d un assigne' })
+  getAssigneeAccount(@Param('memberId', ParseUUIDPipe) memberId: string) {
+    return this.tasks.getAssigneeAccount(memberId);
+  }
+
+  @Post('assignees/:memberId/account')
+  @RequirePermission(FEATURES.tasks, 'edit')
+  @ApiOperation({
+    summary: 'Cree le compte de connexion d un assigne',
+    description:
+      'Compte de role member, sans permission, identifiants envoyes par ' +
+      'e-mail. L adresse est enregistree sur la fiche si elle est vide.',
+  })
+  provisionAssigneeAccount(
+    @Param('memberId', ParseUUIDPipe) memberId: string,
+    @Body() dto: ProvisionAssigneeAccountDto,
+  ) {
+    return this.tasks.provisionAssigneeAccount(memberId, dto);
   }
 
   @Patch(':id')
@@ -123,11 +163,15 @@ export class TasksController {
     return this.tasks.unarchive(id);
   }
 
+  // Regles par tache (responsable, adjoint auteur, droit explicite),
+  // verifiees par le service plutot que par la garde.
   @Delete(':id')
-  @RequirePermission(FEATURES.tasks, 'delete')
   @ApiOperation({ summary: 'Supprime une tache' })
-  remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.tasks.remove(id);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.remove(id, user);
   }
 
   @Post(':id/assign')

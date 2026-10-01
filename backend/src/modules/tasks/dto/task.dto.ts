@@ -7,6 +7,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -160,6 +161,17 @@ export class FindTasksDto extends PaginationDto {
   @IsBoolean()
   includeArchived?: boolean;
 
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Exclut les tâches terminées ou annulées (et, avec assigneeId, les ' +
+      'assignations terminées ou annulées)',
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  activeOnly?: boolean;
+
   @ApiPropertyOptional({ example: '2026-08-01' })
   @IsOptional()
   @IsDateString()
@@ -178,6 +190,28 @@ export class AssignTaskDto {
   @ArrayMaxSize(50)
   @IsUUID('4', { each: true })
   memberIds!: string[];
+}
+
+export class BulkDeleteTasksDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  taskIds!: string[];
+}
+
+export class ProvisionAssigneeAccountDto {
+  @ApiProperty({
+    example: 'membre@eglise.org',
+    description:
+      'Adresse du compte. Enregistrée sur la fiche du membre si elle est vide.',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsEmail({}, { message: 'Adresse e-mail invalide.' })
+  email!: string;
 }
 
 export class SetTaskTagsDto {

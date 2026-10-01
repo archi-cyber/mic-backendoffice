@@ -140,6 +140,44 @@ export class MailService implements OnModuleInit {
     });
   }
 
+  /**
+   * Prévient d'une tâche assignée ou rappelée.
+   *
+   * Titre et détails viennent de la saisie des responsables : ils sont
+   * échappés avant insertion dans le HTML.
+   */
+  async sendTaskNotification(params: {
+    to: string;
+    kind: 'assigned' | 'reminder';
+    taskTitle: string;
+    details: string;
+  }): Promise<boolean> {
+    const assigned = params.kind === 'assigned';
+    const subject = assigned
+      ? `Tâche assignée : ${params.taskTitle}`
+      : `Rappel de tâche : ${params.taskTitle}`;
+    const intro = assigned
+      ? 'Une nouvelle tâche vous a été assignée sur SysteMIC.'
+      : 'Ceci est un rappel concernant votre tâche sur SysteMIC.';
+    const detailsHtml = escapeHtml(params.details).replace(/\n/g, '<br>');
+
+    return this.deliver({
+      to: params.to,
+      subject,
+      html: this.wrap(`
+        <p>Bonjour,</p>
+        <p>${intro}</p>
+        <p><strong>Tâche :</strong> ${escapeHtml(params.taskTitle)}</p>
+        <p>${detailsHtml}</p>
+        <p>Ouvrez l'application SysteMIC pour la consulter.</p>
+      `),
+      text:
+        `Bonjour,\n\n${intro}\n\n` +
+        `Tâche : ${params.taskTitle}\n\n${params.details}\n\n` +
+        `Ouvrez l'application SysteMIC pour la consulter.`,
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Envoi
   // ---------------------------------------------------------------------------
@@ -225,4 +263,14 @@ export class MailService implements OnModuleInit {
 </body>
 </html>`;
   }
+}
+
+/** Échappe les caractères spéciaux HTML d'un texte saisi par un utilisateur. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

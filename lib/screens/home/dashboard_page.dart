@@ -7,12 +7,11 @@ import '../../core/localization/app_localizations.dart';
 import '../../core/navigation/app_navigator.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/utils/error_message_helper.dart';
+import '../../core/utils/permission_helper.dart';
 import '../../services/finance_service.dart';
 import '../../services/report_service.dart';
-import '../../services/member_service.dart';
 import '../../services/teaching_service.dart';
-import '../../services/church_attendance_service.dart';
-import '../../widgets/church_attendance_presence_chart.dart';
+import '../../services/task_service.dart';
 import '../desktop/desktop_shell_scope.dart';
 
 /// Dashboard with summary cards
@@ -43,17 +42,14 @@ class _DashboardPageState extends State<DashboardPage> {
   /// Upcoming birthdays (max 5) for desktop. Each: id, first_name, last_name, birthday.
   List<Map<String, dynamic>> _upcomingBirthdaysList = [];
 
-  /// Newcomers (members with is_new_comer=true) for desktop table.
-  List<Map<String, dynamic>> _newcomersList = [];
-
-  /// Church attendance services for desktop trend charts.
-  List<Map<String, dynamic>> _churchAttendanceServices = [];
+  /// Logged-in user's assigned tasks for home table/list.
+  List<Map<String, dynamic>> _myTasksList = [];
 
   static const double _kDesktopMaxWidth = 1200;
   static const int _kUpcomingEventsLimit = 10;
   static const int _kRecentTeachingsLimit = 3;
   static const int _kUpcomingBirthdaysLimit = 5;
-  static const int _kNewcomersLimit = 5;
+  static const int _kMyTasksLimit = 5;
 
   @override
   void initState() {
@@ -66,36 +62,22 @@ class _DashboardPageState extends State<DashboardPage> {
 
   /// Charge les données du tableau de bord.
   ///
-  /// Une seule requête remplace les huit précédentes. Les décomptes et le tri
-  /// des anniversaires sont faits en SQL côté serveur : l'ancienne version
-  /// chargeait toute la table des membres sur l'appareil pour la filtrer,
-  /// ce qui devenait coûteux dès quelques centaines de fiches.
-  ///
-  /// Deux appels subsistent en parallèle — enseignements récents et cultes —
-  /// qui relèvent de leurs services propres.
+  /// Les décomptes et listes viennent de `/reports/dashboard`, calculés côté
+  /// serveur ; les enseignements récents et les tâches de l'utilisateur
+  /// relèvent de leurs services propres et sont chargés en parallèle.
   Future<void> _loadDashboardData() async {
-    if (!mounted) return;
     setState(() => _isLoading = true);
 
     final errors = <Object>[];
-    final now = DateTime.now();
 
-    var upcomingSessions = 0;
-    var upcomingEvents = 0;
-    var tasks = 0;
-    var birthdays = 0;
-    var members = 0;
-    var upcomingEventsList = <Map<String, dynamic>>[];
-    var recentTeachingsList = <Map<String, dynamic>>[];
-    var upcomingBirthdaysList = <Map<String, dynamic>>[];
-    var newcomersList = <Map<String, dynamic>>[];
-    var churchAttendanceServices = <Map<String, dynamic>>[];
+    List<Map<String, dynamic>> asMaps(Object? list) => ((list as List?) ?? [])
+        .map((e) => (e as Map).cast<String, dynamic>())
+        .toList();
 
     await Future.wait([
       () async {
         try {
           final dashboard = await ReportService.getDashboard();
-
           final membersBlock =
               (dashboard['members'] as Map?)?.cast<String, dynamic>() ??
                   const <String, dynamic>{};
@@ -103,52 +85,27 @@ class _DashboardPageState extends State<DashboardPage> {
               (dashboard['tasks'] as Map?)?.cast<String, dynamic>() ??
                   const <String, dynamic>{};
 
-          members = membersBlock['total'] as int? ?? 0;
-          tasks = tasksBlock['open'] as int? ?? 0;
+          _members = membersBlock['total'] as int? ?? 0;
+          _tasks = tasksBlock['open'] as int? ?? 0;
 
-          upcomingEventsList =
-              ((dashboard['upcoming_events'] as List?) ?? const [])
-                  .map((e) => (e as Map).cast<String, dynamic>())
-                  .take(_kUpcomingEventsLimit)
-                  .toList();
-          upcomingEvents = upcomingEventsList.length;
+          _upcomingEventsList = asMaps(dashboard['upcoming_events'])
+              .take(_kUpcomingEventsLimit)
+              .toList();
+          _upcomingEvents = dashboard['upcoming_events_count'] as int? ??
+              _upcomingEventsList.length;
+          _upcomingSessions = dashboard['upcoming_sessions_count'] as int? ??
+              asMaps(dashboard['upcoming_sessions']).length;
 
-          upcomingSessions =
-              ((dashboard['upcoming_sessions'] as List?) ?? const []).length;
-
-          // Les anniversaires arrivent triés par jour du mois : le serveur
-          // s'en charge, ce qui évite de reproduire cette logique de tri.
-          final monthBirthdays =
-              ((dashboard['birthdays_this_month'] as List?) ?? const [])
-                  .map((e) => (e as Map).cast<String, dynamic>())
-                  .toList();
-
-          // Le compteur ne retient que les anniversaires restant à venir dans
-          // le mois : afficher ceux déjà passés n'apporterait rien.
-          birthdays = monthBirthdays.where((m) {
-            final raw = m['birthday'];
-            if (raw == null) return false;
-            try {
-              return DateTime.parse(raw.toString()).day >= now.day;
-            } catch (_) {
-              return false;
-            }
+          // Anniversaires restant à venir ce mois-ci.
+          final now = DateTime.now();
+          _birthdays = asMaps(dashboard['birthdays_this_month']).where((m) {
+            final date = DateTime.tryParse(m['birthday']?.toString() ?? '');
+            return date != null && date.day >= now.day;
           }).length;
 
-          upcomingBirthdaysList =
-              monthBirthdays.take(_kUpcomingBirthdaysLimit).toList();
-        } catch (e) {
-          errors.add(e);
-        }
-      }(),
-      () async {
-        try {
-          newcomersList = await MemberService.getMembers(
-            filters: {'is_new_comer': true, 'is_active': true},
-            limit: _kNewcomersLimit,
-            orderBy: 'createdAt',
-            ascending: false,
-          );
+          _upcomingBirthdaysList = asMaps(dashboard['upcoming_birthdays'])
+              .take(_kUpcomingBirthdaysLimit)
+              .toList();
         } catch (e) {
           errors.add(e);
         }
@@ -158,47 +115,42 @@ class _DashboardPageState extends State<DashboardPage> {
           final teachings = await TeachingService.getTeachings(
             limit: _kRecentTeachingsLimit,
           );
-          recentTeachingsList = teachings
+          _recentTeachingsList = teachings
               .take(_kRecentTeachingsLimit)
               .map((t) => Map<String, dynamic>.from(t))
               .toList();
         } catch (e) {
           errors.add(e);
+          _recentTeachingsList = [];
         }
       }(),
       () async {
         try {
-          churchAttendanceServices =
-              await ChurchAttendanceService.getAllServices(
-            startDate: now.subtract(const Duration(days: 90)),
-          );
+          final memberId = PermissionHelper.memberId;
+          _myTasksList = memberId == null
+              ? []
+              : await TaskService.getTasksForMember(
+                  memberId: memberId,
+                  limit: _kMyTasksLimit,
+                );
         } catch (e) {
           errors.add(e);
+          _myTasksList = [];
         }
       }(),
     ]);
 
     if (!mounted) return;
-    setState(() {
-      _upcomingSessions = upcomingSessions;
-      _upcomingEvents = upcomingEvents;
-      _tasks = tasks;
-      _birthdays = birthdays;
-      _members = members;
-      _upcomingEventsList = upcomingEventsList;
-      _recentTeachingsList = recentTeachingsList;
-      _upcomingBirthdaysList = upcomingBirthdaysList;
-      _newcomersList = newcomersList;
-      _churchAttendanceServices = churchAttendanceServices;
-      _isLoading = false;
-    });
-
-    if (errors.isNotEmpty && mounted) {
-      ErrorMessageHelper.showErrorSnackBar(
-        context,
-        errors.first,
-        title: AppLocalizations.of(context)?.errorLoadingDashboard ??
-            'Error loading dashboard',
+    setState(() => _isLoading = false);
+    if (errors.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${AppLocalizations.of(context)?.errorLoadingDashboard ?? 'Error loading dashboard'}: '
+            '${ErrorMessageHelper.getErrorMessage(context, errors.first)}',
+          ),
+          duration: const Duration(seconds: 6),
+        ),
       );
     }
   }
@@ -336,21 +288,6 @@ class _DashboardPageState extends State<DashboardPage> {
                           ).pushReplacementNamed(RouteNames.desktopBirthdays);
                         }
                       },
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: AppDimensions.spacingXL),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: ChurchAttendancePresenceChart(
-                      title: context.tr('Church attendance'),
-                      serviceLineLabel: context.tr('Daily presence'),
-                      totalLineLabel: context.tr('dashboardChurchWeeklyAttendance'),
-                      services: _churchAttendanceServices,
-                      isLoading: _isLoading,
                     ),
                   ),
                 ],
@@ -678,7 +615,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ],
               ),
               SizedBox(height: AppDimensions.spacingXL),
-              // Row: Upcoming Birthdays (max 5) + Newcomers table
+              // Row: Upcoming Birthdays (max 5) + My tasks table
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -847,7 +784,7 @@ class _DashboardPageState extends State<DashboardPage> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  'Newcomers',
+                                  context.tr('My Tasks'),
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -855,12 +792,12 @@ class _DashboardPageState extends State<DashboardPage> {
                                 TextButton.icon(
                                   onPressed: () {
                                     if (scope != null) {
-                                      scope.pushList(RouteNames.desktopMembers);
+                                      scope.pushList(RouteNames.desktopTasks);
                                     } else {
                                       Navigator.of(
                                         context,
                                       ).pushReplacementNamed(
-                                        RouteNames.desktopMembers,
+                                        RouteNames.desktopTasks,
                                       );
                                     }
                                   },
@@ -879,14 +816,14 @@ class _DashboardPageState extends State<DashboardPage> {
                                   child: CircularProgressIndicator(),
                                 ),
                               )
-                            else if (_newcomersList.isEmpty)
+                            else if (_myTasksList.isEmpty)
                               Padding(
                                 padding: EdgeInsets.all(
                                   AppDimensions.spacingLG,
                                 ),
                                 child: Center(
                                   child: Text(
-                                    l?.noData ?? 'No newcomers',
+                                    l?.noData ?? 'No tasks',
                                     style: theme.textTheme.bodyMedium?.copyWith(
                                       color: context.mic.textSecondary,
                                     ),
@@ -911,47 +848,55 @@ class _DashboardPageState extends State<DashboardPage> {
                                             ),
                                         columns: [
                                           DataColumn(
-                                            label: Text(context.tr('Name')),
+                                            label: Text(context.tr('Title')),
                                           ),
                                           DataColumn(
-                                            label: Text(context.tr('Phone')),
+                                            label: Text(context.tr('Status')),
+                                          ),
+                                          DataColumn(
+                                            label: Text(context.tr('Due date')),
                                           ),
                                           DataColumn(
                                             label: Text(context.tr('Action')),
                                           ),
                                         ],
-                                        rows: _newcomersList.map((member) {
-                                          final id =
-                                              member['id']?.toString() ?? '';
-                                          final firstName =
-                                              member['first_name']
-                                                  ?.toString() ??
-                                              '';
-                                          final lastName =
-                                              member['last_name']?.toString() ??
-                                              '';
-                                          final name = [firstName, lastName]
-                                              .where((s) => s.isNotEmpty)
-                                              .join(' ')
-                                              .trim();
-                                          final displayName = name.isEmpty
-                                              ? '—'
-                                              : name;
-                                          final phone =
-                                              member['phone']?.toString() ??
-                                              '—';
+                                        rows: _myTasksList.map((task) {
+                                          final id = task['id']?.toString() ?? '';
+                                          final title =
+                                              task['title']?.toString() ??
+                                              context.tr('Untitled');
+                                          final status =
+                                              task['status']?.toString() ??
+                                              'pending';
+                                          final statusLabel =
+                                              l?.statusLabel(status) ??
+                                              status;
+                                          final dueStr =
+                                              task['due_date']?.toString();
+                                          final dueFormatted = dueStr != null
+                                              ? dateFormat.format(
+                                                  DateTime.parse(dueStr),
+                                                )
+                                              : '—';
                                           return DataRow(
                                             cells: [
-                                              DataCell(Text(displayName)),
-                                              DataCell(Text(phone)),
+                                              DataCell(
+                                                Text(
+                                                  title,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              DataCell(Text(statusLabel)),
+                                              DataCell(Text(dueFormatted)),
                                               DataCell(
                                                 TextButton(
                                                   onPressed: () {
                                                     if (id.isNotEmpty) {
                                                       if (scope != null) {
                                                         scope.pushDetail(
-                                                          RouteNames
-                                                              .memberDetail,
+                                                          RouteNames.taskDetail,
                                                           id,
                                                         );
                                                       } else {
@@ -959,8 +904,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                                           context,
                                                           rootNavigator: true,
                                                         ).pushNamed(
-                                                          RouteNames
-                                                              .memberDetail
+                                                          RouteNames.taskDetail
                                                               .replaceAll(
                                                                 ':id',
                                                                 id,
@@ -1240,43 +1184,50 @@ class _DashboardPageState extends State<DashboardPage> {
               ),
             ),
           ),
-          if (_newcomersList.isNotEmpty || _isLoading) ...[
+          if (_myTasksList.isNotEmpty) ...[
             SizedBox(height: AppDimensions.spacingMD),
             Padding(
               padding:
                   EdgeInsets.symmetric(horizontal: AppDimensions.paddingMD),
               child: _MobileSectionCard(
-                title: context.tr('Newcomers'),
-                icon: Icons.person_add_alt_1_outlined,
-                iconColor: AppColors.primaryLight,
+                title: context.tr('My Tasks'),
+                icon: Icons.assignment_outlined,
+                iconColor: AppColors.warning,
                 onViewAll: () =>
-                    Navigator.of(context).pushNamed(RouteNames.members),
-                isLoading: _isLoading,
-                isEmpty: _newcomersList.isEmpty,
-                emptyMessage: l?.noData ?? 'No newcomers',
+                    Navigator.of(context).pushNamed(RouteNames.tasks),
+                isLoading: false,
+                isEmpty: false,
+                emptyMessage: l?.noData ?? 'No tasks',
                 child: Column(
-                  children: _newcomersList.take(3).map((member) {
-                    final id = member['id']?.toString() ?? '';
-                    final name =
-                        '${member['first_name'] ?? ''} ${member['last_name'] ?? ''}'
-                            .trim();
-                    final phone = member['phone']?.toString();
+                  children: _myTasksList.take(3).map((task) {
+                    final id = task['id']?.toString() ?? '';
+                    final title =
+                        task['title']?.toString() ?? context.tr('Untitled');
+                    final status = task['status']?.toString() ?? 'pending';
+                    final statusLabel = l?.statusLabel(status) ?? status;
+                    final dueStr = task['due_date']?.toString();
+                    final dueFormatted = dueStr != null
+                        ? dateFormat.format(DateTime.parse(dueStr))
+                        : null;
+                    final subtitle = dueFormatted != null
+                        ? '$statusLabel · $dueFormatted'
+                        : statusLabel;
                     return _MobileActivityTile(
-                      title: name.isEmpty ? '—' : name,
-                      subtitle: phone ?? context.tr('No phone'),
+                      title: title,
+                      subtitle: subtitle,
                       leading: CircleAvatar(
                         backgroundColor:
-                            context.mic.surfaceTint.withValues(alpha: 0.9),
+                            AppColors.warning.withValues(alpha: 0.12),
                         child: Icon(
-                          Icons.person_outline,
-                          color: AppColors.primary,
+                          Icons.assignment_outlined,
+                          color: AppColors.warning,
                           size: 20,
                         ),
                       ),
                       onTap: id.isEmpty
                           ? null
                           : () => Navigator.of(context).pushNamed(
-                              RouteNames.memberDetail.replaceAll(':id', id),
+                              RouteNames.taskDetail.replaceAll(':id', id),
                             ),
                     );
                   }).toList(),

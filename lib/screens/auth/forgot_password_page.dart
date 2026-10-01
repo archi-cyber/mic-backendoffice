@@ -57,11 +57,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final localizations = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(context.tr('Forgot Password')),
+        title: Text(localizations?.forgotPassword ?? 'Forgot Password'),
       ),
       body: SafeArea(
         child: Center(
@@ -81,15 +82,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingXL),
                     Text(
-                      context.tr('Email Sent!'),
+                      'Email Sent!',
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: AppDimensions.spacingMD),
                     Text(
-                      context.tr(
-                        'Please check your email for the password reset token. You\'ll need to enter it on the next screen.',
-                      ),
+                      'Please check your email for the password reset token. You\'ll need to enter it on the next screen.',
                       style: theme.textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
@@ -123,15 +122,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                     ),
                     SizedBox(height: AppDimensions.spacingXL),
                     Text(
-                      context.tr('Reset Password'),
+                      'Reset Password',
                       style: theme.textTheme.headlineMedium,
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: AppDimensions.spacingSM),
                     Text(
-                      context.tr(
-                        'Enter your email address and we\'ll send you a token to reset your password.',
-                      ),
+                      'Enter your email address and we\'ll send you a token to reset your password.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: context.mic.textSecondary,
                       ),
@@ -142,15 +139,17 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: context.tr('Email'),
+                        labelText: localizations?.email ?? 'Email',
                         prefixIcon: Icon(Icons.email_outlined),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
-                          return context.tr('Email is required');
+                          return localizations?.emailRequired ??
+                              'Email is required';
                         }
                         if (!value.contains('@')) {
-                          return context.tr('Invalid email format');
+                          return localizations?.invalidEmail ??
+                              'Invalid email format';
                         }
                         return null;
                       },

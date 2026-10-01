@@ -118,11 +118,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          context.tr('Create Report - {name}', {
-            'name': _department?['name'] ?? context.tr('Department'),
-          }),
-        ),
+        title: Text('Create Report - ${_department?['name'] ?? 'Department'}'),
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(AppDimensions.paddingMD),
@@ -142,7 +138,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Title is required');
+                    return 'Title is required';
                   }
                   return null;
                 },
@@ -160,7 +156,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Defined objectives are required');
+                    return 'Defined objectives are required';
                   }
                   return null;
                 },
@@ -178,7 +174,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Positive points are required');
+                    return 'Positive points are required';
                   }
                   return null;
                 },
@@ -196,7 +192,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Difficulties encountered are required');
+                    return 'Difficulties encountered are required';
                   }
                   return null;
                 },
@@ -212,7 +208,7 @@ class _AddDepartmentReportPageState extends State<AddDepartmentReportPage> {
                 maxLines: 5,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return context.tr('Suggestions are required');
+                    return 'Suggestions are required';
                   }
                   return null;
                 },

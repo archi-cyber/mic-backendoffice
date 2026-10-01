@@ -112,6 +112,68 @@ class PermissionHelper {
   /// Administrateur ou pasteur — accès complet.
   static Future<bool> isAdminOrPastor() async => _isPrivileged;
 
+  // ---------------------------------------------------------------------------
+  // Tâches et départements
+  // ---------------------------------------------------------------------------
+  //
+  // Règles identiques à celles du serveur (`TasksService`, `DepartmentsService`).
+
+  /// Création de tâches pour un département : administrateurs, responsables
+  /// et adjoints de ce département.
+  static Future<bool> canCreateDepartmentTask(String departmentId) async {
+    if (_isPrivileged) return true;
+    if (departmentId.isEmpty) return false;
+    return _departmentRole(departmentId) != null;
+  }
+
+  /// Responsables et adjoints peuvent modifier et assigner les tâches de leur
+  /// département.
+  static Future<bool> canManageDepartmentTask(String departmentId) =>
+      canCreateDepartmentTask(departmentId);
+
+  /// Seuls les administrateurs et le responsable (pas l'adjoint) gèrent les
+  /// membres d'un département.
+  static Future<bool> canManageDepartmentMembers(String departmentId) async {
+    if (_isPrivileged) return true;
+    if (departmentId.isEmpty) return false;
+    return _departmentRole(departmentId) == 'leader';
+  }
+
+  /// Suppression d'une tâche donnée :
+  /// - administrateur : toujours ;
+  /// - responsable du département : toute tâche du département ;
+  /// - adjoint : uniquement les tâches qu'il a créées ;
+  /// - sinon : droit `delete` explicite sur le module `tasks`.
+  static Future<bool> canDeleteTask({
+    required String? departmentId,
+    String? createdByUserId,
+  }) async {
+    if (_isPrivileged) return true;
+    if (_userId == null) return false;
+
+    if (departmentId != null && departmentId.isNotEmpty) {
+      final role = _departmentRole(departmentId);
+      if (role == 'leader') return true;
+      if (role == 'subleader' &&
+          createdByUserId != null &&
+          createdByUserId == _userId) {
+        return true;
+      }
+    }
+
+    return _check('tasks', 'delete');
+  }
+
+  static String? _departmentRole(String departmentId) {
+    for (final d in _departmentRoles) {
+      if (d['department_id']?.toString() == departmentId) {
+        final role = d['role']?.toString();
+        if (role == 'leader' || role == 'subleader') return role;
+      }
+    }
+    return null;
+  }
+
   /// Les quatre droits d'un module en une fois.
   static Future<Map<String, bool>> getPermissions(String featureName) async {
     return {
@@ -205,6 +267,9 @@ class PermissionHelper {
   /// sécurité repose entièrement sur les gardes du backend.
   static bool _check(String featureName, String action) {
     if (_isPrivileged) return true;
+    // Les responsables et adjoints de département voient, créent et modifient
+    // les tâches par défaut ; la suppression suit `canDeleteTask`.
+    if (featureName == 'tasks' && action != 'delete' && isLeader) return true;
     return _permissions[featureName]?[action] ?? false;
   }
 }

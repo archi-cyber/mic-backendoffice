@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/settings_provider.dart';
+import '../../services/settings_service.dart';
 
 /// App localization delegate
 class AppLocalizations {
@@ -8,6 +11,28 @@ class AppLocalizations {
 
   static AppLocalizations? of(BuildContext context) {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
+  }
+
+  /// Prefer the language saved in Settings over the device/browser locale.
+  static AppLocalizations resolvedOf(BuildContext context) {
+    Locale? settingsLocale;
+    try {
+      settingsLocale = Provider.of<SettingsProvider>(
+        context,
+        listen: false,
+      ).locale;
+    } catch (_) {
+      settingsLocale = null;
+    }
+
+    final inherited = AppLocalizations.of(context);
+    final locale = SettingsService.resolveLocale(
+      settingsLocale ?? inherited?.locale,
+    );
+    if (inherited != null && inherited.locale.languageCode == locale.languageCode) {
+      return inherited;
+    }
+    return AppLocalizations(locale);
   }
 
   static const LocalizationsDelegate<AppLocalizations> delegate =
@@ -35,11 +60,7 @@ class AppLocalizations {
     String fallback, [
     Map<String, Object?> params = const {},
   ]) {
-    final value =
-        _localizedValues[locale.languageCode]?[key] ??
-        _localizedValues['en']?[key] ??
-        fallback;
-    return _interpolate(value, params);
+    return _interpolate(_g(key, fallback), params);
   }
 
   String statusLabel(String? status) {
@@ -75,10 +96,18 @@ class AppLocalizations {
     if (englishEntries == null) return null;
     for (final entry in englishEntries) {
       if (entry.value == fallback) {
-        return _localizedValues[locale.languageCode]?[entry.key] ?? fallback;
+        return _localizedValues[locale.languageCode]?[entry.key];
       }
     }
     return null;
+  }
+
+  /// Keyed getter helper: keyed map → literal map → phrase fallback.
+  String _g(String key, String english) {
+    if (locale.languageCode == 'en') return english;
+    return _localizedValues[locale.languageCode]?[key] ??
+        _literalValues[locale.languageCode]?[english] ??
+        _fallbackPhraseTranslation(english);
   }
 
   String _fallbackPhraseTranslation(String fallback) {
@@ -104,1078 +133,843 @@ class AppLocalizations {
 
   // Common
   String get appName =>
-      _localizedValues[locale.languageCode]?['appName'] ?? 'SysteMIC';
+      _g('appName', 'SysteMIC');
   String get welcome =>
-      _localizedValues[locale.languageCode]?['welcome'] ?? 'Welcome';
+      _g('welcome', 'Welcome');
   String get loading =>
-      _localizedValues[locale.languageCode]?['loading'] ?? 'Loading...';
+      _g('loading', 'Loading...');
   String get error =>
-      _localizedValues[locale.languageCode]?['error'] ?? 'Error';
+      _g('error', 'Error');
   String get success =>
-      _localizedValues[locale.languageCode]?['success'] ?? 'Success';
+      _g('success', 'Success');
   String get cancel =>
-      _localizedValues[locale.languageCode]?['cancel'] ?? 'Cancel';
+      _g('cancel', 'Cancel');
   String get confirm =>
-      _localizedValues[locale.languageCode]?['confirm'] ?? 'Confirm';
-  String get save => _localizedValues[locale.languageCode]?['save'] ?? 'Save';
+      _g('confirm', 'Confirm');
+  String get save => _g('save', 'Save');
   String get delete =>
-      _localizedValues[locale.languageCode]?['delete'] ?? 'Delete';
-  String get edit => _localizedValues[locale.languageCode]?['edit'] ?? 'Edit';
+      _g('delete', 'Delete');
+  String get edit => _g('edit', 'Edit');
   String get search =>
-      _localizedValues[locale.languageCode]?['search'] ?? 'Search';
+      _g('search', 'Search');
   String get filter =>
-      _localizedValues[locale.languageCode]?['filter'] ?? 'Filter';
+      _g('filter', 'Filter');
   String get close =>
-      _localizedValues[locale.languageCode]?['close'] ?? 'Close';
+      _g('close', 'Close');
 
   // Authentication
   String get login =>
-      _localizedValues[locale.languageCode]?['login'] ?? 'Login';
+      _g('login', 'Login');
   String get logout =>
-      _localizedValues[locale.languageCode]?['logout'] ?? 'Logout';
+      _g('logout', 'Logout');
   String get email =>
-      _localizedValues[locale.languageCode]?['email'] ?? 'Email';
+      _g('email', 'Email');
   String get password =>
-      _localizedValues[locale.languageCode]?['password'] ?? 'Password';
+      _g('password', 'Password');
   String get forgotPassword =>
-      _localizedValues[locale.languageCode]?['forgotPassword'] ??
-      'Forgot Password?';
+      _g('forgotPassword', 'Forgot Password?');
   String get signIn =>
-      _localizedValues[locale.languageCode]?['signIn'] ?? 'Sign In';
+      _g('signIn', 'Sign In');
   String get signOut =>
-      _localizedValues[locale.languageCode]?['signOut'] ?? 'Sign Out';
+      _g('signOut', 'Sign Out');
   String get emailRequired =>
-      _localizedValues[locale.languageCode]?['emailRequired'] ??
-      'Email is required';
+      _g('emailRequired', 'Email is required');
   String get passwordRequired =>
-      _localizedValues[locale.languageCode]?['passwordRequired'] ??
-      'Password is required';
+      _g('passwordRequired', 'Password is required');
   String get invalidEmail =>
-      _localizedValues[locale.languageCode]?['invalidEmail'] ??
-      'Invalid email format';
+      _g('invalidEmail', 'Invalid email format');
   String get loginError =>
-      _localizedValues[locale.languageCode]?['loginError'] ??
-      'Login failed. Please try again.';
+      _g('loginError', 'Login failed. Please try again.');
 
   // Dashboard
   String get dashboard =>
-      _localizedValues[locale.languageCode]?['dashboard'] ?? 'Dashboard';
-  String get home => _localizedValues[locale.languageCode]?['home'] ?? 'Home';
+      _g('dashboard', 'Dashboard');
+  String get home => _g('home', 'Home');
   String get overview =>
-      _localizedValues[locale.languageCode]?['overview'] ?? 'Overview';
+      _g('overview', 'Overview');
   String get statistics =>
-      _localizedValues[locale.languageCode]?['statistics'] ?? 'Statistics';
+      _g('statistics', 'Statistics');
 
   // Navigation
   String get members =>
-      _localizedValues[locale.languageCode]?['members'] ?? 'Members';
+      _g('members', 'Members');
   String get attendance =>
-      _localizedValues[locale.languageCode]?['attendance'] ?? 'Attendance';
+      _g('attendance', 'Attendance');
   String get giving =>
-      _localizedValues[locale.languageCode]?['giving'] ?? 'Giving';
+      _g('giving', 'Giving');
   String get events =>
-      _localizedValues[locale.languageCode]?['events'] ?? 'Events';
+      _g('events', 'Events');
   String get settings =>
-      _localizedValues[locale.languageCode]?['settings'] ?? 'Settings';
+      _g('settings', 'Settings');
   String get notifications =>
-      _localizedValues[locale.languageCode]?['notifications'] ??
-      'Notifications';
+      _g('notifications', 'Notifications');
   String get profile =>
-      _localizedValues[locale.languageCode]?['profile'] ?? 'Profile';
+      _g('profile', 'Profile');
 
   // Messages
   String get noData =>
-      _localizedValues[locale.languageCode]?['noData'] ?? 'No data available';
+      _g('noData', 'No data available');
   String get networkError =>
-      _localizedValues[locale.languageCode]?['networkError'] ??
-      'Network error. Please check your connection.';
+      _g('networkError', 'Network error. Please check your connection.');
   String get genericError =>
-      _localizedValues[locale.languageCode]?['genericError'] ??
-      'An error occurred. Please try again.';
+      _g('genericError', 'An error occurred. Please try again.');
 
   // Finance
   String get finance =>
-      _localizedValues[locale.languageCode]?['finance'] ?? 'Finance';
+      _g('finance', 'Finance');
   String get addGivingRecord =>
-      _localizedValues[locale.languageCode]?['addGivingRecord'] ??
-      'Add Giving Record';
+      _g('addGivingRecord', 'Add Giving Record');
   String get givingRecord =>
-      _localizedValues[locale.languageCode]?['givingRecord'] ?? 'Giving Record';
+      _g('givingRecord', 'Giving Record');
   String get givingRecordDetails =>
-      _localizedValues[locale.languageCode]?['givingRecordDetails'] ??
-      'Giving Record Details';
+      _g('givingRecordDetails', 'Giving Record Details');
   String get transactionType =>
-      _localizedValues[locale.languageCode]?['transactionType'] ??
-      'Transaction Type';
+      _g('transactionType', 'Transaction Type');
   String get receiving =>
-      _localizedValues[locale.languageCode]?['receiving'] ?? 'Receiving';
+      _g('receiving', 'Receiving');
   String get expense =>
-      _localizedValues[locale.languageCode]?['expense'] ?? 'Expense';
+      _g('expense', 'Expense');
   String get giverType =>
-      _localizedValues[locale.languageCode]?['giverType'] ?? 'Giver Type';
+      _g('giverType', 'Giver Type');
   String get member =>
-      _localizedValues[locale.languageCode]?['member'] ?? 'Member';
+      _g('member', 'Member');
   String get externalPerson =>
-      _localizedValues[locale.languageCode]?['externalPerson'] ??
-      'External Person';
+      _g('externalPerson', 'External Person');
   String get giverName =>
-      _localizedValues[locale.languageCode]?['giverName'] ?? 'Giver Name';
+      _g('giverName', 'Giver Name');
   String get selectMember =>
-      _localizedValues[locale.languageCode]?['selectMember'] ?? 'Select Member';
+      _g('selectMember', 'Select Member');
   String get amount =>
-      _localizedValues[locale.languageCode]?['amount'] ?? 'Amount';
-  String get tag => _localizedValues[locale.languageCode]?['tag'] ?? 'Tag';
+      _g('amount', 'Amount');
+  String get tag => _g('tag', 'Tag');
   String get notes =>
-      _localizedValues[locale.languageCode]?['notes'] ?? 'Notes';
+      _g('notes', 'Notes');
   String get description =>
-      _localizedValues[locale.languageCode]?['description'] ?? 'Description';
-  String get date => _localizedValues[locale.languageCode]?['date'] ?? 'Date';
+      _g('description', 'Description');
+  String get date => _g('date', 'Date');
   String get category =>
-      _localizedValues[locale.languageCode]?['category'] ?? 'Category';
+      _g('category', 'Category');
   String get created =>
-      _localizedValues[locale.languageCode]?['created'] ?? 'Created';
+      _g('created', 'Created');
   String get lastUpdated =>
-      _localizedValues[locale.languageCode]?['lastUpdated'] ?? 'Last Updated';
+      _g('lastUpdated', 'Last Updated');
   String get recordInformation =>
-      _localizedValues[locale.languageCode]?['recordInformation'] ??
-      'Record Information';
+      _g('recordInformation', 'Record Information');
   String get transactionDetails =>
-      _localizedValues[locale.languageCode]?['transactionDetails'] ??
-      'Transaction Details';
+      _g('transactionDetails', 'Transaction Details');
   String get noGivingRecords =>
-      _localizedValues[locale.languageCode]?['noGivingRecords'] ??
-      'No giving records yet';
+      _g('noGivingRecords', 'No giving records yet');
   String get addFirstRecord =>
-      _localizedValues[locale.languageCode]?['addFirstRecord'] ??
-      'Add First Record';
+      _g('addFirstRecord', 'Add First Record');
   String get givingRecordCreated =>
-      _localizedValues[locale.languageCode]?['givingRecordCreated'] ??
-      'Giving record created successfully';
+      _g('givingRecordCreated', 'Giving record created successfully');
   String get givingRecordUpdated =>
-      _localizedValues[locale.languageCode]?['givingRecordUpdated'] ??
-      'Giving record updated successfully';
+      _g('givingRecordUpdated', 'Giving record updated successfully');
   String get givingRecordNotFound =>
-      _localizedValues[locale.languageCode]?['givingRecordNotFound'] ??
-      'Giving record not found';
+      _g('givingRecordNotFound', 'Giving record not found');
   String get errorLoadingGivingRecord =>
-      _localizedValues[locale.languageCode]?['errorLoadingGivingRecord'] ??
-      'Error loading giving record';
+      _g('errorLoadingGivingRecord', 'Error loading giving record');
   String get giverNameRequired =>
-      _localizedValues[locale.languageCode]?['giverNameRequired'] ??
-      'Giver name is required';
+      _g('giverNameRequired', 'Giver name is required');
   String get pleaseSelectTag =>
-      _localizedValues[locale.languageCode]?['pleaseSelectTag'] ??
-      'Please select a tag';
+      _g('pleaseSelectTag', 'Please select a tag');
   String get amountRequired =>
-      _localizedValues[locale.languageCode]?['amountRequired'] ??
-      'Amount is required';
+      _g('amountRequired', 'Amount is required');
   String get validAmountRequired =>
-      _localizedValues[locale.languageCode]?['validAmountRequired'] ??
-      'Please enter a valid amount greater than zero';
+      _g('validAmountRequired', 'Please enter a valid amount greater than zero');
   String get createExpense =>
-      _localizedValues[locale.languageCode]?['createExpense'] ??
-      'Create Expense';
+      _g('createExpense', 'Create Expense');
   String get createReceivingRecord =>
-      _localizedValues[locale.languageCode]?['createReceivingRecord'] ??
-      'Create Receiving Record';
+      _g('createReceivingRecord', 'Create Receiving Record');
   String get saveChanges =>
-      _localizedValues[locale.languageCode]?['saveChanges'] ?? 'Save Changes';
+      _g('saveChanges', 'Save Changes');
   String get recordCanBeEdited =>
-      _localizedValues[locale.languageCode]?['recordCanBeEdited'] ??
-      'This record can be edited. Changes will be saved immediately.';
+      _g('recordCanBeEdited', 'This record can be edited. Changes will be saved immediately.');
   String get recordCannotBeEdited =>
-      _localizedValues[locale.languageCode]?['recordCannotBeEdited'] ??
-      'This record was created more than 2 days ago and cannot be edited.';
+      _g('recordCannotBeEdited', 'This record was created more than 2 days ago and cannot be edited.');
   String get errorLoadingMembers =>
-      _localizedValues[locale.languageCode]?['errorLoadingMembers'] ??
-      'Error loading members';
+      _g('errorLoadingMembers', 'Error loading members');
   String get errorLoadingGivingRecords =>
-      _localizedValues[locale.languageCode]?['errorLoadingGivingRecords'] ??
-      'Error loading giving records';
+      _g('errorLoadingGivingRecords', 'Error loading giving records');
 
   // Tag labels
   String get construction =>
-      _localizedValues[locale.languageCode]?['construction'] ?? 'Construction';
+      _g('construction', 'Construction');
   String get specialOperation =>
-      _localizedValues[locale.languageCode]?['specialOperation'] ??
-      'Special Operation';
+      _g('specialOperation', 'Special Operation');
   String get tithe =>
-      _localizedValues[locale.languageCode]?['tithe'] ?? 'Tithe';
+      _g('tithe', 'Tithe');
   String get offering =>
-      _localizedValues[locale.languageCode]?['offering'] ?? 'Offering';
-  String get gift => _localizedValues[locale.languageCode]?['gift'] ?? 'Gift';
+      _g('offering', 'Offering');
+  String get gift => _g('gift', 'Gift');
   String get other =>
-      _localizedValues[locale.languageCode]?['other'] ?? 'Other';
+      _g('other', 'Other');
 
   // Dashboard
   String get upcomingSessions =>
-      _localizedValues[locale.languageCode]?['upcomingSessions'] ??
-      'Upcoming Sessions';
+      _g('upcomingSessions', 'Upcoming Sessions');
   String get upcomingEvents =>
-      _localizedValues[locale.languageCode]?['upcomingEvents'] ??
-      'Upcoming Events';
+      _g('upcomingEvents', 'Upcoming Events');
   String get tasks =>
-      _localizedValues[locale.languageCode]?['tasks'] ?? 'Tasks';
+      _g('tasks', 'Tasks');
   String get birthdays =>
-      _localizedValues[locale.languageCode]?['birthdays'] ?? 'Birthdays';
+      _g('birthdays', 'Birthdays');
   String get quickActions =>
-      _localizedValues[locale.languageCode]?['quickActions'] ?? 'Quick Actions';
+      _g('quickActions', 'Quick Actions');
   String get departments =>
-      _localizedValues[locale.languageCode]?['departments'] ?? 'Departments';
+      _g('departments', 'Departments');
   String get classes =>
-      _localizedValues[locale.languageCode]?['classes'] ?? 'Trainings';
+      _g('classes', 'Trainings');
   String get reports =>
-      _localizedValues[locale.languageCode]?['reports'] ?? 'Reports';
-  String get chat => _localizedValues[locale.languageCode]?['chat'] ?? 'Chat';
+      _g('reports', 'Reports');
+  String get chat => _g('chat', 'Chat');
   String get errorLoadingDashboard =>
-      _localizedValues[locale.languageCode]?['errorLoadingDashboard'] ??
-      'Error loading dashboard';
+      _g('errorLoadingDashboard', 'Error loading dashboard');
 
   // Error Messages - Short and descriptive
   String get errorLoginFailed =>
-      _localizedValues[locale.languageCode]?['errorLoginFailed'] ??
-      'Login failed. Check your credentials.';
+      _g('errorLoginFailed', 'Login failed. Check your credentials.');
   String get errorEmailNotConfirmed =>
-      _localizedValues[locale.languageCode]?['errorEmailNotConfirmed'] ??
-      'Please confirm your email to continue.';
+      _g('errorEmailNotConfirmed', 'Please confirm your email to continue.');
   String get errorUserNotFound =>
-      _localizedValues[locale.languageCode]?['errorUserNotFound'] ??
-      'User not found.';
+      _g('errorUserNotFound', 'User not found.');
   String get errorAccountCreationFailed =>
-      _localizedValues[locale.languageCode]?['errorAccountCreationFailed'] ??
-      'Failed to create account.';
+      _g('errorAccountCreationFailed', 'Failed to create account.');
   String get errorDuplicateEmail =>
-      _localizedValues[locale.languageCode]?['errorDuplicateEmail'] ??
-      'Email already in use.';
+      _g('errorDuplicateEmail', 'Email already in use.');
   String get errorPermissionDenied =>
-      _localizedValues[locale.languageCode]?['errorPermissionDenied'] ??
-      'You don\'t have permission for this action.';
+      _g('errorPermissionDenied', 'You don\'t have permission for this action.');
   String get errorOperationFailed =>
-      _localizedValues[locale.languageCode]?['errorOperationFailed'] ??
-      'Operation failed. Please try again.';
+      _g('errorOperationFailed', 'Operation failed. Please try again.');
   String get errorInvalidCredentials =>
-      _localizedValues[locale.languageCode]?['errorInvalidCredentials'] ??
-      'Invalid email or password.';
+      _g('errorInvalidCredentials', 'Invalid email or password.');
   String get errorPasswordResetFailed =>
-      _localizedValues[locale.languageCode]?['errorPasswordResetFailed'] ??
-      'Password reset failed.';
+      _g('errorPasswordResetFailed', 'Password reset failed.');
   String get errorMustBeLoggedIn =>
-      _localizedValues[locale.languageCode]?['errorMustBeLoggedIn'] ??
-      'Please log in to continue.';
+      _g('errorMustBeLoggedIn', 'Please log in to continue.');
   String get errorAdminOrLeaderRequired =>
-      _localizedValues[locale.languageCode]?['errorAdminOrLeaderRequired'] ??
-      'Only admins or leaders can perform this action.';
+      _g('errorAdminOrLeaderRequired', 'Only admins or leaders can perform this action.');
   String get errorMemberNotFound =>
-      _localizedValues[locale.languageCode]?['errorMemberNotFound'] ??
-      'Member not found.';
+      _g('errorMemberNotFound', 'Member not found.');
   String get errorEmailOrPhoneRequired =>
-      _localizedValues[locale.languageCode]?['errorEmailOrPhoneRequired'] ??
-      'Email or phone is required.';
+      _g('errorEmailOrPhoneRequired', 'Email or phone is required.');
   String get errorDepartmentNotFound =>
-      _localizedValues[locale.languageCode]?['errorDepartmentNotFound'] ??
-      'Department not found.';
+      _g('errorDepartmentNotFound', 'Department not found.');
   String get errorFailedToLoad =>
-      _localizedValues[locale.languageCode]?['errorFailedToLoad'] ??
-      'Failed to load data.';
+      _g('errorFailedToLoad', 'Failed to load data.');
   String get errorFailedToSave =>
-      _localizedValues[locale.languageCode]?['errorFailedToSave'] ??
-      'Failed to save. Please try again.';
+      _g('errorFailedToSave', 'Failed to save. Please try again.');
   String get errorFailedToDelete =>
-      _localizedValues[locale.languageCode]?['errorFailedToDelete'] ??
-      'Failed to delete.';
+      _g('errorFailedToDelete', 'Failed to delete.');
   String get errorFileUploadFailed =>
-      _localizedValues[locale.languageCode]?['errorFileUploadFailed'] ??
-      'File upload failed.';
+      _g('errorFileUploadFailed', 'File upload failed.');
   String get errorInvalidInput =>
-      _localizedValues[locale.languageCode]?['errorInvalidInput'] ??
-      'Invalid input. Please check your data.';
+      _g('errorInvalidInput', 'Invalid input. Please check your data.');
 
   // Departments
   String get addDepartment =>
-      _localizedValues[locale.languageCode]?['addDepartment'] ??
-      'Add Department';
+      _g('addDepartment', 'Add Department');
   String get editDepartment =>
-      _localizedValues[locale.languageCode]?['editDepartment'] ??
-      'Edit Department';
+      _g('editDepartment', 'Edit Department');
   String get departmentName =>
-      _localizedValues[locale.languageCode]?['departmentName'] ??
-      'Department Name';
+      _g('departmentName', 'Department Name');
   String get departmentNameRequired =>
-      _localizedValues[locale.languageCode]?['departmentNameRequired'] ??
-      'Department name is required';
+      _g('departmentNameRequired', 'Department name is required');
   String get departmentDescription =>
-      _localizedValues[locale.languageCode]?['departmentDescription'] ??
-      'Description';
+      _g('departmentDescription', 'Description');
   String get departmentCreated =>
-      _localizedValues[locale.languageCode]?['departmentCreated'] ??
-      'Department created successfully';
+      _g('departmentCreated', 'Department created successfully');
   String get departmentUpdated =>
-      _localizedValues[locale.languageCode]?['departmentUpdated'] ??
-      'Department updated successfully';
+      _g('departmentUpdated', 'Department updated successfully');
   String get departmentDeleted =>
-      _localizedValues[locale.languageCode]?['departmentDeleted'] ??
-      'Department deleted successfully';
+      _g('departmentDeleted', 'Department deleted successfully');
   String get errorCreatingDepartment =>
-      _localizedValues[locale.languageCode]?['errorCreatingDepartment'] ??
-      'Failed to create department';
+      _g('errorCreatingDepartment', 'Failed to create department');
   String get errorUpdatingDepartment =>
-      _localizedValues[locale.languageCode]?['errorUpdatingDepartment'] ??
-      'Failed to update department';
+      _g('errorUpdatingDepartment', 'Failed to update department');
   String get errorDeletingDepartment =>
-      _localizedValues[locale.languageCode]?['errorDeletingDepartment'] ??
-      'Failed to delete department';
+      _g('errorDeletingDepartment', 'Failed to delete department');
   String get errorLoadingDepartments =>
-      _localizedValues[locale.languageCode]?['errorLoadingDepartments'] ??
-      'Failed to load departments';
+      _g('errorLoadingDepartments', 'Failed to load departments');
   String get noDepartments =>
-      _localizedValues[locale.languageCode]?['noDepartments'] ??
-      'No departments yet';
+      _g('noDepartments', 'No departments yet');
   String get noDepartmentsFound =>
-      _localizedValues[locale.languageCode]?['noDepartmentsFound'] ??
-      'No departments found';
+      _g('noDepartmentsFound', 'No departments found');
   String get searchDepartments =>
-      _localizedValues[locale.languageCode]?['searchDepartments'] ??
-      'Search departments...';
+      _g('searchDepartments', 'Search departments...');
   String get departmentFiles =>
-      _localizedValues[locale.languageCode]?['departmentFiles'] ??
-      'Department Files';
+      _g('departmentFiles', 'Department Files');
   String get noFilesUploaded =>
-      _localizedValues[locale.languageCode]?['noFilesUploaded'] ??
-      'No files uploaded';
+      _g('noFilesUploaded', 'No files uploaded');
   String get documents =>
-      _localizedValues[locale.languageCode]?['documents'] ?? 'Documents';
+      _g('documents', 'Documents');
   String get documentsOptional =>
-      _localizedValues[locale.languageCode]?['documentsOptional'] ??
-      'Documents (Optional)';
+      _g('documentsOptional', 'Documents (Optional)');
   String get document =>
-      _localizedValues[locale.languageCode]?['document'] ?? 'Document';
+      _g('document', 'Document');
   String get upload =>
-      _localizedValues[locale.languageCode]?['upload'] ?? 'Upload';
+      _g('upload', 'Upload');
   String get remove =>
-      _localizedValues[locale.languageCode]?['remove'] ?? 'Remove';
-  String get view => _localizedValues[locale.languageCode]?['view'] ?? 'View';
+      _g('remove', 'Remove');
+  String get view => _g('view', 'View');
   String get newFile =>
-      _localizedValues[locale.languageCode]?['newFile'] ?? 'New file';
+      _g('newFile', 'New file');
   String get deleteDepartment =>
-      _localizedValues[locale.languageCode]?['deleteDepartment'] ??
-      'Delete Department';
+      _g('deleteDepartment', 'Delete Department');
   String get deleteDepartmentConfirm =>
-      _localizedValues[locale.languageCode]?['deleteDepartmentConfirm'] ??
-      'Are you sure you want to delete this department? This will deactivate it.';
+      _g('deleteDepartmentConfirm', 'Are you sure you want to delete this department? This will deactivate it.');
   String get createDepartment =>
-      _localizedValues[locale.languageCode]?['createDepartment'] ??
-      'Create Department';
+      _g('createDepartment', 'Create Department');
   String get updateDepartment =>
-      _localizedValues[locale.languageCode]?['updateDepartment'] ??
-      'Update Department';
+      _g('updateDepartment', 'Update Department');
 
   // Department Members
   String get addMember =>
-      _localizedValues[locale.languageCode]?['addMember'] ?? 'Add Member';
+      _g('addMember', 'Add Member');
   String get removeMember =>
-      _localizedValues[locale.languageCode]?['removeMember'] ?? 'Remove Member';
+      _g('removeMember', 'Remove Member');
   String get changeRole =>
-      _localizedValues[locale.languageCode]?['changeRole'] ?? 'Change Role';
-  String get role => _localizedValues[locale.languageCode]?['role'] ?? 'Role';
+      _g('changeRole', 'Change Role');
+  String get role => _g('role', 'Role');
   String get leader =>
-      _localizedValues[locale.languageCode]?['leader'] ?? 'Leader';
+      _g('leader', 'Leader');
   String get subleader =>
-      _localizedValues[locale.languageCode]?['subleader'] ?? 'Subleader';
+      _g('subleader', 'Subleader');
   String get memberRole =>
-      _localizedValues[locale.languageCode]?['memberRole'] ?? 'Member';
+      _g('memberRole', 'Member');
   String get selectRole =>
-      _localizedValues[locale.languageCode]?['selectRole'] ?? 'Select Role';
+      _g('selectRole', 'Select Role');
   String get memberAdded =>
-      _localizedValues[locale.languageCode]?['memberAdded'] ??
-      'Member added successfully';
+      _g('memberAdded', 'Member added successfully');
   String get memberRemoved =>
-      _localizedValues[locale.languageCode]?['memberRemoved'] ??
-      'Member removed successfully';
+      _g('memberRemoved', 'Member removed successfully');
   String get deleteMember =>
-      _localizedValues[locale.languageCode]?['deleteMember'] ?? 'Delete Member';
+      _g('deleteMember', 'Delete Member');
   String get deleteMemberConfirmation =>
-      _localizedValues[locale.languageCode]?['deleteMemberConfirmation'] ??
-      'Are you sure you want to delete {name}? This action cannot be undone.';
+      _g('deleteMemberConfirmation', 'Are you sure you want to delete {name}? This action cannot be undone.');
   String get memberDeletedSuccessfully =>
-      _localizedValues[locale.languageCode]?['memberDeletedSuccessfully'] ??
-      'Member deleted successfully';
+      _g('memberDeletedSuccessfully', 'Member deleted successfully');
   String get roleUpdated =>
-      _localizedValues[locale.languageCode]?['roleUpdated'] ??
-      'Role updated successfully';
+      _g('roleUpdated', 'Role updated successfully');
   String get errorAddingMember =>
-      _localizedValues[locale.languageCode]?['errorAddingMember'] ??
-      'Failed to add member';
+      _g('errorAddingMember', 'Failed to add member');
   String get errorRemovingMember =>
-      _localizedValues[locale.languageCode]?['errorRemovingMember'] ??
-      'Failed to remove member';
+      _g('errorRemovingMember', 'Failed to remove member');
   String get errorUpdatingRole =>
-      _localizedValues[locale.languageCode]?['errorUpdatingRole'] ??
-      'Failed to update role';
+      _g('errorUpdatingRole', 'Failed to update role');
   String get noMembersInDepartment =>
-      _localizedValues[locale.languageCode]?['noMembersInDepartment'] ??
-      'No members in this department';
+      _g('noMembersInDepartment', 'No members in this department');
   String get allMembersInDepartment =>
-      _localizedValues[locale.languageCode]?['allMembersInDepartment'] ??
-      'All members are already in this department';
+      _g('allMembersInDepartment', 'All members are already in this department');
   String get removeMemberConfirm =>
-      _localizedValues[locale.languageCode]?['removeMemberConfirm'] ??
-      'Are you sure you want to remove {name} from this department?';
+      _g('removeMemberConfirm', 'Are you sure you want to remove {name} from this department?');
   String removeMemberConfirmWithName(String name) =>
       removeMemberConfirm.replaceAll('{name}', name);
 
   // Password Change
   String get changePassword =>
-      _localizedValues[locale.languageCode]?['changePassword'] ??
-      'Change Password';
+      _g('changePassword', 'Change Password');
   String get changePasswordRequired =>
-      _localizedValues[locale.languageCode]?['changePasswordRequired'] ??
-      'Change Password Required';
+      _g('changePasswordRequired', 'Change Password Required');
   String get changePasswordMessage =>
-      _localizedValues[locale.languageCode]?['changePasswordMessage'] ??
-      'You must change your password before continuing.';
+      _g('changePasswordMessage', 'You must change your password before continuing.');
   String get newPassword =>
-      _localizedValues[locale.languageCode]?['newPassword'] ?? 'New Password';
+      _g('newPassword', 'New Password');
   String get confirmPassword =>
-      _localizedValues[locale.languageCode]?['confirmPassword'] ??
-      'Confirm New Password';
+      _g('confirmPassword', 'Confirm New Password');
   String get newPasswordRequired =>
-      _localizedValues[locale.languageCode]?['newPasswordRequired'] ??
-      'New password is required';
+      _g('newPasswordRequired', 'New password is required');
   String get passwordMinLength =>
-      _localizedValues[locale.languageCode]?['passwordMinLength'] ??
-      'Password must be at least 6 characters';
+      _g('passwordMinLength', 'Password must be at least 6 characters');
   String get passwordsDoNotMatch =>
-      _localizedValues[locale.languageCode]?['passwordsDoNotMatch'] ??
-      'Passwords do not match';
+      _g('passwordsDoNotMatch', 'Passwords do not match');
   String get passwordChanged =>
-      _localizedValues[locale.languageCode]?['passwordChanged'] ??
-      'Password changed successfully';
+      _g('passwordChanged', 'Password changed successfully');
   String get errorChangingPassword =>
-      _localizedValues[locale.languageCode]?['errorChangingPassword'] ??
-      'Failed to change password';
+      _g('errorChangingPassword', 'Failed to change password');
 
   // Tasks
   String get manageTasks =>
-      _localizedValues[locale.languageCode]?['manageTasks'] ?? 'Manage Tasks';
+      _g('manageTasks', 'Manage Tasks');
   String get generateReport =>
-      _localizedValues[locale.languageCode]?['generateReport'] ??
-      'Generate Report';
+      _g('generateReport', 'Generate Report');
   String get taskCompletion =>
-      _localizedValues[locale.languageCode]?['taskCompletion'] ??
-      'Task Completion';
+      _g('taskCompletion', 'Task Completion');
   String get total =>
-      _localizedValues[locale.languageCode]?['total'] ?? 'Total';
+      _g('total', 'Total');
   String get completed =>
-      _localizedValues[locale.languageCode]?['completed'] ?? 'Completed';
+      _g('completed', 'Completed');
   String get pending =>
-      _localizedValues[locale.languageCode]?['pending'] ?? 'Pending';
+      _g('pending', 'Pending');
   String get inProgress =>
-      _localizedValues[locale.languageCode]?['inProgress'] ?? 'In Progress';
+      _g('inProgress', 'In Progress');
   String get noTasks =>
-      _localizedValues[locale.languageCode]?['noTasks'] ??
-      'No tasks in this department';
+      _g('noTasks', 'No tasks in this department');
 
   // Reports
   String get createReport =>
-      _localizedValues[locale.languageCode]?['createReport'] ?? 'Create Report';
+      _g('createReport', 'Create Report');
   String get generateSummaryReport =>
-      _localizedValues[locale.languageCode]?['generateSummaryReport'] ??
-      'Generate Summary Report';
+      _g('generateSummaryReport', 'Generate Summary Report');
   String get noReports =>
-      _localizedValues[locale.languageCode]?['noReports'] ?? 'No reports yet';
+      _g('noReports', 'No reports yet');
   String get createFirstReport =>
-      _localizedValues[locale.languageCode]?['createFirstReport'] ??
-      'Create your first report to get started';
+      _g('createFirstReport', 'Create your first report to get started');
   String get generatePdf =>
-      _localizedValues[locale.languageCode]?['generatePdf'] ?? 'Generate PDF';
+      _g('generatePdf', 'Generate PDF');
   String get editReport =>
-      _localizedValues[locale.languageCode]?['editReport'] ?? 'Edit';
+      _g('editReport', 'Edit');
   String get deleteReport =>
-      _localizedValues[locale.languageCode]?['deleteReport'] ?? 'Delete';
+      _g('deleteReport', 'Delete');
   String get deleteReportConfirm =>
-      _localizedValues[locale.languageCode]?['deleteReportConfirm'] ??
-      'Are you sure you want to delete "{title}"?';
+      _g('deleteReportConfirm', 'Are you sure you want to delete "{title}"?');
   String deleteReportConfirmWithTitle(String title) =>
       deleteReportConfirm.replaceAll('{title}', title);
   String get reportDeleted =>
-      _localizedValues[locale.languageCode]?['reportDeleted'] ??
-      'Report deleted successfully';
+      _g('reportDeleted', 'Report deleted successfully');
   String get errorDeletingReport =>
-      _localizedValues[locale.languageCode]?['errorDeletingReport'] ??
-      'Failed to delete report';
+      _g('errorDeletingReport', 'Failed to delete report');
   String get reportGenerated =>
-      _localizedValues[locale.languageCode]?['reportGenerated'] ??
-      'Report generated successfully';
+      _g('reportGenerated', 'Report generated successfully');
   String get errorGeneratingReport =>
-      _localizedValues[locale.languageCode]?['errorGeneratingReport'] ??
-      'Failed to generate report';
+      _g('errorGeneratingReport', 'Failed to generate report');
   String get generatingPdf =>
-      _localizedValues[locale.languageCode]?['generatingPdf'] ??
-      'Generating PDF...';
+      _g('generatingPdf', 'Generating PDF...');
   String get generatingReport =>
-      _localizedValues[locale.languageCode]?['generatingReport'] ??
-      'Generating report...';
+      _g('generatingReport', 'Generating report...');
   String get pdfGenerated =>
-      _localizedValues[locale.languageCode]?['pdfGenerated'] ??
-      'PDF generated successfully';
+      _g('pdfGenerated', 'PDF generated successfully');
 
   // Refresh
   String get refresh =>
-      _localizedValues[locale.languageCode]?['refresh'] ?? 'Refresh';
+      _g('refresh', 'Refresh');
 
   // Active/Inactive
   String get active =>
-      _localizedValues[locale.languageCode]?['active'] ?? 'Active';
+      _g('active', 'Active');
   String get inactive =>
-      _localizedValues[locale.languageCode]?['inactive'] ?? 'Inactive';
+      _g('inactive', 'Inactive');
 
   // Phone
   String get phone =>
-      _localizedValues[locale.languageCode]?['phone'] ?? 'Phone';
+      _g('phone', 'Phone');
   String get phoneOrEmail =>
-      _localizedValues[locale.languageCode]?['phoneOrEmail'] ??
-      'Email or Phone';
+      _g('phoneOrEmail', 'Email or Phone');
 
   // Update
   String get update =>
-      _localizedValues[locale.languageCode]?['update'] ?? 'Update';
-  String get add => _localizedValues[locale.languageCode]?['add'] ?? 'Add';
-  String get name => _localizedValues[locale.languageCode]?['name'] ?? 'Name';
+      _g('update', 'Update');
+  String get add => _g('add', 'Add');
+  String get name => _g('name', 'Name');
   String get nameRequired =>
-      _localizedValues[locale.languageCode]?['nameRequired'] ??
-      'Name is required';
+      _g('nameRequired', 'Name is required');
 
   // Success messages
   String get successOperation =>
-      _localizedValues[locale.languageCode]?['successOperation'] ??
-      'Operation completed successfully';
+      _g('successOperation', 'Operation completed successfully');
 
   // Warning messages
   String get warning =>
-      _localizedValues[locale.languageCode]?['warning'] ?? 'Warning';
+      _g('warning', 'Warning');
   String get someDocumentsFailed =>
-      _localizedValues[locale.languageCode]?['someDocumentsFailed'] ??
-      'Department created, but some documents failed to upload';
+      _g('someDocumentsFailed', 'Department created, but some documents failed to upload');
   String get documentUploadErrors =>
-      _localizedValues[locale.languageCode]?['documentUploadErrors'] ??
-      'Document Upload Errors';
+      _g('documentUploadErrors', 'Document Upload Errors');
   String get documentsFailedMessage =>
-      _localizedValues[locale.languageCode]?['documentsFailedMessage'] ??
-      'The department was created, but the following documents failed to upload:';
+      _g('documentsFailedMessage', 'The department was created, but the following documents failed to upload:');
   String get canAddDocumentsLater =>
-      _localizedValues[locale.languageCode]?['canAddDocumentsLater'] ??
-      'You can add these documents later by editing the department.';
+      _g('canAddDocumentsLater', 'You can add these documents later by editing the department.');
 
   // OK button
-  String get ok => _localizedValues[locale.languageCode]?['ok'] ?? 'OK';
+  String get ok => _g('ok', 'OK');
 
   // Optional
   String get optional =>
-      _localizedValues[locale.languageCode]?['optional'] ?? '(Optional)';
+      _g('optional', '(Optional)');
 
   // Enter text helpers
   String get enterDepartmentName =>
-      _localizedValues[locale.languageCode]?['enterDepartmentName'] ??
-      'Enter the name of the department';
+      _g('enterDepartmentName', 'Enter the name of the department');
   String get optionalDescription =>
-      _localizedValues[locale.languageCode]?['optionalDescription'] ??
-      'Optional description for the department';
+      _g('optionalDescription', 'Optional description for the department');
 
   // Teachings
   String get teachings =>
-      _localizedValues[locale.languageCode]?['teachings'] ?? 'Teachings';
+      _g('teachings', 'Teachings');
   String get addTeaching =>
-      _localizedValues[locale.languageCode]?['addTeaching'] ?? 'Add Teaching';
+      _g('addTeaching', 'Add Teaching');
   String get editTeaching =>
-      _localizedValues[locale.languageCode]?['editTeaching'] ?? 'Edit Teaching';
+      _g('editTeaching', 'Edit Teaching');
   String get teachingDetails =>
-      _localizedValues[locale.languageCode]?['teachingDetails'] ??
-      'Teaching Details';
+      _g('teachingDetails', 'Teaching Details');
   String get teachingTitle =>
-      _localizedValues[locale.languageCode]?['teachingTitle'] ?? 'Title';
+      _g('teachingTitle', 'Title');
   String get teachingTitleRequired =>
-      _localizedValues[locale.languageCode]?['teachingTitleRequired'] ??
-      'Please enter a title';
+      _g('teachingTitleRequired', 'Please enter a title');
   String get teachingDate =>
-      _localizedValues[locale.languageCode]?['teachingDate'] ?? 'Teaching Date';
+      _g('teachingDate', 'Teaching Date');
   String get teachingDateRequired =>
-      _localizedValues[locale.languageCode]?['teachingDateRequired'] ??
-      'Please select a date';
+      _g('teachingDateRequired', 'Please select a date');
   String get speaker =>
-      _localizedValues[locale.languageCode]?['speaker'] ?? 'Speaker';
+      _g('speaker', 'Speaker');
   String get teachingDescription =>
-      _localizedValues[locale.languageCode]?['teachingDescription'] ??
-      'Description';
+      _g('teachingDescription', 'Description');
   String get updateTeaching =>
-      _localizedValues[locale.languageCode]?['updateTeaching'] ??
-      'Update Teaching';
+      _g('updateTeaching', 'Update Teaching');
   String get teachingAdded =>
-      _localizedValues[locale.languageCode]?['teachingAdded'] ??
-      'Teaching added successfully';
+      _g('teachingAdded', 'Teaching added successfully');
   String get teachingUpdated =>
-      _localizedValues[locale.languageCode]?['teachingUpdated'] ??
-      'Teaching updated successfully';
+      _g('teachingUpdated', 'Teaching updated successfully');
   String get teachingDeleted =>
-      _localizedValues[locale.languageCode]?['teachingDeleted'] ??
-      'Teaching deleted successfully';
+      _g('teachingDeleted', 'Teaching deleted successfully');
   String get errorLoadingTeaching =>
-      _localizedValues[locale.languageCode]?['errorLoadingTeaching'] ??
-      'Error loading teaching';
+      _g('errorLoadingTeaching', 'Error loading teaching');
   String get errorDeletingTeaching =>
-      _localizedValues[locale.languageCode]?['errorDeletingTeaching'] ??
-      'Error deleting teaching';
+      _g('errorDeletingTeaching', 'Error deleting teaching');
   String get deleteTeachingConfirm =>
-      _localizedValues[locale.languageCode]?['deleteTeachingConfirm'] ??
-      'Are you sure you want to delete "{title}"?';
+      _g('deleteTeachingConfirm', 'Are you sure you want to delete "{title}"?');
   String deleteTeachingConfirmWithTitle(String title) =>
       deleteTeachingConfirm.replaceAll('{title}', title);
   String get searchTeachings =>
-      _localizedValues[locale.languageCode]?['searchTeachings'] ??
-      'Search teachings...';
+      _g('searchTeachings', 'Search teachings...');
   String get noTeachings =>
-      _localizedValues[locale.languageCode]?['noTeachings'] ??
-      'No teachings yet';
+      _g('noTeachings', 'No teachings yet');
   String get noTeachingsFound =>
-      _localizedValues[locale.languageCode]?['noTeachingsFound'] ??
-      'No teachings found matching your search';
+      _g('noTeachingsFound', 'No teachings found matching your search');
   String get listeners =>
-      _localizedValues[locale.languageCode]?['listeners'] ?? 'Listeners';
+      _g('listeners', 'Listeners');
   String get syncFromAttendance =>
-      _localizedValues[locale.languageCode]?['syncFromAttendance'] ??
-      'Sync from Church Attendance';
+      _g('syncFromAttendance', 'Sync from Church Attendance');
   String get searchPotentialListeners =>
-      _localizedValues[locale.languageCode]?['searchPotentialListeners'] ??
-      'Search potential listeners...';
+      _g('searchPotentialListeners', 'Search potential listeners...');
   String get noListeners =>
-      _localizedValues[locale.languageCode]?['noListeners'] ??
-      'No listeners yet';
+      _g('noListeners', 'No listeners yet');
   String get addListener =>
-      _localizedValues[locale.languageCode]?['addListener'] ?? 'Add';
+      _g('addListener', 'Add');
   String get addListenerTitle =>
-      _localizedValues[locale.languageCode]?['addListenerTitle'] ??
-      'Add Listener';
+      _g('addListenerTitle', 'Add Listener');
   String get removeListener =>
-      _localizedValues[locale.languageCode]?['removeListener'] ??
-      'Remove Listener';
+      _g('removeListener', 'Remove Listener');
   String get removeListenerConfirm =>
-      _localizedValues[locale.languageCode]?['removeListenerConfirm'] ??
-      'Remove "{name}" from listeners?';
+      _g('removeListenerConfirm', 'Remove "{name}" from listeners?');
   String removeListenerConfirmWithName(String name) =>
       removeListenerConfirm.replaceAll('{name}', name);
   String get listenerAdded =>
-      _localizedValues[locale.languageCode]?['listenerAdded'] ??
-      'Listener added successfully';
+      _g('listenerAdded', 'Listener added successfully');
   String get listenerRemoved =>
-      _localizedValues[locale.languageCode]?['listenerRemoved'] ??
-      'Listener removed successfully';
+      _g('listenerRemoved', 'Listener removed successfully');
   String get errorAddingListener =>
-      _localizedValues[locale.languageCode]?['errorAddingListener'] ??
-      'Error adding listener';
+      _g('errorAddingListener', 'Error adding listener');
   String get errorRemovingListener =>
-      _localizedValues[locale.languageCode]?['errorRemovingListener'] ??
-      'Error removing listener';
+      _g('errorRemovingListener', 'Error removing listener');
   String get errorSyncingListeners =>
-      _localizedValues[locale.languageCode]?['errorSyncingListeners'] ??
-      'Error syncing listeners';
+      _g('errorSyncingListeners', 'Error syncing listeners');
   String get listenersSynced =>
-      _localizedValues[locale.languageCode]?['listenersSynced'] ??
-      'Synced {count} listener(s) from church attendance';
+      _g('listenersSynced', 'Synced {count} listener(s) from church attendance');
   String listenersSyncedWithCount(int count) =>
       listenersSynced.replaceAll('{count}', count.toString());
   String get allListenersAdded =>
-      _localizedValues[locale.languageCode]?['allListenersAdded'] ??
-      'All potential listeners are already added';
+      _g('allListenersAdded', 'All potential listeners are already added');
   String get useSyncOrAdd =>
-      _localizedValues[locale.languageCode]?['useSyncOrAdd'] ??
-      'Use "Sync from Church Attendance" or "Add" to add listeners';
+      _g('useSyncOrAdd', 'Use "Sync from Church Attendance" or "Add" to add listeners');
 
   // Visitors
   String get visitors =>
-      _localizedValues[locale.languageCode]?['visitors'] ?? 'Visitors';
+      _g('visitors', 'Visitors');
   String get addVisitor =>
-      _localizedValues[locale.languageCode]?['addVisitor'] ?? 'Add Visitor';
+      _g('addVisitor', 'Add Visitor');
   String get editVisitor =>
-      _localizedValues[locale.languageCode]?['editVisitor'] ?? 'Edit Visitor';
+      _g('editVisitor', 'Edit Visitor');
   String get updateVisitor =>
-      _localizedValues[locale.languageCode]?['updateVisitor'] ??
-      'Update Visitor';
+      _g('updateVisitor', 'Update Visitor');
   String get visitorFirstName =>
-      _localizedValues[locale.languageCode]?['visitorFirstName'] ??
-      'First Name';
+      _g('visitorFirstName', 'First Name');
   String get visitorFirstNameRequired =>
-      _localizedValues[locale.languageCode]?['visitorFirstNameRequired'] ??
-      'First name is required';
+      _g('visitorFirstNameRequired', 'First name is required');
   String get visitorLastName =>
-      _localizedValues[locale.languageCode]?['visitorLastName'] ?? 'Last Name';
+      _g('visitorLastName', 'Last Name');
   String get visitorLastNameRequired =>
-      _localizedValues[locale.languageCode]?['visitorLastNameRequired'] ??
-      'Last name is required';
+      _g('visitorLastNameRequired', 'Last name is required');
   String get visitDate =>
-      _localizedValues[locale.languageCode]?['visitDate'] ?? 'Visit Date';
+      _g('visitDate', 'Visit Date');
   String get visitDateRequired =>
-      _localizedValues[locale.languageCode]?['visitDateRequired'] ??
-      'Visit date is required';
+      _g('visitDateRequired', 'Visit date is required');
   String get visitorAdded =>
-      _localizedValues[locale.languageCode]?['visitorAdded'] ??
-      'Visitor added successfully';
+      _g('visitorAdded', 'Visitor added successfully');
   String get visitorUpdated =>
-      _localizedValues[locale.languageCode]?['visitorUpdated'] ??
-      'Visitor updated successfully';
+      _g('visitorUpdated', 'Visitor updated successfully');
   String get visitorDeleted =>
-      _localizedValues[locale.languageCode]?['visitorDeleted'] ??
-      'Visitor deleted successfully';
+      _g('visitorDeleted', 'Visitor deleted successfully');
   String get errorLoadingVisitor =>
-      _localizedValues[locale.languageCode]?['errorLoadingVisitor'] ??
-      'Error loading visitor';
+      _g('errorLoadingVisitor', 'Error loading visitor');
   String get errorDeletingVisitor =>
-      _localizedValues[locale.languageCode]?['errorDeletingVisitor'] ??
-      'Error deleting visitor';
+      _g('errorDeletingVisitor', 'Error deleting visitor');
   String get deleteVisitorConfirm =>
-      _localizedValues[locale.languageCode]?['deleteVisitorConfirm'] ??
-      'Are you sure you want to delete "{name}"?';
+      _g('deleteVisitorConfirm', 'Are you sure you want to delete "{name}"?');
   String deleteVisitorConfirmWithName(String name) =>
       deleteVisitorConfirm.replaceAll('{name}', name);
   String get searchVisitors =>
-      _localizedValues[locale.languageCode]?['searchVisitors'] ??
-      'Search visitors...';
+      _g('searchVisitors', 'Search visitors...');
   String get noVisitors =>
-      _localizedValues[locale.languageCode]?['noVisitors'] ?? 'No visitors yet';
+      _g('noVisitors', 'No visitors yet');
   String get noVisitorsFound =>
-      _localizedValues[locale.languageCode]?['noVisitorsFound'] ??
-      'No visitors found matching your search';
+      _g('noVisitorsFound', 'No visitors found matching your search');
   String get convertToMember =>
-      _localizedValues[locale.languageCode]?['convertToMember'] ??
-      'Convert to Member';
+      _g('convertToMember', 'Convert to Member');
   String get convertVisitorToMember =>
-      _localizedValues[locale.languageCode]?['convertVisitorToMember'] ??
-      'Convert visitor to member';
+      _g('convertVisitorToMember', 'Convert visitor to member');
   String convertVisitorToMemberConfirm(String name) =>
       (_localizedValues[locale
                   .languageCode]?['convertVisitorToMemberConfirm'] ??
               'Create a member profile for "{name}" using the visitor\'s contact details. The visitor record will be removed.')
           .replaceAll('{name}', name);
   String get visitorConvertedToMember =>
-      _localizedValues[locale.languageCode]?['visitorConvertedToMember'] ??
-      'Visitor converted to member successfully';
+      _g('visitorConvertedToMember', 'Visitor converted to member successfully');
   String get errorConvertingVisitor =>
-      _localizedValues[locale.languageCode]?['errorConvertingVisitor'] ??
-      'Error converting visitor to member';
+      _g('errorConvertingVisitor', 'Error converting visitor to member');
 
   // Workers & Departments
   String get workers =>
-      _localizedValues[locale.languageCode]?['workers'] ?? 'Workers';
+      _g('workers', 'Workers');
   String get searchWorkers =>
-      _localizedValues[locale.languageCode]?['searchWorkers'] ??
-      'Search workers...';
+      _g('searchWorkers', 'Search workers...');
   String get noWorkers =>
-      _localizedValues[locale.languageCode]?['noWorkers'] ?? 'No workers found';
+      _g('noWorkers', 'No workers found');
   String get noWorkersFound =>
-      _localizedValues[locale.languageCode]?['noWorkersFound'] ??
-      'No workers found matching your search';
+      _g('noWorkersFound', 'No workers found matching your search');
   String get noDepartmentsAssigned =>
-      _localizedValues[locale.languageCode]?['noDepartmentsAssigned'] ??
-      'No departments assigned';
+      _g('noDepartmentsAssigned', 'No departments assigned');
   String get setMainDepartment =>
-      _localizedValues[locale.languageCode]?['setMainDepartment'] ??
-      'Set Main Department';
+      _g('setMainDepartment', 'Set Main Department');
   String get setMainDepartmentFor =>
-      _localizedValues[locale.languageCode]?['setMainDepartmentFor'] ??
-      'Set Main Department for {name}';
+      _g('setMainDepartmentFor', 'Set Main Department for {name}');
   String setMainDepartmentForWithName(String name) =>
       setMainDepartmentFor.replaceAll('{name}', name);
   String get workerNoDepartments =>
-      _localizedValues[locale.languageCode]?['workerNoDepartments'] ??
-      'Worker has no departments assigned';
+      _g('workerNoDepartments', 'Worker has no departments assigned');
   String get updatingMainDepartment =>
-      _localizedValues[locale.languageCode]?['updatingMainDepartment'] ??
-      'Updating main department...';
+      _g('updatingMainDepartment', 'Updating main department...');
   String get mainDepartmentUpdated =>
-      _localizedValues[locale.languageCode]?['mainDepartmentUpdated'] ??
-      'Main department updated successfully';
+      _g('mainDepartmentUpdated', 'Main department updated successfully');
   String get errorUpdatingMainDepartment =>
-      _localizedValues[locale.languageCode]?['errorUpdatingMainDepartment'] ??
-      'Error updating main department';
+      _g('errorUpdatingMainDepartment', 'Error updating main department');
 
   // Leader Access
   String get leaderAccessManagement =>
-      _localizedValues[locale.languageCode]?['leaderAccessManagement'] ??
-      'Leader Access Management';
+      _g('leaderAccessManagement', 'Leader Access Management');
   String get defineFeatureAccess =>
-      _localizedValues[locale.languageCode]?['defineFeatureAccess'] ??
-      'Define feature access for each leader';
+      _g('defineFeatureAccess', 'Define feature access for each leader');
   String get featureAccessPermissions =>
-      _localizedValues[locale.languageCode]?['featureAccessPermissions'] ??
-      'Feature Access Permissions';
+      _g('featureAccessPermissions', 'Feature Access Permissions');
   String get unsavedChanges =>
-      _localizedValues[locale.languageCode]?['unsavedChanges'] ??
-      'Unsaved changes';
+      _g('unsavedChanges', 'Unsaved changes');
   String get saveAllChanges =>
-      _localizedValues[locale.languageCode]?['saveAllChanges'] ??
-      'Save All Changes';
+      _g('saveAllChanges', 'Save All Changes');
   String get allAccessSaved =>
-      _localizedValues[locale.languageCode]?['allAccessSaved'] ??
-      'All access permissions saved successfully';
+      _g('allAccessSaved', 'All access permissions saved successfully');
   String get errorSavingAccess =>
-      _localizedValues[locale.languageCode]?['errorSavingAccess'] ??
-      'Error saving access';
+      _g('errorSavingAccess', 'Error saving access');
   String get errorLoadingLeaders =>
-      _localizedValues[locale.languageCode]?['errorLoadingLeaders'] ??
-      'Error loading leaders';
+      _g('errorLoadingLeaders', 'Error loading leaders');
   String get errorLoadingAccess =>
-      _localizedValues[locale.languageCode]?['errorLoadingAccess'] ??
-      'Error loading access';
+      _g('errorLoadingAccess', 'Error loading access');
   String get canView =>
-      _localizedValues[locale.languageCode]?['canView'] ?? 'View';
+      _g('canView', 'View');
   String get canCreate =>
-      _localizedValues[locale.languageCode]?['canCreate'] ?? 'Create';
+      _g('canCreate', 'Create');
   String get canEdit =>
-      _localizedValues[locale.languageCode]?['canEdit'] ?? 'Edit';
+      _g('canEdit', 'Edit');
   String get canDelete =>
-      _localizedValues[locale.languageCode]?['canDelete'] ?? 'Delete';
+      _g('canDelete', 'Delete');
 
   // Settings
   String get adminSettings =>
-      _localizedValues[locale.languageCode]?['adminSettings'] ??
-      'Admin Settings';
+      _g('adminSettings', 'Admin Settings');
   String get language =>
-      _localizedValues[locale.languageCode]?['language'] ?? 'Language';
+      _g('language', 'Language');
   String get theme =>
-      _localizedValues[locale.languageCode]?['theme'] ?? 'Theme';
+      _g('theme', 'Theme');
   String get enableNotifications =>
-      _localizedValues[locale.languageCode]?['enableNotifications'] ??
-      'Enable Notifications';
+      _g('enableNotifications', 'Enable Notifications');
   String get receivePushNotifications =>
-      _localizedValues[locale.languageCode]?['receivePushNotifications'] ??
-      'Receive push notifications';
+      _g('receivePushNotifications', 'Receive push notifications');
   String get exportAllData =>
-      _localizedValues[locale.languageCode]?['exportAllData'] ??
-      'Export All Data';
+      _g('exportAllData', 'Export All Data');
   String get exportAllDataSubtitle =>
-      _localizedValues[locale.languageCode]?['exportAllDataSubtitle'] ??
-      'Export all data to JSON file';
+      _g('exportAllDataSubtitle', 'Export all data to JSON file');
   String get importData =>
-      _localizedValues[locale.languageCode]?['importData'] ?? 'Import Data';
+      _g('importData', 'Import Data');
   String get importDataSubtitle =>
-      _localizedValues[locale.languageCode]?['importDataSubtitle'] ??
-      'Import data from JSON file';
+      _g('importDataSubtitle', 'Import data from JSON file');
   String get exportMembers =>
-      _localizedValues[locale.languageCode]?['exportMembers'] ??
-      'Export Members';
+      _g('exportMembers', 'Export Members');
   String get exportMembersSubtitle =>
-      _localizedValues[locale.languageCode]?['exportMembersSubtitle'] ??
-      'Export members to CSV';
+      _g('exportMembersSubtitle', 'Export members to CSV');
   String get syncUsersMembers =>
-      _localizedValues[locale.languageCode]?['syncUsersMembers'] ??
-      'Sync Users & Members';
+      _g('syncUsersMembers', 'Sync Users & Members');
   String get generateAllUsersReport =>
-      _localizedValues[locale.languageCode]?['generateAllUsersReport'] ??
-      'Generate All Users Report';
+      _g('generateAllUsersReport', 'Generate All Users Report');
   String get birthdayNotifications =>
-      _localizedValues[locale.languageCode]?['birthdayNotifications'] ??
-      'Birthday Notifications';
+      _g('birthdayNotifications', 'Birthday Notifications');
   String get configureBirthdayNotifications =>
       _localizedValues[locale
           .languageCode]?['configureBirthdayNotifications'] ??
       'Configure birthday notification settings';
   String get currentUser =>
-      _localizedValues[locale.languageCode]?['currentUser'] ?? 'Current User';
+      _g('currentUser', 'Current User');
   String get signOutAccount =>
-      _localizedValues[locale.languageCode]?['signOutAccount'] ??
-      'Sign out of your account';
+      _g('signOutAccount', 'Sign out of your account');
   String get appVersion =>
-      _localizedValues[locale.languageCode]?['appVersion'] ?? 'App Version';
+      _g('appVersion', 'App Version');
   String get logoutConfirm =>
-      _localizedValues[locale.languageCode]?['logoutConfirm'] ??
-      'Are you sure you want to logout?';
+      _g('logoutConfirm', 'Are you sure you want to logout?');
   String get languageChanged =>
-      _localizedValues[locale.languageCode]?['languageChanged'] ??
-      'Language changed successfully';
+      _g('languageChanged', 'Language changed successfully');
   String get errorChangingLanguage =>
-      _localizedValues[locale.languageCode]?['errorChangingLanguage'] ??
-      'Failed to change language';
+      _g('errorChangingLanguage', 'Failed to change language');
   String get themeChanged =>
-      _localizedValues[locale.languageCode]?['themeChanged'] ??
-      'Theme changed successfully';
+      _g('themeChanged', 'Theme changed successfully');
   String get errorChangingTheme =>
-      _localizedValues[locale.languageCode]?['errorChangingTheme'] ??
-      'Failed to change theme';
+      _g('errorChangingTheme', 'Failed to change theme');
   String get errorUpdatingNotifications =>
-      _localizedValues[locale.languageCode]?['errorUpdatingNotifications'] ??
-      'Failed to update notifications';
+      _g('errorUpdatingNotifications', 'Failed to update notifications');
   String get export =>
-      _localizedValues[locale.languageCode]?['export'] ?? 'Export';
+      _g('export', 'Export');
   String get importing =>
-      _localizedValues[locale.languageCode]?['importing'] ??
-      'Importing data...';
+      _g('importing', 'Importing data...');
   String get exporting =>
-      _localizedValues[locale.languageCode]?['exporting'] ??
-      'Exporting data...';
+      _g('exporting', 'Exporting data...');
   String get dataExported =>
-      _localizedValues[locale.languageCode]?['dataExported'] ??
-      'Data exported successfully to:\n{path}';
+      _g('dataExported', 'Data exported successfully to:\n{path}');
   String dataExportedWithPath(String path) =>
       dataExported.replaceAll('{path}', path);
   String get exportCancelled =>
-      _localizedValues[locale.languageCode]?['exportCancelled'] ??
-      'Export cancelled';
+      _g('exportCancelled', 'Export cancelled');
   String get exportFailed =>
-      _localizedValues[locale.languageCode]?['exportFailed'] ?? 'Export failed';
+      _g('exportFailed', 'Export failed');
   String get membersExported =>
-      _localizedValues[locale.languageCode]?['membersExported'] ??
-      'Members exported successfully';
-  String get sync => _localizedValues[locale.languageCode]?['sync'] ?? 'Sync';
+      _g('membersExported', 'Members exported successfully');
+  String get sync => _g('sync', 'Sync');
   String get syncing =>
-      _localizedValues[locale.languageCode]?['syncing'] ??
-      'Syncing users and members...';
+      _g('syncing', 'Syncing users and members...');
   String get syncFailed =>
-      _localizedValues[locale.languageCode]?['syncFailed'] ?? 'Sync failed';
+      _g('syncFailed', 'Sync failed');
   String get reportSaved =>
-      _localizedValues[locale.languageCode]?['reportSaved'] ??
-      'Report saved successfully to:\n{path}';
+      _g('reportSaved', 'Report saved successfully to:\n{path}');
   String reportSavedWithPath(String path) =>
       reportSaved.replaceAll('{path}', path);
   String get reportGenerationCancelled =>
-      _localizedValues[locale.languageCode]?['reportGenerationCancelled'] ??
-      'Report generation cancelled';
+      _g('reportGenerationCancelled', 'Report generation cancelled');
   String get reportGenerationFailed =>
-      _localizedValues[locale.languageCode]?['reportGenerationFailed'] ??
-      'Report generation failed';
+      _g('reportGenerationFailed', 'Report generation failed');
   String get import =>
-      _localizedValues[locale.languageCode]?['import'] ?? 'Import';
+      _g('import', 'Import');
   String get importFailed =>
-      _localizedValues[locale.languageCode]?['importFailed'] ?? 'Import failed';
+      _g('importFailed', 'Import failed');
   String get english =>
-      _localizedValues[locale.languageCode]?['english'] ?? 'English';
+      _g('english', 'English');
   String get french =>
-      _localizedValues[locale.languageCode]?['french'] ?? 'Français';
+      _g('french', 'Français');
   String get selectTheme =>
-      _localizedValues[locale.languageCode]?['selectTheme'] ?? 'Select Theme';
+      _g('selectTheme', 'Select Theme');
   String get light =>
-      _localizedValues[locale.languageCode]?['light'] ?? 'Light';
-  String get dark => _localizedValues[locale.languageCode]?['dark'] ?? 'Dark';
+      _g('light', 'Light');
+  String get dark => _g('dark', 'Dark');
   String get systemDefault =>
-      _localizedValues[locale.languageCode]?['systemDefault'] ??
-      'System Default';
+      _g('systemDefault', 'System Default');
   String get birthdayNotificationsSettings =>
-      _localizedValues[locale.languageCode]?['birthdayNotificationsSettings'] ??
-      'Birthday Notifications';
+      _g('birthdayNotificationsSettings', 'Birthday Notifications');
   String get allChurchAppUsers =>
-      _localizedValues[locale.languageCode]?['allChurchAppUsers'] ??
-      'All Church App Users';
+      _g('allChurchAppUsers', 'All Church App Users');
   String get defaultAllActiveMembers =>
-      _localizedValues[locale.languageCode]?['defaultAllActiveMembers'] ??
-      'Default: All active members';
+      _g('defaultAllActiveMembers', 'Default: All active members');
   String get leadersOnly =>
-      _localizedValues[locale.languageCode]?['leadersOnly'] ?? 'Leaders Only';
+      _g('leadersOnly', 'Leaders Only');
   String get onlyDepartmentLeadersAdmins =>
-      _localizedValues[locale.languageCode]?['onlyDepartmentLeadersAdmins'] ??
-      'Only department leaders and admins';
+      _g('onlyDepartmentLeadersAdmins', 'Only department leaders and admins');
   String get optOutNoNotifications =>
-      _localizedValues[locale.languageCode]?['optOutNoNotifications'] ??
-      'Opt-Out (No Notifications)';
+      _g('optOutNoNotifications', 'Opt-Out (No Notifications)');
   String get usersCanOptIn =>
-      _localizedValues[locale.languageCode]?['usersCanOptIn'] ??
-      'Users can opt-in individually';
-  String get note => _localizedValues[locale.languageCode]?['note'] ?? 'Note';
+      _g('usersCanOptIn', 'Users can opt-in individually');
+  String get note => _g('note', 'Note');
   String get saveSettings =>
-      _localizedValues[locale.languageCode]?['saveSettings'] ?? 'Save Settings';
+      _g('saveSettings', 'Save Settings');
   String get settingsSaved =>
-      _localizedValues[locale.languageCode]?['settingsSaved'] ??
-      'Settings saved successfully';
+      _g('settingsSaved', 'Settings saved successfully');
   String get errorSavingConfig =>
-      _localizedValues[locale.languageCode]?['errorSavingConfig'] ??
-      'Error saving config';
+      _g('errorSavingConfig', 'Error saving config');
   String get errorLoadingConfig =>
-      _localizedValues[locale.languageCode]?['errorLoadingConfig'] ??
-      'Error loading config';
+      _g('errorLoadingConfig', 'Error loading config');
   String get notificationsEnabled =>
-      _localizedValues[locale.languageCode]?['notificationsEnabled'] ??
-      'Notifications enabled';
+      _g('notificationsEnabled', 'Notifications enabled');
   String get notificationsDisabled =>
-      _localizedValues[locale.languageCode]?['notificationsDisabled'] ??
-      'Notifications disabled';
+      _g('notificationsDisabled', 'Notifications disabled');
   String get exportAllDataConfirm =>
-      _localizedValues[locale.languageCode]?['exportAllDataConfirm'] ??
-      'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?';
+      _g('exportAllDataConfirm', 'This will export all members, departments, classes, events, and tasks to a JSON file. You will be asked to select a save location. Continue?');
   String get syncUsersMembersConfirm =>
-      _localizedValues[locale.languageCode]?['syncUsersMembersConfirm'] ??
-      'This will:\n1. Create a member for every user\n2. Create a user (with default password "Password123") for every leader member\n\nLeaders will be required to change their password on first login.\n\nContinue?';
+      _g('syncUsersMembersConfirm', 'This will:\n1. Create a member for every user\n2. Create a user (with default password "Password123") for every leader member\n\nLeaders will be required to change their password on first login.\n\nContinue?');
   String get syncCompleted =>
-      _localizedValues[locale.languageCode]?['syncCompleted'] ??
-      'Sync completed!';
+      _g('syncCompleted', 'Sync completed!');
   String get usersToMembers =>
-      _localizedValues[locale.languageCode]?['usersToMembers'] ??
-      'Users → Members';
+      _g('usersToMembers', 'Users → Members');
   String get leadersToUsers =>
-      _localizedValues[locale.languageCode]?['leadersToUsers'] ??
-      'Leaders → Users';
+      _g('leadersToUsers', 'Leaders → Users');
   String get createdLabel =>
-      _localizedValues[locale.languageCode]?['createdLabel'] ?? 'created';
+      _g('createdLabel', 'created');
   String get skippedLabel =>
-      _localizedValues[locale.languageCode]?['skippedLabel'] ?? 'skipped';
+      _g('skippedLabel', 'skipped');
   String get errorsLabel =>
-      _localizedValues[locale.languageCode]?['errorsLabel'] ?? 'errors';
+      _g('errorsLabel', 'errors');
   String get importDataConfirm =>
-      _localizedValues[locale.languageCode]?['importDataConfirm'] ??
-      'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?';
+      _g('importDataConfirm', 'This will import data from a JSON file. Existing members with the same email will be skipped. Continue?');
   String get importCompleted =>
-      _localizedValues[locale.languageCode]?['importCompleted'] ??
-      'Import completed';
+      _g('importCompleted', 'Import completed');
   String get importedLabel =>
-      _localizedValues[locale.languageCode]?['importedLabel'] ?? 'Imported';
+      _g('importedLabel', 'Imported');
   String get notLoggedIn =>
-      _localizedValues[locale.languageCode]?['notLoggedIn'] ?? 'Not logged in';
+      _g('notLoggedIn', 'Not logged in');
   String get logoutFailed =>
-      _localizedValues[locale.languageCode]?['logoutFailed'] ?? 'Logout failed';
+      _g('logoutFailed', 'Logout failed');
   String get languageAndRegion =>
-      _localizedValues[locale.languageCode]?['languageAndRegion'] ??
-      'Language & Region';
+      _g('languageAndRegion', 'Language & Region');
   String get appearance =>
-      _localizedValues[locale.languageCode]?['appearance'] ?? 'Appearance';
+      _g('appearance', 'Appearance');
   String get dataManagement =>
-      _localizedValues[locale.languageCode]?['dataManagement'] ??
-      'Data Management';
+      _g('dataManagement', 'Data Management');
   String get about =>
-      _localizedValues[locale.languageCode]?['about'] ?? 'About';
+      _g('about', 'About');
   String get generateReportComprehensive =>
-      _localizedValues[locale.languageCode]?['generateReportComprehensive'] ??
-      'Generate comprehensive report for all users';
+      _g('generateReportComprehensive', 'Generate comprehensive report for all users');
   String get account =>
-      _localizedValues[locale.languageCode]?['account'] ?? 'Account';
+      _g('account', 'Account');
 
   // Events
   String get addEvent =>
-      _localizedValues[locale.languageCode]?['addEvent'] ?? 'Add Event';
+      _g('addEvent', 'Add Event');
   String get editEvent =>
-      _localizedValues[locale.languageCode]?['editEvent'] ?? 'Edit Event';
+      _g('editEvent', 'Edit Event');
   String get deleteEvent =>
-      _localizedValues[locale.languageCode]?['deleteEvent'] ?? 'Delete Event';
+      _g('deleteEvent', 'Delete Event');
   String get eventDeleted =>
-      _localizedValues[locale.languageCode]?['eventDeleted'] ??
-      'Event deleted successfully';
+      _g('eventDeleted', 'Event deleted successfully');
   String get errorDeletingEvent =>
-      _localizedValues[locale.languageCode]?['errorDeletingEvent'] ??
-      'Error deleting event';
+      _g('errorDeletingEvent', 'Error deleting event');
   String get deleteEventConfirm =>
-      _localizedValues[locale.languageCode]?['deleteEventConfirm'] ??
-      'Are you sure you want to delete "{title}"?';
+      _g('deleteEventConfirm', 'Are you sure you want to delete "{title}"?');
   String deleteEventConfirmWithTitle(String title) =>
       deleteEventConfirm.replaceAll('{title}', title);
   String get searchEvents =>
-      _localizedValues[locale.languageCode]?['searchEvents'] ??
-      'Search events...';
+      _g('searchEvents', 'Search events...');
   String get noEvents =>
-      _localizedValues[locale.languageCode]?['noEvents'] ?? 'No events yet';
+      _g('noEvents', 'No events yet');
   String get noEventsFound =>
-      _localizedValues[locale.languageCode]?['noEventsFound'] ??
-      'No events found matching your search';
+      _g('noEventsFound', 'No events found matching your search');
 
   // Church Attendance
   String get churchAttendance =>
-      _localizedValues[locale.languageCode]?['churchAttendance'] ??
-      'Church Attendance';
+      _g('churchAttendance', 'Church Attendance');
   String get sundaySchool =>
-      _localizedValues[locale.languageCode]?['sundaySchool'] ?? 'Sunday School';
+      _g('sundaySchool', 'Sunday School');
 
   /// Church attendance PDF — column / chart strings
   String get churchAttendanceReportPdfTitle =>
@@ -1198,55 +992,41 @@ class AppLocalizations {
           .replaceAll('{d}', '$pctDiligent')
           .replaceAll('{m}', '$pctModerate');
   String get attendanceReportFullName =>
-      _localizedValues[locale.languageCode]?['attendanceReportFullName'] ??
-      'Full name';
+      _g('attendanceReportFullName', 'Full name');
   String get attendanceReportOnsiteTotal =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnsiteTotal'] ??
-      'Onsite (total)';
+      _g('attendanceReportOnsiteTotal', 'Onsite (total)');
   String get attendanceReportOnlineTotal =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnlineTotal'] ??
-      'Online (total)';
+      _g('attendanceReportOnlineTotal', 'Online (total)');
   String get attendanceReportTotalPresent =>
-      _localizedValues[locale.languageCode]?['attendanceReportTotalPresent'] ??
-      'Total present';
+      _g('attendanceReportTotalPresent', 'Total present');
   String get attendanceReportObservation =>
-      _localizedValues[locale.languageCode]?['attendanceReportObservation'] ??
-      'Observation';
+      _g('attendanceReportObservation', 'Observation');
   String get attendanceReportSpecificObservations =>
       _localizedValues[locale
           .languageCode]?['attendanceReportSpecificObservations'] ??
       'Specific observations';
   String get attendanceReportPresentAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportPresentAbbr'] ??
-      'P';
+      _g('attendanceReportPresentAbbr', 'P');
   String get attendanceReportAbsentAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportAbsentAbbr'] ??
-      'A';
+      _g('attendanceReportAbsentAbbr', 'A');
   String get attendanceReportOnlineAbbr =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnlineAbbr'] ??
-      'O';
+      _g('attendanceReportOnlineAbbr', 'O');
   String get attendanceReportOnsite =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnsite'] ??
-      'Onsite';
+      _g('attendanceReportOnsite', 'Onsite');
   String get attendanceReportOnline =>
-      _localizedValues[locale.languageCode]?['attendanceReportOnline'] ??
-      'Online';
+      _g('attendanceReportOnline', 'Online');
   String get attendanceReportAbsent =>
-      _localizedValues[locale.languageCode]?['attendanceReportAbsent'] ??
-      'Absent';
+      _g('attendanceReportAbsent', 'Absent');
   String get attendanceReportVisitor =>
-      _localizedValues[locale.languageCode]?['attendanceReportVisitor'] ??
-      'Visitor';
+      _g('attendanceReportVisitor', 'Visitor');
   String get attendanceReportVisitorsSection =>
       _localizedValues[locale
           .languageCode]?['attendanceReportVisitorsSection'] ??
       'Visitors';
   String get attendanceReportChildTag =>
-      _localizedValues[locale.languageCode]?['attendanceReportChildTag'] ??
-      'Child';
+      _g('attendanceReportChildTag', 'Child');
   String get attendanceReportNewComerTag =>
-      _localizedValues[locale.languageCode]?['attendanceReportNewComerTag'] ??
-      'New comer';
+      _g('attendanceReportNewComerTag', 'New comer');
   String get attendanceReportMembersSection =>
       _localizedValues[locale
           .languageCode]?['attendanceReportMembersSection'] ??
@@ -1284,21 +1064,17 @@ class AppLocalizations {
           .languageCode]?['attendanceReportAllServicesMonthTotal'] ??
       'All services (month)';
   String get attendanceReportChartNoData =>
-      _localizedValues[locale.languageCode]?['attendanceReportChartNoData'] ??
-      'No data';
+      _g('attendanceReportChartNoData', 'No data');
   String get attendanceReportDiligent =>
-      _localizedValues[locale.languageCode]?['attendanceReportDiligent'] ??
-      'Diligent';
+      _g('attendanceReportDiligent', 'Diligent');
   String get attendanceReportModeratelyDiligent =>
       _localizedValues[locale
           .languageCode]?['attendanceReportModeratelyDiligent'] ??
       'Moderately diligent';
   String get attendanceReportNotDiligent =>
-      _localizedValues[locale.languageCode]?['attendanceReportNotDiligent'] ??
-      'Not diligent';
+      _g('attendanceReportNotDiligent', 'Not diligent');
   String get attendanceReportSundayShort =>
-      _localizedValues[locale.languageCode]?['attendanceReportSundayShort'] ??
-      'Sun';
+      _g('attendanceReportSundayShort', 'Sun');
   String get attendanceReportWednesdayShort =>
       _localizedValues[locale
           .languageCode]?['attendanceReportWednesdayShort'] ??
@@ -1326,63 +1102,48 @@ class AppLocalizations {
 
   // Reports
   String get trainingReport =>
-      _localizedValues[locale.languageCode]?['trainingReport'] ??
-      'Training Report';
+      _g('trainingReport', 'Training Report');
   String get memberReport =>
-      _localizedValues[locale.languageCode]?['memberReport'] ?? 'Member Report';
+      _g('memberReport', 'Member Report');
   String get updateReport =>
-      _localizedValues[locale.languageCode]?['updateReport'] ?? 'Update Report';
+      _g('updateReport', 'Update Report');
   String get createReportTitle =>
-      _localizedValues[locale.languageCode]?['createReportTitle'] ??
-      'Create Report';
+      _g('createReportTitle', 'Create Report');
   String get reportTitle =>
-      _localizedValues[locale.languageCode]?['reportTitle'] ?? 'Title';
+      _g('reportTitle', 'Title');
   String get reportTitleRequired =>
-      _localizedValues[locale.languageCode]?['reportTitleRequired'] ??
-      'Title is required';
+      _g('reportTitleRequired', 'Title is required');
   String get monthlyReport =>
-      _localizedValues[locale.languageCode]?['monthlyReport'] ??
-      'Monthly Report';
+      _g('monthlyReport', 'Monthly Report');
   String get yearlyReport =>
-      _localizedValues[locale.languageCode]?['yearlyReport'] ?? 'Yearly Report';
-  String get year => _localizedValues[locale.languageCode]?['year'] ?? 'Year';
+      _g('yearlyReport', 'Yearly Report');
+  String get year => _g('year', 'Year');
   String get month =>
-      _localizedValues[locale.languageCode]?['month'] ?? 'Month';
+      _g('month', 'Month');
   String get selectMonth =>
-      _localizedValues[locale.languageCode]?['selectMonth'] ?? 'Select month';
+      _g('selectMonth', 'Select month');
   String get pleaseSelectMonth =>
-      _localizedValues[locale.languageCode]?['pleaseSelectMonth'] ??
-      'Please select a month';
+      _g('pleaseSelectMonth', 'Please select a month');
   String get summaryReportGenerated =>
-      _localizedValues[locale.languageCode]?['summaryReportGenerated'] ??
-      'Summary report generated successfully';
+      _g('summaryReportGenerated', 'Summary report generated successfully');
   String get errorGeneratingSummaryReport =>
-      _localizedValues[locale.languageCode]?['errorGeneratingSummaryReport'] ??
-      'Error generating report';
+      _g('errorGeneratingSummaryReport', 'Error generating report');
   String get reportCreated =>
-      _localizedValues[locale.languageCode]?['reportCreated'] ??
-      'Report created successfully';
+      _g('reportCreated', 'Report created successfully');
   String get reportUpdated =>
-      _localizedValues[locale.languageCode]?['reportUpdated'] ??
-      'Report updated successfully';
+      _g('reportUpdated', 'Report updated successfully');
   String get errorCreatingReport =>
-      _localizedValues[locale.languageCode]?['errorCreatingReport'] ??
-      'Error creating report';
+      _g('errorCreatingReport', 'Error creating report');
   String get errorUpdatingReport =>
-      _localizedValues[locale.languageCode]?['errorUpdatingReport'] ??
-      'Error updating report';
+      _g('errorUpdatingReport', 'Error updating report');
   String get errorLoadingReport =>
-      _localizedValues[locale.languageCode]?['errorLoadingReport'] ??
-      'Error loading report';
+      _g('errorLoadingReport', 'Error loading report');
   String get errorLoadingData =>
-      _localizedValues[locale.languageCode]?['errorLoadingData'] ??
-      'Error loading data';
+      _g('errorLoadingData', 'Error loading data');
   String get failedToGetDepartment =>
-      _localizedValues[locale.languageCode]?['failedToGetDepartment'] ??
-      'Failed to get department';
+      _g('failedToGetDepartment', 'Failed to get department');
   String get reportGeneratedWithPath =>
-      _localizedValues[locale.languageCode]?['reportGeneratedWithPath'] ??
-      'Report generated successfully: {path}';
+      _g('reportGeneratedWithPath', 'Report generated successfully: {path}');
   String reportGeneratedWithPathString(String path) =>
       reportGeneratedWithPath.replaceAll('{path}', path);
 
@@ -1476,6 +1237,26 @@ class AppLocalizations {
       'Details': 'Détails',
       'Done': 'Terminé',
       'Drop tasks here': 'Déposez les tâches ici',
+      'Drag to another project': 'Glisser vers un autre projet',
+      'Could not move task: {error}':
+          'Impossible de déplacer la tâche : {error}',
+      'View details': 'Voir les détails',
+      'Delete task': 'Supprimer la tâche',
+      'Delete {count} tasks': 'Supprimer {count} tâches',
+      'Delete task?': 'Supprimer la tâche ?',
+      'Are you sure you want to delete "{title}"? This action cannot be undone.':
+          'Voulez-vous vraiment supprimer « {title} » ? Cette action est irréversible.',
+      'Task deleted': 'Tâche supprimée',
+      'Could not delete task: {error}':
+          'Impossible de supprimer la tâche : {error}',
+      'Delete {count} tasks?': 'Supprimer {count} tâches ?',
+      'This will permanently delete {count} selected tasks. This action cannot be undone.':
+          'Cela supprimera définitivement {count} tâches sélectionnées. Cette action est irréversible.',
+      'Delete all': 'Tout supprimer',
+      '{count} tasks deleted': '{count} tâches supprimées',
+      'Could not delete tasks: {error}':
+          'Impossible de supprimer les tâches : {error}',
+      '{count} selected': '{count} sélectionnée(s)',
       'Due date': 'Date limite',
       'Edit': 'Modifier',
       'Email': 'E-mail',
@@ -1610,9 +1391,40 @@ class AppLocalizations {
       'Admin': 'Admin',
       'Admin Panel': 'Panneau d\'administration',
       'All church services': 'Tous les cultes',
+      'Search by date...': 'Rechercher par date...',
+      'Search results': 'Résultats de la recherche',
+      'No matching services': 'Aucun culte ne correspond',
+      'Try another date or clear the search': 'Essayez une autre date ou effacez la recherche',
+      'Clear search': 'Effacer la recherche',
       'All members are already enrolled in this class': 'Tous les membres sont déjà inscrits à cette classe',
       'All potential listeners are already added': 'Tous les auditeurs potentiels sont déjà ajoutés',
       'Announcement created successfully': 'Annonce créée avec succès',
+      'Choose a conversation to start messaging':
+          'Choisissez une conversation pour commencer',
+      'Church-wide messages': 'Messages pour toute l\'église',
+      'Department chat': 'Discussion du département',
+      'Direct messages': 'Messages directs',
+      'Everyone': 'Tout le monde',
+      'Messages sent to specific members':
+          'Messages envoyés à des membres précis',
+      'No conversations found': 'Aucune conversation trouvée',
+      'No messages yet': 'Aucun message pour le moment',
+      'Search conversations...': 'Rechercher des conversations...',
+      'Select a conversation': 'Sélectionnez une conversation',
+      'Select recipients': 'Sélectionner des destinataires',
+      'Send': 'Envoyer',
+      'Send the first message': 'Envoyez le premier message',
+      'Today': 'Aujourd\'hui',
+      'Type a message...': 'Écrire un message...',
+      'You': 'Vous',
+      'Video call': 'Appel vidéo',
+      'Join video call': 'Rejoindre l\'appel vidéo',
+      'Start video call': 'Démarrer un appel vidéo',
+      'Video call in progress': 'Appel vidéo en cours',
+      'Open in browser': 'Ouvrir dans le navigateur',
+      'Could not start video call': 'Impossible de démarrer l\'appel vidéo',
+      'A video call started in {channel}. Tap Join video call to join.':
+          'Un appel vidéo a commencé dans {channel}. Appuyez sur Rejoindre l\'appel vidéo.',
       'Apply': 'Appliquer',
       'Are you sure you want to delete "{title}"?': 'Voulez-vous vraiment supprimer « {title} » ?',
       'Are you sure you want to delete this class? This will deactivate it.': 'Voulez-vous vraiment supprimer cette formation ? Elle sera désactivée.',
@@ -1626,6 +1438,7 @@ class AppLocalizations {
       'At least email or phone is required': 'Au moins un e-mail ou un téléphone est requis',
       'Attendance': 'Présence',
       'Attendance Details': 'Détails de présence',
+      'Attendance Records': 'Registre de présence',
       'Attendance Trend': 'Tendance de présence',
       'Attendance is tracked per session': 'La présence est suivie par session',
       'Attendance tracking coming soon': 'Suivi de présence bientôt disponible',
@@ -1725,12 +1538,10 @@ class AppLocalizations {
       'Error deleting class: \$e': 'Erreur lors de la suppression de la classe : \\\$e',
       'Error deleting event: \$e': 'Erreur lors de la suppression de l\'événement : \\\$e',
       'Error deleting report: \$e': 'Erreur lors de la suppression du rapport : \\\$e',
-      'Error deleting service: \$e': 'Erreur lors de la suppression du culte : \\\$e',
-      'Error deleting session: {error}': 'Erreur lors de la suppression de la session : {error}',
+            'Error deleting session: {error}': 'Erreur lors de la suppression de la session : {error}',
       'Error deleting teaching: {error}': 'Erreur lors de la suppression de l\'enseignement : {error}',
       'Error deleting visitor: \$e': 'Erreur lors de la suppression du visiteur : \$e',
-      'Error generating report: \$e': 'Erreur lors de la génération du rapport : \\\$e',
-      'Error generating sessions: \$e': 'Erreur lors de la génération des sessions : \\\$e',
+            'Error generating sessions: \$e': 'Erreur lors de la génération des sessions : \\\$e',
       'Error loading data: \$e': 'Erreur lors du chargement des données : \\\$e',
       'Error loading department: \$e': 'Erreur lors du chargement du département : \\\$e',
       'Error loading event: \$e': 'Erreur lors du chargement de l\'événement : \\\$e',
@@ -1741,8 +1552,7 @@ class AppLocalizations {
       'Error loading members: \$e': 'Erreur lors du chargement des membres : \\\$e',
       'Error loading registrations: \$e': 'Erreur lors du chargement des inscriptions : \\\$e',
       'Error loading report: \$e': 'Erreur lors du chargement du rapport : \\\$e',
-      'Error loading services: \$e': 'Erreur lors du chargement des cultes : \\\$e',
-      'Error loading sessions: \$e': 'Erreur lors du chargement des sessions : \\\$e',
+            'Error loading sessions: \$e': 'Erreur lors du chargement des sessions : \\\$e',
       'Error loading tasks': 'Erreur lors du chargement des tâches',
       'Error loading teaching: {error}': 'Erreur lors du chargement de l\'enseignement : {error}',
       'Error loading training: \$e': 'Erreur lors du chargement de la formation : \\\$e',
@@ -1859,8 +1669,7 @@ class AppLocalizations {
       'Overview': 'Aperçu',
       'PDF generated successfully': 'PDF généré avec succès',
       'PDF report saved successfully': 'Rapport PDF enregistré avec succès',
-      'Page \${currentPage + 1} of \${maxPage + 1}': 'Page \\\${currentPage + 1} sur \\\${maxPage + 1}',
-      'Password': 'Mot de passe',
+            'Password': 'Mot de passe',
       'Password Reset': 'Réinitialisation du mot de passe',
       'Password Reset Successful!': 'Réinitialisation du mot de passe réussie !',
       'Password changed successfully': 'Mot de passe modifié avec succès',
@@ -1911,8 +1720,7 @@ class AppLocalizations {
       'Report created successfully': 'Rapport créé avec succès',
       'Report deleted successfully': 'Rapport supprimé avec succès',
       'Report exported successfully': 'Rapport exporté avec succès',
-      'Report generated successfully: \$filePath': 'Rapport généré avec succès : \\\$filePath',
-      'Report updated successfully': 'Rapport mis à jour avec succès',
+            'Report updated successfully': 'Rapport mis à jour avec succès',
       'Required': 'Requis',
       'Required for job seeking and workers': 'Requis pour les demandeurs d\'emploi et les travailleurs',
       'Reset Password': 'Réinitialiser le mot de passe',
@@ -1982,11 +1790,11 @@ class AppLocalizations {
       'Task title is required': 'Le titre de la tâche est requis',
       'Teaching': 'Enseignement',
       'Teaching Details': 'Détails de l\'enseignement',
-      'This month': 'Ce mois',
-      'This will permanently remove all attendance records for {label}, including visitors logged for that service.': 'Cela supprimera définitivement toutes les présences pour {label}, y compris les visiteurs enregistrés pour ce service.',
+      'This month': 'Ce mois-ci',
+      'This will permanently remove all attendance records for {label}, including visitors logged for that service.': 'Cela supprimera définitivement toutes les présences pour {label}, y compris les visiteurs enregistrés pour ce culte.',
       'Title *': 'Titre *',
       'Title is required': 'Le titre est requis',
-      'To': 'To',
+      'To': 'Au',
       'Token is required': 'Le jeton est requis',
       'Total': 'Total',
       'Total Giving': 'Total des dons',
@@ -2034,7 +1842,216 @@ class AppLocalizations {
       '{count} member(s) selected': '{count} membre(s) sélectionné(s)',
       '{name} Reports': 'Rapports {name}',
       '—': '—',
-    },
+    
+      // Extra UI strings
+      'Manage preferences, data, and admin tools': 'Gérer les préférences, les données et les outils d\'administration',
+      'Receive push notifications': 'Recevoir des notifications push',
+      'Export all data to JSON file': 'Exporter toutes les données vers un fichier JSON',
+      'Import data from JSON file': 'Importer des données depuis un fichier JSON',
+      'Export members to CSV': 'Exporter les membres vers CSV',
+      'Create login accounts for members and manage their access': 'Créer des comptes de connexion pour les membres et gérer leur accès',
+      'Member Accounts': 'Comptes membres',
+      'Sign out of your account': 'Se déconnecter de votre compte',
+      'On': 'Activé',
+      'Off': 'Désactivé',
+      'Church Administration': 'Administration de l\'église',
+      'Manage Tasks': 'Gérer les tâches',
+      'Manage Projects': 'Gérer les projets',
+      'Manage Tags': 'Gérer les étiquettes',
+      'Create Task': 'Créer une tâche',
+      'Quick actions': 'Actions rapides',
+      'Service schedule': 'Planning des cultes',
+      'Church attendance': 'Présence aux cultes',
+      'Daily presence': 'Présence quotidienne',
+      'View all': 'Voir tout',
+      'Newcomers': 'Nouveaux venus',
+      'Manage church members, roles, and profiles': 'Gérer les membres, rôles et profils de l\'église',
+      'Organize teams, leaders, and ministry work': 'Organiser les équipes, les leaders et le travail ministériel',
+      'Check for updates': 'Vérifier les mises à jour',
+      'Download the latest release': 'Télécharger la dernière version',
+      'You are on the latest version.': 'Vous utilisez la dernière version.',
+      'Checking for updates...': 'Recherche de mises à jour...',
+      'Downloading… {percent}%': 'Téléchargement… {percent} %',
+      'Installing update...': 'Installation de la mise à jour...',
+      'Open install settings': 'Ouvrir les paramètres d\'installation',
+      'Allow installing apps from SysteMIC, then return to finish the update.':
+          'Autorisez l\'installation d\'applications depuis SysteMIC, puis revenez pour terminer la mise à jour.',
+      'Installer opened. Follow the prompts to finish.':
+          'Programme d\'installation ouvert. Suivez les instructions pour terminer.',
+      'Dismiss': 'Fermer',
+      'Update available': 'Mise à jour disponible',
+      'Update now': 'Mettre à jour',
+      'Refresh now': 'Actualiser maintenant',
+      'Later': 'Plus tard',
+      'What\'s new': 'Nouveautés',
+      'Downloading update...': 'Téléchargement de la mise à jour...',
+      'Downloading update ({version})...':
+          'Téléchargement de la mise à jour ({version})...',
+      'Refreshing app...': 'Actualisation de l\'application...',
+      'Update failed': 'Échec de la mise à jour',
+      'Downloading...': 'Téléchargement...',
+      'Refreshing...': 'Actualisation...',
+      'Update {version}': 'Mise à jour {version}',
+      'Update': 'Mettre à jour',
+      'Preferences': 'Préférences',
+      'Data & tools': 'Données et outils',
+      'Choose how SysteMIC looks and speaks.': 'Choisissez l\'apparence et la langue de SysteMIC.',
+      'Workspace tools': 'Outils de l\'espace de travail',
+      'Export, import, sync, and reports': 'Exporter, importer, synchroniser et rapports',
+      'Signed in as': 'Connecté en tant que',
+      'Configure birthday notification settings': 'Configurer les notifications d\'anniversaire',
+      'Create members for all users and users for all leaders': 'Créer des membres pour tous les utilisateurs et des utilisateurs pour tous les leaders',
+      'Generate comprehensive report for all users': 'Générer un rapport complet pour tous les utilisateurs',
+      'Define feature access for each leader': 'Définir l\'accès aux fonctionnalités pour chaque leader',
+      'Select Theme': 'Sélectionner le thème',
+      'No tasks in this department': 'Aucune tâche dans ce département',
+      'You can only create tasks for departments you lead': 'Vous ne pouvez créer des tâches que pour les départements que vous dirigez',
+      'A new version ({version}) is available.': 'Une nouvelle version ({version}) est disponible.',
+      'Update failed: {error}': 'Échec de la mise à jour : {error}',
+      'Weekly attendance': 'Présence hebdomadaire',
+      'Language': 'Langue',
+      'Light': 'Clair',
+      'Dark': 'Sombre',
+      'System Default': 'Par défaut du système',
+      'Account': 'Compte',
+      'App Version': 'Version de l\'application',
+      'English': 'English',
+      'Français': 'Français',
+      'Español': 'Español',
+      'No chart data': 'Aucune donnée de graphique',
+      'Not logged in': 'Non connecté',
+      'Theme': 'Thème',
+      'Enable Notifications': 'Activer les notifications',
+      'Birthday Notifications': 'Notifications d\'anniversaire',
+      'Export All Data': 'Exporter toutes les données',
+      'Import Data': 'Importer des données',
+      'Export Members': 'Exporter les membres',
+      'Sync Users & Members': 'Synchroniser utilisateurs et membres',
+      'Generate All Users Report': 'Générer le rapport de tous les utilisateurs',
+      'Leader Access Management': 'Gestion des accès leaders',
+      'Logout': 'Déconnexion',
+      'Settings': 'Paramètres',
+      'Page {current} of {total}': 'Page {current} sur {total}',
+      'Error loading services: {error}': 'Erreur lors du chargement des cultes : {error}',
+      'Error deleting service: {error}': 'Erreur lors de la suppression du culte : {error}',
+      'Error generating report: {error}': 'Erreur lors de la génération du rapport : {error}',
+      'Report generated successfully: {path}': 'Rapport généré avec succès : {path}',
+      '{count} member attended': '{count} membre présent',
+      '{count} members attended': '{count} membres présents',
+      ', {count} visitor': ', {count} visiteur',
+      ', {count} visitors': ', {count} visiteurs',
+      'Absent ({count})': 'Absents ({count})',
+      'Absent PDF generated successfully: {path}': 'PDF des absents généré avec succès : {path}',
+      'Absent people': 'Personnes absentes',
+      'Absent people ({count})': 'Personnes absentes ({count})',
+      'Adults': 'Adultes',
+      'Adults attended': 'Adultes présents',
+      'All ({count})': 'Tous ({count})',
+      'Are you sure you want to remove this attendance record?': 'Voulez-vous vraiment supprimer cet enregistrement de présence ?',
+      'Arrived late': 'Arrivé en retard',
+      'Attendance removed successfully': 'Présence supprimée avec succès',
+      'Attendance saved successfully': 'Présence enregistrée avec succès',
+      'Attendance updated successfully': 'Présence mise à jour avec succès',
+      'Attended in person': 'Présent en personne',
+      'Attended virtually': 'Présent en ligne',
+      'Attendees': 'Participants',
+      'Away': 'Absent(e)',
+      'Children': 'Enfants',
+      'Children ({count})': 'Enfants ({count})',
+      'Children attended': 'Enfants présents',
+      'Could not load visitors: {error}': 'Impossible de charger les visiteurs : {error}',
+      'Could not open WhatsApp. Make sure it is installed on this device.': 'Impossible d\'ouvrir WhatsApp. Vérifiez qu\'il est installé sur cet appareil.',
+      'Edit Attendance': 'Modifier la présence',
+      'Edit Attendance Type': 'Modifier le type de présence',
+      'Edit Visitor Attendance': 'Modifier la présence du visiteur',
+      'Edit attendance': 'Modifier la présence',
+      'Email: {email}': 'E-mail : {email}',
+      'Error adding visitor: {error}': 'Erreur lors de l\'ajout du visiteur : {error}',
+      'Error generating absent PDF: {error}': 'Erreur lors de la génération du PDF des absents : {error}',
+      'Error loading members: {error}': 'Erreur lors du chargement des membres : {error}',
+      'Error removing attendance: {error}': 'Erreur lors de la suppression de la présence : {error}',
+      'Error removing visitor: {error}': 'Erreur lors de la suppression du visiteur : {error}',
+      'Error saving attendance: {error}': 'Erreur lors de l\'enregistrement de la présence : {error}',
+      'Error saving observation: {error}': 'Erreur lors de l\'enregistrement de l\'observation : {error}',
+      'Error updating attendance: {error}': 'Erreur lors de la mise à jour de la présence : {error}',
+      'Error updating visitor: {error}': 'Erreur lors de la mise à jour du visiteur : {error}',
+      'Export PDF': 'Exporter le PDF',
+      'Export absent PDF': 'Exporter le PDF des absents',
+      'Filter attendees': 'Filtrer les participants',
+      'Filter:': 'Filtrer :',
+      'First name *': 'Prénom *',
+      'Last name *': 'Nom *',
+      'Logged: {datetime}': 'Enregistré : {datetime}',
+      'Members & Visitors': 'Membres et visiteurs',
+      'New comer': 'Nouveau venu',
+      'New comer children': 'Enfants nouveaux venus',
+      'New comer children attended': 'Enfants nouveaux venus présents',
+      'New comers': 'Nouveaux venus',
+      'New comers attended': 'Nouveaux venus présents',
+      'No absent people': 'Aucune personne absente',
+      'No active members found': 'Aucun membre actif trouvé',
+      'No attendance recorded for this service': 'Aucune présence enregistrée pour ce culte',
+      'No results found': 'Aucun résultat',
+      'Notes (optional)': 'Notes (facultatif)',
+      'Observation removed': 'Observation supprimée',
+      'Observation saved': 'Observation enregistrée',
+      'Online ({count})': 'En ligne ({count})',
+      'Online attendance': 'Présence en ligne',
+      'Onsite ({count})': 'Sur place ({count})',
+      'Onsite breakdown': 'Répartition sur place',
+      'Open WhatsApp': 'Ouvrir WhatsApp',
+      'Other visit date': 'Autre date de visite',
+      'Phone (optional)': 'Téléphone (facultatif)',
+      'Phone: {phone}': 'Téléphone : {phone}',
+      'Quick add': 'Ajout rapide',
+      'Remove Attendance': 'Supprimer la présence',
+      'Remove Visitor': 'Supprimer le visiteur',
+      'Remove attendance': 'Supprimer la présence',
+      'Remove note': 'Supprimer la note',
+      'Remove this visitor from today\'s visit log?': 'Retirer ce visiteur du journal de visite d\'aujourd\'hui ?',
+      'Remove visitor': 'Supprimer le visiteur',
+      'Save Attendance': 'Enregistrer la présence',
+      'Save attendance before exporting PDF': 'Enregistrez la présence avant d\'exporter le PDF',
+      'Save note': 'Enregistrer la note',
+      'Search members and visitors...': 'Rechercher des membres et visiteurs...',
+      'Search…': 'Rechercher…',
+      'Select Service Date': 'Sélectionner la date du culte',
+      'Service Date': 'Date du culte',
+      'Service Details': 'Détails du culte',
+      'Service note': 'Note du culte',
+      'Sick': 'Malade',
+      'Specific observation': 'Observation particulière',
+      'Summary': 'Résumé',
+      'Tap Edit to mark attendance or add visitors': 'Appuyez sur Modifier pour marquer les présences ou ajouter des visiteurs',
+      'Total (excluding online)': 'Total (hors en ligne)',
+      'Traveling': 'En voyage',
+      'Try adjusting search or filters': 'Essayez de modifier la recherche ou les filtres',
+      'Try adjusting your search': 'Essayez de modifier votre recherche',
+      'Visitor added': 'Visiteur ajouté',
+      'Visitor attendance updated': 'Présence du visiteur mise à jour',
+      'Visitor removed': 'Visiteur retiré',
+      'Visitors ({count})': 'Visiteurs ({count})',
+      'Visitors attended': 'Visiteurs présents',
+      'Was not present': 'N\'était pas présent',
+      'Write a note for this service…': 'Écrire une note pour ce culte…',
+      'onsite attendees': 'présents sur place',
+      'Onsite attendees': 'Présents sur place',
+      '{attended} attended, {absent} absent{visitors}': '{attended} présents, {absent} absents{visitors}',
+      '{count} left': '{count} restants',
+      'Account created': 'Compte créé',
+      'Add email for member': 'Ajouter un e-mail pour le membre',
+      'Save & create account': 'Enregistrer et créer le compte',
+      'member@example.com': 'membre@exemple.com',
+      'This member has no email. Enter one to create a login account.': 'Ce membre n\'a pas d\'e-mail. Saisissez-en un pour créer un compte.',
+      '{name} has no email. Enter one to create a login account.': '{name} n\'a pas d\'e-mail. Saisissez-en un pour créer un compte.',
+      'A login account was created for {name}.\n\nEmail: {email}\nDefault password: {password}\n\nThey must change their password on first login. An email with these credentials has been sent.': 'Un compte de connexion a été créé pour {name}.\n\nE-mail : {email}\nMot de passe par défaut : {password}\n\nIl devra changer son mot de passe à la première connexion. Un e-mail avec ces identifiants a été envoyé.',
+      'Task assigned, but login was not created (no email).': 'Tâche assignée, mais le compte n\'a pas été créé (pas d\'e-mail).',
+      'Task assigned, but login was not created: could not save email.': 'Tâche assignée, mais le compte n\'a pas été créé : impossible d\'enregistrer l\'e-mail.',
+      'Task assigned, but login was not created: {error}': 'Tâche assignée, mais le compte n\'a pas été créé : {error}',
+      'Could not create login account: member not found.': 'Impossible de créer le compte : membre introuvable.',
+      'Please enter a valid email address.': 'Veuillez saisir une adresse e-mail valide.',
+      'Email cannot be empty.': 'L\'e-mail ne peut pas être vide.',
+},
     'es': {
       'Just now': 'Justo ahora',
       'Yesterday': 'Ayer',
@@ -2124,6 +2141,26 @@ class AppLocalizations {
       'Details': 'Detalles',
       'Done': 'Hecho',
       'Drop tasks here': 'Suelta las tareas aquí',
+      'Drag to another project': 'Arrastrar a otro proyecto',
+      'Could not move task: {error}':
+          'No se pudo mover la tarea: {error}',
+      'View details': 'Ver detalles',
+      'Delete task': 'Eliminar tarea',
+      'Delete {count} tasks': 'Eliminar {count} tareas',
+      'Delete task?': '¿Eliminar tarea?',
+      'Are you sure you want to delete "{title}"? This action cannot be undone.':
+          '¿Seguro que deseas eliminar "{title}"? Esta acción no se puede deshacer.',
+      'Task deleted': 'Tarea eliminada',
+      'Could not delete task: {error}':
+          'No se pudo eliminar la tarea: {error}',
+      'Delete {count} tasks?': '¿Eliminar {count} tareas?',
+      'This will permanently delete {count} selected tasks. This action cannot be undone.':
+          'Esto eliminará permanentemente {count} tareas seleccionadas. Esta acción no se puede deshacer.',
+      'Delete all': 'Eliminar todo',
+      '{count} tasks deleted': '{count} tareas eliminadas',
+      'Could not delete tasks: {error}':
+          'No se pudieron eliminar las tareas: {error}',
+      '{count} selected': '{count} seleccionada(s)',
       'Due date': 'Fecha límite',
       'Edit': 'Editar',
       'Email': 'Correo electrónico',
@@ -2256,9 +2293,40 @@ class AppLocalizations {
       'Admin': 'Administrador',
       'Admin Panel': 'Panel de administración',
       'All church services': 'Todos los servicios de la iglesia',
+      'Search by date...': 'Buscar por fecha...',
+      'Search results': 'Resultados de búsqueda',
+      'No matching services': 'No hay cultos coincidentes',
+      'Try another date or clear the search': 'Prueba otra fecha o borra la búsqueda',
+      'Clear search': 'Borrar búsqueda',
       'All members are already enrolled in this class': 'Todos los miembros ya están inscritos en esta clase',
       'All potential listeners are already added': 'Todos los oyentes potenciales ya están agregados',
       'Announcement created successfully': 'Anuncio creado correctamente',
+      'Choose a conversation to start messaging':
+          'Elige una conversación para empezar',
+      'Church-wide messages': 'Mensajes para toda la iglesia',
+      'Department chat': 'Chat del departamento',
+      'Direct messages': 'Mensajes directos',
+      'Everyone': 'Todos',
+      'Messages sent to specific members':
+          'Mensajes enviados a miembros específicos',
+      'No conversations found': 'No se encontraron conversaciones',
+      'No messages yet': 'Aún no hay mensajes',
+      'Search conversations...': 'Buscar conversaciones...',
+      'Select a conversation': 'Selecciona una conversación',
+      'Select recipients': 'Seleccionar destinatarios',
+      'Send': 'Enviar',
+      'Send the first message': 'Envía el primer mensaje',
+      'Today': 'Hoy',
+      'Type a message...': 'Escribe un mensaje...',
+      'You': 'Tú',
+      'Video call': 'Videollamada',
+      'Join video call': 'Unirse a la videollamada',
+      'Start video call': 'Iniciar videollamada',
+      'Video call in progress': 'Videollamada en curso',
+      'Open in browser': 'Abrir en el navegador',
+      'Could not start video call': 'No se pudo iniciar la videollamada',
+      'A video call started in {channel}. Tap Join video call to join.':
+          'Se inició una videollamada en {channel}. Toca Unirse a la videollamada.',
       'Apply': 'Aplicar',
       'Are you sure you want to delete "{title}"?': '¿Está seguro de que desea eliminar « {title} »?',
       'Are you sure you want to delete this class? This will deactivate it.': '¿Está seguro de que desea eliminar esta formación? Se desactivará.',
@@ -2272,6 +2340,7 @@ class AppLocalizations {
       'At least email or phone is required': 'Se requiere al menos un correo electrónico o un teléfono',
       'Attendance': 'Asistencia',
       'Attendance Details': 'Detalles de asistencia',
+      'Attendance Records': 'Registro de presencia',
       'Attendance Trend': 'Tendencia de asistencia',
       'Attendance is tracked per session': 'La asistencia se registra por sesión',
       'Attendance tracking coming soon': 'Seguimiento de asistencia próximamente',
@@ -2371,12 +2440,10 @@ class AppLocalizations {
       'Error deleting class: \$e': 'Error al eliminar la clase: \\\$e',
       'Error deleting event: \$e': 'Error al eliminar el evento: \\\$e',
       'Error deleting report: \$e': 'Error al eliminar el informe: \\\$e',
-      'Error deleting service: \$e': 'Error al eliminar el servicio: \\\$e',
-      'Error deleting session: {error}': 'Error al eliminar sesión: {error}',
+            'Error deleting session: {error}': 'Error al eliminar sesión: {error}',
       'Error deleting teaching: {error}': 'Error al eliminar enseñanza: {error}',
       'Error deleting visitor: \$e': 'Error al eliminar visitante: \$e',
-      'Error generating report: \$e': 'Error al generar el informe: \\\$e',
-      'Error generating sessions: \$e': 'Error al generar las sesiones: \\\$e',
+            'Error generating sessions: \$e': 'Error al generar las sesiones: \\\$e',
       'Error loading data: \$e': 'Error al cargar los datos: \\\$e',
       'Error loading department: \$e': 'Error al cargar el departamento: \\\$e',
       'Error loading event: \$e': 'Error al cargar el evento: \\\$e',
@@ -2387,8 +2454,7 @@ class AppLocalizations {
       'Error loading members: \$e': 'Error al cargar los miembros: \\\$e',
       'Error loading registrations: \$e': 'Error al cargar las inscripciones: \\\$e',
       'Error loading report: \$e': 'Error al cargar el informe: \\\$e',
-      'Error loading services: \$e': 'Error al cargar los servicios: \\\$e',
-      'Error loading sessions: \$e': 'Error al cargar las sesiones: \\\$e',
+            'Error loading sessions: \$e': 'Error al cargar las sesiones: \\\$e',
       'Error loading tasks': 'Error al cargar las tareas',
       'Error loading teaching: {error}': 'Error al cargar enseñanza: {error}',
       'Error loading training: \$e': 'Error al cargar la formación: \\\$e',
@@ -2463,7 +2529,7 @@ class AppLocalizations {
       'Marital Status': 'Estado civil',
       'Mark Attendance': 'Registrar asistencia',
       'Mark New Attendance': 'Registrar nueva asistencia',
-      'Mark attendance for a new church service': 'Registrar asistencia para un nuevo servicio de la iglesia',
+      'Mark attendance for a new church service': 'Registrar la asistencia de un nuevo culto',
       'Married': 'Casado/a',
       'Member': 'Miembro',
       'Member Report': 'Informe de miembro',
@@ -2505,8 +2571,7 @@ class AppLocalizations {
       'Overview': 'Resumen',
       'PDF generated successfully': 'PDF generado correctamente',
       'PDF report saved successfully': 'Informe PDF guardado correctamente',
-      'Page \${currentPage + 1} of \${maxPage + 1}': 'Página \\\${currentPage + 1} de \\\${maxPage + 1}',
-      'Password': 'Contraseña',
+            'Password': 'Contraseña',
       'Password Reset': 'Restablecimiento de contraseña',
       'Password Reset Successful!': '¡Restablecimiento de contraseña exitoso!',
       'Password changed successfully': 'Contraseña cambiada correctamente',
@@ -2557,8 +2622,7 @@ class AppLocalizations {
       'Report created successfully': 'Informe creado correctamente',
       'Report deleted successfully': 'Informe eliminado correctamente',
       'Report exported successfully': 'Informe exportado correctamente',
-      'Report generated successfully: \$filePath': 'Informe generado correctamente: \\\$filePath',
-      'Report updated successfully': 'Informe actualizado correctamente',
+            'Report updated successfully': 'Informe actualizado correctamente',
       'Required': 'Obligatorio',
       'Required for job seeking and workers': 'Requerido para quienes buscan empleo y trabajadores',
       'Reset Password': 'Restablecer contraseña',
@@ -2629,10 +2693,10 @@ class AppLocalizations {
       'Teaching': 'Enseñanza',
       'Teaching Details': 'Detalles de la enseñanza',
       'This month': 'Este mes',
-      'This will permanently remove all attendance records for {label}, including visitors logged for that service.': 'Esto eliminará permanentemente todas las asistencias de {label}, incluidos los visitantes registrados en ese servicio.',
+      'This will permanently remove all attendance records for {label}, including visitors logged for that service.': 'Esto eliminará permanentemente todos los registros de asistencia de {label}, incluidos los visitantes registrados para ese culto.',
       'Title *': 'Título *',
       'Title is required': 'El título es obligatorio',
-      'To': 'To',
+      'To': 'Hasta',
       'Token is required': 'El token es obligatorio',
       'Total': 'Total',
       'Total Giving': 'Total de ofrendas',
@@ -2680,7 +2744,216 @@ class AppLocalizations {
       '{count} member(s) selected': '{count} miembro(s) seleccionado(s)',
       '{name} Reports': 'Informes {name}',
       '—': '—',
-    },
+    
+      // Extra UI strings
+      'Manage preferences, data, and admin tools': 'Administrar preferencias, datos y herramientas de administración',
+      'Receive push notifications': 'Recibir notificaciones push',
+      'Export all data to JSON file': 'Exportar todos los datos a un archivo JSON',
+      'Import data from JSON file': 'Importar datos desde un archivo JSON',
+      'Export members to CSV': 'Exportar miembros a CSV',
+      'Create login accounts for members and manage their access': 'Crear cuentas de acceso para miembros y gestionar su acceso',
+      'Member Accounts': 'Cuentas de miembros',
+      'Sign out of your account': 'Cerrar sesión de su cuenta',
+      'On': 'Activado',
+      'Off': 'Desactivado',
+      'Church Administration': 'Administración de la iglesia',
+      'Manage Tasks': 'Gestionar tareas',
+      'Manage Projects': 'Gestionar proyectos',
+      'Manage Tags': 'Gestionar etiquetas',
+      'Create Task': 'Crear tarea',
+      'Quick actions': 'Acciones rápidas',
+      'Service schedule': 'Horario de cultes',
+      'Church attendance': 'Asistencia a cultos',
+      'Daily presence': 'Presencia diaria',
+      'View all': 'Ver todo',
+      'Newcomers': 'Recién llegados',
+      'Manage church members, roles, and profiles': 'Gestionar miembros, roles y perfiles de la iglesia',
+      'Organize teams, leaders, and ministry work': 'Organizar equipos, líderes y trabajo ministerial',
+      'Check for updates': 'Buscar actualizaciones',
+      'Download the latest release': 'Descargar la última versión',
+      'You are on the latest version.': 'Está en la última versión.',
+      'Checking for updates...': 'Buscando actualizaciones...',
+      'Downloading… {percent}%': 'Descargando… {percent} %',
+      'Installing update...': 'Instalando actualización...',
+      'Open install settings': 'Abrir ajustes de instalación',
+      'Allow installing apps from SysteMIC, then return to finish the update.':
+          'Permita instalar aplicaciones desde SysteMIC y vuelva para terminar la actualización.',
+      'Installer opened. Follow the prompts to finish.':
+          'Se abrió el instalador. Siga las instrucciones para terminar.',
+      'Dismiss': 'Cerrar',
+      'Update available': 'Actualización disponible',
+      'Update now': 'Actualizar ahora',
+      'Refresh now': 'Actualizar ahora',
+      'Later': 'Más tarde',
+      'What\'s new': 'Novedades',
+      'Downloading update...': 'Descargando actualización...',
+      'Downloading update ({version})...':
+          'Descargando actualización ({version})...',
+      'Refreshing app...': 'Actualizando la aplicación...',
+      'Update failed': 'Error de actualización',
+      'Downloading...': 'Descargando...',
+      'Refreshing...': 'Actualizando...',
+      'Update {version}': 'Actualización {version}',
+      'Update': 'Actualizar',
+      'Preferences': 'Preferencias',
+      'Data & tools': 'Datos y herramientas',
+      'Choose how SysteMIC looks and speaks.': 'Elija el aspecto y el idioma de SysteMIC.',
+      'Workspace tools': 'Herramientas del espacio de trabajo',
+      'Export, import, sync, and reports': 'Exportar, importar, sincronizar e informes',
+      'Signed in as': 'Sesión iniciada como',
+      'Configure birthday notification settings': 'Configurar notificaciones de cumpleaños',
+      'Create members for all users and users for all leaders': 'Crear miembros para todos los usuarios y usuarios para todos los líderes',
+      'Generate comprehensive report for all users': 'Generar un informe completo para todos los usuarios',
+      'Define feature access for each leader': 'Definir el acceso a funciones para cada líder',
+      'Select Theme': 'Seleccionar tema',
+      'No tasks in this department': 'No hay tareas en este departamento',
+      'You can only create tasks for departments you lead': 'Solo puede crear tareas para los departamentos que dirige',
+      'A new version ({version}) is available.': 'Hay una nueva versión ({version}) disponible.',
+      'Update failed: {error}': 'Error de actualización: {error}',
+      'Weekly attendance': 'Asistencia semanal',
+      'Language': 'Idioma',
+      'Light': 'Claro',
+      'Dark': 'Oscuro',
+      'System Default': 'Predeterminado del sistema',
+      'Account': 'Cuenta',
+      'App Version': 'Versión de la aplicación',
+      'English': 'English',
+      'Français': 'Français',
+      'Español': 'Español',
+      'No chart data': 'Sin datos del gráfico',
+      'Not logged in': 'No ha iniciado sesión',
+      'Theme': 'Tema',
+      'Enable Notifications': 'Activar notificaciones',
+      'Birthday Notifications': 'Notificaciones de cumpleaños',
+      'Export All Data': 'Exportar todos los datos',
+      'Import Data': 'Importar datos',
+      'Export Members': 'Exportar miembros',
+      'Sync Users & Members': 'Sincronizar usuarios y miembros',
+      'Generate All Users Report': 'Generar informe de todos los usuarios',
+      'Leader Access Management': 'Gestión de acceso de líderes',
+      'Logout': 'Cerrar sesión',
+      'Settings': 'Configuración',
+      'Page {current} of {total}': 'Página {current} de {total}',
+      'Error loading services: {error}': 'Error al cargar los cultos: {error}',
+      'Error deleting service: {error}': 'Error al eliminar el culto: {error}',
+      'Error generating report: {error}': 'Error al generar el informe: {error}',
+      'Report generated successfully: {path}': 'Informe generado correctamente: {path}',
+      '{count} member attended': '{count} miembro presente',
+      '{count} members attended': '{count} miembros presentes',
+      ', {count} visitor': ', {count} visitante',
+      ', {count} visitors': ', {count} visitantes',
+      'Absent ({count})': 'Ausentes ({count})',
+      'Absent PDF generated successfully: {path}': 'PDF de ausentes generado correctamente: {path}',
+      'Absent people': 'Personas ausentes',
+      'Absent people ({count})': 'Personas ausentes ({count})',
+      'Adults': 'Adultos',
+      'Adults attended': 'Adultos presentes',
+      'All ({count})': 'Todos ({count})',
+      'Are you sure you want to remove this attendance record?': '¿Seguro que desea eliminar este registro de asistencia?',
+      'Arrived late': 'Llegó tarde',
+      'Attendance removed successfully': 'Asistencia eliminada correctamente',
+      'Attendance saved successfully': 'Asistencia guardada correctamente',
+      'Attendance updated successfully': 'Asistencia actualizada correctamente',
+      'Attended in person': 'Presente en persona',
+      'Attended virtually': 'Presente en línea',
+      'Attendees': 'Asistentes',
+      'Away': 'Ausente',
+      'Children': 'Niños',
+      'Children ({count})': 'Niños ({count})',
+      'Children attended': 'Niños presentes',
+      'Could not load visitors: {error}': 'No se pudieron cargar los visitantes: {error}',
+      'Could not open WhatsApp. Make sure it is installed on this device.': 'No se pudo abrir WhatsApp. Asegúrese de que esté instalado en este dispositivo.',
+      'Edit Attendance': 'Editar asistencia',
+      'Edit Attendance Type': 'Editar tipo de asistencia',
+      'Edit Visitor Attendance': 'Editar asistencia del visitante',
+      'Edit attendance': 'Editar asistencia',
+      'Email: {email}': 'Correo: {email}',
+      'Error adding visitor: {error}': 'Error al agregar el visitante: {error}',
+      'Error generating absent PDF: {error}': 'Error al generar el PDF de ausentes: {error}',
+      'Error loading members: {error}': 'Error al cargar los miembros: {error}',
+      'Error removing attendance: {error}': 'Error al eliminar la asistencia: {error}',
+      'Error removing visitor: {error}': 'Error al eliminar el visitante: {error}',
+      'Error saving attendance: {error}': 'Error al guardar la asistencia: {error}',
+      'Error saving observation: {error}': 'Error al guardar la observación: {error}',
+      'Error updating attendance: {error}': 'Error al actualizar la asistencia: {error}',
+      'Error updating visitor: {error}': 'Error al actualizar el visitante: {error}',
+      'Export PDF': 'Exportar PDF',
+      'Export absent PDF': 'Exportar PDF de ausentes',
+      'Filter attendees': 'Filtrar asistentes',
+      'Filter:': 'Filtro:',
+      'First name *': 'Nombre *',
+      'Last name *': 'Apellido *',
+      'Logged: {datetime}': 'Registrado: {datetime}',
+      'Members & Visitors': 'Miembros y visitantes',
+      'New comer': 'Recién llegado',
+      'New comer children': 'Niños recién llegados',
+      'New comer children attended': 'Niños recién llegados presentes',
+      'New comers': 'Recién llegados',
+      'New comers attended': 'Recién llegados presentes',
+      'No absent people': 'No hay personas ausentes',
+      'No active members found': 'No se encontraron miembros activos',
+      'No attendance recorded for this service': 'No hay asistencia registrada para este culto',
+      'No results found': 'No se encontraron resultados',
+      'Notes (optional)': 'Notas (opcional)',
+      'Observation removed': 'Observación eliminada',
+      'Observation saved': 'Observación guardada',
+      'Online ({count})': 'En línea ({count})',
+      'Online attendance': 'Asistencia en línea',
+      'Onsite ({count})': 'Presencial ({count})',
+      'Onsite breakdown': 'Desglose presencial',
+      'Open WhatsApp': 'Abrir WhatsApp',
+      'Other visit date': 'Otra fecha de visita',
+      'Phone (optional)': 'Teléfono (opcional)',
+      'Phone: {phone}': 'Teléfono: {phone}',
+      'Quick add': 'Añadir rápido',
+      'Remove Attendance': 'Eliminar asistencia',
+      'Remove Visitor': 'Eliminar visitante',
+      'Remove attendance': 'Eliminar asistencia',
+      'Remove note': 'Eliminar nota',
+      'Remove this visitor from today\'s visit log?': '¿Eliminar este visitante del registro de visitas de hoy?',
+      'Remove visitor': 'Eliminar visitante',
+      'Save Attendance': 'Guardar asistencia',
+      'Save attendance before exporting PDF': 'Guarde la asistencia antes de exportar el PDF',
+      'Save note': 'Guardar nota',
+      'Search members and visitors...': 'Buscar miembros y visitantes...',
+      'Search…': 'Buscar…',
+      'Select Service Date': 'Seleccionar fecha del culto',
+      'Service Date': 'Fecha del culto',
+      'Service Details': 'Detalles del culto',
+      'Service note': 'Nota del culto',
+      'Sick': 'Enfermo',
+      'Specific observation': 'Observación específica',
+      'Summary': 'Resumen',
+      'Tap Edit to mark attendance or add visitors': 'Toque Editar para marcar asistencia o agregar visitantes',
+      'Total (excluding online)': 'Total (sin en línea)',
+      'Traveling': 'De viaje',
+      'Try adjusting search or filters': 'Intente ajustar la búsqueda o los filtros',
+      'Try adjusting your search': 'Intente ajustar su búsqueda',
+      'Visitor added': 'Visitante agregado',
+      'Visitor attendance updated': 'Asistencia del visitante actualizada',
+      'Visitor removed': 'Visitante eliminado',
+      'Visitors ({count})': 'Visitantes ({count})',
+      'Visitors attended': 'Visitantes presentes',
+      'Was not present': 'No estuvo presente',
+      'Write a note for this service…': 'Escriba una nota para este culto…',
+      'onsite attendees': 'asistentes presenciales',
+      'Onsite attendees': 'Asistentes presenciales',
+      '{attended} attended, {absent} absent{visitors}': '{attended} presentes, {absent} ausentes{visitors}',
+      '{count} left': '{count} restantes',
+      'Account created': 'Cuenta creada',
+      'Add email for member': 'Agregar correo para el miembro',
+      'Save & create account': 'Guardar y crear cuenta',
+      'member@example.com': 'miembro@ejemplo.com',
+      'This member has no email. Enter one to create a login account.': 'Este miembro no tiene correo. Ingrese uno para crear una cuenta.',
+      '{name} has no email. Enter one to create a login account.': '{name} no tiene correo. Ingrese uno para crear una cuenta.',
+      'A login account was created for {name}.\n\nEmail: {email}\nDefault password: {password}\n\nThey must change their password on first login. An email with these credentials has been sent.': 'Se creó una cuenta de acceso para {name}.\n\nCorreo: {email}\nContraseña predeterminada: {password}\n\nDeberá cambiar la contraseña en el primer inicio de sesión. Se envió un correo con estas credenciales.',
+      'Task assigned, but login was not created (no email).': 'Tarea asignada, pero no se creó el acceso (sin correo).',
+      'Task assigned, but login was not created: could not save email.': 'Tarea asignada, pero no se creó el acceso: no se pudo guardar el correo.',
+      'Task assigned, but login was not created: {error}': 'Tarea asignada, pero no se creó el acceso: {error}',
+      'Could not create login account: member not found.': 'No se pudo crear la cuenta: miembro no encontrado.',
+      'Please enter a valid email address.': 'Introduzca una dirección de correo válida.',
+      'Email cannot be empty.': 'El correo no puede estar vacío.',
+},
   };
 
   static const Map<String, Map<String, String>> _fallbackPhraseReplacements = {
@@ -3858,7 +4131,21 @@ class AppLocalizations {
       'errorLoadingData': 'Error al cargar datos',
       'failedToGetDepartment': 'Error al obtener departamento',
       'reportGeneratedWithPath': 'Reporte generado exitosamente: {path}',
-    },
+    
+      // Filled missing Spanish keys
+      'tasks': 'Tareas',
+      'departments': 'Departamentos',
+      'notifications': 'Notificaciones',
+      'finance': 'Finanzas',
+      'reports': 'Informes',
+      'chat': 'Chat',
+      'birthdays': 'Cumpleaños',
+      'classes': 'Formaciones',
+      'quickActions': 'Acciones rápidas',
+      'account': 'Cuenta',
+      'other': 'Otros',
+      'member': 'Miembro',
+},
     'fr': {
       'appName': 'SysteMIC',
       'welcome': 'Bienvenue',
@@ -4377,7 +4664,8 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) {
-    return AppLocalizations.supportedLocales.contains(locale);
+    return AppLocalizations.supportedLocales
+        .any((supported) => supported.languageCode == locale.languageCode);
   }
 
   @override
@@ -4390,7 +4678,9 @@ class _AppLocalizationsDelegate
 }
 
 extension AppLocalizationsContext on BuildContext {
-  AppLocalizations get l10n => AppLocalizations.of(this)!;
+  AppLocalizations get l10n => AppLocalizations.resolvedOf(this);
+
+  Locale get appLocale => l10n.locale;
 
   String tr(String fallback, [Map<String, Object?> params = const {}]) {
     return l10n.translate(fallback, params);

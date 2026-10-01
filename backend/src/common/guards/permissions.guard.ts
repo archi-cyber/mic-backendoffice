@@ -12,6 +12,8 @@ import {
   type RequiredPermission,
 } from '../decorators/permission.decorator';
 import {
+  FEATURES,
+  isLeader,
   isPrivilegedRole,
   type AuthenticatedUser,
   type PermissionAction,
@@ -60,6 +62,18 @@ export class PermissionsGuard implements CanActivate {
     // granulaires : leur accorder des droits ligne à ligne serait redondant et
     // créerait un risque de les enfermer hors de leur propre application.
     if (isPrivilegedRole(user.role)) {
+      return true;
+    }
+
+    // Les responsables et adjoints de département consultent, créent et
+    // modifient les tâches sans permission explicite (mic_backoffice v1.0.7).
+    // La suppression obéit à des règles par tâche, appliquées par
+    // `TasksService.assertCanDelete`.
+    if (
+      required.feature === FEATURES.tasks &&
+      required.action !== 'delete' &&
+      isLeader(user)
+    ) {
       return true;
     }
 

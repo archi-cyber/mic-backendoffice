@@ -141,10 +141,12 @@ class TeachingService {
   ///
   /// Utile si la feuille de présence a été complétée après la création de
   /// l'enseignement.
-  static Future<Map<String, dynamic>> syncListenersFromAttendance(
+  ///
+  /// Renvoie le nombre d'auditeurs ajoutés.
+  static Future<int> syncListenersFromAttendance(
     String teachingId,
   ) async {
     final data = await _client.post('/teachings/$teachingId/listeners/sync');
-    return (data as Map).cast<String, dynamic>();
+    return ((data as Map)['added'] as num?)?.toInt() ?? 0;
   }
 }

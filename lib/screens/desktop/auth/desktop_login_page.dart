@@ -5,7 +5,6 @@ import '../../../core/theme/mic_theme.dart';
 import '../../../core/constants/app_dimensions.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../../core/utils/error_message_helper.dart';
-import '../../../core/utils/phone_number_utils.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../widgets/app_logo.dart';
@@ -39,7 +38,7 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final success = await authProvider.login(
-      PhoneNumberUtils.normalizeLoginIdentifier(_emailController.text.trim()),
+      _emailController.text.trim(),
       _passwordController.text,
     );
 
@@ -173,12 +172,6 @@ class _DesktopLoginPageState extends State<DesktopLoginPage> {
                         : Text(localizations?.signIn ?? 'Sign In'),
                   ),
                   SizedBox(height: AppDimensions.spacingMD),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pushNamed(RouteNames.desktopSignup);
-                    },
-                    child: Text(context.tr('Create an account')),
-                  ),
                 ],
               ),
             ),

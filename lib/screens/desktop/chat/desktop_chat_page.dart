@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../chat/chat_page.dart';
 
-/// Desktop/Web chat. Uses same [ChatPage] and services.
+/// Desktop/Web chat. Uses the same messaging [ChatPage] as mobile.
 class DesktopChatPage extends StatelessWidget {
   DesktopChatPage({super.key});
 

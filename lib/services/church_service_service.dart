@@ -33,6 +33,19 @@ class ChurchServiceService {
     return (data as Map).cast<String, dynamic>();
   }
 
+  /// Nom par défaut d'un culte créé à partir de sa seule date.
+  static const String defaultServiceName = 'Church service';
+
+  /// Premier culte existant à [serviceDate], ou un nouveau culte du nom par
+  /// défaut s'il n'y en a aucun — le pointage est indexé par date.
+  static Future<Map<String, dynamic>> findOrCreateForDate(
+    DateTime serviceDate,
+  ) async {
+    final existing = await getServicesForDate(serviceDate);
+    if (existing.isNotEmpty) return existing.first;
+    return findOrCreate(serviceDate: serviceDate, name: defaultServiceName);
+  }
+
   /// Retrouve un culte existant, ou le crée.
   ///
   /// Évite un doublon quand deux responsables ouvrent l'écran de pointage en

@@ -92,6 +92,18 @@ class OfflineCache {
     }
   }
 
+  /// Supprime les entrées dont la clé commence par [keyPrefix].
+  Future<void> removeWhere(String keyPrefix) async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs
+        .getKeys()
+        .where((k) => k.startsWith('$_prefix$keyPrefix'))
+        .toList();
+    for (final key in keys) {
+      await prefs.remove(key);
+    }
+  }
+
   /// Vide le cache — à la déconnexion.
   ///
   /// Indispensable : les données d'un utilisateur ne doivent pas rester

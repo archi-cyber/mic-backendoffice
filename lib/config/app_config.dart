@@ -63,6 +63,22 @@ class AppConfig {
   /// Pays par défaut pour les numéros de téléphone sans indicatif.
   static const String defaultPhoneCountryIso = 'CM';
 
+  // ---------------------------------------------------------------------------
+  // Mises à jour OTA
+  // ---------------------------------------------------------------------------
+
+  /// Manifeste de la dernière version, servi par l'API (`version.json`).
+  static String get updateManifestUrl => '$apiUrl/app-updates/latest';
+
+  /// URL de téléchargement d'un fichier de la dernière version.
+  static String releaseAssetUrl(String assetFileName) =>
+      '$apiUrl/app-updates/latest/assets/${Uri.encodeComponent(assetFileName)}';
+
+  /// Clé publique VAPID pour les notifications push web (Firebase Console →
+  /// Cloud Messaging → Configuration web). Publique par nature.
+  static const String fcmWebVapidKey =
+      'BHPwBpiHn1sIfvL6SV90kvHTSvuhPjsw0nEXHOi_tdkX2Pt1ZPEeGa6vgB3RNkSc9gmUSl5XGwMBbhPS_EBX-kA';
+
   /// Active les traces réseau détaillées.
   ///
   /// `kDebugMode` ne suffit pas : on veut pouvoir couper ces traces même en

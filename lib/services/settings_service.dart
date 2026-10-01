@@ -1,5 +1,7 @@
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Service for managing app settings and preferences
 class SettingsService {
@@ -7,12 +9,49 @@ class SettingsService {
   static const String _keyThemeMode = 'app_theme_mode';
   static const String _keyNotificationsEnabled = 'notifications_enabled';
 
+  static const Locale defaultLocale = Locale('en');
+  static const List<String> supportedLanguageCodes = ['en', 'fr', 'es'];
+
+  /// Maps a stored or device locale to a language the app actually supports.
+  static Locale resolveLocale(Locale? locale) {
+    final code = locale?.languageCode;
+    if (code != null && supportedLanguageCodes.contains(code)) {
+      return Locale(code);
+    }
+    return defaultLocale;
+  }
+
+  /// Apply [locale] to intl/DateFormat so dates match Settings, not the OS.
+  static Future<void> applyToIntl(Locale locale) async {
+    final resolved = resolveLocale(locale);
+    Intl.defaultLocale = resolved.languageCode;
+    try {
+      await initializeDateFormatting(resolved.languageCode);
+    } catch (_) {
+      // Date symbols may already be loaded.
+    }
+  }
+
+  /// Load the Settings language, persist a default if none is saved, and
+  /// apply it before the first frame.
+  static Future<Locale> loadResolvedLocale() async {
+    final saved = await getLocale();
+    final resolved = resolveLocale(saved);
+    if (saved == null || saved.languageCode != resolved.languageCode) {
+      try {
+        await setLocale(resolved);
+      } catch (_) {}
+    }
+    await applyToIntl(resolved);
+    return resolved;
+  }
+
   /// Get saved locale
   static Future<Locale?> getLocale() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final localeString = prefs.getString(_keyLocale);
-      if (localeString != null) {
+      if (localeString != null && localeString.isNotEmpty) {
         return Locale(localeString);
       }
     } catch (e) {
@@ -25,7 +64,10 @@ class SettingsService {
   static Future<void> setLocale(Locale locale) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_keyLocale, locale.languageCode);
+      await prefs.setString(
+        _keyLocale,
+        resolveLocale(locale).languageCode,
+      );
     } catch (e) {
       throw Exception('Failed to save locale: $e');
     }

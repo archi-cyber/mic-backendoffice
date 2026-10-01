@@ -6,13 +6,18 @@ import '../../core/constants/app_dimensions.dart';
 import '../../core/theme/mic_theme.dart';
 import '../../core/routes/route_names.dart';
 import '../../core/localization/app_localizations.dart';
+import '../../core/platform/platform_capabilities.dart';
+import '../../config/app_config.dart';
 import '../desktop/desktop_shell_scope.dart';
 import '../../services/data_export_service.dart';
+import '../../services/update_service.dart';
+import '../../widgets/update_dialog.dart';
 import '../../services/data_import_service.dart';
 import '../../services/user_member_sync_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/role_service.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/app_update_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/desktop/desktop_ui.dart';
 
@@ -29,11 +34,166 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool _isAdmin = false;
+  String _appVersionLabel = '…';
 
   @override
   void initState() {
     super.initState();
     _checkAdminStatus();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final label = await UpdateService.getCurrentVersionLabel();
+      if (mounted) setState(() => _appVersionLabel = label);
+    } catch (_) {
+      if (mounted) setState(() => _appVersionLabel = AppConfig.appVersion);
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (!PlatformCapabilities.supportsAppUpdates) return;
+    final updateProvider = context.read<AppUpdateProvider>();
+    if (updateProvider.isBusy || updateProvider.showsProgressUi) return;
+
+    try {
+      final update = await updateProvider.checkForUpdate(force: true);
+      if (!mounted) return;
+      if (update != null) {
+        await UpdateDialog.show(context, update);
+      } else if (updateProvider.phase != AppUpdatePhase.error) {
+        final localizations = AppLocalizations.of(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              localizations?.translate('You are on the latest version.') ??
+                  'You are on the latest version.',
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else if (updateProvider.errorMessage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.tr(
+                'Update failed: {error}',
+                {'error': updateProvider.errorMessage!},
+              ),
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr('Update failed: {error}', {'error': '$e'}),
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  String _updateStatusLabel(BuildContext context, AppUpdateProvider updates) {
+    switch (updates.phase) {
+      case AppUpdatePhase.checking:
+        return context.tr('Checking for updates...');
+      case AppUpdatePhase.downloading:
+        final pct = ((updates.progress ?? 0) * 100).round();
+        return context.tr('Downloading… {percent}%', {
+          'percent': '$pct',
+        });
+      case AppUpdatePhase.awaitingInstallPermission:
+        return context.tr(
+          'Allow installing apps from SysteMIC, then return to finish the update.',
+        );
+      case AppUpdatePhase.installing:
+        return context.tr('Installing update...');
+      case AppUpdatePhase.completed:
+        return context.tr(
+          'Installer opened. Follow the prompts to finish.',
+        );
+      case AppUpdatePhase.error:
+        return context.tr(
+          'Update failed: {error}',
+          {'error': updates.errorMessage ?? ''},
+        );
+      case AppUpdatePhase.idle:
+        return context.tr('Download the latest release');
+    }
+  }
+
+  Widget _buildUpdateProgressSection(BuildContext context) {
+    return Consumer<AppUpdateProvider>(
+      builder: (context, updates, _) {
+        if (!updates.showsProgressUi &&
+            updates.phase != AppUpdatePhase.error &&
+            updates.phase != AppUpdatePhase.completed) {
+          return const SizedBox.shrink();
+        }
+
+        final isError = updates.phase == AppUpdatePhase.error;
+        final needsPermission =
+            updates.phase == AppUpdatePhase.awaitingInstallPermission;
+
+        return Padding(
+          padding: EdgeInsets.only(
+            left: AppDimensions.paddingMD,
+            right: AppDimensions.paddingMD,
+            bottom: AppDimensions.spacingSM,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (updates.phase == AppUpdatePhase.downloading)
+                LinearProgressIndicator(
+                  value: updates.progress,
+                  minHeight: 4,
+                  color: AppColors.primary,
+                )
+              else if (updates.showsProgressUi)
+                const LinearProgressIndicator(
+                  minHeight: 4,
+                  color: AppColors.primary,
+                ),
+              const SizedBox(height: 8),
+              Text(
+                _updateStatusLabel(context, updates),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isError ? AppColors.error : null,
+                ),
+              ),
+              if (needsPermission) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => updates.openInstallPermissionSettings(),
+                    icon: const Icon(Icons.settings, size: 18),
+                    label: Text(context.tr('Open install settings')),
+                  ),
+                ),
+              ],
+              if (isError || updates.phase == AppUpdatePhase.completed) ...[
+                const SizedBox(height: 4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: updates.clearError,
+                    child: Text(context.tr('Dismiss')),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _checkAdminStatus() async {
@@ -481,9 +641,9 @@ class _SettingsPageState extends State<SettingsPage> {
                   leading: Icon(Icons.language),
                   title: Text(localizations?.language ?? 'Language'),
                   subtitle: Text(
-                    settingsProvider.locale?.languageCode == 'fr'
+                    settingsProvider.locale.languageCode == 'fr'
                         ? 'Français'
-                        : settingsProvider.locale?.languageCode == 'es'
+                        : settingsProvider.locale.languageCode == 'es'
                         ? 'Español'
                         : 'English',
                   ),
@@ -753,10 +913,41 @@ class _SettingsPageState extends State<SettingsPage> {
               // App Info
               _buildSectionHeader(localizations?.about ?? 'About'),
               Card(
-                child: ListTile(
-                  leading: Icon(Icons.info),
-                  title: Text(localizations?.appVersion ?? 'App Version'),
-                  subtitle: Text('1.0.0'),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(Icons.info),
+                      title: Text(localizations?.appVersion ?? 'App Version'),
+                      subtitle: Text(_appVersionLabel),
+                    ),
+                    if (PlatformCapabilities.supportsAppUpdates) ...[
+                      Consumer<AppUpdateProvider>(
+                        builder: (context, updates, _) {
+                          final busy =
+                              updates.isBusy || updates.showsProgressUi;
+                          return ListTile(
+                            leading: busy
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.system_update),
+                            title: Text(context.tr('Check for updates')),
+                            subtitle: Text(
+                              busy
+                                  ? _updateStatusLabel(context, updates)
+                                  : context.tr('Download the latest release'),
+                            ),
+                            onTap: busy ? null : _checkForUpdates,
+                          );
+                        },
+                      ),
+                      _buildUpdateProgressSection(context),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -816,283 +1007,444 @@ class _SettingsPageState extends State<SettingsPage> {
     AppLocalizations? localizations,
   ) {
     final scope = DesktopShellScope.maybeOf(context);
-    final languageLabel = settingsProvider.locale?.languageCode == 'fr'
+    final languageLabel = settingsProvider.locale.languageCode == 'fr'
         ? 'Français'
-        : settingsProvider.locale?.languageCode == 'es'
+        : settingsProvider.locale.languageCode == 'es'
         ? 'Español'
         : 'English';
     final themeLabel = settingsProvider.themeMode == ThemeMode.light
-        ? (localizations?.light ?? 'Light')
+        ? context.tr('Light')
         : settingsProvider.themeMode == ThemeMode.dark
-        ? (localizations?.dark ?? 'Dark')
-        : (localizations?.systemDefault ?? 'System Default');
+        ? context.tr('Dark')
+        : context.tr('System Default');
+    final email =
+        SupabaseService.currentUser?.email ?? context.tr('Not logged in');
 
     return DesktopPageShell(
-      banner: DesktopHeroBanner(
-        title: localizations?.settings ?? 'Settings',
-        subtitle: context.tr('Manage preferences, data, and admin tools'),
-        icon: Icons.settings_outlined,
-        accent: AppColors.secondary,
-        trailing: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppDimensions.paddingMD,
-            vertical: AppDimensions.spacingSM,
-          ),
-          decoration: BoxDecoration(
-            color: context.mic.accentIconBackground(AppColors.secondary),
-            borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
-          ),
-          child: Text(
-            SupabaseService.currentUser?.email ?? context.tr('Account'),
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.mic.appBarForeground,
-                ),
-          ),
-        ),
+      maxWidth: 960,
+      padding: EdgeInsets.fromLTRB(
+        AppDimensions.paddingLG,
+        AppDimensions.paddingMD,
+        AppDimensions.paddingLG,
+        AppDimensions.paddingLG,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: AppDimensions.spacingSM,
-            runSpacing: AppDimensions.spacingSM,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              DesktopStatChip(
-                label: localizations?.language ?? 'Language',
-                value: languageLabel,
-                icon: Icons.translate,
-                color: AppColors.primary,
-              ),
-              DesktopStatChip(
-                label: localizations?.theme ?? 'Theme',
-                value: themeLabel,
-                icon: Icons.palette_outlined,
-                color: AppColors.accent,
-              ),
-              DesktopStatChip(
-                label: localizations?.notifications ?? 'Notifications',
-                value: settingsProvider.notificationsEnabled
-                    ? context.tr('On')
-                    : context.tr('Off'),
-                icon: Icons.notifications_outlined,
-                color: settingsProvider.notificationsEnabled
-                    ? AppColors.success
-                    : AppColors.secondary,
-              ),
-            ],
-          ),
-          SizedBox(height: AppDimensions.spacingLG),
-          DesktopFormColumns(
-            sections: [
-              DesktopSectionCard(
-                title: localizations?.languageAndRegion ?? 'Language & Region',
-                icon: Icons.language,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.translate),
-                    title: Text(localizations?.language ?? 'Language'),
-                    subtitle: Text(languageLabel),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _showLanguageDialog(settingsProvider.locale),
-                  ),
-                ],
-              ),
-              DesktopSectionCard(
-                title: localizations?.appearance ?? 'Appearance',
-                icon: Icons.brightness_6,
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.palette_outlined),
-                    title: Text(localizations?.theme ?? 'Theme'),
-                    subtitle: Text(themeLabel),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _showThemeDialog(settingsProvider.themeMode),
-                  ),
-                  const Divider(height: 1),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.notifications_outlined),
-                    title: Text(
-                      localizations?.enableNotifications ??
-                          'Enable Notifications',
-                    ),
-                    subtitle: Text(
-                      localizations?.receivePushNotifications ??
-                          context.tr('Receive push notifications'),
-                    ),
-                    value: settingsProvider.notificationsEnabled,
-                    onChanged: _toggleNotifications,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          SizedBox(height: AppDimensions.spacingLG),
-          DesktopSectionCard(
-            title: localizations?.dataManagement ?? 'Data Management',
-            icon: Icons.storage_outlined,
-            accent: AppColors.primary,
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final crossAxisCount = constraints.maxWidth >= 900 ? 2 : 1;
-                  final tiles = <Widget>[
-                    DesktopSettingsTile(
-                      icon: Icons.cake_outlined,
-                      title: localizations?.birthdayNotifications ??
-                          'Birthday Notifications',
-                      subtitle: localizations?.configureBirthdayNotifications ??
-                          context.tr('Configure birthday notification settings'),
-                      color: AppColors.accent,
-                      onTap: () {
-                        if (scope != null) {
-                          scope.pushDetail(
-                            RouteNames.birthdayNotificationsSettings,
-                            '',
-                          );
-                        }
-                      },
-                    ),
-                    DesktopSettingsTile(
-                      icon: Icons.upload_file,
-                      title: localizations?.exportAllData ?? 'Export All Data',
-                      subtitle: localizations?.exportAllDataSubtitle ??
-                          context.tr('Export all data to JSON file'),
-                      color: AppColors.primary,
-                      onTap: _exportAllData,
-                    ),
-                    DesktopSettingsTile(
-                      icon: Icons.file_download_outlined,
-                      title: localizations?.importData ?? 'Import Data',
-                      subtitle: localizations?.importDataSubtitle ??
-                          context.tr('Import data from JSON file'),
-                      color: AppColors.primary,
-                      onTap: _importData,
-                    ),
-                    DesktopSettingsTile(
-                      icon: Icons.people_outline,
-                      title: localizations?.exportMembers ?? 'Export Members',
-                      subtitle: localizations?.exportMembersSubtitle ??
-                          context.tr('Export members to CSV'),
-                      color: AppColors.primary,
-                      onTap: _exportMembers,
-                    ),
-                    DesktopSettingsTile(
-                      icon: Icons.sync,
-                      title: localizations?.syncUsersMembers ??
-                          'Sync Users & Members',
-                      subtitle: localizations?.syncUsersMembers ??
-                          context.tr(
-                            'Create members for all users and users for all leaders',
-                          ),
-                      color: AppColors.secondary,
-                      onTap: _syncUsersAndMembers,
-                    ),
-                    DesktopSettingsTile(
-                      icon: Icons.assessment_outlined,
-                      title: localizations?.generateAllUsersReport ??
-                          'Generate All Users Report',
-                      subtitle: localizations?.generateReportComprehensive ??
-                          context.tr(
-                            'Generate comprehensive report for all users',
-                          ),
-                      color: AppColors.info,
-                      onTap: _generateAllUsersReport,
-                    ),
-                    if (_isAdmin)
-                      DesktopSettingsTile(
-                        icon: Icons.admin_panel_settings_outlined,
-                        title: localizations?.leaderAccessManagement ??
-                            'Leader Access Management',
-                        subtitle: localizations?.defineFeatureAccess ??
-                            context.tr('Define feature access for each leader'),
-                        color: AppColors.warning,
-                        onTap: () {
-                          scope?.pushDetail(RouteNames.leaderAccess, '');
-                        },
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      localizations?.settings ?? context.tr('Settings'),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
                       ),
-                    if (_isAdmin)
-                      DesktopSettingsTile(
-                        icon: Icons.person_add_alt_1_outlined,
-                        title: context.tr('Member Accounts'),
-                        subtitle: context.tr(
-                          'Create login accounts for members and manage their access',
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      context.tr('Choose how SysteMIC looks and speaks.'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.mic.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+                  border: Border.all(
+                    color: context.mic.border.withValues(alpha: 0.65),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Text(
+                        email,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        color: AppColors.success,
-                        onTap: () {
-                          scope?.pushDetail(RouteNames.memberAccounts, '');
-                        },
                       ),
-                  ];
-
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: AppDimensions.spacingMD,
-                      crossAxisSpacing: AppDimensions.spacingMD,
-                      childAspectRatio: crossAxisCount == 2 ? 2.8 : 2.4,
                     ),
-                    itemCount: tiles.length,
-                    itemBuilder: (context, index) => tiles[index],
-                  );
-                },
+                  ],
+                ),
               ),
             ],
           ),
           SizedBox(height: AppDimensions.spacingMD),
-          DesktopFormColumns(
-            sections: [
-              DesktopSectionCard(
-                title: localizations?.account ?? 'Account',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final useTwoColumns = constraints.maxWidth >= 760;
+              final preferences = _buildDesktopCompactSection(
+                context,
+                title: context.tr('Preferences'),
+                icon: Icons.tune_outlined,
+                accent: AppColors.primary,
+                children: [
+                  _desktopSettingTile(
+                    context,
+                    icon: Icons.translate,
+                    color: AppColors.primary,
+                    title: context.tr('Language'),
+                    subtitle: languageLabel,
+                    onTap: () =>
+                        _showLanguageDialog(settingsProvider.locale),
+                  ),
+                  _desktopSettingTile(
+                    context,
+                    icon: Icons.palette_outlined,
+                    color: AppColors.accent,
+                    title: context.tr('Theme'),
+                    subtitle: themeLabel,
+                    onTap: () =>
+                        _showThemeDialog(settingsProvider.themeMode),
+                  ),
+                  _desktopSettingTile(
+                    context,
+                    icon: Icons.notifications_outlined,
+                    color: settingsProvider.notificationsEnabled
+                        ? AppColors.success
+                        : AppColors.secondary,
+                    title: localizations?.enableNotifications ??
+                        context.tr('Enable Notifications'),
+                    subtitle: settingsProvider.notificationsEnabled
+                        ? context.tr('On')
+                        : context.tr('Off'),
+                    onTap: () => _toggleNotifications(
+                      !settingsProvider.notificationsEnabled,
+                    ),
+                    trailing: Switch.adaptive(
+                      value: settingsProvider.notificationsEnabled,
+                      onChanged: _toggleNotifications,
+                    ),
+                  ),
+                ],
+              );
+              final account = _buildDesktopCompactSection(
+                context,
+                title: context.tr('Account'),
                 icon: Icons.person_outline,
-                accent: AppColors.warning,
+                accent: AppColors.error,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.email_outlined),
-                    title: Text(localizations?.currentUser ?? 'Current User'),
-                    subtitle: Text(
-                      SupabaseService.currentUser?.email ??
-                          (localizations?.notLoggedIn ?? 'Not logged in'),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.logout, color: AppColors.error),
-                    title: Text(
-                      localizations?.logout ?? 'Logout',
-                      style: TextStyle(color: AppColors.error),
-                    ),
-                    subtitle: Text(
-                      localizations?.signOutAccount ??
-                          context.tr('Sign out of your account'),
-                    ),
+                  _desktopSettingTile(
+                    context,
+                    icon: Icons.logout,
+                    color: AppColors.error,
+                    title: localizations?.logout ?? context.tr('Logout'),
+                    subtitle: context.tr('Sign out of your account'),
                     onTap: _handleLogout,
+                    titleColor: AppColors.error,
                   ),
+                  _desktopSettingTile(
+                    context,
+                    icon: Icons.info_outline,
+                    color: context.mic.textSecondary,
+                    title: context.tr('App Version'),
+                    subtitle: _appVersionLabel,
+                  ),
+                  if (PlatformCapabilities.supportsAppUpdates)
+                    Consumer<AppUpdateProvider>(
+                      builder: (context, updates, _) {
+                        final busy =
+                            updates.isBusy || updates.showsProgressUi;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _desktopSettingTile(
+                              context,
+                              icon: Icons.system_update,
+                              color: AppColors.info,
+                              title: context.tr('Check for updates'),
+                              subtitle: busy
+                                  ? _updateStatusLabel(context, updates)
+                                  : context.tr('Download the latest release'),
+                              onTap: busy ? null : _checkForUpdates,
+                              trailing: busy
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            if (updates.showsProgressUi ||
+                                updates.phase == AppUpdatePhase.error ||
+                                updates.phase == AppUpdatePhase.completed)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (updates.phase ==
+                                        AppUpdatePhase.downloading)
+                                      LinearProgressIndicator(
+                                        value: updates.progress,
+                                        minHeight: 3,
+                                        color: AppColors.primary,
+                                      )
+                                    else if (updates.showsProgressUi)
+                                      const LinearProgressIndicator(
+                                        minHeight: 3,
+                                        color: AppColors.primary,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                 ],
-              ),
-              DesktopSectionCard(
-                title: localizations?.about ?? 'About',
-                icon: Icons.info_outline,
-                accent: AppColors.info,
+              );
+
+              if (!useTwoColumns) {
+                return Column(
+                  children: [
+                    preferences,
+                    SizedBox(height: AppDimensions.spacingMD),
+                    account,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.verified_outlined),
-                    title: Text(localizations?.appVersion ?? 'App Version'),
-                    subtitle: const Text('1.0.0'),
-                  ),
+                  Expanded(child: preferences),
+                  SizedBox(width: AppDimensions.spacingMD),
+                  Expanded(child: account),
                 ],
+              );
+            },
+          ),
+          SizedBox(height: AppDimensions.spacingMD),
+          _buildDesktopCompactSection(
+            context,
+            title: context.tr('Workspace tools'),
+            icon: Icons.handyman_outlined,
+            accent: AppColors.info,
+            children: [
+              _desktopSettingTile(
+                context,
+                icon: Icons.cake_outlined,
+                color: AppColors.accent,
+                title: localizations?.birthdayNotifications ??
+                    context.tr('Birthday Notifications'),
+                subtitle:
+                    context.tr('Configure birthday notification settings'),
+                onTap: () {
+                  scope?.pushDetail(
+                    RouteNames.birthdayNotificationsSettings,
+                    '',
+                  );
+                },
+              ),
+              _desktopSettingTile(
+                context,
+                icon: Icons.upload_file_outlined,
+                color: AppColors.primary,
+                title: localizations?.exportAllData ??
+                    context.tr('Export All Data'),
+                subtitle: context.tr('Export all data to JSON file'),
+                onTap: _exportAllData,
+              ),
+              _desktopSettingTile(
+                context,
+                icon: Icons.file_download_outlined,
+                color: AppColors.primary,
+                title: localizations?.importData ?? context.tr('Import Data'),
+                subtitle: context.tr('Import data from JSON file'),
+                onTap: _importData,
+              ),
+              _desktopSettingTile(
+                context,
+                icon: Icons.people_outline,
+                color: AppColors.primary,
+                title: localizations?.exportMembers ??
+                    context.tr('Export Members'),
+                subtitle: context.tr('Export members to CSV'),
+                onTap: _exportMembers,
+              ),
+              _desktopSettingTile(
+                context,
+                icon: Icons.sync,
+                color: AppColors.secondary,
+                title: localizations?.syncUsersMembers ??
+                    context.tr('Sync Users & Members'),
+                subtitle: context.tr(
+                  'Create members for all users and users for all leaders',
+                ),
+                onTap: _syncUsersAndMembers,
+              ),
+              _desktopSettingTile(
+                context,
+                icon: Icons.assessment_outlined,
+                color: AppColors.info,
+                title: localizations?.generateAllUsersReport ??
+                    context.tr('Generate All Users Report'),
+                subtitle: context.tr(
+                  'Generate comprehensive report for all users',
+                ),
+                onTap: _generateAllUsersReport,
               ),
             ],
           ),
+          if (_isAdmin) ...[
+            SizedBox(height: AppDimensions.spacingMD),
+            _buildDesktopCompactSection(
+              context,
+              title: context.tr('Admin'),
+              icon: Icons.admin_panel_settings_outlined,
+              accent: AppColors.warning,
+              children: [
+                _desktopSettingTile(
+                  context,
+                  icon: Icons.security_outlined,
+                  color: AppColors.warning,
+                  title: localizations?.leaderAccessManagement ??
+                      context.tr('Leader Access Management'),
+                  subtitle:
+                      context.tr('Define feature access for each leader'),
+                  onTap: () =>
+                      scope?.pushDetail(RouteNames.leaderAccess, ''),
+                ),
+                _desktopSettingTile(
+                  context,
+                  icon: Icons.person_add_alt_1_outlined,
+                  color: AppColors.success,
+                  title: context.tr('Member Accounts'),
+                  subtitle: context.tr(
+                    'Create login accounts for members and manage their access',
+                  ),
+                  onTap: () =>
+                      scope?.pushDetail(RouteNames.memberAccounts, ''),
+                ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildDesktopCompactSection(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required Color accent,
+    required List<Widget> children,
+  }) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusLG),
+        side: BorderSide(color: context.mic.border.withValues(alpha: 0.7)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: accent),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.mic.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopSettingTile(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+    Widget? trailing,
+    Color? titleColor,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppDimensions.radiusMD),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: titleColor,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: context.mic.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            trailing ??
+                (onTap != null
+                    ? Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: context.mic.textTertiary,
+                      )
+                    : const SizedBox.shrink()),
+          ],
+        ),
       ),
     );
   }
